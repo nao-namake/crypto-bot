@@ -1,38 +1,20 @@
-"""
-統合ログシステム - Phase 49完了
-
-JSTタイムゾーン・ファイル・コンソール・Discord通知の統合ログシステム。
-構造化ログ・JSONフォーマット・カラー出力・重要度ベース通知を実現。
-Phase 38.4: バックテストモード自動判定ロギング（conditional_log）・戦略重複コード削減。
-Phase 35: 環境変数ログレベル制御・バックテストモード最適化（INFO完全スキップ・Discord通知スキップ）。
-Phase 22: Discord通知マネージャー統合。
-"""
+"""統合ログシステム - JSTタイムゾーン・構造化ログ・カラー出力."""
 
 import json
 import logging
 import logging.handlers
+import os
 import sys
 import traceback
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .config import get_file_config
-from .exceptions import CryptoBotError, ErrorSeverity, get_error_severity
+from .exceptions import CryptoBotError
 
 # タイムゾーン設定（日本の取引システム用）
 JST = timezone(timedelta(hours=9))  # 日本標準時
-
-
-class LogLevel(Enum):
-    """ログレベル定義."""
-
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
-    CRITICAL = "CRITICAL"
 
 
 class JSONFormatter(logging.Formatter):
@@ -113,19 +95,13 @@ class ColorFormatter(logging.Formatter):
 
 
 class CryptoBotLogger:
-    """
-    暗号資産取引Bot専用ログシステム
-
-    ファイル出力・コンソール出力・Discord通知を統合管理.
-    """
+    """暗号資産取引Bot専用ログシステム（ファイル出力・コンソール出力）."""
 
     def __init__(self, name: str = "crypto_bot"):
         self.name = name
         self.logger = logging.getLogger(name)
 
         # Phase 35: 環境変数からログレベルを取得（バックテスト最適化）
-        import os
-
         env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
         initial_level = getattr(logging, env_log_level, logging.DEBUG)
         self.logger.setLevel(initial_level)
@@ -135,9 +111,6 @@ class CryptoBotLogger:
             self.logger.handlers.clear()
 
         self._setup_handlers()
-
-        # Discord通知マネージャー（Phase 22統合）
-        self._discord_manager = None
 
     def _setup_handlers(self) -> None:
         """ログハンドラーのセットアップ（循環参照回避版）."""
@@ -169,8 +142,6 @@ class CryptoBotLogger:
             logging_config = DefaultLoggingConfig()
 
         # Phase 35: ログレベル設定（環境変数を最優先）
-        import os
-
         env_log_level = os.getenv("LOG_LEVEL")
         if env_log_level:
             log_level = getattr(logging, env_log_level.upper(), logging.INFO)
@@ -189,8 +160,6 @@ class CryptoBotLogger:
         """コンソールハンドラーのセットアップ（Phase 35: 環境変数対応）."""
         console_handler = logging.StreamHandler(sys.stdout)
         # Phase 35: 環境変数でハンドラーレベルも制御
-        import os
-
         env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
         handler_level = getattr(logging, env_log_level, logging.DEBUG)
         console_handler.setLevel(handler_level)
@@ -221,29 +190,11 @@ class CryptoBotLogger:
         )
 
         # Phase 35: 環境変数でハンドラーレベルも制御（バックテスト最適化）
-        import os
-
         env_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
         handler_level = getattr(logging, env_log_level, logging.DEBUG)
         file_handler.setLevel(handler_level)
         file_handler.setFormatter(JSONFormatter())
         self.logger.addHandler(file_handler)
-
-    def set_discord_manager(self, manager: Any) -> None:
-        """Discord通知マネージャーを設定（Phase 22統合）."""
-        self._discord_manager = manager
-
-    # 旧インターフェース互換性維持
-    def set_discord_notifier(self, notifier: Any) -> None:
-        """Discord通知システムを設定（レガシー互換性）."""
-        # 新しいDiscordManagerを使用
-        if hasattr(notifier, "send_simple_message"):
-            self._discord_manager = notifier
-        else:
-            # 旧システムの場合は警告
-            self.logger.warning(
-                "⚠️ 旧Discord通知システムが渡されました - 新システムに移行してください"
-            )
 
     def _log_with_context(
         self,
@@ -251,12 +202,9 @@ class CryptoBotLogger:
         message: str,
         extra_data: Optional[Dict[str, Any]] = None,
         error: Optional[Exception] = None,
-        discord_notify: bool = False,
     ) -> None:
         """コンテキスト付きログ出力."""
         # Phase 35.7: バックテストモード時のログフィルタ（高速化）
-        import os
-
         is_backtest = os.environ.get("BACKTEST_MODE") == "true"
 
         # バックテストモード時は不要なログをスキップ
@@ -278,11 +226,6 @@ class CryptoBotLogger:
         else:
             self.logger.log(level, message, extra=extra)
 
-        # Phase 51.6: Discord通知完全停止（週間サマリーのみ）
-        # 旧コード: send_error_notification()は存在しないメソッドだったため削除
-        # features.yamlでcritical/warning/trade全てfalse設定済み
-        pass
-
     def debug(self, message: str, extra_data: Optional[Dict[str, Any]] = None) -> None:
         """デバッグログ."""
         self._log_with_context(logging.DEBUG, message, extra_data)
@@ -291,35 +234,26 @@ class CryptoBotLogger:
         self,
         message: str,
         extra_data: Optional[Dict[str, Any]] = None,
-        discord_notify: bool = False,
     ) -> None:
         """情報ログ."""
-        self._log_with_context(logging.INFO, message, extra_data, discord_notify=discord_notify)
+        self._log_with_context(logging.INFO, message, extra_data)
 
     def warning(
         self,
         message: str,
         extra_data: Optional[Dict[str, Any]] = None,
-        discord_notify: bool = True,
     ) -> None:
         """警告ログ."""
-        self._log_with_context(logging.WARNING, message, extra_data, discord_notify=discord_notify)
+        self._log_with_context(logging.WARNING, message, extra_data)
 
     def error(
         self,
         message: str,
         error: Optional[Exception] = None,
         extra_data: Optional[Dict[str, Any]] = None,
-        discord_notify: bool = True,
     ) -> None:
         """エラーログ."""
-        self._log_with_context(
-            logging.ERROR,
-            message,
-            extra_data,
-            error,
-            discord_notify=discord_notify,
-        )
+        self._log_with_context(logging.ERROR, message, extra_data, error)
 
     def critical(
         self,
@@ -327,8 +261,8 @@ class CryptoBotLogger:
         error: Optional[Exception] = None,
         extra_data: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """クリティカルログ（必ずDiscord通知）."""
-        self._log_with_context(logging.CRITICAL, message, extra_data, error, discord_notify=True)
+        """クリティカルログ."""
+        self._log_with_context(logging.CRITICAL, message, extra_data, error)
 
     def conditional_log(
         self,
@@ -336,44 +270,11 @@ class CryptoBotLogger:
         level: str = "info",
         backtest_level: str = "debug",
         extra_data: Optional[Dict[str, Any]] = None,
-        discord_notify: bool = False,
     ) -> None:
-        """
-        バックテストモード自動判定ログ（Phase 38.4新機能）
-
-        バックテストモードを自動判定し、適切なログレベルで出力する。
-        戦略ファイルでの環境変数チェック重複コードを削減。
-
-        Args:
-            message: ログメッセージ
-            level: 通常モード時のログレベル（"debug", "info", "warning", "error"）
-            backtest_level: バックテストモード時のログレベル
-            extra_data: 追加データ
-            discord_notify: Discord通知フラグ
-
-        Example:
-            # Before (重複コード):
-            >>> import os
-            >>> if os.environ.get("BACKTEST_MODE") == "true":
-            >>>     self.logger.debug(f"[Strategy] シグナル生成エラー: {e}")
-            >>> else:
-            >>>     self.logger.error(f"[Strategy] シグナル生成エラー: {e}")
-
-            # After (Phase 38.4):
-            >>> self.logger.conditional_log(
-            >>>     f"[Strategy] シグナル生成エラー: {e}",
-            >>>     level="error",
-            >>>     backtest_level="debug"
-            >>> )
-        """
-        import os
-
+        """バックテストモード自動判定ログ."""
         is_backtest = os.environ.get("BACKTEST_MODE") == "true"
-
-        # バックテストモード判定
         effective_level = backtest_level if is_backtest else level
 
-        # ログレベルマッピング
         level_map = {
             "debug": logging.DEBUG,
             "info": logging.INFO,
@@ -384,103 +285,16 @@ class CryptoBotLogger:
 
         log_level = level_map.get(effective_level.lower(), logging.INFO)
 
-        # ログ出力（_log_with_contextを使用してDiscord通知も統合）
         if log_level == logging.CRITICAL:
             self.critical(message, extra_data=extra_data)
         elif log_level == logging.ERROR:
-            self.error(message, extra_data=extra_data, discord_notify=discord_notify)
+            self.error(message, extra_data=extra_data)
         elif log_level == logging.WARNING:
-            self.warning(message, extra_data=extra_data, discord_notify=discord_notify)
+            self.warning(message, extra_data=extra_data)
         elif log_level == logging.INFO:
-            self.info(message, extra_data=extra_data, discord_notify=discord_notify)
+            self.info(message, extra_data=extra_data)
         else:  # DEBUG
             self.debug(message, extra_data=extra_data)
-
-    def log_trade(
-        self,
-        action: str,
-        symbol: str,
-        amount: float,
-        price: float,
-        order_id: Optional[str] = None,
-        success: bool = True,
-    ):
-        """取引ログ（専用メソッド）."""
-        trade_data = {
-            "action": action,
-            "symbol": symbol,
-            "amount": amount,
-            "price": price,
-            "order_id": order_id,
-            "success": success,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-
-        if success:
-            self.info(
-                f"取引実行: {action} {symbol} {amount}@{price}",
-                extra_data=trade_data,
-                discord_notify=True,
-            )
-        else:
-            self.error(
-                f"取引失敗: {action} {symbol} {amount}@{price}",
-                extra_data=trade_data,
-            )
-
-    def log_signal(
-        self,
-        strategy: str,
-        signal: str,
-        confidence: float,
-        symbol: str = None,
-    ):
-        """シグナルログ（専用メソッド）."""
-        # symbolが未指定の場合は設定から取得
-        if symbol is None:
-            try:
-                from .config import get_config
-
-                config = get_config()
-                symbol = config.exchange.symbol
-            except Exception:
-                symbol = "BTC/JPY"  # フォールバック
-
-        signal_data = {
-            "strategy": strategy,
-            "signal": signal,
-            "confidence": confidence,
-            "symbol": symbol,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-
-        self.info(
-            f"シグナル生成: {strategy} {signal} (confidence: {confidence:.3f})",
-            extra_data=signal_data,
-        )
-
-    def log_performance(
-        self,
-        total_pnl: float,
-        win_rate: float,
-        trade_count: int,
-        max_drawdown: float,
-    ):
-        """パフォーマンスログ（専用メソッド）."""
-        perf_data = {
-            "total_pnl": total_pnl,
-            "win_rate": win_rate,
-            "trade_count": trade_count,
-            "max_drawdown": max_drawdown,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-
-        self.info(
-            f"パフォーマンス: PnL={total_pnl:.2f} 勝率={win_rate:.1%} "
-            f"取引数={trade_count} DD={max_drawdown:.1%}",
-            extra_data=perf_data,
-            discord_notify=True,
-        )
 
 
 # グローバルロガーインスタンス

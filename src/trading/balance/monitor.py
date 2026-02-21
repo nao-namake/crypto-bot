@@ -347,7 +347,6 @@ class BalanceMonitor:
         self,
         mode: str,
         bitbank_client: Optional[BitbankClient] = None,
-        discord_notifier: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         証拠金残高チェック - 不足時はgraceful degradation（Phase 36/37）
@@ -358,7 +357,6 @@ class BalanceMonitor:
         Args:
             mode: 実行モード (live/paper/backtest)
             bitbank_client: Bitbank APIクライアント
-            discord_notifier: Discord通知マネージャー（未使用・互換性維持）
 
         Returns:
             Dict: {

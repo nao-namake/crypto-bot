@@ -218,14 +218,6 @@ class TestMarketRegimeClassifier:
         assert isinstance(bb_width, float)
         assert bb_width >= 0.0
 
-    def test_calc_donchian_width(self, classifier, base_df):
-        """Donchian幅計算が正しいことを確認"""
-        df = base_df.copy()
-
-        donchian_width = classifier._calc_donchian_width(df)
-        assert isinstance(donchian_width, float)
-        assert donchian_width >= 0.0
-
     def test_calc_price_range(self, classifier, base_df):
         """価格変動率計算が正しいことを確認"""
         df = base_df.copy()
@@ -282,31 +274,6 @@ class TestMarketRegimeClassifier:
 
         regime = classifier.classify(df)
         assert regime == RegimeType.NORMAL_RANGE  # デフォルト
-
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # ユーティリティメソッドテスト
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    @patch(
-        "src.core.services.market_regime_classifier.get_threshold", side_effect=mock_get_threshold
-    )
-    def test_get_regime_stats(self, mock_threshold, classifier, base_df):
-        """get_regime_stats()が詳細統計を返すことを確認"""
-        df = base_df.copy()
-
-        stats = classifier.get_regime_stats(df)
-
-        assert "regime" in stats
-        assert "bb_width" in stats
-        assert "donchian_width" in stats
-        assert "price_range" in stats
-        assert "adx" in stats
-        assert "ema_slope" in stats
-        assert "atr_ratio" in stats
-
-        assert isinstance(stats["regime"], RegimeType)
-        assert isinstance(stats["bb_width"], float)
-        assert isinstance(stats["adx"], float)
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # 判定メソッドテスト

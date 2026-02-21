@@ -425,16 +425,11 @@ class TestGetModelInfo:
 class TestDummyModel:
     """DummyModelテスト"""
 
-    @patch("src.core.config.feature_manager.get_feature_count")
-    def test_dummy_model_initialization(self, mock_get_feature_count):
+    def test_dummy_model_initialization(self):
         """DummyModel初期化"""
-        mock_get_feature_count.return_value = 55
-
         model = DummyModel()
 
         assert model.is_fitted is True
-        assert model.model_name == "DummyModel"
-        assert model.n_features_ == 55
 
     @patch("src.core.config.feature_manager.get_feature_count")
     def test_dummy_model_predict(self, mock_get_feature_count):

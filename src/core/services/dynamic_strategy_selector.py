@@ -1,10 +1,8 @@
 """
-動的戦略選択器 - Phase 51.3
+動的戦略選択器
 
 市場レジームに応じて戦略の重みを動的に選択するシステム。
 MarketRegimeClassifierの分類結果に基づき、最適な戦略重みを返却する。
-
-Phase 51.3: Dynamic Strategy Selection実装
 """
 
 from typing import Dict

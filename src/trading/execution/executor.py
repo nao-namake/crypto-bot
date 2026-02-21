@@ -19,7 +19,6 @@ from ...backtest.reporter import TradeTracker
 from ...core.config import get_threshold
 from ...core.exceptions import CryptoBotError
 from ...core.logger import get_logger
-from ...core.reporting.discord_notifier import DiscordManager
 from ...data.bitbank_client import BitbankClient
 from ..core import ExecutionMode, ExecutionResult, OrderStatus, TradeEvaluation
 from .tp_sl_config import TPSLConfig
@@ -49,8 +48,6 @@ class ExecutionService:
         self.executed_trades = 0
         self.session_pnl = 0.0
         self.current_balance = 0.0
-        self.trade_history = []
-
         # Phase 47: 取引履歴記録システム
         try:
             self.trade_recorder = TradeHistoryRecorder()
@@ -74,9 +71,6 @@ class ExecutionService:
         # Phase 56.3: バックテスト時刻管理（バックテスト時にシミュレーション時刻を使用）
         self.current_time: Optional[datetime] = None
 
-        # Phase 30: 指値注文タイムアウト管理
-        self.pending_limit_orders: List[Dict[str, Any]] = []
-
         # Phase 64: _pending_verifications, _last_tp_sl_check_time, _last_orphan_scan_time
         # はTPSLManager / PositionRestorerに移動済み
 
@@ -89,15 +83,6 @@ class ExecutionService:
             self.virtual_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
         else:
             self.virtual_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
-
-        # Phase 37: Discord通知初期化（ライブモードのみ）
-        self.discord_notifier = None
-        if self.mode == "live":
-            try:
-                self.discord_notifier = DiscordManager()
-                self.logger.info("✅ Discord通知システム初期化完了（残高アラート有効）")
-            except Exception as e:
-                self.logger.warning(f"⚠️ Discord通知初期化失敗: {e} - 残高アラートは無効化されます")
 
         # 関連サービスの初期化（後で注入される）
         from .order_strategy import OrderStrategy
@@ -190,7 +175,6 @@ class ExecutionService:
                 balance_check = await self.balance_monitor.validate_margin_balance(
                     mode=self.mode,
                     bitbank_client=self.bitbank_client,
-                    discord_notifier=self.discord_notifier,
                 )
                 if not balance_check["sufficient"]:
                     self.logger.info(

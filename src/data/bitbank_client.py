@@ -84,7 +84,7 @@ class BitbankClient:
                     "apiKey": self.api_key,
                     "secret": self.api_secret,
                     "sandbox": False,  # 本番環境
-                    "rateLimit": 1000,  # API制限対応
+                    "rateLimit": 200,  # Phase 65: 1000→200ms（bitbank APIは秒間制限ベース・5回/秒に収まる）
                     "enableRateLimit": True,
                     "timeout": 30000,  # 30秒タイムアウト
                 }
@@ -884,7 +884,6 @@ class BitbankClient:
                     "price": price,
                     "execution_time": execution_time,
                 },
-                discord_notify=True,
             )
 
             return order

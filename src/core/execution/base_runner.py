@@ -112,8 +112,8 @@ class BaseRunner(ABC):
         """モード設定セットアップ（共通処理）"""
         try:
             # Phase 22 設定外部化・ハードコード排除
-            self.execution_interval = self.get_mode_interval()
-            self.logger.info(f"⚙️ {self.mode_name}モード実行間隔: {self.execution_interval}秒")
+            interval = self.get_mode_interval()
+            self.logger.info(f"⚙️ {self.mode_name}モード実行間隔: {interval}秒")
 
             return True
 

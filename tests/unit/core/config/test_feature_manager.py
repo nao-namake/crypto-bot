@@ -1,5 +1,5 @@
 """
-特徴量管理システムのテスト - Phase 62
+特徴量管理システムのテスト - Phase 64.13
 
 feature_manager.pyの全メソッドと便利関数をカバーするテスト。
 """
@@ -14,10 +14,7 @@ from src.core.config.feature_manager import (
     FeatureManager,
     get_feature_categories,
     get_feature_count,
-    get_feature_info,
     get_feature_names,
-    reload_feature_config,
-    validate_features,
 )
 
 
@@ -78,24 +75,6 @@ class TestFeatureManager:
         for cat in expected_categories:
             assert cat in categories
 
-    def test_get_feature_info_returns_dict(self):
-        """get_feature_infoが辞書を返すことを確認"""
-        info = self.manager.get_feature_info()
-        assert isinstance(info, dict)
-        assert "total_features" in info
-        assert "feature_names" in info
-        assert "feature_categories" in info
-        assert "config_source" in info
-        assert "config_exists" in info
-        assert "version" in info
-
-    def test_get_feature_info_values(self):
-        """get_feature_infoの値が正しいことを確認"""
-        info = self.manager.get_feature_info()
-        assert info["total_features"] == self.manager.get_feature_count()
-        assert info["feature_names"] == self.manager.get_feature_names()
-        assert info["feature_categories"] == self.manager.get_feature_categories()
-
     # === キャッシュ機能テスト ===
 
     def test_config_caching(self):
@@ -115,39 +94,6 @@ class TestFeatureManager:
 
         self.manager.clear_cache()
         assert self.manager._feature_config is None
-
-    # === バリデーションテスト ===
-
-    def test_validate_features_valid(self):
-        """正しい特徴量リストのバリデーションが成功することを確認"""
-        valid_features = self.manager.get_feature_names()
-        result = self.manager.validate_features(valid_features)
-        assert result is True
-
-    def test_validate_features_missing(self):
-        """不足特徴量がある場合のバリデーションが失敗することを確認"""
-        features = self.manager.get_feature_names()
-        # 一つ削除
-        missing_features = features[:-1]
-        result = self.manager.validate_features(missing_features)
-        assert result is False
-
-    def test_validate_features_extra(self):
-        """余分な特徴量がある場合（不足なし）のバリデーション"""
-        features = self.manager.get_feature_names()
-        # 余分な特徴量を追加（実際には不足があると失敗する）
-        extra_features = features + ["extra_feature"]
-        result = self.manager.validate_features(extra_features)
-        # 余分な特徴量があるが、期待数と一致しないのでFalse
-        assert result is False
-
-    def test_validate_features_count_mismatch(self):
-        """特徴量数が一致しない場合のバリデーションが失敗することを確認"""
-        features = self.manager.get_feature_names()
-        # 正しい特徴量だが重複を追加
-        duplicated = features + [features[0]]
-        result = self.manager.validate_features(duplicated)
-        assert result is False
 
     # === 特徴量レベル情報テスト ===
 
@@ -171,27 +117,6 @@ class TestFeatureManager:
         assert isinstance(counts, dict)
         assert "full" in counts
         assert isinstance(counts["full"], int)
-
-    # === 基本特徴量テスト ===
-
-    def test_get_basic_feature_names(self):
-        """get_basic_feature_namesが戦略シグナルを除外することを確認"""
-        basic_names = self.manager.get_basic_feature_names()
-        all_names = self.manager.get_feature_names()
-
-        # 基本特徴量は全特徴量より少ない
-        assert len(basic_names) <= len(all_names)
-
-        # 戦略シグナルが含まれていないことを確認
-        for name in basic_names:
-            assert not name.startswith("strategy_signal_")
-
-    def test_get_basic_feature_names_contains_expected(self):
-        """get_basic_feature_namesが期待される基本特徴量を含むことを確認"""
-        basic_names = self.manager.get_basic_feature_names()
-        expected = ["close", "volume", "rsi_14", "macd", "atr_14"]
-        for feature in expected:
-            assert feature in basic_names
 
 
 class TestFeatureManagerFallback:
@@ -260,19 +185,6 @@ class TestFeatureManagerFallback:
         assert "full" in level_info
         assert level_info["full"]["count"] == 20
         assert level_info["full"]["model_file"] == "ensemble_full.pkl"
-
-    def test_get_basic_feature_names_fallback(self):
-        """feature_categoriesがない場合のget_basic_feature_namesフォールバック"""
-        manager = FeatureManager()
-
-        # feature_categoriesがないconfig
-        mock_config = {"total_features": 15}
-        manager._feature_config = mock_config
-
-        # フォールバックは全特徴量を返す
-        basic_names = manager.get_basic_feature_names()
-        all_names = manager.get_feature_names()
-        assert basic_names == all_names
 
     def test_get_feature_categories_no_feature_categories(self):
         """feature_categoriesがない場合のget_feature_categoriesフォールバック"""
@@ -388,24 +300,6 @@ class TestConvenienceFunctions:
         categories = get_feature_categories()
         assert isinstance(categories, dict)
 
-    def test_validate_features_function(self):
-        """validate_features便利関数のテスト"""
-        valid_features = get_feature_names()
-        result = validate_features(valid_features)
-        assert result is True
-
-    def test_get_feature_info_function(self):
-        """get_feature_info便利関数のテスト"""
-        info = get_feature_info()
-        assert isinstance(info, dict)
-        assert "total_features" in info
-
-    def test_reload_feature_config_function(self):
-        """reload_feature_config便利関数のテスト"""
-        config = reload_feature_config()
-        assert isinstance(config, dict)
-        assert "total_features" in config or "feature_categories" in config
-
 
 class TestIntegration:
     """統合テスト"""
@@ -431,25 +325,6 @@ class TestIntegration:
             for feature in cat_features:
                 assert feature in names, f"{feature} in {cat_name} not in names"
 
-        # バリデーション
-        assert manager.validate_features(names) is True
-
         # キャッシュクリア
         manager.clear_cache()
         assert manager._feature_config is None
-
-    def test_reload_updates_cache(self):
-        """reload_feature_configがキャッシュを更新することを確認"""
-        # グローバルマネージャーを使用
-        from src.core.config.feature_manager import _feature_manager
-
-        # 初期読み込み
-        _feature_manager._load_feature_config()
-        original_config = _feature_manager._feature_config
-
-        # リロード
-        reload_feature_config()
-
-        # キャッシュが更新されたことを確認（新しいオブジェクト）
-        new_config = _feature_manager._feature_config
-        assert new_config is not None

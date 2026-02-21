@@ -112,7 +112,7 @@ class MLServiceAdapter:
         """モデル情報取得 - ローダーから情報を取得"""
         base_info = {
             "adapter_type": "MLServiceAdapter",
-            "adapter_version": "Phase22_Optimized",
+            "adapter_version": "Phase64",
         }
 
         # ローダーからモデル情報を取得

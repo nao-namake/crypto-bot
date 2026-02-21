@@ -1,22 +1,8 @@
 """
-取引サイクルマネージャー - Phase 51.3完了（最重要・1,100行）
+取引サイクルマネージャー
 
 orchestrator.pyから分離した取引サイクル実行機能。
 データ取得→特徴量生成→戦略評価→ML予測→リスク管理→注文実行のフロー全体を担当。
-
-Phase 51.3: Dynamic Strategy Selection実装（市場レジーム連動戦略重み最適化）
-Phase 49完了:
-- バックテスト完全改修統合（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker・matplotlib可視化）
-- 証拠金維持率80%遵守ロジック統合（critical: 100.0 → 80.0変更）
-- TP/SL設定完全同期（thresholds.yaml完全準拠・ハードコード値削除）
-
-Phase 49.16: TP/SL設定完全見直し
-Phase 42.3: ML Agreement Logic修正（strict matching）・Feature Warning抑制・証拠金チェックリトライ
-Phase 42.1-42.2: 統合TP/SL実装（注文数91.7%削減）・トレーリングストップ実装
-Phase 41.8.5: ML統合閾値最適化（min_ml_confidence: 0.45・ML統合率100%達成）
-Phase 41.8: Strategy-Aware ML実装（55特徴量・実戦略信号学習）
-Phase 35: バックテスト最適化（特徴量事前計算・ML予測キャッシュ）
-Phase 29.5: ML予測統合実装（戦略70% + ML30%・一致ボーナス/不一致ペナルティ）
 """
 
 from __future__ import annotations
@@ -1003,18 +989,14 @@ class TradingCycleManager:
             await self.orchestrator.system_recovery.recover_ml_service()
             return  # このサイクルはスキップ
         else:
-            # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
-            self.logger.error(
-                f"取引サイクル値エラー - ID: {cycle_id}, エラー: {e}",
-                discord_notify=False,
-            )
+            self.logger.error(f"取引サイクル値エラー - ID: {cycle_id}, エラー: {e}")
             self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
             return  # このサイクルはスキップ、次のサイクルへ
 
     async def _handle_model_error(self, e, cycle_id):
         """ModelLoadError処理"""
         # MLモデル読み込みエラー専用処理
-        self.logger.error(f"❌ MLモデルエラー - ID: {cycle_id}: {e}", discord_notify=False)
+        self.logger.error(f"❌ MLモデルエラー - ID: {cycle_id}: {e}")
         await self.orchestrator.system_recovery.recover_ml_service()
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         return  # このサイクルはスキップ、次のサイクルへ
@@ -1022,39 +1004,28 @@ class TradingCycleManager:
     async def _handle_connection_error(self, e, cycle_id):
         """ConnectionError/TimeoutError処理"""
         # 外部サービス接続エラー
-        self.logger.error(
-            f"外部サービス接続エラー - ID: {cycle_id}, エラー: {e}",
-            discord_notify=False,
-        )
+        self.logger.error(f"外部サービス接続エラー - ID: {cycle_id}, エラー: {e}")
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         return  # このサイクルはスキップ、次のサイクルへ
 
     async def _handle_attribute_error(self, e, cycle_id):
         """AttributeError/TypeError処理"""
         # オブジェクト・型エラー
-        self.logger.error(
-            f"オブジェクト・型エラー - ID: {cycle_id}, エラー: {e}",
-            discord_notify=False,
-        )
+        self.logger.error(f"オブジェクト・型エラー - ID: {cycle_id}, エラー: {e}")
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         return  # このサイクルはスキップ、次のサイクルへ
 
     async def _handle_system_error(self, e, cycle_id):
         """RuntimeError/SystemError処理"""
         # システムレベルエラー
-        self.logger.error(
-            f"システムレベルエラー - ID: {cycle_id}, エラー: {e}", discord_notify=False
-        )
+        self.logger.error(f"システムレベルエラー - ID: {cycle_id}, エラー: {e}")
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         return  # このサイクルはスキップ、次のサイクルへ
 
     async def _handle_unexpected_error(self, e, cycle_id):
         """予期しないエラー処理"""
         # 予期しないエラーは再送出
-        self.logger.critical(
-            f"❌ 予期しない取引サイクルエラー - ID: {cycle_id}: {e}",
-            discord_notify=False,
-        )
+        self.logger.critical(f"❌ 予期しない取引サイクルエラー - ID: {cycle_id}: {e}")
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         raise CryptoBotError(f"取引サイクルで予期しないエラー - ID: {cycle_id}: {e}")
 

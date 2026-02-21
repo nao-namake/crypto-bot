@@ -7,7 +7,7 @@ Application Service Layer として、高レベル統合制御のみを担当。
 Phase 49完了:
 - 高レベルフロー制御（データ取得→特徴量生成→戦略実行→ML予測→リスク評価→取引判断）
 - 依存性注入基盤（DataService・FeatureService・StrategyManager・ExecutionService等）
-- バックテストモード対応（ログレベル動的変更・Discord無効化・API呼び出しモック化）
+- バックテストモード対応（ログレベル動的変更・API呼び出しモック化）
 - エラーハンドリング階層化（DataFetchError・ModelPredictionError・TradingError等）
 
 設計原則:
@@ -153,27 +153,18 @@ class TradingOrchestrator:
             await self.health_checker.check_all_services()
 
             self._initialized = True
-            self.logger.info("🎉 TradingOrchestrator初期化確認完了", discord_notify=True)
+            self.logger.info("🎉 TradingOrchestrator初期化確認完了")
             return True
 
         except AttributeError as e:
-            self.logger.error(
-                f"❌ サービス初期化不完了: {e}",
-                discord_notify=True,
-            )
+            self.logger.error(f"❌ サービス初期化不完了: {e}")
             return False
         except (RuntimeError, SystemError) as e:
-            self.logger.error(
-                f"❌ システム初期化エラー: {e}",
-                discord_notify=True,
-            )
+            self.logger.error(f"❌ システム初期化エラー: {e}")
             return False
         except Exception as e:
             # 予期しないエラーは再送出
-            self.logger.critical(
-                f"❌ 予期しない初期化エラー: {e}",
-                discord_notify=True,
-            )
+            self.logger.critical(f"❌ 予期しない初期化エラー: {e}")
             raise CryptoBotError(f"TradingOrchestrator初期化で予期しないエラー: {e}")
 
     async def run(self) -> None:
@@ -203,15 +194,15 @@ class TradingOrchestrator:
             self.logger.info("ユーザーによる終了要求を受信")
         except (AttributeError, TypeError) as e:
             # 設定やサービスの初期化問題
-            self.logger.error(f"設定・初期化エラー: {e}", discord_notify=False)
+            self.logger.error(f"設定・初期化エラー: {e}")
             raise CryptoBotError(f"システム初期化エラー: {e}")
         except (ConnectionError, TimeoutError) as e:
             # 外部サービス接続問題
-            self.logger.error(f"外部サービス接続エラー: {e}", discord_notify=False)
+            self.logger.error(f"外部サービス接続エラー: {e}")
             raise CryptoBotError(f"外部接続エラー: {e}")
         except (RuntimeError, SystemError, MemoryError) as e:
             # システムリソース・実行時エラー
-            self.logger.error(f"システム実行エラー: {e}", discord_notify=False)
+            self.logger.error(f"システム実行エラー: {e}")
             raise CryptoBotError(f"システム実行エラー: {e}")
         except Exception as e:
             # 🚨 真に予期しないエラーのみ - 詳細調査のためcricitialログ
@@ -243,7 +234,6 @@ class TradingOrchestrator:
 
         Phase 35最適化:
         - ログレベル動的変更（INFO→WARNING: 99.9%削減）
-        - Discord通知無効化（ネットワーク通信削減）
         - API呼び出しモック化（エラー20003排除）
         - 進捗ログ間隔拡大（90%削減）
         実行時間: 6-8時間 → 5-10分（60-96倍高速化）
@@ -254,11 +244,9 @@ class TradingOrchestrator:
 
         # Phase 35: バックテスト最適化設定取得
         backtest_log_level = get_threshold("backtest.log_level", "WARNING")
-        discord_enabled = get_threshold("backtest.discord_enabled", False)
 
         # 元の設定を保存（復元用）
         original_log_level = self.logger.logger.level
-        original_discord_enabled = getattr(self.logger, "_discord_manager", None) is not None
 
         try:
             # Phase 35: ログレベルを動的変更（大量ログ出力を抑制）
@@ -273,13 +261,6 @@ class TradingOrchestrator:
                 f"📊 バックテストモード開始（Phase 35最適化: ログ={backtest_log_level}）"
             )
 
-            # Phase 35: Discord通知を一時的に無効化（ネットワーク通信削減）
-            discord_manager_backup = None
-            if not discord_enabled and hasattr(self.logger, "_discord_manager"):
-                discord_manager_backup = self.logger._discord_manager
-                self.logger._discord_manager = None
-                self.logger.info("🔇 Discord通知を一時的に無効化（バックテスト最適化）")
-
             # データサービスをバックテストモードに設定
             self.data_service.set_backtest_mode(True)
 
@@ -287,25 +268,25 @@ class TradingOrchestrator:
             success = await self.backtest_runner.run()
 
             if success:
-                self.logger.info("✅ オーケストレーターバックテスト制御完了", discord_notify=True)
+                self.logger.info("✅ オーケストレーターバックテスト制御完了")
             else:
-                self.logger.warning("⚠️ バックテスト実行で問題が発生しました", discord_notify=False)
+                self.logger.warning("⚠️ バックテスト実行で問題が発生しました")
 
         except (FileNotFoundError, OSError) as e:
             # データファイル・I/Oエラー
-            self.logger.error(f"❌ バックテストデータI/Oエラー: {e}", discord_notify=False)
+            self.logger.error(f"❌ バックテストデータI/Oエラー: {e}")
             raise DataProcessingError(f"バックテスト用データ読み込みエラー: {e}")
         except (ValueError, KeyError) as e:
             # データ形式・設定値エラー
-            self.logger.error(f"❌ バックテストデータ形式エラー: {e}", discord_notify=False)
+            self.logger.error(f"❌ バックテストデータ形式エラー: {e}")
             raise DataProcessingError(f"バックテストデータ処理エラー: {e}")
         except (ImportError, ModuleNotFoundError) as e:
             # モジュール・ライブラリエラー
-            self.logger.error(f"❌ バックテストモジュールエラー: {e}", discord_notify=False)
+            self.logger.error(f"❌ バックテストモジュールエラー: {e}")
             raise HealthCheckError(f"バックテスト依存モジュールエラー: {e}")
         except Exception as e:
             # その他の予期しないエラー
-            self.logger.error(f"❌ バックテスト予期しないエラー: {e}", discord_notify=True)
+            self.logger.error(f"❌ バックテスト予期しないエラー: {e}")
             raise
         finally:
             # Phase 35: ログレベルを元に戻す
@@ -315,10 +296,6 @@ class TradingOrchestrator:
                 handler.setLevel(original_log_level)
             # Phase 35: rootロガーも復元
             logging.getLogger().setLevel(original_log_level)
-
-            # Phase 35: Discord通知を元に戻す
-            if discord_manager_backup is not None:
-                self.logger._discord_manager = discord_manager_backup
 
             # バックテストモード解除・クリーンアップ
             self.data_service.set_backtest_mode(False)
@@ -343,7 +320,6 @@ async def create_trading_orchestrator(
     Returns:
         初期化済みTradingOrchestrator.
     """
-    from ...core.reporting.discord_notifier import DiscordManager
     from ...data.bitbank_client import BitbankClient
     from ...data.data_pipeline import DataPipeline
     from ...strategies.base.strategy_manager import StrategyManager
@@ -353,44 +329,6 @@ async def create_trading_orchestrator(
     logger.info("🏗️ TradingOrchestrator依存性組み立て開始")
 
     try:
-        # Discord通知システム初期化（ローカルファイル優先）
-        import os
-        from pathlib import Path
-
-        # ローカル設定優先で読み込み
-        webhook_path = Path("config/secrets/discord_webhook.txt")
-        if webhook_path.exists():
-            try:
-                webhook_url = webhook_path.read_text().strip()
-                logger.info(
-                    f"📁 Discord Webhook URLをローカルファイルから読み込み（{len(webhook_url)}文字）"
-                )
-            except Exception as e:
-                logger.error(f"⚠️ ローカルファイル読み込み失敗: {e}")
-                webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-                logger.info("🌐 環境変数からフォールバック")
-        else:
-            webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-            logger.info("🌐 Discord Webhook URLを環境変数から読み込み")
-
-        logger.info(f"🔍 Discord Webhook URL取得結果: 存在={webhook_url is not None}")
-        if webhook_url:
-            logger.info(f"🔗 Discord URL長: {len(webhook_url)} 文字")
-
-        discord_manager = DiscordManager(webhook_url=webhook_url)
-        logger.set_discord_manager(discord_manager)
-
-        # Discord接続テストの実行
-        if discord_manager.enabled:
-            logger.info("🧪 Discord接続テスト実行中...")
-            test_result = discord_manager.test_connection()
-            if test_result:
-                logger.info("✅ Discord接続テスト成功")
-            else:
-                logger.warning("⚠️ Discord接続テスト失敗 - 通知は無効化されています")
-        else:
-            logger.warning("⚠️ Discord通知は無効化されています - 環境変数を確認してください")
-
         # Phase 28-29最適化: データサービス
         bitbank_client = BitbankClient()
         data_service = DataPipeline(client=bitbank_client)
@@ -579,6 +517,3 @@ async def _get_actual_balance(config, logger) -> float:
         fallback_balance = _get_mode_balance(current_mode)
         logger.warning(f"💰 エラーのためmode_balances残高使用: {fallback_balance}円")
         return fallback_balance
-
-
-# 内部アダプタークラス（Protocol準拠）

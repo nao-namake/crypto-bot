@@ -1,17 +1,8 @@
 """
-ペーパートレードレポーター - Phase 49完了
+ペーパートレードレポーター
 
-orchestrator.pyから分離したペーパートレードレポート生成機能。
 ペーパートレードセッションの統計・レポート作成を担当。
-
-Phase 49完了:
-- セッションレポート生成（cycle数・取引統計・session_stats）
-- 取引履歴レポート生成（trade_history・時系列記録）
-- パフォーマンスレポート生成（勝率・損益・ドローダウン）
-- Markdown・JSON両形式出力
-- thresholds.yaml設定準拠（reporting.paper_trading_dir: logs/paper_trading_reports）
-
-Phase 28-29: ペーパートレードレポート専門化・Markdown/JSON生成
+Markdown・JSON両形式出力対応。
 """
 
 import json
@@ -135,7 +126,7 @@ class PaperTradingReporter(BaseReporter):
 - **実行結果**: ✅ SUCCESS
 
 ## 🎯 システム情報
-- **Phase**: 22（リファクタリング・責任分離対応）
+- **Phase**: 64
 - **レポーター**: PaperTradingReporter（分離済み）
 - **取引モード**: Paper Trading（仮想取引）
 - **実行環境**: TradingOrchestrator
@@ -189,7 +180,7 @@ class PaperTradingReporter(BaseReporter):
 - パフォーマンス改善の余地
 
 ---
-*このレポートは PaperTradingReporter により自動生成されました（Phase 22分離版）*
+*このレポートは PaperTradingReporter により自動生成されました*
 *生成時刻: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}*
 """
 
@@ -211,7 +202,7 @@ class PaperTradingReporter(BaseReporter):
             "timestamp": timestamp.isoformat(),
             "session_stats": session_stats,
             "system_info": {
-                "phase": "22",
+                "phase": "64",
                 "reporter": "PaperTradingReporter",
                 "separation_status": "completed",
             },
@@ -245,7 +236,7 @@ class PaperTradingReporter(BaseReporter):
 - **エラーメッセージ**: {error_message}
 
 ## 🎯 システム情報
-- **Phase**: 22（PaperTradingReporter分離版）
+- **Phase**: 64
 - **レポーター**: PaperTradingReporter
 - **エラー種別**: ペーパートレードセッションエラー
 
@@ -284,59 +275,3 @@ class PaperTradingReporter(BaseReporter):
         except Exception as e:
             self.logger.error(f"ペーパートレードエラーレポート保存失敗: {e}")
             raise
-
-    def format_discord_notification(
-        self, performance_stats: Dict[str, Any], session_duration_hours: int
-    ) -> Dict:
-        """
-        Discord通知用フォーマット
-
-        Args:
-            performance_stats: セッション統計
-            session_duration_hours: セッション継続時間（時間）
-
-        Returns:
-            Discord embed形式データ
-        """
-        color = 0x00FF00 if performance_stats["session_pnl"] > 0 else 0xFF0000
-
-        embed = {
-            "title": "📊 ペーパートレードセッション報告",
-            "description": "ペーパートレードセッションが完了しました（Phase 22分離版）",
-            "color": color,
-            "timestamp": datetime.now().isoformat(),
-            "fields": [
-                {
-                    "name": "📈 生成シグナル数",
-                    "value": f"{performance_stats['total_signals']}件",
-                    "inline": True,
-                },
-                {
-                    "name": "🎯 実行取引数",
-                    "value": f"{performance_stats['executed_trades']}件",
-                    "inline": True,
-                },
-                {
-                    "name": "💰 セッション損益",
-                    "value": f"¥{performance_stats['session_pnl']:,.0f}",
-                    "inline": True,
-                },
-                {
-                    "name": "📅 継続時間",
-                    "value": f"{session_duration_hours}時間",
-                    "inline": True,
-                },
-                {
-                    "name": "⚡ 実行率",
-                    "value": f"{performance_stats['execution_rate']:.1f}%",
-                    "inline": True,
-                },
-                {
-                    "name": "💳 現在残高",
-                    "value": f"¥{performance_stats['current_balance']:,.0f}",
-                    "inline": True,
-                },
-            ],
-        }
-
-        return embed

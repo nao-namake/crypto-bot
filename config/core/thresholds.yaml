@@ -64,7 +64,6 @@ position_integrator:
 # ========================================
 backtest:
   log_level: WARNING
-  discord_enabled: false
   data_limit: 10000  # Phase 51.10-C: サンプル数上限（10,000件で停止）
   progress_interval: 100  # Phase 51.10-C: 進捗表示間隔（100件毎・1000→100に改善）
   report_interval: 10000
@@ -122,15 +121,7 @@ ml:
     disagreement_penalty: 0.95  # Phase 55.3: 0.90→0.95（ペナルティ緩和）
     min_ml_confidence: 0.32      # Phase 55.3: 0.35→0.32（閾値緩和）
     hold_conversion_threshold: 0.15  # Phase 55.5: 0.20→0.15（HOLD変換さらに緩和）
-    min_strategy_confidence: 0.25   # Phase 61.5: 戦略信頼度の最低閾値（異常低信頼度エントリー防止）
-  # Meta-Learning動的重み最適化システム
-  meta_learning:
-    enabled: false  # デフォルト無効（慎重な段階的有効化）
-    model_path: "models/meta_learning/meta_model.pkl"
-    # フォールバック固定重み（Meta-ML失敗時使用）
-    fallback_ml_weight: 0.35
-    fallback_strategy_weight: 0.7
-
+    min_strategy_confidence: 0.22   # Phase 65: 0.25→0.22（0.246-0.248のシグナルが僅差で遮断されていた問題を解消）
   # ========================================
   # Phase 51.9: レジーム別ML統合設定
   # ========================================
@@ -185,34 +176,6 @@ ml:
       agreement_bonus: 1.10             # ボーナス最小
       disagreement_penalty: 0.85        # ペナルティ最強化
 
-  # Meta-ML予測信頼度閾値
-  min_confidence: 0.3
-  # 市場状況特徴量設定
-  market_features:
-    # ボラティリティ関連
-    atr_window: 14
-    bb_window: 20
-    volatility_ratio_window: 7
-    # トレンド関連
-    ema_short: 20
-    ema_long: 50
-    adx_window: 14
-    trend_strength_threshold: 0.5
-    # レンジ判定関連
-    donchian_window: 20
-    range_threshold: 0.02
-  # パフォーマンストラッキング設定
-  performance_tracking:
-    window_days_short: 7
-    window_days_long: 30
-    min_trades_required: 5
-    history_file: "src/core/state/performance_history.json"
-  # Meta-MLモデル設定
-  model_config:
-    n_estimators: 100
-    learning_rate: 0.05
-    max_depth: 5
-    random_state: 42
   dynamic_confidence:
     base_hold: 0.35
     error_fallback: 0.25
@@ -326,11 +289,11 @@ dynamic_strategy_selection:
   # Phase 51.8: 6戦略統合・レジーム別重み初期値（バックテスト最適化前）
   regime_strategy_mapping:
     tight_range:  # 狭いレンジ相場（BB幅 < 3%, 価格変動 < 2%）
-      # Phase 62.4: DonchianChannel重み増加（競争力回復）
-      BBReversal: 0.0           # Phase 62.3: 無効化維持
-      StochasticReversal: 0.35  # Phase 62.4: 45%→35%（均等配分）
-      ATRBased: 0.35            # Phase 62.4: 45%→35%（均等配分）
-      DonchianChannel: 0.30     # Phase 62.4: 10%→30%（競争力3倍向上）
+      # Phase 65: BBReversal再有効化（62.2でBB主導ロジック変更済み・HOLD支配解消）
+      BBReversal: 0.15          # Phase 65: 0.0→0.15（再有効化・BB主導ロジック変更後の再評価）
+      StochasticReversal: 0.30  # Phase 65: 0.35→0.30（再配分）
+      ATRBased: 0.30            # Phase 65: 0.35→0.30（再配分）
+      DonchianChannel: 0.25     # Phase 65: 0.30→0.25（再配分）
       ADXTrendStrength: 0.0     # トレンド型→無効化
       MACDEMACrossover: 0.0     # トレンド型→無効化
     normal_range:  # 通常レンジ相場（BB幅 < 5%, ADX < 20）
@@ -569,7 +532,6 @@ strategies:
 tp_sl_auto_detection:
   enabled: true                    # 自動執行検知機能ON/OFF
   log_level: "info"                # ログレベル（"info" / "warning"）
-  discord_notify: true             # Discord通知ON/OFF
 
 # ========================================
 # Phase 62.20: TP/SL欠損自動復旧設定
@@ -1053,7 +1015,6 @@ balance_alert:
   min_required_margin: 14000.0
   alert_threshold_ratio: 1.2
   check_interval_minutes: 3
-  discord_critical_alert: true
 
 # ==================================================================================
 # 🔬 Optuna最適化パラメータ（Phase 40最適化結果）

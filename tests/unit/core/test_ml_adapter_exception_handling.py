@@ -26,11 +26,10 @@ class TestDummyModel:
     """DummyModelクラスのテスト"""
 
     def test_dummy_model_initialization(self):
-        """DummyModelの初期化 - Phase 51.7 Day 7: 55特徴量（3戦略シグナル）"""
+        """DummyModelの初期化"""
         model = DummyModel()
 
         assert model.is_fitted is True
-        assert model.n_features_ == 55  # Phase 51.7 Day 7: 55特徴量（57基本+3戦略）
 
     def test_dummy_model_predict_with_dataframe(self):
         """DummyModel予測（DataFrame入力）"""

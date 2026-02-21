@@ -1,17 +1,13 @@
 """
-市場レジーム分類器 - Phase 61.1
+市場レジーム分類器
 
 市場状況を4段階に分類し、動的戦略選択とML統合最適化を実現する。
-レンジ型bot最適化のための核心システム。
 
 判定ロジック（thresholds.yamlから読み込み）:
-- tight_range: BB幅 < 2.5% AND 価格変動 < 1.5%（Phase 61.1: 厳格化）
+- tight_range: BB幅 < 2.5% AND 価格変動 < 1.5%
 - normal_range: BB幅 < 5% AND ADX < 20
-- trending: ADX > 20 AND EMA傾き > 0.7%（Phase 61.1: 緩和）
+- trending: ADX > 20 AND EMA傾き > 0.7%
 - high_volatility: ATR比 > 1.8%
-
-Phase 51.2-New: 市場状況分類器実装
-Phase 61.1: ハードコード値をthresholds.yamlから読み込むように変更
 """
 
 import os
@@ -36,7 +32,6 @@ class MarketRegimeClassifier:
     Attributes:
         logger: ロガー
         bb_period: ボリンジャーバンド期間（デフォルト: 20）
-        donchian_period: Donchianチャネル期間（デフォルト: 20）
         ema_period: EMA期間（デフォルト: 20）
         ema_lookback: EMA傾き計算参照期間（デフォルト: 5）
         price_range_lookback: 価格変動率計算参照期間（デフォルト: 20）
@@ -45,7 +40,6 @@ class MarketRegimeClassifier:
     def __init__(
         self,
         bb_period: int = 20,
-        donchian_period: int = 20,
         ema_period: int = 20,
         ema_lookback: int = 5,
         price_range_lookback: int = 20,
@@ -55,14 +49,12 @@ class MarketRegimeClassifier:
 
         Args:
             bb_period: ボリンジャーバンド期間
-            donchian_period: Donchianチャネル期間
             ema_period: EMA期間
             ema_lookback: EMA傾き計算参照期間
             price_range_lookback: 価格変動率計算参照期間
         """
         self.logger = get_logger()
         self.bb_period = bb_period
-        self.donchian_period = donchian_period
         self.ema_period = ema_period
         self.ema_lookback = ema_lookback
         self.price_range_lookback = price_range_lookback
@@ -96,7 +88,6 @@ class MarketRegimeClassifier:
 
             # レンジ判定指標計算
             bb_width = self._calc_bb_width(df)
-            _donchian_width = self._calc_donchian_width(df)  # noqa: F841 将来の拡張用
             price_range = self._calc_price_range(df, lookback=self.price_range_lookback)
 
             # トレンド判定指標計算
@@ -222,34 +213,6 @@ class MarketRegimeClassifier:
 
         bb_width = (bb_upper - bb_lower) / bb_middle if bb_middle > 0 else 0.0
         return bb_width
-
-    def _calc_donchian_width(self, df: pd.DataFrame, period: Optional[int] = None) -> float:
-        """
-        Donchianチャネル幅を計算
-
-        Args:
-            df: 市場データ
-            period: Donchian期間（Noneの場合はself.donchian_period使用）
-
-        Returns:
-            float: Donchian幅（終値に対する比率）
-        """
-        period = period or self.donchian_period
-
-        if "donchian_high_20" in df.columns and "donchian_low_20" in df.columns:
-            # 既存のDonchianカラムを使用
-            donchian_high = df["donchian_high_20"].iloc[-1]
-            donchian_low = df["donchian_low_20"].iloc[-1]
-        else:
-            # 手動計算
-            high = df["high"].iloc[-period:]
-            low = df["low"].iloc[-period:]
-            donchian_high = high.max()
-            donchian_low = low.min()
-
-        close = df["close"].iloc[-1]
-        donchian_width = (donchian_high - donchian_low) / close if close > 0 else 0.0
-        return donchian_width
 
     def _calc_price_range(self, df: pd.DataFrame, lookback: int = 20) -> float:
         """
@@ -377,34 +340,3 @@ class MarketRegimeClassifier:
         """
         threshold = get_threshold("market_regime.high_volatility.atr_ratio_threshold", 0.018)
         return atr_ratio > threshold
-
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # ユーティリティメソッド
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    def get_regime_stats(self, df: pd.DataFrame) -> dict:
-        """
-        市場状況の詳細統計を取得（デバッグ・分析用）
-
-        Args:
-            df: 市場データ
-
-        Returns:
-            dict: 市場状況統計
-        """
-        bb_width = self._calc_bb_width(df)
-        donchian_width = self._calc_donchian_width(df)
-        price_range = self._calc_price_range(df)
-        adx = df["adx_14"].iloc[-1]
-        ema_slope = self._calc_ema_slope(df)
-        atr_ratio = df["atr_14"].iloc[-1] / df["close"].iloc[-1]
-
-        return {
-            "regime": self.classify(df),
-            "bb_width": bb_width,
-            "donchian_width": donchian_width,
-            "price_range": price_range,
-            "adx": adx,
-            "ema_slope": ema_slope,
-            "atr_ratio": atr_ratio,
-        }

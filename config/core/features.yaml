@@ -221,20 +221,6 @@ data:
 # 監視・通知機能
 # ========================================
 monitoring:
-  # Discord通知（重要通知のみ）
-  discord:
-    enabled: true  # Discord通知
-    critical: false  # Critical通知（エラー・緊急）→停止
-    warning: false  # Warning通知（警告）→停止
-    info: false  # Info通知（情報）→停止
-    trade_notifications: false  # 取引通知（エントリー・決済）→停止
-    batch_notifications: false  # バッチ通知（1時間毎）→停止
-    daily_summary: true  # 日次サマリー（JST 18:00）→週間レポートのみ
-    batch_interval_minutes: 60  # バッチ間隔
-    daily_summary_hour: 18  # 日次サマリー時刻（JST）
-    rate_limit: true  # レート制限（5秒間隔、最大12通知/時）
-    note: "重要通知のみ（Critical/Warning/取引/日次サマリー）・不要通知削減"
-
   # ヘルスチェック
   health_check:
     enabled: true  # ヘルスチェック

@@ -65,7 +65,6 @@ class BacktestRunner(BaseRunner):
         # 統計情報
         self.cycle_count = 0
         self.processed_timestamps = []
-        self.session_stats = {}
 
         # Phase 57.9: 残高推移トラッキング（原因究明用）
         self.balance_history = []  # [{"timestamp": ..., "balance": ..., "event": ...}, ...]
@@ -112,11 +111,11 @@ class BacktestRunner(BaseRunner):
             # 6. 最終レポート生成
             await self._generate_final_backtest_report()
 
-            self.logger.warning("✅ バックテスト実行完了", discord_notify=True)
+            self.logger.warning("✅ バックテスト実行完了")
             return True
 
         except Exception as e:
-            self.logger.error(f"❌ バックテスト実行エラー: {e}", discord_notify=True)
+            self.logger.error(f"❌ バックテスト実行エラー: {e}")
             await self._save_error_report(str(e))
             raise
 
@@ -297,8 +296,7 @@ class BacktestRunner(BaseRunner):
             total_records = sum(len(df) for df in self.csv_data.values())
             self.logger.warning(
                 f"✅ 特徴量事前計算完了: {total_records}件 "
-                f"（{elapsed:.1f}秒, {total_records / elapsed:.0f}件/秒）",
-                discord_notify=False,
+                f"（{elapsed:.1f}秒, {total_records / elapsed:.0f}件/秒）"
             )
 
         except Exception as e:
@@ -431,8 +429,7 @@ class BacktestRunner(BaseRunner):
             elapsed = time.time() - start_time
             self.logger.warning(
                 f"✅ 戦略シグナル事前計算完了: {total_rows}件 "
-                f"（{elapsed:.1f}秒, {total_rows / elapsed:.1f}件/秒）",
-                discord_notify=False,
+                f"（{elapsed:.1f}秒, {total_rows / elapsed:.1f}件/秒）"
             )
 
         except Exception as e:
@@ -486,8 +483,7 @@ class BacktestRunner(BaseRunner):
                     elapsed = time.time() - start_time
                     self.logger.warning(
                         f"✅ ML予測事前計算完了: {len(predictions_array)}件 "
-                        f"（{elapsed:.1f}秒, {len(predictions_array) / elapsed:.0f}件/秒）",
-                        discord_notify=False,
+                        f"（{elapsed:.1f}秒, {len(predictions_array) / elapsed:.0f}件/秒）"
                     )
                 else:
                     self.logger.warning(
@@ -744,11 +740,6 @@ class BacktestRunner(BaseRunner):
                     self.logger.debug(
                         f"⚠️ TP/SLトリガーチェックエラー ({self.current_timestamp}): {e}"
                     )
-
-                # Phase 35.5: 進捗レポート保存を完全削除（バックテスト中は不要・I/Oオーバーヘッド削減）
-                # report_interval = get_threshold("backtest.report_interval", 10000)
-                # if i % report_interval == 0:
-                #     await self._save_progress_report()
 
             # Phase 51.8-J4-H: ループ完了ログ
             self.logger.warning(
@@ -1253,39 +1244,11 @@ class BacktestRunner(BaseRunner):
                 {"prediction": prediction, "confidence": confidence}
             )
 
-    async def _setup_current_market_data(self):
-        """現在時点の市場データを準備（旧版・後方互換性維持）"""
-        # Phase 35で_setup_current_market_data_fast()に置き換え
-        # 互換性のため残すが、使用されない
-        await self._setup_current_market_data_fast(self.data_index)
-
     async def _set_simulated_time(self, timestamp: datetime):
         """シミュレーション時刻設定"""
         # グローバル時刻管理クラスがあれば設定
         # 現在は実装せず、将来的に時刻シミュレーションを追加
         pass
-
-    async def _save_progress_report(self):
-        """進捗レポート保存（Phase 35: JSON serializable修正）"""
-        try:
-            progress_stats = {
-                "current_timestamp": (
-                    self.current_timestamp.isoformat() if self.current_timestamp else None
-                ),
-                "progress_percentage": (
-                    (self.data_index / self.total_data_points) * 100
-                    if self.total_data_points > 0
-                    else 0
-                ),
-                "cycles_completed": self.cycle_count,
-                "processed_data_points": len(self.processed_timestamps),
-            }
-
-            # バックテストレポーターに進捗保存
-            await self.orchestrator.backtest_reporter.save_progress_report(progress_stats)
-
-        except Exception as e:
-            self.logger.warning(f"⚠️ 進捗レポート保存エラー: {e}")
 
     async def _generate_final_backtest_report(self):
         """最終バックテストレポート生成（Phase 35: JSON serializable修正）"""

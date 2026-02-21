@@ -96,8 +96,7 @@ def hold_evaluation():
 class TestExecutionServiceInjection:
     """依存注入機能テスト（Phase 38新機能）"""
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_inject_order_strategy(self, mock_discord):
+    def test_inject_order_strategy(self):
         """OrderStrategy注入テスト"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
         mock_strategy = Mock()
@@ -111,8 +110,7 @@ class TestExecutionServiceInjection:
         # 検証
         assert service.order_strategy is mock_strategy
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_inject_stop_manager(self, mock_discord):
+    def test_inject_stop_manager(self):
         """StopManager注入テスト"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
         mock_stop_manager = Mock()
@@ -121,8 +119,7 @@ class TestExecutionServiceInjection:
 
         assert service.stop_manager is mock_stop_manager
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_inject_position_limits(self, mock_discord):
+    def test_inject_position_limits(self):
         """PositionLimits注入テスト"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
         mock_position_limits = Mock()
@@ -131,8 +128,7 @@ class TestExecutionServiceInjection:
 
         assert service.position_limits is mock_position_limits
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_inject_balance_monitor(self, mock_discord):
+    def test_inject_balance_monitor(self):
         """BalanceMonitor注入テスト"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
         mock_balance_monitor = Mock()
@@ -141,8 +137,7 @@ class TestExecutionServiceInjection:
 
         assert service.balance_monitor is mock_balance_monitor
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_inject_all_services_at_once(self, mock_discord):
+    def test_inject_all_services_at_once(self):
         """全サービス同時注入テスト"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
 
@@ -314,10 +309,7 @@ class TestExecuteTradeBalanceMonitor:
     """BalanceMonitor統合テスト"""
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_balance_monitor_sufficient_balance(
-        self, mock_discord, sample_evaluation, mock_bitbank_client
-    ):
+    async def test_balance_monitor_sufficient_balance(self, sample_evaluation, mock_bitbank_client):
         """残高十分時は取引実行"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -336,9 +328,8 @@ class TestExecuteTradeBalanceMonitor:
         assert result.success is True
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
     async def test_balance_monitor_insufficient_balance(
-        self, mock_discord, sample_evaluation, mock_bitbank_client
+        self, sample_evaluation, mock_bitbank_client
     ):
         """残高不足時は取引拒否（Container exit回避）"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
@@ -375,10 +366,7 @@ class TestExecuteTradePositionLimits:
     """PositionLimits統合テスト"""
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_position_limits_allowed(
-        self, mock_discord, sample_evaluation, mock_bitbank_client
-    ):
+    async def test_position_limits_allowed(self, sample_evaluation, mock_bitbank_client):
         """ポジション制限内なら取引実行"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -397,10 +385,7 @@ class TestExecuteTradePositionLimits:
         assert result.success is True
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_position_limits_rejected(
-        self, mock_discord, sample_evaluation, mock_bitbank_client
-    ):
+    async def test_position_limits_rejected(self, sample_evaluation, mock_bitbank_client):
         """ポジション制限超過時は取引拒否"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -434,8 +419,7 @@ class TestExecuteTradeLiveMode:
     """ライブトレード実行テスト"""
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_success(self, mock_discord, sample_evaluation, mock_bitbank_client):
+    async def test_live_trade_success(self, sample_evaluation, mock_bitbank_client):
         """ライブ取引成功テスト（Phase 64: デフォルトOrderStrategy使用）"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -449,10 +433,9 @@ class TestExecuteTradeLiveMode:
         assert service.last_order_time is not None
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
     @patch("src.trading.execution.executor.get_threshold")
     async def test_live_trade_with_order_strategy_limit(
-        self, mock_threshold, mock_discord, sample_evaluation, mock_bitbank_client
+        self, mock_threshold, sample_evaluation, mock_bitbank_client
     ):
         """OrderStrategy経由の指値注文テスト"""
 
@@ -518,9 +501,8 @@ class TestExecuteTradeLiveMode:
         assert "BitbankClient" in result.error_message
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
     async def test_live_trade_error_50061_balance_insufficient(
-        self, mock_discord, sample_evaluation, mock_bitbank_client
+        self, sample_evaluation, mock_bitbank_client
     ):
         """エラー50061（残高不足）の明示的検出"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
@@ -733,11 +715,8 @@ class TestMinimumTradeSize:
         assert result.amount == 0.0001
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
     @patch("src.trading.execution.executor.get_threshold")
-    async def test_minimum_trade_size_disabled(
-        self, mock_threshold, mock_discord, mock_bitbank_client
-    ):
+    async def test_minimum_trade_size_disabled(self, mock_threshold, mock_bitbank_client):
         """動的サイジング無効時は最小サイズ保証なし"""
         mock_threshold.side_effect = lambda key, default=None: {
             "position_management.dynamic_position_sizing.enabled": False,
@@ -798,8 +777,7 @@ class TestTradingStatistics:
         assert stats["virtual_positions"] == 0
         assert stats["virtual_balance"] == 11000.0
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_get_trading_statistics_live_mode(self, mock_discord):
+    def test_get_trading_statistics_live_mode(self):
         """ライブモードの統計取得"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
         service.executed_trades = 10
@@ -821,8 +799,7 @@ class TestTradingStatistics:
         assert service.current_balance == 15000.0
         assert service.virtual_balance == 15000.0
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_update_balance_live_mode(self, mock_discord):
+    def test_update_balance_live_mode(self):
         """残高更新（ライブモード）"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
 
@@ -845,8 +822,7 @@ class TestTradingStatistics:
         assert summary["positions"] == 3
         assert len(summary["latest_trades"]) == 3
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_get_position_summary_live_mode(self, mock_discord):
+    def test_get_position_summary_live_mode(self):
         """ポジションサマリー取得（ライブモード）"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
 
@@ -905,10 +881,7 @@ class TestErrorHandling:
     """エラーハンドリングテスト"""
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_execute_trade_exception_handling(
-        self, mock_discord, sample_evaluation, mock_bitbank_client
-    ):
+    async def test_execute_trade_exception_handling(self, sample_evaluation, mock_bitbank_client):
         """execute_trade内部例外の適切なハンドリング"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -1076,26 +1049,19 @@ class TestInitializationModes:
         service = ExecutionService(mode="paper")
 
         assert service.mode == "paper"
-        assert service.discord_notifier is None
         assert service.virtual_balance == 500000.0  # Phase 57.7: unified.yamlから読み込み
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_live_mode_initialization(self, mock_discord):
+    def test_live_mode_initialization(self):
         """ライブモード初期化テスト"""
-        mock_discord.return_value = Mock()
-
         service = ExecutionService(mode="live", bitbank_client=Mock())
 
         assert service.mode == "live"
-        assert service.discord_notifier is not None
-        mock_discord.assert_called_once()
 
     def test_backtest_mode_initialization(self):
         """バックテストモード初期化テスト"""
         service = ExecutionService(mode="backtest")
 
         assert service.mode == "backtest"
-        assert service.discord_notifier is None
 
     @patch("src.trading.execution.executor.get_threshold")
     def test_custom_initial_balance(self, mock_get_threshold):
@@ -1526,8 +1492,7 @@ class TestRestorePositionsFromAPI:
         # ペーパーモードではAPI呼び出しなし
         mock_bitbank_client.fetch_margin_positions.assert_not_called()
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_no_active_orders(self, mock_discord, mock_bitbank_client):
+    async def test_restore_positions_no_active_orders(self, mock_bitbank_client):
         """アクティブ注文なし時のスキップ"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
         mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
@@ -1537,8 +1502,7 @@ class TestRestorePositionsFromAPI:
 
         assert len(service.virtual_positions) == 0
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_with_active_orders(self, mock_discord, mock_bitbank_client):
+    async def test_restore_positions_with_active_orders(self, mock_bitbank_client):
         """Phase 63.4: 実ポジションベースの復元（1ポジション=1エントリ）"""
         # 信用建玉
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
@@ -1587,8 +1551,7 @@ class TestRestorePositionsFromAPI:
         assert vp["restored"] is True
         assert vp["sl_placed_at"] is not None
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_no_real_positions(self, mock_discord, mock_bitbank_client):
+    async def test_restore_positions_no_real_positions(self, mock_bitbank_client):
         """Phase 63.4: 実ポジションなしの場合は復元なし"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
         # アクティブ注文があっても実ポジションがなければ復元しない
@@ -1610,8 +1573,7 @@ class TestRestorePositionsFromAPI:
         # 実ポジションなし → 復元なし
         assert len(service.virtual_positions) == 0
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_restore_positions_api_error_handling(self, mock_discord, mock_bitbank_client):
+    async def test_restore_positions_api_error_handling(self, mock_bitbank_client):
         """API呼び出しエラー時のハンドリング"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(side_effect=Exception("API error"))
 
@@ -1647,8 +1609,7 @@ class TestEnsureTpSlForExistingPositions:
 
         mock_bitbank_client.fetch_margin_positions.assert_not_called()
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_ensure_tp_sl_no_positions(self, mock_discord, mock_bitbank_client):
+    async def test_ensure_tp_sl_no_positions(self, mock_bitbank_client):
         """ポジションなし時のスキップ"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(return_value=[])
 
@@ -1657,10 +1618,7 @@ class TestEnsureTpSlForExistingPositions:
 
         mock_bitbank_client.fetch_active_orders.assert_not_called()
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_ensure_tp_sl_position_with_existing_tp_sl(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_ensure_tp_sl_position_with_existing_tp_sl(self, mock_bitbank_client):
         """TP/SL既存のポジションはスキップ"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
             return_value=[{"side": "long", "amount": 0.0001, "average_price": 14000000}]
@@ -1686,8 +1644,7 @@ class TestEnsureTpSlForExistingPositions:
         service.tp_sl_manager.place_take_profit.assert_not_called()
         service.tp_sl_manager.place_stop_loss.assert_not_called()
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_ensure_tp_sl_places_missing_orders(self, mock_discord, mock_bitbank_client):
+    async def test_ensure_tp_sl_places_missing_orders(self, mock_bitbank_client):
         """TP/SLなしポジションに注文配置"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
             return_value=[{"side": "long", "amount": 0.0001, "average_price": 14000000}]
@@ -1711,8 +1668,7 @@ class TestEnsureTpSlForExistingPositions:
         assert len(service.virtual_positions) == 1
         assert service.virtual_positions[0]["recovered"] is True
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_ensure_tp_sl_short_position(self, mock_discord, mock_bitbank_client):
+    async def test_ensure_tp_sl_short_position(self, mock_bitbank_client):
         """Shortポジションのtp/sl配置テスト"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
             return_value=[{"side": "short", "amount": 0.0001, "average_price": 14000000}]
@@ -1732,8 +1688,7 @@ class TestEnsureTpSlForExistingPositions:
         call_args = service.tp_sl_manager.place_take_profit.call_args
         assert call_args.kwargs["side"] == "sell"
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_ensure_tp_sl_api_error_handling(self, mock_discord, mock_bitbank_client):
+    async def test_ensure_tp_sl_api_error_handling(self, mock_bitbank_client):
         """API呼び出しエラー時のハンドリング"""
         mock_bitbank_client.fetch_margin_positions = AsyncMock(side_effect=Exception("API error"))
 
@@ -1759,10 +1714,7 @@ class TestCheckStopConditionsWithAutoExecution:
         client.fetch_margin_positions = AsyncMock(return_value=[])
         return client
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_check_stop_conditions_detects_auto_execution(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_check_stop_conditions_detects_auto_execution(self, mock_bitbank_client):
         """自動執行検知テスト"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -1800,10 +1752,7 @@ class TestCheckStopConditionsWithAutoExecution:
         # Phase 61.12: exit記録が追加される
         service.trade_recorder.record_trade.assert_called_once()
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_check_stop_conditions_auto_execution_error_handling(
-        self, mock_discord, mock_bitbank_client
-    ):
+    async def test_check_stop_conditions_auto_execution_error_handling(self, mock_bitbank_client):
         """自動執行検知エラー時のハンドリング"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -1854,16 +1803,6 @@ class TestExecutionServiceInitialization:
         # 初期化失敗してもサービスは起動
         assert service.trade_recorder is not None
         assert service.trade_tracker is None
-
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_discord_notifier_init_failure(self, mock_discord):
-        """Discord通知初期化失敗時のハンドリング"""
-        mock_discord.side_effect = Exception("Discord connection failed")
-
-        service = ExecutionService(mode="live", bitbank_client=MagicMock())
-
-        # 初期化失敗してもサービスは起動
-        assert service.discord_notifier is None
 
 
 # ========================================
@@ -2019,8 +1958,7 @@ class TestLiveModeAdditionalBehavior:
         )
         return client
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_with_position_tracker(self, mock_discord, mock_bitbank_client):
+    async def test_live_trade_with_position_tracker(self, mock_bitbank_client):
         """PositionTracker連携テスト"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -2067,8 +2005,7 @@ class TestLiveModeAdditionalBehavior:
         # PositionTrackerに追加
         mock_tracker.add_position.assert_called_once()
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_records_to_trade_tracker(self, mock_discord, mock_bitbank_client):
+    async def test_live_trade_records_to_trade_tracker(self, mock_bitbank_client):
         """TradeTracker記録テスト"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -2100,8 +2037,7 @@ class TestLiveModeAdditionalBehavior:
         # TradeTrackerに記録
         mock_trade_tracker.record_entry.assert_called_once()
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_live_trade_records_to_trade_recorder(self, mock_discord, mock_bitbank_client):
+    async def test_live_trade_records_to_trade_recorder(self, mock_bitbank_client):
         """TradeHistoryRecorder記録テスト"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
@@ -2367,8 +2303,7 @@ class TestRollbackEntryAdditional:
 class TestPhase643FilledAmountFix:
     """Phase 64.3: filled_amountフォールバック修正テスト"""
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_zero_filled_amount_no_fallback(self, mock_discord):
+    def test_zero_filled_amount_no_fallback(self):
         """filled_amount=0の時、amountにフォールバックしない"""
         service = ExecutionService(mode="live", bitbank_client=Mock())
 
@@ -2387,8 +2322,7 @@ class TestPhase643FilledAmountFix:
         assert filled == 0.0  # 旧ロジックでは0.02になっていた
 
     @pytest.mark.asyncio
-    @patch("src.trading.execution.executor.DiscordManager")
-    async def test_zero_filled_skips_tp_sl(self, mock_discord):
+    async def test_zero_filled_skips_tp_sl(self):
         """filled_amount=0でTP/SL配置がスキップされる"""
         mock_client = MagicMock()
         mock_client.create_order = MagicMock(
@@ -2436,8 +2370,7 @@ class TestPhase643FilledAmountFix:
 class TestPhase643PartialFillFalseSuccess:
     """Phase 64.3: 部分約定ハンドラ偽成功防止テスト"""
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_tp_retry_without_order_id_is_failure(self, mock_discord):
+    def test_tp_retry_without_order_id_is_failure(self):
         """order_id=Noneの結果を偽成功と判定しない"""
         # tp_retry/sl_retryにorder_idがない場合
         tp_retry = {"some_key": "value"}  # order_idなし
@@ -2449,8 +2382,7 @@ class TestPhase643PartialFillFalseSuccess:
         assert not tp_ok  # order_idがないのでFalse
         assert sl_ok  # order_idがあるのでTrue
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_both_order_ids_present_is_success(self, mock_discord):
+    def test_both_order_ids_present_is_success(self):
         """両方にorder_idがあれば成功"""
         tp_retry = {"order_id": "tp_001"}
         sl_retry = {"order_id": "sl_001"}
@@ -2461,8 +2393,7 @@ class TestPhase643PartialFillFalseSuccess:
         assert tp_ok
         assert sl_ok
 
-    @patch("src.trading.execution.executor.DiscordManager")
-    def test_none_retry_result_is_failure(self, mock_discord):
+    def test_none_retry_result_is_failure(self):
         """retry結果がNoneの場合は失敗"""
         tp_retry = None
         sl_retry = {"order_id": "sl_001"}

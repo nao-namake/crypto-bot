@@ -1,17 +1,8 @@
 """
-取引ログサービス - Phase 49完了
+取引ログサービス
 
 orchestrator.pyから分離した取引関連ログ機能。
 取引決定・実行結果・統計情報のログ出力を担当。
-
-Phase 49完了:
-- 取引判定ログ出力（log_trade_decision・approved/conditional/denied）
-- 取引実行結果ログ（log_trade_execution・success/failure）
-- セッション統計ログ（log_session_stats・total_trades/pnl/win_rate）
-- decision_map（🟢取引承認・🟡条件付き承認・🔴取引拒否）
-- thresholds.yaml準拠設定管理
-
-Phase 28-29: 取引ログ機能分離・統計情報出力実装
 """
 
 from ..config import get_threshold
@@ -59,7 +50,6 @@ class TradingLoggerService:
             self.logger.info(
                 f"{decision_label} - サイクル: {cycle_id}, "
                 f"リスクスコア: {getattr(evaluation, 'risk_score', 0):.3f}",
-                discord_notify=(str(decision_str).lower() in ["approved", "denied"]),
             )
 
         except Exception as e:
@@ -136,14 +126,13 @@ class TradingLoggerService:
             if hasattr(execution_result, "fee") and execution_result.fee is not None:
                 log_message += f", 手数料: ¥{execution_result.fee:,.2f}"
 
-            # 成功した取引は必ずDiscord通知
             # Phase 35.2: バックテスト時はWARNING（強制出力）
             import os
 
             if os.environ.get("BACKTEST_MODE") == "true":
-                self.logger.warning(log_message, discord_notify=False)
+                self.logger.warning(log_message)
             else:
-                self.logger.info(log_message, discord_notify=True)
+                self.logger.info(log_message)
 
             # 統計情報ログ（定期的）
             await self._check_and_log_statistics()
@@ -173,8 +162,7 @@ class TradingLoggerService:
                 f"エラー: {error_detail}"
             )
 
-            # 実行失敗はWarningレベル・Discord通知
-            self.logger.warning(error_message, discord_notify=True)
+            self.logger.warning(error_message)
 
         except Exception as e:
             self.logger.error(f"❌ 失敗時実行ログエラー: {e}")
@@ -222,8 +210,7 @@ class TradingLoggerService:
                 f"・リターン率: {return_rate:+.2f}%"
             )
 
-            # 統計情報は Info レベル・Discord通知
-            self.logger.info(stats_message, discord_notify=True)
+            self.logger.info(stats_message)
 
         except (KeyError, AttributeError) as e:
             # 統計データアクセスエラー
@@ -237,59 +224,3 @@ class TradingLoggerService:
         except Exception as e:
             # その他の予期しないエラー（統計ログ出力失敗は致命的でない）
             self.logger.error(f"統計ログ出力予期しないエラー: {e}")
-
-    def format_performance_summary(self, stats: dict) -> dict:
-        """
-        パフォーマンスサマリーフォーマット
-
-        Args:
-            stats: 統計情報
-
-        Returns:
-            フォーマット済みサマリー
-        """
-        try:
-            statistics = stats.get("statistics", {})
-
-            return {
-                "total_trades": statistics.get("total_trades", 0),
-                "winning_trades": statistics.get("winning_trades", 0),
-                "win_rate_percent": statistics.get("win_rate", 0) * 100,
-                "current_balance": stats.get("current_balance", 0),
-                "return_rate_percent": stats.get("return_rate", 0) * 100,
-                "profit_loss": stats.get("current_balance", 0)
-                - stats.get("initial_balance", get_threshold("trading.initial_balance", 1000000)),
-            }
-
-        except Exception as e:
-            self.logger.error(f"❌ パフォーマンスサマリーフォーマットエラー: {e}")
-            return {}
-
-    async def log_cycle_start(self, cycle_id: str):
-        """
-        サイクル開始ログ
-
-        Args:
-            cycle_id: サイクルID
-        """
-        try:
-            self.logger.debug(f"🔄 取引サイクル開始 - ID: {cycle_id}")
-
-        except Exception as e:
-            self.logger.error(f"❌ サイクル開始ログエラー: {e}")
-
-    async def log_cycle_end(self, cycle_id: str, duration_seconds: float):
-        """
-        サイクル終了ログ
-
-        Args:
-            cycle_id: サイクルID
-            duration_seconds: 実行時間（秒）
-        """
-        try:
-            self.logger.debug(
-                f"✅ 取引サイクル完了 - ID: {cycle_id}, 実行時間: {duration_seconds:.2f}秒"
-            )
-
-        except Exception as e:
-            self.logger.error(f"❌ サイクル終了ログエラー: {e}")

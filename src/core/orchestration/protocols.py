@@ -40,8 +40,6 @@ class StrategyServiceProtocol(Protocol):
 
     def analyze_market(self, df: pd.DataFrame) -> "StrategySignal": ...
 
-    def _create_hold_signal(self, df: pd.DataFrame, reason: str) -> "StrategySignal": ...
-
 
 class MLServiceProtocol(Protocol):
     """ML予測サービスインターフェース."""

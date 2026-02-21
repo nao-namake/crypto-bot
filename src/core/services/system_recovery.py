@@ -1,17 +1,8 @@
 """
-システム復旧サービス - Phase 49完了
+システム復旧サービス
 
 orchestrator.pyから分離したシステム復旧・エラー処理機能。
 MLサービス復旧・システム再起動・エラー記録を担当。
-
-Phase 49完了:
-- MLサービス自動復旧（recover_ml_service・最大3回試行）
-- システム再起動スケジュール（schedule_system_restart）
-- エラー記録（record_error・logs/errors/{date}/error_{timestamp}.json）
-- 復旧試行回数管理（recovery_attempts辞書）
-- CryptoBotError階層化対応
-
-Phase 28-29: システム復旧機能分離・自動復旧実装
 """
 
 from datetime import datetime
@@ -64,8 +55,7 @@ class SystemRecoveryService:
                     self.recovery_attempts["ml_service"] = 0
                     return True
                 else:
-                    # 🚨 CRITICAL FIX: エラーハンドリング内Discord通知による再帰防止
-                    self.logger.error("❌ MLサービス復旧失敗", discord_notify=False)
+                    self.logger.error("❌ MLサービス復旧失敗")
                     await self.schedule_system_restart("MLサービス再読み込み失敗")
                     return False
             else:
@@ -79,17 +69,17 @@ class SystemRecoveryService:
 
         except (FileNotFoundError, ImportError, AttributeError) as e:
             # モデル読み込み・設定エラー
-            self.logger.error(f"❌ MLサービス設定エラー: {e}", discord_notify=False)
+            self.logger.error(f"❌ MLサービス設定エラー: {e}")
             await self.schedule_system_restart(f"MLサービス設定エラー: {e}")
             return False
         except (RuntimeError, SystemError) as e:
             # システムレベルエラー
-            self.logger.error(f"❌ MLサービス復旧システムエラー: {e}", discord_notify=False)
+            self.logger.error(f"❌ MLサービス復旧システムエラー: {e}")
             await self.schedule_system_restart(f"MLサービス復旧システムエラー: {e}")
             return False
         except Exception as e:
             # 予期しないエラーは再送出
-            self.logger.critical(f"❌ MLサービス復旧予期しないエラー: {e}", discord_notify=False)
+            self.logger.critical(f"❌ MLサービス復旧予期しないエラー: {e}")
             await self.schedule_system_restart(f"MLサービス復旧予期しないエラー: {e}")
             raise CryptoBotError(f"MLサービス復旧で予期しないエラー: {e}")
 
@@ -193,32 +183,3 @@ class SystemRecoveryService:
 
         except Exception as e:
             self.logger.error(f"❌ 連続エラー検出処理エラー: {e}")
-
-    def get_recovery_status(self) -> dict:
-        """
-        復旧状況取得
-
-        Returns:
-            復旧状況サマリー
-        """
-        return {
-            "recovery_attempts": self.recovery_attempts,
-            "max_recovery_attempts": self.max_recovery_attempts,
-            "services_healthy": {
-                "ml_service": self.orchestrator.ml_service is not None,
-                "data_service": self.orchestrator.data_service is not None,
-                "execution_service": self.orchestrator.execution_service is not None,
-            },
-            "timestamp": datetime.now().isoformat(),
-        }
-
-    def reset_recovery_attempts(self, service_name: str):
-        """
-        復旧試行回数リセット
-
-        Args:
-            service_name: サービス名
-        """
-        if service_name in self.recovery_attempts:
-            self.recovery_attempts[service_name] = 0
-            self.logger.info(f"🔄 復旧試行回数リセット: {service_name}")

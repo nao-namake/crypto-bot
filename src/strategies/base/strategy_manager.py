@@ -326,8 +326,11 @@ class StrategyManager:
                 reason=f"従来ロジック - HOLD/同率 (BUY={buy_ratio:.3f}, SELL={sell_ratio:.3f})",
             )
 
-        # Phase 57.12: 最高信頼度の戦略名も取得
-        best_strategy_name, best_signal = max(winning_group, key=lambda x: x[1].confidence)
+        # Phase 65: 重み付き信頼度で帰属戦略を決定（重み0.0の戦略は帰属先にならない）
+        best_strategy_name, best_signal = max(
+            winning_group,
+            key=lambda x: x[1].confidence * self.strategy_weights.get(x[0], 1.0),
+        )
 
         self.logger.info(
             f"従来ロジック解決: {action.upper()}選択 (比率: {ratio:.3f}, {len(winning_group)}票, 主戦略: {best_strategy_name})"
@@ -371,7 +374,11 @@ class StrategyManager:
     ) -> StrategySignal:
         """Phase 56.7: quorum達成時の統合シグナル生成."""
         weighted_confidence = self._calculate_weighted_confidence(winning_signals)
-        best_strategy_name, best_signal = max(winning_signals, key=lambda x: x[1].confidence)
+        # Phase 65: 重み付き信頼度で帰属戦略を決定（重み0.0の戦略は帰属先にならない）
+        best_strategy_name, best_signal = max(
+            winning_signals,
+            key=lambda x: x[1].confidence * self.strategy_weights.get(x[0], 1.0),
+        )
         self.logger.info(
             f"Phase 56.7: {action.upper()} {len(winning_signals)}票でクオーラム達成 → "
             f"{action.upper()}選択 (信頼度: {weighted_confidence:.3f}, 主戦略: {best_strategy_name})"
@@ -434,8 +441,11 @@ class StrategyManager:
         # 重み付け信頼度計算
         weighted_confidence = self._calculate_weighted_confidence(same_action_signals)
 
-        # Phase 57.12: 最高信頼度の戦略名も取得
-        best_strategy_name, best_signal = max(same_action_signals, key=lambda x: x[1].confidence)
+        # Phase 65: 重み付き信頼度で帰属戦略を決定（重み0.0の戦略は帰属先にならない）
+        best_strategy_name, best_signal = max(
+            same_action_signals,
+            key=lambda x: x[1].confidence * self.strategy_weights.get(x[0], 1.0),
+        )
 
         # 統合シグナル生成
         return StrategySignal(

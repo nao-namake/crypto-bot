@@ -91,9 +91,7 @@ class DrawdownManager:
 
         # 状態永続化設定
         persistence_config = self.config.get("persistence", {})
-        self.local_state_path = persistence_config.get(
-            "local_path", "src/core/state/drawdown_state.json"
-        )
+        self.local_state_path = persistence_config.get("local_path", "data/drawdown_state.json")
         self.gcs_bucket = persistence_config.get("gcs_bucket")
         self.gcs_path = persistence_config.get("gcs_path")
 

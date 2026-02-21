@@ -1,10 +1,4 @@
-"""
-CryptoBotLoggerのテスト - Phase 62
-
-ログシステムの基本動作、フォーマッター、ハンドラー、
-バックテストモード対応をテスト。
-カバレッジ90%以上を目標。
-"""
+"""CryptoBotLoggerのテスト."""
 
 import json
 import logging
@@ -23,34 +17,9 @@ from src.core.logger import (
     ColorFormatter,
     CryptoBotLogger,
     JSONFormatter,
-    LogLevel,
     get_logger,
     setup_logging,
 )
-
-
-class TestLogLevel:
-    """LogLevel enumのテスト"""
-
-    def test_log_level_debug(self):
-        """DEBUGレベル確認"""
-        assert LogLevel.DEBUG.value == "DEBUG"
-
-    def test_log_level_info(self):
-        """INFOレベル確認"""
-        assert LogLevel.INFO.value == "INFO"
-
-    def test_log_level_warning(self):
-        """WARNINGレベル確認"""
-        assert LogLevel.WARNING.value == "WARNING"
-
-    def test_log_level_error(self):
-        """ERRORレベル確認"""
-        assert LogLevel.ERROR.value == "ERROR"
-
-    def test_log_level_critical(self):
-        """CRITICALレベル確認"""
-        assert LogLevel.CRITICAL.value == "CRITICAL"
 
 
 class TestJST:
@@ -324,7 +293,6 @@ class TestCryptoBotLogger:
         logger = CryptoBotLogger("test_bot")
         assert logger.name == "test_bot"
         assert logger.logger is not None
-        assert logger._discord_manager is None
 
     @patch("src.core.config.get_config")
     def test_instantiation_with_env_log_level(self, mock_get_config):
@@ -338,50 +306,6 @@ class TestCryptoBotLogger:
         os.environ["LOG_LEVEL"] = "WARNING"
         logger = CryptoBotLogger("test_bot")
         assert logger.logger.level == logging.WARNING
-
-    @patch("src.core.config.get_config")
-    def test_set_discord_manager(self, mock_get_config):
-        """Discord通知マネージャー設定"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "INFO"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-        mock_manager = MagicMock()
-        logger.set_discord_manager(mock_manager)
-        assert logger._discord_manager == mock_manager
-
-    @patch("src.core.config.get_config")
-    def test_set_discord_notifier_new_system(self, mock_get_config):
-        """新Discord通知システム設定（互換性）"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "INFO"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-        mock_notifier = MagicMock()
-        mock_notifier.send_simple_message = MagicMock()
-        logger.set_discord_notifier(mock_notifier)
-        assert logger._discord_manager == mock_notifier
-
-    @patch("src.core.config.get_config")
-    def test_set_discord_notifier_old_system(self, mock_get_config):
-        """旧Discord通知システム設定（警告発生）"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "INFO"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-        mock_notifier = MagicMock(spec=[])  # send_simple_messageなし
-        logger.set_discord_notifier(mock_notifier)
-        # 警告が出力されるが、_discord_managerは設定されない
-        assert logger._discord_manager is None
 
     @patch("src.core.config.get_config")
     def test_debug_log(self, mock_get_config):
@@ -632,205 +556,6 @@ class TestConditionalLog:
         with patch.object(logger, "info") as mock_info:
             logger.conditional_log("Test message", level="unknown", backtest_level="debug")
             mock_info.assert_called_once()
-
-
-class TestLogTrade:
-    """log_tradeメソッドのテスト"""
-
-    def setup_method(self):
-        """テストごとにグローバル状態をリセット"""
-        import src.core.logger as logger_module
-
-        logger_module._logger_instance = None
-        os.environ.pop("LOG_LEVEL", None)
-        os.environ.pop("BACKTEST_MODE", None)
-
-    def teardown_method(self):
-        """テスト後にクリーンアップ"""
-        import src.core.logger as logger_module
-
-        logger_module._logger_instance = None
-        os.environ.pop("LOG_LEVEL", None)
-        os.environ.pop("BACKTEST_MODE", None)
-
-    @patch("src.core.config.get_config")
-    def test_log_trade_success(self, mock_get_config):
-        """取引成功ログ"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "DEBUG"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-
-        with patch.object(logger, "info") as mock_info:
-            logger.log_trade(
-                action="BUY",
-                symbol="BTC_JPY",
-                amount=0.001,
-                price=5000000,
-                order_id="12345",
-                success=True,
-            )
-            mock_info.assert_called_once()
-            call_args = mock_info.call_args
-            assert "取引実行" in call_args[0][0]
-            assert "BUY" in call_args[0][0]
-
-    @patch("src.core.config.get_config")
-    def test_log_trade_failure(self, mock_get_config):
-        """取引失敗ログ"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "DEBUG"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-
-        with patch.object(logger, "error") as mock_error:
-            logger.log_trade(
-                action="SELL",
-                symbol="BTC_JPY",
-                amount=0.001,
-                price=5000000,
-                order_id="12345",
-                success=False,
-            )
-            mock_error.assert_called_once()
-            call_args = mock_error.call_args
-            assert "取引失敗" in call_args[0][0]
-
-
-class TestLogSignal:
-    """log_signalメソッドのテスト"""
-
-    def setup_method(self):
-        """テストごとにグローバル状態をリセット"""
-        import src.core.logger as logger_module
-
-        logger_module._logger_instance = None
-        os.environ.pop("LOG_LEVEL", None)
-        os.environ.pop("BACKTEST_MODE", None)
-
-    def teardown_method(self):
-        """テスト後にクリーンアップ"""
-        import src.core.logger as logger_module
-
-        logger_module._logger_instance = None
-        os.environ.pop("LOG_LEVEL", None)
-        os.environ.pop("BACKTEST_MODE", None)
-
-    @patch("src.core.config.get_config")
-    def test_log_signal_with_symbol(self, mock_get_config):
-        """シンボル指定ありのシグナルログ"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "DEBUG"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-
-        with patch.object(logger, "info") as mock_info:
-            logger.log_signal(
-                strategy="ATRBased",
-                signal="BUY",
-                confidence=0.85,
-                symbol="BTC_JPY",
-            )
-            mock_info.assert_called_once()
-            call_args = mock_info.call_args
-            assert "シグナル生成" in call_args[0][0]
-            assert "ATRBased" in call_args[0][0]
-
-    @patch("src.core.config.get_config")
-    def test_log_signal_without_symbol(self, mock_get_config):
-        """シンボル指定なしのシグナルログ（設定から取得）"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "DEBUG"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_config.exchange.symbol = "ETH_JPY"
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-
-        with patch.object(logger, "info") as mock_info:
-            logger.log_signal(
-                strategy="BBReversal",
-                signal="SELL",
-                confidence=0.75,
-            )
-            mock_info.assert_called_once()
-
-    @patch("src.core.config.get_config")
-    def test_log_signal_config_error_fallback(self, mock_get_config):
-        """設定取得エラー時のフォールバック"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "DEBUG"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-
-        # log_signal内のget_config呼び出しで例外発生させる
-        with patch("src.core.config.get_config", side_effect=Exception("Config error")):
-            with patch.object(logger, "info") as mock_info:
-                logger.log_signal(
-                    strategy="BBReversal",
-                    signal="HOLD",
-                    confidence=0.5,
-                )
-                mock_info.assert_called_once()
-                # extra_dataにBTC/JPY（フォールバック）が含まれる
-                call_args = mock_info.call_args
-                assert call_args[1]["extra_data"]["symbol"] == "BTC/JPY"
-
-
-class TestLogPerformance:
-    """log_performanceメソッドのテスト"""
-
-    def setup_method(self):
-        """テストごとにグローバル状態をリセット"""
-        import src.core.logger as logger_module
-
-        logger_module._logger_instance = None
-        os.environ.pop("LOG_LEVEL", None)
-        os.environ.pop("BACKTEST_MODE", None)
-
-    def teardown_method(self):
-        """テスト後にクリーンアップ"""
-        import src.core.logger as logger_module
-
-        logger_module._logger_instance = None
-        os.environ.pop("LOG_LEVEL", None)
-        os.environ.pop("BACKTEST_MODE", None)
-
-    @patch("src.core.config.get_config")
-    def test_log_performance(self, mock_get_config):
-        """パフォーマンスログ"""
-        mock_config = MagicMock()
-        mock_config.logging.level = "DEBUG"
-        mock_config.logging.file_enabled = False
-        mock_config.logging.retention_days = 7
-        mock_get_config.return_value = mock_config
-
-        logger = CryptoBotLogger("test_bot")
-
-        with patch.object(logger, "info") as mock_info:
-            logger.log_performance(
-                total_pnl=50000.0,
-                win_rate=0.65,
-                trade_count=100,
-                max_drawdown=0.08,
-            )
-            mock_info.assert_called_once()
-            call_args = mock_info.call_args
-            assert "パフォーマンス" in call_args[0][0]
-            assert "50000" in call_args[0][0]
 
 
 class TestGlobalFunctions:

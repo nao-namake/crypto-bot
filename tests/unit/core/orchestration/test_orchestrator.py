@@ -305,9 +305,7 @@ class TestBacktestMode:
 
         await orchestrator._run_backtest_mode()
 
-        orchestrator.logger.warning.assert_any_call(
-            "⚠️ バックテスト実行で問題が発生しました", discord_notify=False
-        )
+        orchestrator.logger.warning.assert_any_call("⚠️ バックテスト実行で問題が発生しました")
 
     @pytest.mark.asyncio
     @patch("src.core.orchestration.orchestrator.get_threshold")
@@ -485,19 +483,16 @@ class TestCreateTradingOrchestrator:
     @patch("src.core.orchestration.orchestrator._get_actual_balance")
     @patch("src.trading.create_risk_manager")
     @patch("src.trading.execution.ExecutionService")
-    @patch("src.core.reporting.discord_notifier.DiscordManager")
     @patch("src.data.bitbank_client.BitbankClient")
     @patch("src.data.data_pipeline.DataPipeline")
     @patch("src.features.feature_generator.FeatureGenerator")
     @patch("src.strategies.base.strategy_manager.StrategyManager")
-    @patch.dict("os.environ", {"DISCORD_WEBHOOK_URL": "https://discord.com/webhook/test"})
     async def test_create_trading_orchestrator_success(
         self,
         mock_strategy_manager,
         mock_feature_generator,
         mock_data_pipeline,
         mock_bitbank_client,
-        mock_discord_manager,
         mock_execution_service,
         mock_create_risk_manager,
         mock_get_balance,
@@ -508,11 +503,6 @@ class TestCreateTradingOrchestrator:
         # モック設定
         mock_get_balance.return_value = asyncio.Future()
         mock_get_balance.return_value.set_result(10000.0)
-
-        mock_discord = Mock()
-        mock_discord.enabled = True
-        mock_discord.test_connection.return_value = True
-        mock_discord_manager.return_value = mock_discord
 
         mock_create_risk_manager.return_value = Mock()
 
@@ -528,10 +518,7 @@ class TestCreateTradingOrchestrator:
         mock_logger.info.assert_any_call("🎉 TradingOrchestrator依存性組み立て完了")
 
     @pytest.mark.asyncio
-    @patch("src.core.reporting.discord_notifier.DiscordManager")
-    async def test_create_trading_orchestrator_import_error(
-        self, mock_discord_manager, mock_config, mock_logger
-    ):
+    async def test_create_trading_orchestrator_import_error(self, mock_config, mock_logger):
         """依存モジュール読み込みエラー"""
         # ImportErrorを引き起こす
         with patch(

@@ -9,8 +9,6 @@ Phase 49完了:
 - セッション統計（cycle_count・session_stats）
 - レポート生成（PaperTradingReporter統合）
 - 定期実行制御（interval_minutes設定・5分間隔デフォルト）
-- Discord通知統合（セッション開始・エラー通知）
-
 Phase 28-29: ペーパートレードモード専用処理・レポート生成確立
 """
 
@@ -35,7 +33,6 @@ class PaperTradingRunner(BaseRunner):
         super().__init__(orchestrator_ref, logger)
         self.session_start = None
         self.cycle_count = 0
-        self.session_stats = {}
 
     async def run(self) -> bool:
         """
@@ -63,7 +60,7 @@ class PaperTradingRunner(BaseRunner):
             raise
 
         except Exception as e:
-            self.logger.error(f"❌ ペーパートレード実行エラー: {e}", discord_notify=True)
+            self.logger.error(f"❌ ペーパートレード実行エラー: {e}")
             await self._save_error_report(str(e))
             raise
 
@@ -172,7 +169,6 @@ class PaperTradingRunner(BaseRunner):
             # ペーパートレード固有のクリーンアップ
             self.session_start = None
             self.cycle_count = 0
-            self.session_stats = {}
 
             self.logger.info("🧹 ペーパートレードリソースクリーンアップ完了")
 

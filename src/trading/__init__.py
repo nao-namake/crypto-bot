@@ -170,8 +170,8 @@ DEFAULT_RISK_CONFIG = {
     "anomaly_detector": {
         "spread_warning_threshold": 0.003,  # 0.3%スプレッド警告
         "spread_critical_threshold": 0.005,  # 0.5%スプレッド重大
-        "api_latency_warning_ms": 2000,  # 2秒遅延警告（Phase 3最適化）
-        "api_latency_critical_ms": 5000,  # 5秒遅延重大（Phase 3最適化）
+        "api_latency_warning_ms": 5000,  # Phase 65: 5秒遅延警告（ccxt rate limiting考慮）
+        "api_latency_critical_ms": 15000,  # Phase 65: 15秒遅延重大（Cloud Run + ccxt正常範囲拡大）
         "price_spike_zscore_threshold": 3.0,  # 3σ価格スパイク
         "volume_spike_zscore_threshold": 3.0,  # 3σ出来高スパイク
     },
@@ -223,7 +223,6 @@ def create_risk_manager(
     return IntegratedRiskManager(
         config=config,
         initial_balance=initial_balance,
-        enable_discord_notifications=True,
         mode=mode,  # モード伝播
         bitbank_client=bitbank_client,  # Phase 49.15: 証拠金維持率API取得用
         execution_service=execution_service,  # Phase 51.7: バックテスト対応

@@ -1,7 +1,5 @@
 """
 BaseReporterクラスのユニットテスト
-
-src/core/reporting/base_reporter.pyのカバレッジ向上（27%→70%以上目標）
 """
 
 import json
@@ -131,168 +129,6 @@ class TestSaveReport:
         mock_logger.error.assert_called()
 
 
-class TestFormatMarkdown:
-    """format_markdownメソッドのテスト"""
-
-    def test_format_markdown_basic(self, reporter):
-        """基本的なマークダウン変換"""
-        data = {"key1": "value1", "key2": 100}
-        result = reporter.format_markdown(data, "テストレポート")
-
-        assert "# テストレポート" in result
-        assert "**key1**: value1" in result
-        assert "**key2**: 100" in result
-
-    def test_format_markdown_with_nested_dict(self, reporter):
-        """ネストした辞書の変換"""
-        data = {"section": {"item1": "A", "item2": "B"}}
-        result = reporter.format_markdown(data, "Nested Report")
-
-        assert "## section" in result
-        assert "**item1**: A" in result
-        assert "**item2**: B" in result
-
-    def test_format_markdown_default_title(self, reporter):
-        """デフォルトタイトルが使用される"""
-        data = {"test": "data"}
-        result = reporter.format_markdown(data)
-
-        assert "# レポート" in result
-
-    def test_format_markdown_includes_timestamp(self, reporter):
-        """生成日時が含まれる"""
-        data = {"key": "value"}
-        result = reporter.format_markdown(data, "Test")
-
-        assert "**生成日時**" in result
-        assert "年" in result
-        assert "月" in result
-
-    def test_format_markdown_mixed_data(self, reporter):
-        """トップレベルの値と辞書が混在するデータ"""
-        data = {
-            "simple_key": "simple_value",
-            "nested_section": {"nested_key": "nested_value"},
-            "another_simple": 123,
-        }
-        result = reporter.format_markdown(data, "Mixed Report")
-
-        assert "**simple_key**: simple_value" in result
-        assert "## nested_section" in result
-        assert "**nested_key**: nested_value" in result
-        assert "**another_simple**: 123" in result
-
-
-class TestFormatDiscordEmbed:
-    """format_discord_embedメソッドのテスト"""
-
-    def test_format_discord_embed_basic(self, reporter):
-        """基本的なEmbed生成"""
-        data = {"field1": "value1", "field2": 100}
-        result = reporter.format_discord_embed(data, "Test Embed")
-
-        assert result["title"] == "Test Embed"
-        assert result["color"] == 0x00FF00  # デフォルト緑
-        assert "timestamp" in result
-        assert len(result["fields"]) == 2
-
-    def test_format_discord_embed_custom_color(self, reporter):
-        """カスタム色の指定"""
-        data = {"test": "data"}
-        result = reporter.format_discord_embed(data, "Error", color=0xFF0000)
-
-        assert result["color"] == 0xFF0000
-
-    def test_format_discord_embed_nested_dict_summary(self, reporter):
-        """ネストした辞書がサマリーに変換される"""
-        data = {"metrics": {"a": 1, "b": 2, "c": 3}}
-        result = reporter.format_discord_embed(data, "Metrics")
-
-        fields = result["fields"]
-        assert len(fields) == 1
-        assert fields[0]["name"] == "metrics"
-        assert "a: 1" in fields[0]["value"]
-        assert "b: 2" in fields[0]["value"]
-        assert "c: 3" in fields[0]["value"]
-
-    def test_format_discord_embed_nested_dict_truncation(self, reporter):
-        """4項目以上のネスト辞書が省略される"""
-        data = {"many_items": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}}
-        result = reporter.format_discord_embed(data, "Many Items")
-
-        fields = result["fields"]
-        assert "..." in fields[0]["value"]
-
-    def test_format_discord_embed_fields_are_inline(self, reporter):
-        """フィールドがinline=Trueで設定される"""
-        data = {"key1": "value1", "key2": "value2"}
-        result = reporter.format_discord_embed(data, "Inline Test")
-
-        for field in result["fields"]:
-            assert field["inline"] is True
-
-    def test_format_discord_embed_converts_to_string(self, reporter):
-        """非文字列値が文字列に変換される"""
-        data = {"number": 42, "boolean": True, "none": None}
-        result = reporter.format_discord_embed(data, "Conversion")
-
-        for field in result["fields"]:
-            assert isinstance(field["value"], str)
-
-
-class TestSaveMarkdownReport:
-    """save_markdown_reportメソッドのテスト"""
-
-    @pytest.mark.asyncio
-    async def test_save_markdown_report_creates_file(self, reporter):
-        """マークダウンファイルが作成される"""
-        data = {"key": "value"}
-        result_path = await reporter.save_markdown_report(data, "md_test", "Test Title")
-
-        assert result_path.exists()
-        assert result_path.suffix == ".md"
-
-    @pytest.mark.asyncio
-    async def test_save_markdown_report_content(self, reporter):
-        """正しい内容がファイルに書き込まれる"""
-        data = {"metric": 100}
-        result_path = await reporter.save_markdown_report(data, "content_test", "Content Check")
-
-        with open(result_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        assert "# Content Check" in content
-        assert "**metric**: 100" in content
-
-    @pytest.mark.asyncio
-    async def test_save_markdown_report_creates_subdirectory(self, reporter):
-        """サブディレクトリが作成される"""
-        data = {"test": True}
-        result_path = await reporter.save_markdown_report(data, "subdir_test", "Subdir Title")
-
-        assert "subdir_test" in str(result_path.parent)
-        assert result_path.parent.exists()
-
-    @pytest.mark.asyncio
-    async def test_save_markdown_report_logs_success(self, reporter, mock_logger):
-        """成功時にログが出力される"""
-        data = {"key": "value"}
-        await reporter.save_markdown_report(data, "log_test", "Log Test")
-
-        mock_logger.info.assert_called()
-        call_args = str(mock_logger.info.call_args)
-        assert "マークダウンレポート保存" in call_args
-
-    @pytest.mark.asyncio
-    async def test_save_markdown_report_raises_on_error(self, reporter, mock_logger):
-        """保存エラー時に例外が発生する"""
-        with patch("builtins.open", side_effect=IOError("Cannot write")):
-            with pytest.raises(IOError):
-                await reporter.save_markdown_report({"data": "test"}, "error", "Error Test")
-
-        mock_logger.error.assert_called()
-
-
 class TestSaveErrorReport:
     """save_error_reportメソッドのテスト"""
 
@@ -347,55 +183,6 @@ class TestSaveErrorReport:
         assert data["context"]["variables"]["x"] == 10
 
 
-class TestGetReportSummary:
-    """get_report_summaryメソッドのテスト"""
-
-    def test_get_report_summary_basic(self, reporter):
-        """基本的なサマリーが生成される"""
-        data = {"key1": "value1", "key2": "value2", "key3": 100}
-        result = reporter.get_report_summary(data)
-
-        assert result["total_fields"] == 3
-        assert result["has_nested_data"] is False
-        assert "timestamp" in result
-        assert "data_size_bytes" in result
-
-    def test_get_report_summary_with_nested_data(self, reporter):
-        """ネストしたデータを検出"""
-        data = {"simple": "value", "nested": {"inner": "data"}}
-        result = reporter.get_report_summary(data)
-
-        assert result["has_nested_data"] is True
-        assert result["total_fields"] == 2
-
-    def test_get_report_summary_empty_data(self, reporter):
-        """空のデータに対するサマリー"""
-        data = {}
-        result = reporter.get_report_summary(data)
-
-        assert result["total_fields"] == 0
-        assert result["has_nested_data"] is False
-
-    def test_get_report_summary_data_size(self, reporter):
-        """データサイズが正しく計算される"""
-        small_data = {"a": 1}
-        large_data = {"a": "x" * 1000}
-
-        small_summary = reporter.get_report_summary(small_data)
-        large_summary = reporter.get_report_summary(large_data)
-
-        assert large_summary["data_size_bytes"] > small_summary["data_size_bytes"]
-
-    def test_get_report_summary_timestamp_format(self, reporter):
-        """タイムスタンプがISO形式"""
-        data = {"test": "data"}
-        result = reporter.get_report_summary(data)
-
-        # ISO形式のタイムスタンプを検証
-        timestamp = result["timestamp"]
-        datetime.fromisoformat(timestamp)  # 変換できることを確認
-
-
 class TestEdgeCases:
     """エッジケースのテスト"""
 
@@ -404,7 +191,7 @@ class TestEdgeCases:
         """特殊文字を含むデータの保存"""
         data = {
             "japanese": "日本語テスト",
-            "emoji": "テスト",  # 絵文字なし（規約に従う）
+            "emoji": "テスト",
             "special": "!@#$%^&*()",
             "newline": "line1\nline2",
         }
@@ -427,31 +214,6 @@ class TestEdgeCases:
 
         assert len(saved_data) == 100
 
-    def test_format_markdown_empty_nested_dict(self, reporter):
-        """空のネスト辞書の変換"""
-        data = {"empty_section": {}}
-        result = reporter.format_markdown(data, "Empty Section Test")
-
-        assert "## empty_section" in result
-
-    def test_format_discord_embed_empty_nested_dict(self, reporter):
-        """空のネスト辞書のEmbed変換"""
-        data = {"empty": {}}
-        result = reporter.format_discord_embed(data, "Empty Nested")
-
-        assert len(result["fields"]) == 1
-        assert result["fields"][0]["name"] == "empty"
-        # 空の辞書は空文字列のサマリーになる
-        assert result["fields"][0]["value"] == ""
-
-    def test_format_discord_embed_exactly_three_items(self, reporter):
-        """ちょうど3項目のネスト辞書（省略なし）"""
-        data = {"three_items": {"a": 1, "b": 2, "c": 3}}
-        result = reporter.format_discord_embed(data, "Three Items")
-
-        fields = result["fields"]
-        assert "..." not in fields[0]["value"]
-
 
 class TestReportIntegration:
     """統合テスト"""
@@ -465,19 +227,6 @@ class TestReportIntegration:
         # 2. JSONレポート保存
         json_path = await reporter.save_report(test_data, "integration", "workflow")
         assert json_path.exists()
-
-        # 3. マークダウンレポート保存
-        md_path = await reporter.save_markdown_report(test_data, "integration", "Integration Test")
-        assert md_path.exists()
-
-        # 4. サマリー生成
-        summary = reporter.get_report_summary(test_data)
-        assert summary["total_fields"] == 2
-        assert summary["has_nested_data"] is True
-
-        # 5. Discord Embed生成
-        embed = reporter.format_discord_embed(test_data, "Integration Embed")
-        assert len(embed["fields"]) == 2
 
     @pytest.mark.asyncio
     async def test_error_recovery_workflow(self, reporter, mock_logger):

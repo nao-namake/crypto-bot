@@ -1,16 +1,18 @@
 """
-統合設定管理システム - Phase 49完了
+統合設定管理システム - Phase 64.13
 
 環境変数とYAMLファイルの統合管理・unified.yaml統合デフォルト値
 
+Phase 64.13: デッドコード削除（Optuna/paper_mode/未使用再エクスポート）
 Phase 49完了:
 - 3層設定体系（features.yaml・unified.yaml・thresholds.yaml）
-- threshold_manager: 8専用アクセス関数・実行時オーバーライド対応（Phase 40.1 Optuna最適化）
+- threshold_manager: 6専用アクセス関数
 - feature_manager: 55特徴量管理（Phase 41 Strategy-Aware ML）
-- runtime_flags: バックテストモード・ペーパーモード制御（Phase 35）
+- runtime_flags: バックテストモード制御（Phase 35）
 Phase 28-29: 統合設定管理システム確立
 """
 
+import dataclasses
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,19 +24,14 @@ from .config_classes import DataConfig, ExchangeConfig, LoggingConfig, MLConfig,
 
 # Phase 35: ランタイムフラグシステム
 from .runtime_flags import (
-    get_all_flags,
     get_backtest_log_level,
     is_backtest_mode,
-    is_paper_mode,
-    reset_all_flags,
     set_backtest_log_level,
     set_backtest_mode,
-    set_paper_mode,
 )
 
 # threshold_manager関数をインポートして再エクスポート
 from .threshold_manager import (
-    clear_runtime_overrides,
     get_all_thresholds,
     get_anomaly_config,
     get_backtest_config,
@@ -42,14 +39,9 @@ from .threshold_manager import (
     get_file_config,
     get_monitoring_config,
     get_position_config,
-    get_runtime_overrides,
-    get_system_thresholds,
     get_threshold,
-    get_trading_thresholds,
     load_thresholds,
     reload_thresholds,
-    set_runtime_override,
-    set_runtime_overrides_batch,
 )
 
 
@@ -199,10 +191,9 @@ class Config:
 
         data = deep_merge(data, defaults)
 
-        # 除外フィールド（MLConfigのみ）
-        if section_name == "ml":
-            excluded_fields = {"dynamic_confidence"}
-            data = {k: v for k, v in data.items() if k not in excluded_fields}
+        # Phase 64.13: dataclassの有効フィールドのみ保持（YAML側の未知キーを安全に除外）
+        valid_fields = {f.name for f in dataclasses.fields(config_class)}
+        data = {k: v for k, v in data.items() if k in valid_fields}
 
         # extra_dataがある場合はマージ
         if extra_data:
@@ -357,16 +348,6 @@ def get_features_config() -> dict:
     return load_features_config()
 
 
-def reload_features_config() -> dict:
-    """
-    features.yamlを強制再読み込み
-
-    Returns:
-        features.yaml の内容（辞書）
-    """
-    return load_features_config(force_reload=True)
-
-
 # 分離されたクラスと関数を再エクスポート
 __all__ = [
     # 設定クラス
@@ -392,24 +373,12 @@ __all__ = [
     "get_backtest_config",
     "get_data_config",
     "get_file_config",
-    "get_trading_thresholds",
-    "get_system_thresholds",
-    # Phase 40.1: 実行時オーバーライド機能
-    "set_runtime_override",
-    "set_runtime_overrides_batch",
-    "clear_runtime_overrides",
-    "get_runtime_overrides",
     # features.yaml管理関数（Phase 31.1）
     "load_features_config",
     "get_features_config",
-    "reload_features_config",
     # ランタイムフラグ管理関数（Phase 35）
     "set_backtest_mode",
     "is_backtest_mode",
-    "set_paper_mode",
-    "is_paper_mode",
     "set_backtest_log_level",
     "get_backtest_log_level",
-    "reset_all_flags",
-    "get_all_flags",
 ]

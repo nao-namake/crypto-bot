@@ -1,17 +1,17 @@
-# CLAUDE.md - Phase 64開発ガイド
+# CLAUDE.md - Phase 65開発ガイド
 
-**最終更新**: 2026年2月20日
+**最終更新**: 2026年2月21日
 
 ---
 
-## システム現状（Phase 64進行中）
+## システム現状（Phase 65完了）
 
 ### 概要
 
 | 項目 | 値 |
 |------|-----|
-| **Phase** | 64進行中（64.1-64.12完了）|
-| **前Phase** | 63.6完了（TP/SL定期チェック・残存バグ修正・最終監査バグなし確認） |
+| **Phase** | 65完了（ライブ取引頻度回復・三重壁対策）|
+| **前Phase** | 64完了（64.1-64.21: src/全体リファクタリング） |
 | **最新成果** | バックテスト ¥+102,135（PF 2.47・勝率89.2%・DD 0.94%） |
 | **戦略数** | 6戦略（レンジ型4 + トレンド型2） |
 | **特徴量数** | 55特徴量（49基本 + 6戦略信号） |
@@ -20,7 +20,18 @@
 | **証拠金** | 50万円（Phase 57で10万→50万に変更） |
 | **年利目標** | 10%（DD 10%許容） |
 
-### Phase 64 進行状況
+### Phase 65 完了（ライブ取引頻度回復）
+
+**目的**: バックテスト（3.9件/日）に対しライブ本番で24h+取引ゼロ → 三重の遮断壁を包括的に対策
+
+| 対策 | 内容 | 変更 |
+|------|------|------|
+| **壁3: API遅延** | ccxt rateLimit過保守 + 閾値厳格すぎ | rateLimit 1000→200ms、critical 5000→15000ms |
+| **壁2: 信頼度閾値** | min_strategy_confidence 0.25で僅差遮断 | 0.25→0.22 |
+| **壁1: HOLD支配** | BBReversal無効化で3戦略全HOLD | BBReversal 0.0→0.15 + 重み再配分 |
+| **帰属バグ** | 重み0.0の戦略が帰属先になる | max()キーに重み考慮追加（3箇所） |
+
+### Phase 64 完了（src/全体リファクタリング）
 
 **目的**: TP/SLロジックのシンプル化 + `src/` `config/` 全体の過度な複雑性を整理
 **背景**: executor.py（2,844行）・stop_manager.py（2,178行）を中心にTP/SLロジックが3ファイルに分散。Phase 63.6で設定パスtypoがCRITICALバグ3件を引き起こした。
@@ -39,6 +50,110 @@
 | **64.10** | `src/backtest/`フォルダ監査・クリーンアップ | ✅ 完了 |
 | **64.11** | バックテストログ出力先統合 + 蓄積防止 | ✅ 完了 |
 | **64.12** | SL安全網の根本修正（50062無限ループ・canceled放置・VP無限ループ・孤児SL） | ✅ 完了 |
+| **64.13** | `src/core/config/`ディレクトリ整理（Optuna/paper_mode/未使用フィールド削除・-16%） | ✅ 完了 |
+| **64.14** | `src/core/execution/`ディレクトリ整理（デッドコード削除・importバグ修正・-31行） | ✅ 完了 |
+| **64.15** | `src/core/orchestration/`ディレクトリ整理（未使用属性・Protocol整理） | ✅ 完了 |
+| **64.16** | `src/core/reporting/`整理 + Discord通知システム全削除（-1,900行） | ✅ 完了 |
+| **64.17** | `src/core/services/`ディレクトリ整理（デッドメソッド10件削除・-18%） | ✅ 完了 |
+| **64.18** | `src/core/state/`ディレクトリ全削除（完全死コードモジュール・-888行） | ✅ 完了 |
+| **64.19** | `src/core/`直下ファイル整理（exceptions/logger/__init__ + discord_notify全除去・-670行） | ✅ 完了 |
+| **64.20** | `src/core/`最終監査クリーンアップ（死属性4件・死メソッド2件・Discord残骸9箇所・import統合） | ✅ 完了 |
+| **64.21** | `src/`横断最終監査（Discord残骸全除去・デッドパス修正・死属性削除・README書き直し） | ✅ 完了 |
+
+#### Phase 64.19 変更内容（`src/core/`直下ファイル整理）
+
+| 変更 | 内容 |
+|------|------|
+| **__init__.py** | 再エクスポート27件・`__version__`等全削除（103行→1行） |
+| **exceptions.py** | デッド例外2件（ConfigError/DataQualityError）+ ErrorSeverity系統全削除（-65行） |
+| **logger.py** | LogLevel enum + デッドメソッド3件 + `_discord_manager` + discord_notifyパラメータ全除去（-117行） |
+| **discord_notify除去** | logger.py 6メソッド + 呼び出し元8ファイル40箇所から完全除去 |
+| **テスト** | test_exceptions/test_logger/test_trading_logger/test_orchestratorから削除コードテスト除去（-317行） |
+
+#### Phase 64.21 変更内容（`src/`横断最終監査クリーンアップ）
+
+| 変更 | 内容 |
+|------|------|
+| **drawdown.pyデッドパス修正** | デフォルトパス`src/core/state/`→`data/`（64.18でstate/削除済み）+ unified.yaml同期 |
+| **Discord残骸（trading/5ファイル）** | manager.py: `enable_discord_notifications`・`_send_discord_notifications()`全削除 / \_\_init\_\_.py・executor.py・monitor.py・bitbank_client.py: discord引数削除 |
+| **Discord設定（config/3ファイル）** | features.yaml: 13行 / unified.yaml: 42行 / thresholds.yaml: 3キー削除 |
+| **config_classes.py** | `LoggingConfig.discord_enabled`・`LoggingConfig.discord`フィールド削除 |
+| **死属性（executor.py）** | `self.trade_history`・`self.pending_limit_orders`削除（参照0件） |
+| **`src/__init__.py`** | 全面書き直し（44行→1行） |
+| **`src/README.md`** | 全面書き直し（337行→54行・Phase 64情報に更新） |
+| **テスト** | Discord通知テスト削除 + 位置引数修正 |
+
+#### Phase 64.20 変更内容（`src/core/`最終監査クリーンアップ）
+
+| 変更 | 内容 |
+|------|------|
+| **死属性削除** | `base_runner.execution_interval`ローカル変数化・`backtest_runner/paper_trading_runner.session_stats`削除・`live_trading_runner.total_pnl`削除 |
+| **死メソッド削除** | `RegimeType.from_string()`・`RegimeType.is_range()`（呼び出し0件） |
+| **Discord残骸** | 5ファイル9箇所のDiscordコメント・docstring除去 |
+| **import os統合** | logger.pyメソッド内6箇所→モジュール先頭1箇所 |
+| **docstring簡素化** | `orchestration/__init__.py`（14行→1行） |
+| **テスト** | regime_types死メソッドテスト3件 + 未使用pytest import削除 |
+
+#### Phase 64.18 変更内容（`src/core/state/`全削除）
+
+| 変更 | 内容 |
+|------|------|
+| **src/core/state/** | ディレクトリ全削除（drawdown_persistence.py 286行 + __init__.py 30行 + README.md 140行 + 空サブディレクトリ3件） |
+| **テスト** | test_drawdown_persistence.py（432行）削除 |
+| **src/core/README.md** | state/セクション・参照7箇所削除 |
+| **背景** | Phase 29/49で設計されたが本番呼び出し0件。実際のドローダウン永続化はsrc/trading/risk/drawdown.pyが独自実装 |
+
+#### Phase 64.17 変更内容（`src/core/services/`整理）
+
+| 変更 | 内容 |
+|------|------|
+| **health_checker.py** | デッドメソッド2件削除（`check_service_status`・`get_health_summary`）+ docstring簡素化（-67行） |
+| **system_recovery.py** | デッドメソッド2件削除（`get_recovery_status`・`reset_recovery_attempts`）+ docstring簡素化（-27行） |
+| **trading_logger.py** | デッドメソッド3件削除（`format_performance_summary`・`log_cycle_start`・`log_cycle_end`）+ docstring簡素化（-53行） |
+| **market_regime_classifier.py** | `get_regime_stats`・`_calc_donchian_width`・未使用代入削除 + docstring簡素化（-56行） |
+| **regime_types.py** | `get_description`・`is_high_risk`削除 + docstring簡素化（-22行） |
+| **全9ファイル** | module docstring「Phase XX完了」→簡素化 |
+| **README.md** | 全面書き直し（188行→41行） |
+| **テスト** | 削除メソッドテスト23件除去（-271行） |
+
+#### Phase 64.16 変更内容（`src/core/reporting/`整理 + Discord全削除）
+
+| 変更 | 内容 |
+|------|------|
+| **discord_notifier.py** | ファイル削除（585行: DiscordClient・DiscordManager・notify） |
+| **base_reporter.py** | デッドメソッド4件削除（format_markdown/format_discord_embed/save_markdown_report/get_report_summary）+ Phase参照22→64（-130行） |
+| **paper_trading_reporter.py** | `format_discord_notification()`削除 + Phase参照22→64（-55行） |
+| **executor.py / risk/manager.py / orchestrator.py** | DiscordManager import・初期化ブロック全削除 |
+| **logger.py** | `set_discord_manager()`・`set_discord_notifier()`削除（`_discord_manager=None`は互換性保持） |
+| **テスト** | test_discord_notifier.py(973行)・test_discord_client.py削除 + executor/orchestrator/loggerのDiscordパッチ全除去 |
+
+#### Phase 64.15 変更内容（`src/core/orchestration/`整理）
+
+| 変更 | 内容 |
+|------|------|
+| **ml_fallback.py** | DummyModel未使用属性2件削除（`model_name`・`n_features_`）+ 関連import（-5行） |
+| **protocols.py** | `_create_hold_signal` privateメソッド削除（Protocolにprivate不適切）（-2行） |
+| **ml_adapter.py** | バージョン文字列更新（`Phase22_Optimized`→`Phase64`） |
+| **orchestrator.py** | ファイル末尾孤児コメント削除（-1行） |
+
+#### Phase 64.13 変更内容（`src/core/config/`整理）
+
+| 変更 | 内容 |
+|------|------|
+| **threshold_manager.py** | Optuna runtime override 4関数 + 未使用アクセサ2関数 + `_runtime_overrides`変数削除（-54行） |
+| **__init__.py** | 再エクスポート11件削除 + `reload_features_config`削除 + `_create_generic_config`をdataclassフィールドベースに改良（-20行） |
+| **runtime_flags.py** | `paper_mode` + `reset_all_flags` + `get_all_flags`削除（-38行） |
+| **feature_manager.py** | 未使用メソッド3件（validate_features/get_feature_info/get_basic_feature_names）+ ラッパー3件削除（-97行） |
+| **config_classes.py** | MLConfig未使用フィールド6件削除（model_update_check/meta_learning/min_confidence/market_features/performance_tracking/model_config） |
+| **thresholds.yaml** | ml内デッドキー5セクション削除（-30行） |
+| **unified.yaml** | `model_update_check`削除 |
+
+#### Phase 64.14 変更内容（`src/core/execution/`整理）
+
+| 変更 | 内容 |
+|------|------|
+| **backtest_runner.py** | コメントアウトコード4行 + `_setup_current_market_data()`レガシーメソッド5行 + `_save_progress_report()`デッドメソッド21行削除（-30行） |
+| **live_trading_runner.py** | `from config import load_config`→`from ..config import load_config`（importバグ修正）+ 冗長`get_threshold` import削除（-1行） |
 
 #### Phase 64.12 変更内容（SL安全網の根本修正）
 
@@ -215,19 +330,19 @@ src/trading/execution/
 | **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | - |
 | **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | - |
 
-### タイトレンジ重みづけ（Phase 59.4-A）
+### タイトレンジ重みづけ（Phase 65）
 
 ```yaml
 tight_range:
-  BBReversal: 0.35          # レンジ型主力
-  StochasticReversal: 0.35  # レンジ型主力
-  ATRBased: 0.20            # 補助
-  DonchianChannel: 0.10     # 補助
+  BBReversal: 0.15          # Phase 65: 再有効化（62.2でBB主導ロジック変更済み）
+  StochasticReversal: 0.30  # レンジ型主力
+  ATRBased: 0.30            # レンジ型主力
+  DonchianChannel: 0.25     # 補助
   ADXTrendStrength: 0.0     # トレンド型・タイトレンジ不向き
   MACDEMACrossover: 0.0     # ADX>25条件でタイトレンジ不発
 ```
 
-**設計思想**: 分散投資維持。59.4-BでATRBased主力化を試行したが分散効果低下で失敗
+**設計思想**: Phase 65でBBReversal再有効化。Phase 62.2でBB主導ロジックに変更済みで、GCPログでBUY(0.550)連続出力を確認。HOLD支配解消のため重み0.15で有効化。
 
 ### レジーム別TP/SL設定（Phase 63.3更新）
 
@@ -391,7 +506,7 @@ src/
 │   ├── orchestration/      # TradingOrchestrator
 │   ├── config/             # 設定管理（unified.yaml）
 │   ├── execution/          # 取引実行制御
-│   ├── reporting/          # Discord週間レポート
+│   ├── reporting/          # レポート生成（BaseReporter・PaperTradingReporter）
 │   └── services/           # GracefulShutdown・MarketRegimeClassifier
 ├── data/                   # Bitbank API・キャッシュ
 ├── features/               # 特徴量生成（15指標）
@@ -505,7 +620,7 @@ config/secrets/
 ### コーディング規約
 
 - **設定**: ハードコード禁止・`get_threshold()`パターン使用
-- **ログ**: JST時刻・構造化ログ・Discord通知対応
+- **ログ**: JST時刻・構造化ログ
 - **テスト**: 単体・統合・エラーケーステスト完備
 - **アーキテクチャ**: レイヤードアーキテクチャ遵守
 
@@ -617,4 +732,4 @@ gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 
 ---
 
-**📅 最終更新**: 2026年2月20日 - **Phase 64進行中**（64.1-64.12完了）・TP/SLシンプル化 + システム全体整理 + SL安全網修正
+**📅 最終更新**: 2026年2月21日 - **Phase 65完了**（ライブ取引頻度回復・三重壁対策）+ Phase 64完了（64.1-64.21）

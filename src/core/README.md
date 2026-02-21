@@ -1,24 +1,12 @@
-# src/core/ - コアシステム基盤（Phase 49完了）
-
-## 🎯 役割・責任
-
-AI自動取引システムのコアシステム基盤層。設定管理、ログシステム、統合制御、実行モード管理、レポート生成、サービスコンポーネントを提供。システム統合、MLモデル管理、取引実行制御、運用監視を担当し、全システムの基盤として機能します。
-
-**Phase 49完了**: バックテスト完全改修（戦略シグナル事前計算・TP/SL決済ロジック・TradeTracker統合・matplotlib可視化）・証拠金維持率80%遵守・TP/SL設定完全同期（thresholds.yaml完全準拠）
-**Phase 48完了**: Discord週間レポート実装（通知99%削減・損益グラフ・matplotlib・コスト35%削減）
-**Phase 47完了**: 確定申告対応システム実装（SQLite取引記録・移動平均法損益計算・作業時間95%削減）
-**Phase 42完了**: 統合TP/SL実装（注文数91.7%削減）・トレーリングストップ・ML Agreement Logic修正
-**Phase 41.8完了**: Strategy-Aware ML実装（55特徴量・実戦略信号学習・ML統合率100%達成）
-**Phase 38完了**: trading層レイヤードアーキテクチャ実装完了・テストカバレッジ70.56%達成
-**Phase 28-29完了**: 32ファイル全更新・フォルダ構成最適化・企業級コード品質確立
+# src/core/ - コアシステム基盤
 
 ## 📂 ディレクトリ構成
 
 ```
 src/core/                          # 31 Pythonファイル（8,078行）+ 4 README
-├── __init__.py                    # コアモジュールエクスポート（Phase 49完了）
-├── logger.py                      # JST対応ログシステム・Discord統合（534行）
-├── exceptions.py                  # カスタム例外階層（247行・11種類例外クラス）
+├── __init__.py                    # モジュールマーカー
+├── logger.py                      # JST対応ログシステム・構造化出力
+├── exceptions.py                  # カスタム例外階層（9種類派生クラス + PostOnlyCancelledException）
 │
 ├── config/                        # 設定管理システム（5ファイル）
 │   ├── __init__.py                # 設定ローダー・3層設定体系
@@ -42,17 +30,11 @@ src/core/                          # 31 Pythonファイル（8,078行）+ 4 READ
 │   ├── live_trading_runner.py     # ライブトレード実行
 │   └── backtest_runner.py         # バックテスト実行（Phase 49完全改修・信頼性100%達成）
 │
-├── reporting/                     # レポート生成（4ファイル + README）
+├── reporting/                     # レポート生成（2ファイル + README）
 │   ├── __init__.py                # レポートエクスポート
-│   ├── base_reporter.py           # 基底レポート機能（3種類レポート対応）
+│   ├── base_reporter.py           # 基底レポート機能
 │   ├── paper_trading_reporter.py  # ペーパートレードレポート
-│   ├── discord_notifier.py        # Discord週間レポート専用（Phase 48完了・通知99%削減）
 │   └── README.md                  # レポート生成システム詳細
-│
-├── state/                         # 状態永続化システム（2ファイル + README・Phase 49完了）
-│   ├── __init__.py                # 状態管理エクスポート
-│   ├── drawdown_persistence.py    # ドローダウン状態永続化（ローカル・Cloud Storage両対応）
-│   └── README.md                  # 状態管理システム詳細
 │
 └── services/                      # システムサービス（6ファイル + README）
     ├── __init__.py                # サービス層エクスポート
@@ -128,7 +110,7 @@ success = await paper_runner.run()
 **目的**: ペーパートレードレポート生成（バックテストレポートはsrc/backtest/で処理）
 
 **主要ファイル**:
-- `base_reporter.py`: マークダウン・Discord対応の基底レポート機能
+- `base_reporter.py`: 基底レポート機能
 - `paper_trading_reporter.py`: ペーパートレードセッションレポート・統計
 
 **使用方法**:
@@ -137,25 +119,6 @@ from src.core.reporting import PaperTradingReporter
 
 reporter = PaperTradingReporter(logger)
 report_path = await reporter.generate_session_report(session_stats)
-```
-
-### **状態永続化システム (state/) - Phase 29追加**
-
-**目的**: モード別状態管理・ドローダウン永続化・本番環境保護
-
-**主要ファイル**:
-- `drawdown_persistence.py`: ドローダウン状態永続化・ローカル/Cloud Storage対応
-- `__init__.py`: 状態管理エクスポート・統一インターフェース
-- `README.md`: 状態管理システム詳細・操作手順
-
-**使用方法**:
-```python
-from src.core.state import create_persistence
-
-# モード別状態管理
-persistence = create_persistence(mode="paper")
-state = await persistence.load_state()
-await persistence.save_state(updated_state)
 ```
 
 ### **システムサービス (services/)**
@@ -183,33 +146,26 @@ result = await cycle_manager.execute_trading_cycle()
 ## 📝 コア基盤ファイル (Phase 22最適化)
 
 ### **logger.py**
-構造化出力・Discord webhook統合付きJSTタイムゾーンログシステム
+JSTタイムゾーン対応の構造化ログシステム
 
 **機能**:
 - JSTタイムゾーン対応
 - extra_data付き構造化ログ
-- Discord通知統合
-- 複数ログレベル・フォーマット
+- JSON/カラー出力フォーマット
+- 複数ログレベル
 
-### **exceptions.py (Phase 22スリム化完了)**
+### **exceptions.py**
 エラーハンドリング用階層化カスタム例外システム
 
-**機能** (最適化後):
-- 実際に使用される例外のみ保持
-- 削除: NotificationError, APITimeoutError, APIAuthenticationError等（10クラス）
-- 保持: 取引固有例外、MLモデル例外、取引所API例外、システム復旧例外
-- エラー重要度マッピング最適化
-
-**Phase 22最適化内容**:
-- **削除済み**: `market_data.py` (423行完全未使用コード)
-- **移動済み**: `protocols.py` → `orchestration/protocols.py` (組織改善)
-- **スリム化済み**: `exceptions.py` 未使用例外クラス削除（10クラス削除）
+**保持クラス**: CryptoBotError(基底)、DataFetchError、ExchangeAPIError、TradingError、RiskManagementError、DataProcessingError、ModelLoadError、ModelPredictionError、FileIOError、HealthCheckError、StrategyError、PostOnlyCancelledException
 
 ## 🚀 使用例
 
 ### **基本システム初期化**
 ```python
-from src.core import load_config, setup_logging, create_trading_orchestrator
+from src.core.config import load_config
+from src.core.logger import setup_logging
+from src.core.orchestration import create_trading_orchestrator
 
 # 設定・ログ初期化
 config = load_config('config/core/unified.yaml', cmdline_mode='paper')
@@ -277,18 +233,18 @@ balance = get_threshold('trading.initial_balance_jpy', 10000.0)
 emergency_stop = get_ml_config('emergency_stop_on_dummy', True)
 ```
 
-### **エラーハンドリング (Phase 22最適化)**
+### **エラーハンドリング**
 ```python
 from src.core.exceptions import ModelLoadError, ModelPredictionError, ExchangeAPIError
 
 try:
     predictions = ml_service.predict(features)
 except ModelLoadError as e:
-    logger.error(f"MLモデル読み込みエラー: {e}", discord_notify=True)
+    logger.error(f"MLモデル読み込みエラー: {e}")
 except ModelPredictionError as e:
-    logger.error(f"ML予測エラー: {e}", discord_notify=True)  
+    logger.error(f"ML予測エラー: {e}")
 except ExchangeAPIError as e:
-    logger.error(f"取引所APIエラー: {e}", discord_notify=True)
+    logger.error(f"取引所APIエラー: {e}")
 ```
 
 ### **プロトコル使用 (Phase 22移動後)**
@@ -306,8 +262,6 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 - **orchestrator.py**: mode_balances対応・大文字小文字統一（config.mode.lower()）
 - **_get_actual_balance()**: unified.yamlのmode_balancesから残高取得・ペーパーモードAPI呼び出し回避
 - **設定一元化**: 将来の残高変更（10万円・50万円）も設定ファイル1箇所修正で完結
-- **モード別分離**: 状態ファイルをsrc/core/state/{mode}/に分離・本番環境への影響防止
-
 ### **2025/09/20修正: Silent Failure問題解決**
 - **orchestrator.py**: execution_service設定修正（RiskManager → ExecutionService）
 - **trading_cycle_manager.py**: AttributeErrorの詳細ログ追加・エラー可視性向上
@@ -316,15 +270,12 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 
 ### **2025/09/28 Phase 29: システム統合最適化**
 - **services/graceful_shutdown_manager.py統合**: shutdownフォルダ廃止・サービス層統合でアーキテクチャ簡素化
-- **state/システム追加**: モード別状態永続化システムで本番環境保護強化
 - **32ファイル全更新**: 全コアコンポーネントのPhase 29マーカー統一
-- **import統一**: `src.core.services`・`src.core.state`で統一アクセス・開発者体験向上
 
 ### **Phase 29最適化成果**
 - **32ファイル全更新**: 全コアコンポーネントのPhase 29マーカー統一完了
-- **アーキテクチャ最適化**: shutdown統合・state追加でシステム構造最適化
+- **アーキテクチャ最適化**: shutdown統合でシステム構造最適化
 - **デプロイ前準備**: コードクリーンアップ・横断的機能配置最適化完了
-- **状態管理強化**: モード別完全分離・本番環境保護実現
 - **企業級品質**: 639テスト100%成功・64.74%カバレッジ維持・品質ゲート通過
 
 ### **設計原則**
@@ -343,7 +294,7 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 - **外部設定**: `config/core/unified.yaml`、`config/core/thresholds.yaml`
 - **特徴量管理**: `config/core/feature_order.json`（15特徴量統一定義）
 - **MLモデル**: `models/production/` ディレクトリ
-- **Discord統合**: 通知用webhook設定
+
 
 ### **テスト**
 すべてのコアコンポーネントは以下でテストカバレッジを維持：
@@ -353,8 +304,4 @@ def create_orchestrator(ml_service: MLServiceProtocol, risk_service: RiskService
 
 ---
 
-**コア基盤 (Phase 38.4完了版)**: AI自動取引システムが異なるモードと環境で確実に動作するための設定、統合制御、実行、レポート、サービス、状態管理を可能にする基盤層。15特徴量統一管理・5戦略統合・MLモデル統合・モード別状態永続化により、包括的なシステム基盤を提供。
-
-**Phase 28-29成果**: 32ファイル全更新・アーキテクチャ最適化・デプロイ前最終クリーンアップで企業級コード品質を確立。shutdown統合・state追加・横断的機能配置最適化完了。
-**Phase 38成果**: trading層レイヤードアーキテクチャ完成・テストカバレッジ70.56%達成・1,078テスト100%成功。
-**Phase 38.4成果**: 全モジュールPhase統一・コード品質保証完了・企業級品質維持。
+**コア基盤**: 設定、統合制御、実行、レポート、サービスを提供する基盤層。

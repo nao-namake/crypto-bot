@@ -281,7 +281,7 @@ async def main():
     except KeyboardInterrupt:
         logger.info("ユーザーによる終了要求を受信")
     except Exception as e:
-        logger.error(f"実行エラー: {e}", discord_notify=True)
+        logger.error(f"実行エラー: {e}")
         sys.exit(1)
 
     logger.info("システム終了")

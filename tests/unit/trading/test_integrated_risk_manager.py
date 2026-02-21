@@ -67,7 +67,6 @@ class TestIntegratedRiskManager:
         self.risk_manager = IntegratedRiskManager(
             config=self.config,
             initial_balance=1000000,
-            enable_discord_notifications=False,  # テスト時は無効
             mode="backtest",  # テスト時はバックテストモードで状態ファイル読み込みを回避
         )
 
@@ -406,38 +405,6 @@ class TestIntegratedRiskManager:
         assert evaluation.position_size == 0.0
 
     @pytest.mark.xfail(False, reason="Phase 38対応済み")
-    @pytest.mark.asyncio
-    @patch("asyncio.create_task")
-    async def test_discord_notification_integration(self, mock_create_task):
-        """Discord通知連携テスト."""
-        # Discord通知有効な管理器作成（Phase 38対応: mode='backtest'追加）
-        risk_manager_with_discord = IntegratedRiskManager(
-            config=self.config,
-            initial_balance=1000000,
-            enable_discord_notifications=True,
-            mode="backtest",
-        )
-
-        market_data = self.create_sample_market_data()
-
-        # 拒否される評価実行
-        ml_prediction = {"confidence": 0.1, "action": "buy"}  # 低信頼度
-        strategy_signal = {"strategy_name": "test", "action": "buy", "confidence": 0.6}
-
-        evaluation = await risk_manager_with_discord.evaluate_trade_opportunity(
-            ml_prediction=ml_prediction,
-            strategy_signal=strategy_signal,
-            market_data=market_data,
-            current_balance=1000000,
-            bid=50000,
-            ask=50100,
-            api_latency_ms=500,
-        )
-
-        # Discord通知タスクが作成される
-        assert mock_create_task.called
-
-    @pytest.mark.xfail(False, reason="Phase 38対応済み")
     def test_market_volatility_estimation(self):
         """市場ボラティリティ推定テスト."""
         # ATRありの市場データ
@@ -755,9 +722,7 @@ async def test_integrated_risk_manager_performance():
     }
 
     # Phase 38対応: mode='backtest'追加
-    risk_manager = IntegratedRiskManager(
-        config, enable_discord_notifications=False, mode="backtest"
-    )
+    risk_manager = IntegratedRiskManager(config, mode="backtest")
     market_data = pd.DataFrame(
         {"close": [50000] * 20, "volume": [1000] * 20, "atr_14": [1000] * 20}
     )
@@ -799,7 +764,7 @@ async def test_complete_risk_management_workflow():
     }
 
     # Phase 38対応: mode='backtest'で状態ファイル読み込みを回避
-    risk_manager = IntegratedRiskManager(config, 1000000, False, mode="backtest")
+    risk_manager = IntegratedRiskManager(config, 1000000, mode="backtest")
     market_data = pd.DataFrame(
         {"close": [50000] * 30, "volume": [1000] * 30, "atr_14": [1000] * 30}
     )

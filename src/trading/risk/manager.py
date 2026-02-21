@@ -6,7 +6,6 @@ Kelly基準ポジションサイジング、ドローダウン管理、異常検
 包括的なリスク管理とトレード評価を提供。
 """
 
-import asyncio
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -16,7 +15,6 @@ import pandas as pd
 from ...core.config import get_threshold
 from ...core.exceptions import RiskManagementError
 from ...core.logger import get_logger
-from ...core.reporting.discord_notifier import DiscordManager
 from ..balance import BalanceMonitor
 from ..core import RiskDecision, RiskMetrics, TradeEvaluation
 from .anomaly import TradingAnomalyDetector
@@ -40,7 +38,6 @@ class IntegratedRiskManager:
         self,
         config: Dict[str, Any],
         initial_balance: Optional[float] = None,
-        enable_discord_notifications: bool = True,
         mode: str = "live",
         bitbank_client=None,
         execution_service=None,  # Phase 51.7 Phase 3-3: バックテスト証拠金維持率チェック用
@@ -51,13 +48,11 @@ class IntegratedRiskManager:
         Args:
             config: リスク管理設定
             initial_balance: 初期残高
-            enable_discord_notifications: Discord通知有効化
             mode: 実行モード（paper/live/backtest）
             bitbank_client: Bitbank APIクライアント（Phase 49.15: 証拠金維持率API取得用）
             execution_service: ExecutionServiceインスタンス（Phase 51.7: バックテスト対応）
         """
         self.config = config
-        self.enable_discord_notifications = enable_discord_notifications
         self.mode = mode
         self.bitbank_client = bitbank_client  # Phase 49.15: 証拠金維持率API取得用
         self.execution_service = execution_service  # Phase 51.7: バックテスト対応
@@ -68,15 +63,6 @@ class IntegratedRiskManager:
             drawdown_config = config.get("drawdown_manager", {}) if config else {}
             initial_balance = drawdown_config.get("initial_balance", 100000.0)
         self.initial_balance = initial_balance
-
-        # Discord通知システム初期化
-        self.discord_manager = None
-        if enable_discord_notifications:
-            try:
-                self.discord_manager = DiscordManager()
-                self.logger.info("✅ Discord通知システム初期化完了（リスク管理）")
-            except Exception as e:
-                self.logger.warning(f"⚠️ Discord通知システム初期化失敗: {e}")
 
         # コアコンポーネント初期化
         self._initialize_components(config, initial_balance)
@@ -400,11 +386,7 @@ class IntegratedRiskManager:
             if len(self.evaluation_history) > 1000:
                 self.evaluation_history = self.evaluation_history[-1000:]
 
-            # 13. Discord通知（必要に応じて）
-            if self.enable_discord_notifications:
-                asyncio.create_task(self._send_discord_notifications(evaluation))
-
-            # 14. ログ出力
+            # 13. ログ出力
             self._log_evaluation_result(evaluation)
 
             return evaluation
@@ -644,15 +626,6 @@ class IntegratedRiskManager:
 
         except Exception as e:
             self.logger.error(f"統計更新エラー: {e}")
-
-    async def _send_discord_notifications(self, evaluation: TradeEvaluation) -> None:
-        """
-        Phase 51.6: Discord通知完全停止（週間サマリーのみ）
-        旧コード: send_error_notification()は存在しないメソッドだったため削除
-        """
-        # Phase 51.6: features.yamlでcritical/warning/trade全てfalse設定済み
-        # リスク管理の通知は全て停止（ログ出力のみ）
-        return
 
     def _log_evaluation_result(self, evaluation: TradeEvaluation) -> None:
         """評価結果ログ出力"""

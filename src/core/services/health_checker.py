@@ -1,17 +1,8 @@
 """
-ヘルスチェッカー - Phase 49完了
+ヘルスチェッカー
 
 orchestrator.pyから分離したヘルスチェック機能。
 各サービスの健全性確認・システム状態監視を担当。
-
-Phase 49完了:
-- 全サービスヘルスチェック（check_all_services）
-- サービス初期化確認（_check_service_initialization）
-- システムリソース監視（_check_system_resources）
-- HealthCheckError例外発生（service_name・context情報）
-- thresholds.yaml準拠設定管理
-
-Phase 28-29: ヘルスチェック機能分離・リソース監視実装
 """
 
 from ..config import get_monitoring_config
@@ -113,72 +104,3 @@ class HealthChecker:
         except Exception as e:
             self.logger.error(f"❌ システムリソース確認エラー: {e}")
             raise
-
-    async def check_service_status(self, service_name: str) -> bool:
-        """
-        個別サービスステータス確認
-
-        Args:
-            service_name: サービス名
-
-        Returns:
-            サービス正常・異常
-        """
-        try:
-            service = getattr(self.orchestrator, service_name, None)
-
-            if service is None:
-                self.logger.error(f"❌ サービス未初期化: {service_name}")
-                return False
-
-            # サービス固有のヘルスチェック（可能な場合）
-            if hasattr(service, "health_check"):
-                health_result = await service.health_check()
-                if not health_result:
-                    self.logger.error(f"❌ サービスヘルスチェック失敗: {service_name}")
-                    return False
-
-            self.logger.debug(f"✅ サービス正常: {service_name}")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"❌ サービスステータス確認エラー ({service_name}): {e}")
-            return False
-
-    def get_health_summary(self) -> dict:
-        """
-        ヘルスチェックサマリー取得
-
-        Returns:
-            システム健全性サマリー
-        """
-        try:
-            services_status = {}
-
-            service_names = [
-                "data_service",
-                "feature_service",
-                "strategy_service",
-                "ml_service",
-                "risk_service",
-                "execution_service",
-            ]
-
-            for service_name in service_names:
-                service = getattr(self.orchestrator, service_name, None)
-                services_status[service_name] = service is not None
-
-            return {
-                "all_services_initialized": all(services_status.values()),
-                "services_status": services_status,
-                "orchestrator_initialized": self.orchestrator._initialized,
-                "timestamp": "N/A",  # 実際の使用時は datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            self.logger.error(f"❌ ヘルスサマリー取得エラー: {e}")
-            return {
-                "all_services_initialized": False,
-                "error": str(e),
-                "timestamp": "N/A",
-            }

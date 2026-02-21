@@ -1,19 +1,11 @@
 """
-特徴量管理システム - Phase 51.7 Day 7完了
+特徴量管理システム - Phase 64.13
 
 特徴量定義の一元化により、ハードコーディング排除と保守性向上を実現。
 config/core/feature_order.jsonを真の情報源として全システムが統一的に参照。
 
-Phase 51.7 Day 7完了:
-- 55特徴量固定管理（49基本+6戦略シグナル）
-- 6戦略統合（ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover）
-- feature_order.json完全準拠（total_features: 55）
-
-Phase 50.9完了: 外部API削除・シンプル設計回帰（62特徴量）
-Phase 50.2完了: 時間的特徴量拡張（55→62特徴量）
-Phase 49完了: 55特徴量管理（50基本+5戦略シグナル）・Strategy-Aware ML対応
-Phase 41: Strategy-Aware ML実装 - 50→55特徴量（戦略シグナル5個追加）
-Phase 40.6: Feature Engineering拡張 - 15→50特徴量
+Phase 64.13: 未使用メソッド・ラッパー削除（validate_features/get_feature_info/get_basic_feature_names/reload_feature_config）
+Phase 51.7: 55特徴量固定管理（49基本+6戦略シグナル）
 Phase 28-29: 15特徴量統一管理システム確立
 """
 
@@ -21,7 +13,6 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ..exceptions import DataProcessingError
 from ..logger import get_logger
 
 
@@ -176,52 +167,6 @@ class FeatureManager:
             "regime": ["adx_14", "plus_di_14", "minus_di_14"],
         }
 
-    def validate_features(self, features: List[str]) -> bool:
-        """
-        特徴量の妥当性をチェック
-
-        Args:
-            features: チェック対象の特徴量リスト
-
-        Returns:
-            妥当性チェック結果
-        """
-        expected_features = set(self.get_feature_names())
-        provided_features = set(features)
-
-        # 不足特徴量
-        missing = expected_features - provided_features
-        # 余分な特徴量
-        extra = provided_features - expected_features
-
-        if missing:
-            self.logger.error(f"不足特徴量: {sorted(missing)}")
-            return False
-
-        if extra:
-            self.logger.warning(f"余分な特徴量（無視されます）: {sorted(extra)}")
-
-        if len(features) != self.get_feature_count():
-            self.logger.error(
-                f"特徴量数不一致: 期待={self.get_feature_count()}, 実際={len(features)}"
-            )
-            return False
-
-        return True
-
-    def get_feature_info(self) -> Dict:
-        """特徴量設定の詳細情報を取得"""
-        config = self._load_feature_config()
-
-        return {
-            "total_features": self.get_feature_count(),
-            "feature_names": self.get_feature_names(),
-            "feature_categories": self.get_feature_categories(),
-            "config_source": str(self._feature_order_path),
-            "config_exists": self._feature_order_path.exists(),
-            "version": config.get("feature_order_version", "unknown"),
-        }
-
     def get_feature_level_info(self) -> Dict[str, Dict]:
         """
         Phase 50.1: 特徴量レベル情報を取得（設定駆動型Graceful Degradation用）
@@ -258,44 +203,6 @@ class FeatureManager:
         level_info = self.get_feature_level_info()
         return {level: info["count"] for level, info in level_info.items()}
 
-    def get_basic_feature_names(self) -> List[str]:
-        """
-        Phase 50.1: 基本特徴量名リストを取得（戦略信号なし）
-
-        Returns:
-            基本特徴量名のリスト（strategy_signalsカテゴリを除く）
-        """
-        config = self._load_feature_config()
-
-        if "feature_categories" in config:
-            features = []
-            categories = config["feature_categories"]
-
-            # strategy_signalsを除くカテゴリ順序
-            category_order = [
-                "basic",
-                "momentum",
-                "volatility",
-                "trend",
-                "volume",
-                "breakout",
-                "regime",
-                "lag",
-                "rolling",
-                "interaction",
-                "time",
-                # strategy_signalsは除外
-            ]
-
-            for category in category_order:
-                if category in categories and "features" in categories[category]:
-                    features.extend(categories[category]["features"])
-
-            return features
-
-        # フォールバック
-        return self.get_feature_names()  # 全特徴量を返す
-
     def clear_cache(self):
         """キャッシュをクリア"""
         self._feature_config = None
@@ -320,19 +227,3 @@ def get_feature_count() -> int:
 def get_feature_categories() -> Dict[str, List[str]]:
     """特徴量カテゴリを取得"""
     return _feature_manager.get_feature_categories()
-
-
-def validate_features(features: List[str]) -> bool:
-    """特徴量の妥当性をチェック"""
-    return _feature_manager.validate_features(features)
-
-
-def get_feature_info() -> Dict:
-    """特徴量設定の詳細情報を取得"""
-    return _feature_manager.get_feature_info()
-
-
-def reload_feature_config():
-    """特徴量設定を再読み込み"""
-    _feature_manager.clear_cache()
-    return _feature_manager._load_feature_config()

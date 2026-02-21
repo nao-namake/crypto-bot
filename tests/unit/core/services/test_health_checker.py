@@ -5,7 +5,7 @@ Phase 14-B で分離されたヘルスチェック機能のテストを実装。
 カバレッジ60%達成のための追加テスト。
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -262,125 +262,6 @@ class TestHealthChecker:
             assert "システムヘルスチェック失敗" in str(exc_info.value)
             assert exc_info.value.service_name == "system"
             health_checker.logger.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_check_service_status_success(self, health_checker):
-        """個別サービスステータス確認成功テスト（health_checkメソッドなし）"""
-        # health_checkメソッドを持たないサービスを明示的に設定
-        mock_service = MagicMock(spec=[])  # specを空にしてhealth_check属性を持たないようにする
-        health_checker.orchestrator.data_service = mock_service
-
-        result = await health_checker.check_service_status("data_service")
-
-        assert result is True
-        health_checker.logger.debug.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_check_service_status_not_found(self, health_checker):
-        """存在しないサービスステータス確認テスト"""
-        result = await health_checker.check_service_status("nonexistent_service")
-
-        assert result is False
-        health_checker.logger.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_check_service_status_none_service(self, health_checker):
-        """Noneサービスステータス確認テスト"""
-        health_checker.orchestrator.data_service = None
-
-        result = await health_checker.check_service_status("data_service")
-
-        assert result is False
-        health_checker.logger.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_check_service_status_with_health_check_success(self, health_checker):
-        """health_checkメソッド持ちサービス成功テスト"""
-        mock_service = MagicMock()
-        mock_service.health_check = AsyncMock(return_value=True)
-        health_checker.orchestrator.data_service = mock_service
-
-        result = await health_checker.check_service_status("data_service")
-
-        assert result is True
-        mock_service.health_check.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_check_service_status_with_health_check_failure(self, health_checker):
-        """health_checkメソッド持ちサービス失敗テスト"""
-        mock_service = MagicMock()
-        mock_service.health_check = AsyncMock(return_value=False)
-        health_checker.orchestrator.data_service = mock_service
-
-        result = await health_checker.check_service_status("data_service")
-
-        assert result is False
-        health_checker.logger.error.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_check_service_status_exception(self, health_checker):
-        """サービスステータス確認例外テスト"""
-        mock_service = MagicMock()
-        mock_service.health_check = AsyncMock(side_effect=RuntimeError("check failed"))
-        health_checker.orchestrator.data_service = mock_service
-
-        result = await health_checker.check_service_status("data_service")
-
-        assert result is False
-        health_checker.logger.error.assert_called()
-
-    def test_get_health_summary_all_initialized(self, health_checker):
-        """ヘルスサマリー取得成功テスト（全サービス初期化済み）"""
-        health_checker.orchestrator._initialized = True
-
-        result = health_checker.get_health_summary()
-
-        assert result["all_services_initialized"] is True
-        assert result["orchestrator_initialized"] is True
-        assert "services_status" in result
-        assert all(result["services_status"].values())
-
-    def test_get_health_summary_partial_initialized(self, health_checker):
-        """ヘルスサマリー取得テスト（一部サービス未初期化）"""
-        health_checker.orchestrator._initialized = True
-        health_checker.orchestrator.data_service = None
-
-        result = health_checker.get_health_summary()
-
-        assert result["all_services_initialized"] is False
-        assert result["services_status"]["data_service"] is False
-        assert result["services_status"]["feature_service"] is True
-
-    def test_get_health_summary_orchestrator_not_initialized(self, health_checker):
-        """ヘルスサマリー取得テスト（オーケストレーター未初期化）"""
-        health_checker.orchestrator._initialized = False
-
-        result = health_checker.get_health_summary()
-
-        assert result["orchestrator_initialized"] is False
-
-    def test_get_health_summary_exception(self, health_checker):
-        """ヘルスサマリー取得例外テスト"""
-        # _initializedアクセス時に例外発生
-        type(health_checker.orchestrator)._initialized = property(
-            lambda self: (_ for _ in ()).throw(RuntimeError("access error"))
-        )
-
-        result = health_checker.get_health_summary()
-
-        assert result["all_services_initialized"] is False
-        assert "error" in result
-        health_checker.logger.error.assert_called()
-
-    def test_get_health_summary_missing_attribute(self, health_checker):
-        """ヘルスサマリー取得テスト（属性欠如）"""
-        # 一部のサービス属性を削除
-        del health_checker.orchestrator.data_service
-
-        result = health_checker.get_health_summary()
-
-        # getattrでNoneが返されるのでFalseになる
-        assert result["services_status"]["data_service"] is False
 
     @pytest.mark.asyncio
     async def test_check_service_initialization_all_services_none(self, health_checker):

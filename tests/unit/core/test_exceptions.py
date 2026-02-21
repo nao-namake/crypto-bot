@@ -1,18 +1,11 @@
-"""
-カスタム例外クラスのテスト - Phase 54.10
-
-例外クラスの基本動作とto_dict()メソッドをテスト。
-"""
+"""カスタム例外クラスのテスト."""
 
 import pytest
 
 from src.core.exceptions import (
-    ConfigError,
     CryptoBotError,
     DataFetchError,
     DataProcessingError,
-    DataQualityError,
-    ErrorSeverity,
     ExchangeAPIError,
     FileIOError,
     HealthCheckError,
@@ -21,7 +14,6 @@ from src.core.exceptions import (
     RiskManagementError,
     StrategyError,
     TradingError,
-    get_error_severity,
 )
 
 
@@ -60,15 +52,9 @@ class TestCryptoBotError:
 class TestDerivedExceptions:
     """派生例外クラスのテスト"""
 
-    def test_config_error(self):
-        """ConfigErrorテスト"""
-        error = ConfigError("config error")
-        assert isinstance(error, CryptoBotError)
-        assert error.to_dict()["error_type"] == "ConfigError"
-
     def test_data_fetch_error(self):
         """DataFetchErrorテスト"""
-        error = DataFetchError("data fetch error")
+        error = DataFetchError("fetch error")
         assert isinstance(error, CryptoBotError)
         assert error.to_dict()["error_type"] == "DataFetchError"
 
@@ -135,54 +121,9 @@ class TestDerivedExceptions:
         assert error.service_name == "database"
         assert error.to_dict()["error_type"] == "HealthCheckError"
 
-    def test_data_quality_error(self):
-        """DataQualityErrorテスト"""
-        error = DataQualityError(
-            "quality error",
-            quality_check="null_check",
-            expected_value=0,
-            actual_value=10,
-        )
-        assert isinstance(error, DataProcessingError)
-        assert error.quality_check == "null_check"
-        assert error.expected_value == 0
-        assert error.actual_value == 10
-        assert error.to_dict()["error_type"] == "DataQualityError"
-
     def test_strategy_error(self):
         """StrategyErrorテスト"""
         error = StrategyError("strategy error", strategy_name="ATRBased")
         assert isinstance(error, CryptoBotError)
         assert error.strategy_name == "ATRBased"
         assert error.to_dict()["error_type"] == "StrategyError"
-
-
-class TestErrorSeverity:
-    """エラー重要度のテスト"""
-
-    def test_severity_levels(self):
-        """重要度レベルの確認"""
-        assert ErrorSeverity.LOW == "low"
-        assert ErrorSeverity.MEDIUM == "medium"
-        assert ErrorSeverity.HIGH == "high"
-        assert ErrorSeverity.CRITICAL == "critical"
-
-    def test_get_error_severity_config(self):
-        """ConfigErrorの重要度取得"""
-        error = ConfigError("test")
-        assert get_error_severity(error) == ErrorSeverity.HIGH
-
-    def test_get_error_severity_trading(self):
-        """TradingErrorの重要度取得"""
-        error = TradingError("test")
-        assert get_error_severity(error) == ErrorSeverity.HIGH
-
-    def test_get_error_severity_data_fetch(self):
-        """DataFetchErrorの重要度取得"""
-        error = DataFetchError("test")
-        assert get_error_severity(error) == ErrorSeverity.MEDIUM
-
-    def test_get_error_severity_unknown(self):
-        """未知のエラーはMEDIUM"""
-        error = Exception("test")
-        assert get_error_severity(error) == ErrorSeverity.MEDIUM

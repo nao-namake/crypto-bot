@@ -63,7 +63,6 @@ ml:
   - xgb
   - rf
   # model_path: Phase 50.9で削除（ml_loaderが動的にensemble_full/basic.pklを選択）
-  model_update_check: true
   fallback_enabled: true
   prediction:
     lookback_periods: 100
@@ -146,7 +145,7 @@ risk:
     # 初期残高設定は mode_balances セクションから取得
     fallback_balance: 11000.0  # フォールバック残高（円）- API失敗時判別用
     persistence:
-      local_path: "src/core/state/drawdown_state.json"  # ローカル状態ファイルパス
+      local_path: "data/drawdown_state.json"  # ローカル状態ファイルパス
       gcs_bucket: "crypto-bot-state"                    # Cloud Storageバケット名
       gcs_path: "drawdown/state.json"                   # Cloud Storageオブジェクトパス
   anomaly_detector:
@@ -191,7 +190,6 @@ production:
 logging:
   level: INFO
   file_enabled: true
-  discord_enabled: true
   retention_days: 7
   file:
     enabled: true
@@ -199,14 +197,6 @@ logging:
     rotation: daily
     retention_days: 30
     max_size_mb: 100
-  discord:
-    enabled: true
-    webhook_url: ${DISCORD_WEBHOOK_URL}
-    levels:
-      critical: true
-      warning: true
-      info: false
-
 # ========================================
 # 監視・ヘルスチェック
 # ========================================
@@ -273,37 +263,3 @@ reporting:
   markdown_enabled: true
   timestamp_format: '%Y%m%d_%H%M%S'
 
-# ========================================
-# Discord通知設定
-# ========================================
-discord:
-  # 基本設定
-  max_retries: 3
-  timeout_seconds: 10
-  max_message_length: 2000
-  embed_color:
-    success: 65280
-    warning: 16776960
-    error: 16711680
-    info: 39423
-
-  # バッチ処理設定（通知負荷軽減）
-  batch_notifications: true
-  batch_interval_minutes: 60
-  daily_summary_hour: 18  # JST 18:00に日次サマリー送信
-
-  # レート制限強化
-  rate_limit:
-    min_interval_seconds: 5      # 最小間隔を5秒に拡大
-    max_per_hour: 12            # 1時間最大12通知
-    burst_limit: 3              # 短時間バースト制限
-
-  # 通知レベル最適化
-  notification_levels:
-    critical: immediate          # 即時通知（残高異常等）
-    warning: batch              # バッチ集約（1時間毎）
-    info: daily                 # 日次サマリーのみ
-
-  # 起動時設定
-  startup_grace_period: 30      # 起動後30秒は通知抑制
-  min_interval: 2               # 従来設定（後方互換）

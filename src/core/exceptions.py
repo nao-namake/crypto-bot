@@ -1,16 +1,4 @@
-"""
-カスタム例外クラス - Phase 49完了
-
-エラーの種類を明確に分類し、適切なエラーハンドリングと
-重要度ベースのログ出力を可能にします。
-
-Phase 49完了:
-- 11種類のカスタム例外クラス（CryptoBotError基底・10派生クラス）
-- エラー重要度自動マッピング（LOW/MEDIUM/HIGH/CRITICAL）
-- 構造化エラーコンテキスト（to_dict()メソッド）
-Phase 28-29: 企業級品質の例外システム確立
-Phase 22: スリム化・実使用例外のみ残存（DataQualityError・StrategyError追加）
-"""
+"""カスタム例外クラス - CryptoBotError基底・9派生クラス."""
 
 from typing import Any, Dict, Optional
 
@@ -41,12 +29,6 @@ class CryptoBotError(Exception):
             "error_code": self.error_code,
             "context": self.context,
         }
-
-
-class ConfigError(CryptoBotError):
-    """設定関連エラー."""
-
-    pass
 
 
 class DataFetchError(CryptoBotError):
@@ -119,9 +101,8 @@ class DataProcessingError(CryptoBotError):
         self.context.update({"data_type": data_type, "processing_stage": processing_stage})
 
 
-# Phase 22スリム化後の例外定義: ML・API・ファイルI/O関連の具体的例外
 class ModelLoadError(CryptoBotError):
-    """モデルファイル読み込みエラー"""
+    """モデルファイル読み込みエラー."""
 
     def __init__(
         self,
@@ -135,7 +116,7 @@ class ModelLoadError(CryptoBotError):
 
 
 class ModelPredictionError(CryptoBotError):
-    """ML予測実行エラー"""
+    """ML予測実行エラー."""
 
     def __init__(
         self,
@@ -149,7 +130,7 @@ class ModelPredictionError(CryptoBotError):
 
 
 class FileIOError(DataProcessingError):
-    """ファイル入出力エラー"""
+    """ファイル入出力エラー."""
 
     def __init__(
         self,
@@ -165,7 +146,7 @@ class FileIOError(DataProcessingError):
 
 
 class HealthCheckError(CryptoBotError):
-    """システムヘルスチェックエラー"""
+    """システムヘルスチェックエラー."""
 
     def __init__(
         self,
@@ -178,32 +159,8 @@ class HealthCheckError(CryptoBotError):
         self.context.update({"service_name": service_name})
 
 
-class DataQualityError(DataProcessingError):
-    """データ品質エラー（Phase 22 バックテスト用・CI/CD統合対応）."""
-
-    def __init__(
-        self,
-        message: str,
-        quality_check: Optional[str] = None,
-        expected_value: Optional[Any] = None,
-        actual_value: Optional[Any] = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(message, data_type="quality_check", **kwargs)
-        self.quality_check = quality_check
-        self.expected_value = expected_value
-        self.actual_value = actual_value
-        self.context.update(
-            {
-                "quality_check": quality_check,
-                "expected_value": expected_value,
-                "actual_value": actual_value,
-            }
-        )
-
-
 class StrategyError(CryptoBotError):
-    """戦略システムエラー（Phase 22で必要性確認・再追加）."""
+    """戦略システムエラー."""
 
     def __init__(
         self,
@@ -217,7 +174,7 @@ class StrategyError(CryptoBotError):
 
 
 class PostOnlyCancelledException(TradingError):
-    """Phase 62.9: post_only注文が即時約定回避のためキャンセルされた例外."""
+    """post_only注文が即時約定回避のためキャンセルされた例外."""
 
     def __init__(
         self,
@@ -228,38 +185,3 @@ class PostOnlyCancelledException(TradingError):
         super().__init__(message, **kwargs)
         self.price = price
         self.context.update({"price": price})
-
-
-# エラー重要度レベル
-class ErrorSeverity:
-    """エラー重要度定義."""
-
-    LOW = "low"  # 軽微なエラー（ログのみ）
-    MEDIUM = "medium"  # 注意が必要（Warning通知）
-    HIGH = "high"  # 重要なエラー（Error通知）
-    CRITICAL = "critical"  # 緊急対応必要（Critical通知）
-
-
-# エラーと重要度のマッピング
-ERROR_SEVERITY_MAP = {
-    ConfigError: ErrorSeverity.HIGH,
-    DataFetchError: ErrorSeverity.MEDIUM,
-    ExchangeAPIError: ErrorSeverity.MEDIUM,
-    TradingError: ErrorSeverity.HIGH,
-    RiskManagementError: ErrorSeverity.HIGH,
-    DataProcessingError: ErrorSeverity.MEDIUM,
-    # Phase 22スリム化: 実際に使用されている例外のみ
-    ModelLoadError: ErrorSeverity.HIGH,
-    ModelPredictionError: ErrorSeverity.MEDIUM,
-    FileIOError: ErrorSeverity.MEDIUM,
-    HealthCheckError: ErrorSeverity.MEDIUM,
-    DataQualityError: ErrorSeverity.MEDIUM,
-    StrategyError: ErrorSeverity.HIGH,  # Phase 22で再追加・戦略システム重要度高
-    PostOnlyCancelledException: ErrorSeverity.LOW,  # Phase 62.9: 正常動作（リトライ対象）
-}
-
-
-def get_error_severity(error: Exception) -> str:
-    """例外の重要度を取得."""
-    error_type = type(error)
-    return ERROR_SEVERITY_MAP.get(error_type, ErrorSeverity.MEDIUM)

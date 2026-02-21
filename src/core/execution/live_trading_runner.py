@@ -8,7 +8,6 @@ Phase 49完了:
 - 実取引管理（trading_cycle_manager統合・取引サイクル実行）
 - 残高確認・証拠金維持率監視
 - セッション統計（cycle_count・trade_count・total_pnl）
-- Discord通知統合（取引開始・取引実行・エラー通知）
 - 定期実行制御（interval_minutes設定・5分間隔デフォルト）
 
 Phase 28-29: ライブトレードモード専用処理・残高確認・実取引管理確立
@@ -36,7 +35,6 @@ class LiveTradingRunner(BaseRunner):
         self.session_start = None
         self.cycle_count = 0
         self.trade_count = 0
-        self.total_pnl = 0.0
 
     async def run(self) -> bool:
         """
@@ -46,7 +44,7 @@ class LiveTradingRunner(BaseRunner):
             実行成功・失敗
         """
         try:
-            self.logger.info("🚨 ライブトレードモード開始", discord_notify=True)
+            self.logger.info("🚨 ライブトレードモード開始")
 
             # セッション開始
             self.session_start = datetime.now()
@@ -65,11 +63,11 @@ class LiveTradingRunner(BaseRunner):
         except KeyboardInterrupt:
             # 終了時統計出力
             await self._generate_final_summary()
-            self.logger.info("🛑 ライブトレード終了（ユーザー停止）", discord_notify=True)
+            self.logger.info("🛑 ライブトレード終了（ユーザー停止）")
             raise
 
         except Exception as e:
-            self.logger.error(f"❌ ライブトレード実行エラー: {e}", discord_notify=True)
+            self.logger.error(f"❌ ライブトレード実行エラー: {e}")
             await self._save_error_report(str(e))
             raise
 
@@ -141,7 +139,6 @@ class LiveTradingRunner(BaseRunner):
                 # 実際の残高再取得処理を実装
                 try:
                     from ...data.bitbank_client import BitbankClient
-                    from ..config import get_threshold
 
                     client = BitbankClient()
                     balance_data = client.fetch_balance()
@@ -172,7 +169,7 @@ class LiveTradingRunner(BaseRunner):
                 except Exception as re_error:
                     self.logger.error(f"❌ 残高再取得失敗: {re_error}")
                     # 統一設定管理体系: unified.yamlからフォールバック残高取得
-                    from config import load_config
+                    from ..config import load_config
 
                     config = load_config("config/core/unified.yaml")
                     drawdown_config = getattr(config.risk, "drawdown_manager", {})
@@ -243,11 +240,7 @@ class LiveTradingRunner(BaseRunner):
                 ),
             }
 
-            self.logger.info(
-                "📊 ライブトレード進捗統計",
-                extra_data=progress_stats,
-                discord_notify=True,
-            )
+            self.logger.info("📊 ライブトレード進捗統計", extra_data=progress_stats)
 
         except Exception as e:
             self.logger.error(f"❌ 進捗統計ログエラー: {e}")
@@ -263,11 +256,7 @@ class LiveTradingRunner(BaseRunner):
                 "session_pnl": getattr(self.orchestrator.execution_service, "session_pnl", 0),
             }
 
-            self.logger.info(
-                "📋 ライブトレード最終サマリー",
-                extra_data=final_summary,
-                discord_notify=True,
-            )
+            self.logger.info("📋 ライブトレード最終サマリー", extra_data=final_summary)
 
         except Exception as e:
             self.logger.error(f"❌ 最終サマリー生成エラー: {e}")
@@ -304,7 +293,6 @@ class LiveTradingRunner(BaseRunner):
             self.session_start = None
             self.cycle_count = 0
             self.trade_count = 0
-            self.total_pnl = 0.0
 
             self.logger.info("🧹 ライブトレードリソースクリーンアップ完了")
 
