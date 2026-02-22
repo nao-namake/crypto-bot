@@ -1,10 +1,10 @@
-# Crypto-Bot - AI自動取引システム
+# Crypto-Bot
 
-**Phase 64進行中（64.1-64.8完了）・TP/SLシンプル化+システム整理・bitbank BTC/JPY専用・GCP本番稼働中**
+bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run 24時間稼働）
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](coverage-reports/)
-[![Phase](https://img.shields.io/badge/Phase%2064-In%20Progress-blue)](docs/)
+[![Coverage](https://img.shields.io/badge/coverage-75%25%2B-green)](tests/)
+[![Phase](https://img.shields.io/badge/Phase%2065-Complete-blue)](docs/開発履歴/Phase_65.md)
 
 ---
 
@@ -18,14 +18,16 @@ pip install -r requirements.txt
 
 # 環境設定
 cp config/secrets/.env.example config/secrets/.env
-# → .envにbitbank API・Discord Webhook設定
+# → .envにbitbank API設定
 
 # 品質チェック
 bash scripts/testing/checks.sh  # 全テスト成功・75%+カバレッジ
 
-# 実行
-bash scripts/management/run_safe.sh local paper  # ペーパートレード
-bash scripts/management/run_safe.sh local live   # ライブトレード
+# ペーパートレード
+bash scripts/management/run_paper.sh
+
+# ライブトレード
+python3 main.py --mode live
 ```
 
 ### GCP確認
@@ -43,77 +45,39 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 
 ## システム概要
 
-AI自動取引システムは、**bitbank信用取引専用のBTC/JPY自動取引ボット**です。
-
 **6つの取引戦略**と**機械学習**を統合し、**55の特徴量**を総合分析することで24時間自動取引を実現。**真の3クラス分類**（BUY/HOLD/SELL）と**レジーム別動的戦略選択**により、市場状況に適応した取引を行います。
-
-### 運用仕様
 
 | 項目 | 値 |
 |------|-----|
 | **対象市場** | bitbank信用取引・BTC/JPY専用 |
-| **資金規模** | 1万円スタート → 最大50万円 |
-| **取引頻度** | 月100-200回・5分間隔実行 |
+| **証拠金** | 50万円 |
+| **年利目標** | 10%（DD 10%許容） |
+| **取引頻度** | 5分間隔実行 |
 | **稼働体制** | 24時間・GCP Cloud Run |
 | **月額コスト** | 700-900円 |
 
-### 6戦略構成（Phase 62.2更新）
-
-| 区分 | 戦略名 | 核心ロジック | 備考 |
-|------|--------|-------------|------|
-| **レンジ型** | BBReversal | BB位置主導 + RSIボーナス → 平均回帰 | Phase 62.2: BB主導に変更 |
-| **レンジ型** | StochasticDivergence | 価格とStochasticの乖離検出 → 反転 | Phase 62.2: 価格変化フィルタ追加 |
-| **レンジ型** | ATRBased | ATR消尽率70%以上 → 反転期待 | 主力戦略 |
-| **レンジ型** | DonchianChannel | チャネル端部反転 + RSIボーナス | Phase 62.2: RSIボーナス制度 |
-| **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | - |
-| **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | - |
-
-### タイトレンジ重みづけ（Phase 59.4-A）
-
-| 戦略 | 重み | 理由 |
-|------|------|------|
-| BBReversal | 0.35 | レンジ型主力 |
-| StochasticReversal | 0.35 | レンジ型主力 |
-| ATRBased | 0.20 | 補助 |
-| DonchianChannel | 0.10 | 補助 |
-| トレンド型 | 0.0 | タイトレンジで機能しない |
-
-### レジーム別TP/SL設定（Phase 63.3更新）
-
-| レジーム | 平日TP | 平日SL | 土日TP | 土日SL |
-|---------|--------|--------|--------|--------|
-| tight_range | 0.4% | 0.4% | 0.25% | 0.25% |
-| normal_range | 1.0% | 0.7% | 0.65% | 0.45% |
-| trending | 1.5% | 1.0% | 1.0% | 0.65% |
-
-**土日縮小根拠**: 半年分CSV分析で土日ATRは平日の65%
-
 ---
 
-## 主要機能
+## 6戦略構成
 
-### AI取引システム
+| 区分 | 戦略名 | 核心ロジック |
+|------|--------|-------------|
+| **レンジ型** | BBReversal | BB位置主導 + RSIボーナス → 平均回帰 |
+| **レンジ型** | StochasticDivergence | 価格とStochasticの乖離検出 → 反転 |
+| **レンジ型** | ATRBased | ATR消尽率70%以上 → 反転期待（主力） |
+| **レンジ型** | DonchianChannel | チャネル端部反転 + RSIボーナス |
+| **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 |
+| **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー |
 
-- **6戦略統合**: レンジ型4 + トレンド型2・Registry Pattern
-- **動的戦略選択**: レジーム別重みづけ自動適用（2票ルール無効化）
-- **55特徴量**: 49基本 + 6戦略シグナル
-- **真の3クラス分類**: BUY / HOLD / SELL直接予測
-- **ProductionEnsemble**: LightGBM 40% / XGBoost 40% / RandomForest 20%
-- **2段階Graceful Degradation**: ensemble_full.pkl（55特徴量） → ensemble_basic.pkl（49特徴量） → DummyModel
+### タイトレンジ重みづけ
 
-### リスク管理
-
-- **レジーム別動的TP/SL**: 市場状況に応じた自動調整
-- **適応型ATR**: ボラティリティ別SL調整（低2.5x / 通常2.0x / 高1.5x）
-- **Maker戦略（Phase 62.9-62.10）**: 手数料0.28%削減・年間¥40,000〜84,000節約
-- **完全指値オンリー**: 年間¥150,000削減・約定率90-95%
-- **証拠金維持率80%遵守**: API直接取得・過剰レバレッジ防止
-
-### 運用監視
-
-- **24時間稼働**: GCP Cloud Run・ゼロダウンタイム
-- **週間レポート**: Discord通知・損益曲線グラフ
-- **確定申告システム**: SQLite取引記録・移動平均法
+| 戦略 | 重み |
+|------|------|
+| BBReversal | 0.15 |
+| StochasticReversal | 0.30 |
+| ATRBased | 0.30 |
+| DonchianChannel | 0.25 |
+| トレンド型 | 0.0 |
 
 ---
 
@@ -143,8 +107,7 @@ src/
 ├── strategies/     # 6戦略（Registry Pattern）
 ├── ml/             # ML統合（3モデルアンサンブル）
 ├── trading/        # 取引管理層（5層アーキテクチャ）
-├── backtest/       # バックテストシステム
-└── monitoring/     # 週間レポート
+└── backtest/       # バックテストシステム
 
 tax/                # 確定申告システム
 scripts/            # 運用スクリプト
@@ -156,163 +119,32 @@ models/production/  # MLモデル（週次更新）
 
 ## 技術スタック
 
-### 言語・フレームワーク
-
-- **Python 3.13**: MLライブラリ互換性最適化
-- **ccxt**: bitbank API統合・信用取引対応
-- **pandas/numpy**: データ処理・特徴量生成
-- **scikit-learn/XGBoost/LightGBM**: 機械学習モデル
-
-### インフラストラクチャ（GCP）
-
-- **Cloud Run**: 24時間稼働・1Gi・1CPU
-- **Secret Manager**: API認証情報管理
-- **Artifact Registry**: Dockerイメージ管理
-- **Cloud Logging**: ログ管理・JST時刻対応
-
-### CI/CD・品質管理
-
-- **GitHub Actions**: 自動テスト・週次ML学習・デプロイ
-- **pytest**: 全テスト成功
-- **coverage**: 75%以上
-- **flake8/black/isort**: コード品質統一
-
----
-
-## 設定・カスタマイズ
-
-### 設定ファイル
-
-```
-config/core/
-├── unified.yaml      # 統合設定（残高・実行間隔）
-├── thresholds.yaml   # 閾値・パラメータ（ML統合・レジーム別重み・TP/SL）
-├── features.yaml     # 機能トグル
-└── feature_order.json # 特徴量定義
-```
-
-### 実行モード
-
-- **paper**: ペーパートレード（検証用）
-- **live**: ライブトレード（本番取引）
-- **backtest**: バックテスト（戦略検証）
+| カテゴリ | 技術 |
+|---------|------|
+| **言語** | Python 3.13 |
+| **取引所API** | ccxt（bitbank信用取引対応） |
+| **データ処理** | pandas / numpy |
+| **機械学習** | scikit-learn / XGBoost / LightGBM |
+| **インフラ** | GCP Cloud Run / Secret Manager / Artifact Registry |
+| **CI/CD** | GitHub Actions（自動テスト・週次ML学習・デプロイ） |
+| **品質管理** | pytest / coverage 75%+ / flake8 / black / isort |
 
 ---
 
 ## ドキュメント
 
-### 開発者向け
-
-- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・Phase 64進行中
+- **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・設定詳細
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
-
-### 運用者向け
-
 - **[統合運用ガイド](docs/運用ガイド/統合運用ガイド.md)**: デプロイ・監視・トラブル対応
-- **[GCP運用ガイド](docs/運用ガイド/GCP運用ガイド.md)**: IAM権限・リソース管理
-- **[システム機能一覧](docs/運用ガイド/システム機能一覧.md)**: 実装機能リファレンス
-- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-64総括
-
----
-
-## 開発状況
-
-### Phase 64（🔄進行中）: TP/SLシンプル化 + システム全体整理
-
-**目的**: TP/SLロジックのシンプル化 + `src/` `config/` 全体の過度な複雑性を整理
-
-| Phase | 内容 | 状態 |
-|-------|------|------|
-| **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
-| **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
-| **64.3** | virtual_positions二重管理解消（property化・単一ソース化） | ✅ 完了 |
-| **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
-| **64.5** | `src/strategies/`フォルダ全体監査・クリーンアップ | ✅ 完了 |
-| **64.6** | `src/ml/`フォルダ監査・クリーンアップ（-70%削減） | ✅ 完了 |
-| **64.7** | `src/features/`フォルダ監査・クリーンアップ（-19%削減） | ✅ 完了 |
-| **64.8** | `src/data/`フォルダ監査・クリーンアップ（-12%削減） | ✅ 完了 |
-
-**64.1成果**: executor.py -33%（1,943→1,297行）、stop_manager.py -30%（2,177→1,525行）
-**64.2成果**: 例外スワロー排除・リトライ正常化・ゾンビエントリ防止
-**64.4成果**: デッドコード5件削除・重複4箇所統合・整合性バグ2件修正（tp_sl_manager.py -240行）
-**64.5成果**: デッドimport4件・冗長logger3件削除・importパス統一
-**64.6成果**: src/ml/ 2,712行→813行（未使用クラス8個・ファイル2個削除・Stacking完全除去）
-**64.7成果**: feature_generator.py -19%（960→778行）・async/sync共通化・docstring統一
-**64.8成果**: bitbank_client.py -12%（2,104→1,861行）・デッドメソッド2件削除・直接API統合
-
-### Phase 63（✅完了）: TP/SL不具合修正・定期チェック・残存バグ修正
-
-- **Bug修正14件**: stop_limit検出・マッチング緩和・SL安全チェック・設定パス修正（CRITICAL）等
-- **TP/SL定期チェック実装**: 10分間隔でTP/SL欠損自動検知・復旧
-
-### Phase 62（✅完了）: Maker戦略・SL改善・スリッページ分析
-
-| 指標 | 値 |
-|------|-----|
-| バックテスト損益 | ¥+119,815 |
-| PF | 1.65 |
-| 年利換算 | 約24% |
-| Maker効果 | 往復手数料-0.04%（0.28%削減） |
-| SL | 逆指値指値化 + 幅0.4% |
-
-**年間削減額**: ¥40,000〜84,000（取引量依存）
-
-### Phase 61（✅完了）: 500円TP採用・PF 2.68達成
-
-| 指標 | Phase 60.7 | Phase 61最終 | 変化 |
-|------|-----------|--------------|------|
-| **総損益** | ¥86,639 | **¥149,195** | **+72%** |
-| **PF** | 1.58 | **2.68** | **+70%** |
-| **勝率** | 54.8% | **75.8%** | **+21pt** |
-
-**主要成果**: 500円TP採用、低信頼度対策、固定金額TP、TP/SL自動執行検知、ポジションサイズ統一
-
-### Phase 60（完了）: 実効レバレッジ最適化・MLモデル差別化
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 60.1-60.2 | 実効レバレッジ0.5倍移行 | 14箇所設定変更・稼働率100% |
-| 60.3-60.4 | Walk-Forward検証 | 過学習排除・一致率向上 |
-| 60.5-60.6 | MLモデル差別化 | シード差別化・動的重み計算 |
-| **60.7** | **pandas 3.0互換性修正** | **¥86,639・PF 1.58達成（61.5で更新）** |
-
-### Phase 59（完了）: ML最適化・Stacking検証
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 59.1-59.3 | BBReversal調整・信頼度対策 | normal_range無効化・penalty/bonus調整 |
-| 59.4-A | 2票ルール無効化 | 勝率53.8%、PF 1.55、損益¥+44,506 |
-| **59.10** | **Stacking無効化・PE採用** | **✅ 過去最高¥+54,526、PF 1.60** |
-
-### パフォーマンス指標
-
-| 指標 | 値 |
-|------|-----|
-| **テスト成功率** | 100% |
-| **カバレッジ** | 74%以上 |
-| **月額コスト** | 700-900円 |
-| **手数料削減（指値）** | 年間¥150,000 |
-| **手数料削減（Maker）** | 年間¥40,000〜84,000 |
+- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-65総括
+- **[Phase 65](docs/開発履歴/Phase_65.md)**: 最新Phase詳細
 
 ---
 
 ## リスク・免責事項
 
-- **投資リスク**: 仮想通貨取引には元本割れのリスクがあります
-- **システムリスク**: 自動取引システムの不具合による損失の可能性
-- **市場リスク**: 急激な市場変動への対応限界
-- **免責**: 本システムの使用による損失について作成者は責任を負いません
-
-**推奨**: 少額資金（1万円）でのテスト運用から開始し、段階的拡大
+仮想通貨取引には元本割れのリスクがあります。本システムの使用による損失について作成者は責任を負いません。
 
 ---
 
-## サポート
-
-- **Issues**: GitHub Issuesでの問題報告
-- **Discussion**: 機能要望・質問・フィードバック
-- **Security**: セキュリティ問題は非公開で報告
-
----
-
-**最終更新**: 2026年2月18日 - **Phase 64進行中**（64.1-64.8完了）
+**最終更新**: 2026年2月22日 - **Phase 65完了**

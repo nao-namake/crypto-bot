@@ -575,21 +575,6 @@ class TPSLManager:
 
                 entry_side = "buy" if position_side == "long" else "sell"
 
-                # Phase 63.5: restore済み＋TP/SL設置済みの場合のみスキップ
-                already_restored = any(
-                    vp.get("side") == entry_side
-                    and vp.get("restored")
-                    and vp.get("tp_order_id")
-                    and vp.get("sl_order_id")
-                    for vp in virtual_positions
-                )
-                if already_restored:
-                    self.logger.debug(
-                        f"✅ Phase 63.5: 復元済み＋TP/SL設置済み - "
-                        f"{position_side} {amount:.4f} BTC"
-                    )
-                    continue
-
                 if position_side == "long":
                     has_tp = long_tp_ok
                     has_sl = long_sl_ok
@@ -599,24 +584,23 @@ class TPSLManager:
                     has_sl = short_sl_ok
                     side_total = short_total
 
+                # Phase 65.2: カバレッジ十分であればスキップ（restored状態に関わらず）
+                # 旧Phase 63.5: already_restoredでスキップしていたが、
+                # カバレッジ不足時にもスキップされる問題があったため廃止
                 if has_tp and has_sl:
                     continue
 
                 # Step 4: 不足しているTP/SL注文を配置
                 self.logger.info(
-                    f"⚠️ Phase 64.3: TP/SLカバレッジ不足検出 - "
+                    f"⚠️ Phase 65.2: TP/SLカバレッジ不足検出 - "
                     f"{position_side} 合計={side_total:.4f} BTC, "
                     f"TP={'OK' if has_tp else '不足'}, SL={'OK' if has_sl else '不足'}"
                 )
 
-                # Phase 63.5/63.6: 復元済みだがTP/SLいずれか欠損のvirtual_positionを削除
+                # Phase 65.2: 統合再配置のため、このサイドの全VPを削除
+                # （_place_missing_tp_slで既存注文キャンセル→新規配置→新VP追加される）
                 virtual_positions[:] = [
-                    vp
-                    for vp in virtual_positions
-                    if not (
-                        vp.get("side") == entry_side
-                        and (not vp.get("tp_order_id") or not vp.get("sl_order_id"))
-                    )
+                    vp for vp in virtual_positions if vp.get("side") != entry_side
                 ]
 
                 await self._place_missing_tp_sl(
@@ -778,30 +762,65 @@ class TPSLManager:
         bitbank_client: BitbankClient,
     ):
         """
-        Phase 56.5: 不足しているTP/SL注文を配置
+        Phase 65.2: 不足しているTP/SL注文を統合配置
+
+        既存の部分TP/SL注文を全キャンセルし、ポジション全量をカバーする
+        TP/SLを1組配置する。固定500円TPにも対応。
+
+        背景: bitbankはポジションを加重平均で統合管理するため、
+        個別エントリーごとのTP/SLでは部分カバーになる問題を解消。
 
         Args:
             position_side: "long" or "short"
-            amount: ポジション数量
-            avg_price: 平均取得価格
-            has_tp: TP注文が存在するか
-            has_sl: SL注文が存在するか
+            amount: ポジション数量（サイド合計）
+            avg_price: 平均取得価格（bitbank加重平均）
+            has_tp: TP注文が十分か（95%カバレッジ）
+            has_sl: SL注文が十分か（95%カバレッジ）
             virtual_positions: 仮想ポジションリスト（直接更新）
             bitbank_client: BitbankClientインスタンス
         """
         symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
-
-        # Phase 64.9: 共通ヘルパーで計算（デフォルト: normal_range = 安全側）
-        tp_price, sl_price = self.calculate_recovery_tp_sl_prices(
-            position_side=position_side,
-            avg_price=avg_price,
-        )
         entry_side = "buy" if position_side == "long" else "sell"
+
+        # Phase 65.2 Step 0: 既存の部分TP/SL注文を全キャンセル（50062回避）
+        # bitbankはTP+SLの合計数量がポジション数量を超えると50062エラー
+        # 既存の部分注文を残したまま全量注文を追加すると超過する
+        try:
+            cancelled = await self._cancel_partial_exit_orders(
+                position_side, symbol, bitbank_client
+            )
+            if cancelled > 0:
+                self.logger.info(f"🔄 Phase 65.2: 部分TP/SL {cancelled}件キャンセル → 統合再配置")
+                # キャンセルしたので全再配置が必要
+                has_tp = False
+                has_sl = False
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 65.2: 部分TP/SLキャンセル失敗（継続）: {e}")
+
+        # Phase 65.2: 固定500円TP対応（リカバリパスでも固定額計算を使用）
+        if self._is_fixed_amount_tp_enabled() and avg_price > 0 and amount > 0:
+            tp_price = self._calculate_fixed_amount_tp_for_position(
+                position_side, amount, avg_price
+            )
+            _, sl_price = self.calculate_recovery_tp_sl_prices(
+                position_side=position_side,
+                avg_price=avg_price,
+            )
+            self.logger.info(
+                f"📊 Phase 65.2: 固定金額TP使用 - TP={tp_price:.0f}円 "
+                f"(avg={avg_price:.0f}円, amount={amount:.4f} BTC)"
+            )
+        else:
+            # Phase 64.9: %ベース計算（デフォルト: normal_range = 安全側）
+            tp_price, sl_price = self.calculate_recovery_tp_sl_prices(
+                position_side=position_side,
+                avg_price=avg_price,
+            )
 
         tp_order = None
         sl_order = None
 
-        # TP配置
+        # TP配置（全量カバー）
         if not has_tp:
             try:
                 tp_order = await self.place_take_profit(
@@ -814,13 +833,13 @@ class TPSLManager:
                 )
                 if tp_order:
                     self.logger.info(
-                        f"✅ Phase 56.5: TP注文配置成功 - "
+                        f"✅ Phase 65.2: 統合TP配置成功 - "
                         f"{position_side} {amount:.4f} BTC @ {tp_price:.0f}円"
                     )
             except Exception as e:
-                self.logger.error(f"❌ Phase 56.5: TP配置失敗: {e}")
+                self.logger.error(f"❌ Phase 65.2: TP配置失敗: {e}")
 
-        # SL配置（Phase 64.4: 共通ヘルパーに委譲）
+        # SL配置（全量カバー・Phase 64.4: 共通ヘルパーに委譲）
         if not has_sl:
             sl_order = await self.place_sl_or_market_close(
                 entry_side=entry_side,
@@ -843,8 +862,8 @@ class TPSLManager:
                 "amount": amount,
                 "price": avg_price,
                 "timestamp": datetime.now(),
-                "take_profit": tp_price if not has_tp else None,
-                "stop_loss": sl_price if not has_sl else None,
+                "take_profit": tp_price,
+                "stop_loss": sl_price,
                 "recovered": True,
                 "tp_order_id": tp_order.get("order_id") if tp_order else None,
                 "sl_order_id": sl_order.get("order_id") if sl_order else None,
@@ -853,20 +872,121 @@ class TPSLManager:
             virtual_positions.append(recovered_position)
             if tp_ok:
                 self.logger.info(
-                    f"✅ Phase 64.12: TP/SL復旧完了 - virtual_positions追加 "
+                    f"✅ Phase 65.2: 統合TP/SL復旧完了 - VP追加 "
                     f"({position_side} {amount:.4f} BTC)"
                 )
             else:
                 self.logger.warning(
-                    f"⚠️ Phase 64.12: TP未設置だがSL設置済み - VP追加（TPは次回再試行）"
+                    f"⚠️ Phase 65.2: TP未設置だがSL設置済み - VP追加（TPは次回再試行）"
                     f" ({position_side} {amount:.4f} BTC)"
                 )
         else:
             self.logger.critical(
-                f"🚨 Phase 64.12: SL未設置 - VP未追加・次回再試行"
+                f"🚨 Phase 65.2: SL未設置 - VP未追加・次回再試行"
                 f" - TP: {'OK' if tp_ok else 'NG'}, SL: NG"
                 f" ({position_side} {amount:.4f} BTC)"
             )
+
+    # ========================================
+    # Phase 65.2: 統合TP/SL配置ヘルパー
+    # ========================================
+
+    async def _cancel_partial_exit_orders(
+        self,
+        position_side: str,
+        symbol: str,
+        bitbank_client: BitbankClient,
+    ) -> int:
+        """
+        Phase 65.2: 統合TP/SL配置前に既存の部分決済注文を全キャンセル
+
+        bitbankはTP+SLの合計数量がポジション数量を超えると50062エラーになるため、
+        既存の部分注文をキャンセルしてから全量注文を配置する。
+
+        Args:
+            position_side: "long" or "short"
+            symbol: 通貨ペア
+            bitbank_client: BitbankClientインスタンス
+
+        Returns:
+            int: キャンセルした注文数
+        """
+        active_orders = await asyncio.to_thread(
+            bitbank_client.fetch_active_orders, symbol, TPSLConfig.API_ORDER_LIMIT
+        )
+
+        if not active_orders:
+            return 0
+
+        # 決済方向の注文を特定（long→sell決済、short→buy決済）
+        exit_side = "sell" if position_side == "long" else "buy"
+        cancelled = 0
+
+        for order in active_orders:
+            if order.get("side") != exit_side:
+                continue
+
+            order_type = order.get("type", "")
+            # TP（limit/take_profit）またはSL（stop/stop_limit/stop_loss）を対象
+            if order_type in ("limit", "take_profit", "stop", "stop_limit", "stop_loss"):
+                order_id = str(order.get("id", ""))
+                if not order_id:
+                    continue
+
+                try:
+                    await asyncio.to_thread(bitbank_client.cancel_order, order_id, symbol)
+                    cancelled += 1
+                    self.logger.info(
+                        f"🗑️ Phase 65.2: 部分注文キャンセル - "
+                        f"ID: {order_id}, type: {order_type}, "
+                        f"amount: {order.get('amount', '?')}"
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"⚠️ Phase 65.2: 注文キャンセル失敗（継続） - " f"ID: {order_id}, error: {e}"
+                    )
+
+        return cancelled
+
+    def _is_fixed_amount_tp_enabled(self) -> bool:
+        """Phase 65.2: 固定金額TPモードが有効か"""
+        return get_threshold("position_management.take_profit.fixed_amount.enabled", False)
+
+    def _calculate_fixed_amount_tp_for_position(
+        self,
+        position_side: str,
+        amount: float,
+        avg_price: float,
+    ) -> float:
+        """
+        Phase 65.2: 統合ポジション向け固定金額TP価格計算
+
+        エントリー時のRiskManager.calculate_stop_loss_take_profitと同じ
+        固定500円TP計算ロジックを、リカバリパス用に簡易実装。
+
+        Args:
+            position_side: "long" or "short"
+            amount: ポジション数量（BTC）
+            avg_price: 平均取得価格
+
+        Returns:
+            float: TP価格
+        """
+        target = get_threshold(
+            "position_management.take_profit.fixed_amount.target_net_profit", 500
+        )
+        # 決済手数料考慮（TP決済はMaker 0%がデフォルト）
+        exit_fee_rate = get_threshold(
+            "position_management.take_profit.fixed_amount.fallback_exit_fee_rate", 0.0
+        )
+        # 必要含み益 = 目標純利益 + 決済手数料
+        gross_needed = target + (avg_price * amount * exit_fee_rate)
+        tp_offset = gross_needed / amount
+
+        if position_side == "long":
+            return avg_price + tp_offset
+        else:
+            return avg_price - tp_offset
 
     # ========================================
     # エントリー前TP/SLクリーンアップ

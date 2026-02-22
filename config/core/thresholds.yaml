@@ -997,8 +997,8 @@ order_execution:
   # === Phase 62.9: Maker戦略設定 ===
   maker_strategy:
     enabled: true                      # Maker戦略有効化
-    max_retries: 3                     # 最大リトライ回数
-    retry_interval_ms: 500             # リトライ間隔（ミリ秒）
+    max_retries: 5                     # Phase 65.2: 3→5（リトライ回数増加）
+    retry_interval_ms: 200             # Phase 65.2: 500→200（高速リトライ）
     timeout_seconds: 30                # タイムアウト（秒）
     price_adjustment_tick: 1           # 価格調整単位（1円）
     max_price_adjustment_ratio: 0.001  # 最大価格調整率（0.1%）

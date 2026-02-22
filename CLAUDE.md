@@ -1,392 +1,38 @@
-# CLAUDE.md - Phase 65開発ガイド
+# CLAUDE.md
 
-**最終更新**: 2026年2月21日
-
----
-
-## システム現状（Phase 65完了）
-
-### 概要
+## しおり（現在地）
 
 | 項目 | 値 |
 |------|-----|
-| **Phase** | 65完了（ライブ取引頻度回復・三重壁対策）|
-| **前Phase** | 64完了（64.1-64.21: src/全体リファクタリング） |
+| **現在Phase** | 65完了 |
+| **直前の作業** | ライブ取引頻度回復（三重壁対策） |
+| **次の予定** | `docs/開発計画/ToDo.md` 参照 |
 | **最新成果** | バックテスト ¥+102,135（PF 2.47・勝率89.2%・DD 0.94%） |
-| **戦略数** | 6戦略（レンジ型4 + トレンド型2） |
-| **特徴量数** | 55特徴量（49基本 + 6戦略信号） |
-| **MLモデル** | ProductionEnsemble（動的重み・シード差別化） |
-| **分類方式** | 真の3クラス分類（BUY / HOLD / SELL） |
-| **証拠金** | 50万円（Phase 57で10万→50万に変更） |
-| **年利目標** | 10%（DD 10%許容） |
+| **最終更新** | 2026年2月22日 |
 
-### Phase 65 完了（ライブ取引頻度回復）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-64）、`docs/開発履歴/Phase_65.md`（最新）
 
-**目的**: バックテスト（3.9件/日）に対しライブ本番で24h+取引ゼロ → 三重の遮断壁を包括的に対策
+---
 
-| 対策 | 内容 | 変更 |
-|------|------|------|
-| **壁3: API遅延** | ccxt rateLimit過保守 + 閾値厳格すぎ | rateLimit 1000→200ms、critical 5000→15000ms |
-| **壁2: 信頼度閾値** | min_strategy_confidence 0.25で僅差遮断 | 0.25→0.22 |
-| **壁1: HOLD支配** | BBReversal無効化で3戦略全HOLD | BBReversal 0.0→0.15 + 重み再配分 |
-| **帰属バグ** | 重み0.0の戦略が帰属先になる | max()キーに重み考慮追加（3箇所） |
+## 推論言語
 
-### Phase 64 完了（src/全体リファクタリング）
+このプロジェクトでは**日本語で推論**してください。コード内のコメント・変数名は英語のまま維持しますが、思考プロセス・計画・説明は日本語で行ってください。
 
-**目的**: TP/SLロジックのシンプル化 + `src/` `config/` 全体の過度な複雑性を整理
-**背景**: executor.py（2,844行）・stop_manager.py（2,178行）を中心にTP/SLロジックが3ファイルに分散。Phase 63.6で設定パスtypoがCRITICALバグ3件を引き起こした。
+---
 
-| Phase | 内容 | 状態 |
-|-------|------|------|
-| **64.1** | src/trading/ 完全整理（メソッド移動・責務分離） | ✅ 完了 |
-| **64.2** | TP/SL配置信頼性の根本修正（例外スワロー排除・リトライ正常化） | ✅ 完了 |
-| **64.3** | virtual_positions二重管理解消（property化・単一ソース化） | ✅ 完了 |
-| **64.4** | デッドコード削除・重複統合・整合性バグ修正・ドキュメント更新 | ✅ 完了 |
-| **64.5** | `src/strategies/`フォルダ全体監査・クリーンアップ | ✅ 完了 |
-| **64.6** | `src/ml/`フォルダ監査・クリーンアップ（-70%削減） | ✅ 完了 |
-| **64.7** | `src/features/`フォルダ監査・クリーンアップ（-19%削減） | ✅ 完了 |
-| **64.8** | `src/data/`フォルダ監査・クリーンアップ（-12%削減） | ✅ 完了 |
-| **64.9** | stop_limitタイムアウト誤キャンセル + SL距離不足の修正 | ✅ 完了 |
-| **64.10** | `src/backtest/`フォルダ監査・クリーンアップ | ✅ 完了 |
-| **64.11** | バックテストログ出力先統合 + 蓄積防止 | ✅ 完了 |
-| **64.12** | SL安全網の根本修正（50062無限ループ・canceled放置・VP無限ループ・孤児SL） | ✅ 完了 |
-| **64.13** | `src/core/config/`ディレクトリ整理（Optuna/paper_mode/未使用フィールド削除・-16%） | ✅ 完了 |
-| **64.14** | `src/core/execution/`ディレクトリ整理（デッドコード削除・importバグ修正・-31行） | ✅ 完了 |
-| **64.15** | `src/core/orchestration/`ディレクトリ整理（未使用属性・Protocol整理） | ✅ 完了 |
-| **64.16** | `src/core/reporting/`整理 + Discord通知システム全削除（-1,900行） | ✅ 完了 |
-| **64.17** | `src/core/services/`ディレクトリ整理（デッドメソッド10件削除・-18%） | ✅ 完了 |
-| **64.18** | `src/core/state/`ディレクトリ全削除（完全死コードモジュール・-888行） | ✅ 完了 |
-| **64.19** | `src/core/`直下ファイル整理（exceptions/logger/__init__ + discord_notify全除去・-670行） | ✅ 完了 |
-| **64.20** | `src/core/`最終監査クリーンアップ（死属性4件・死メソッド2件・Discord残骸9箇所・import統合） | ✅ 完了 |
-| **64.21** | `src/`横断最終監査（Discord残骸全除去・デッドパス修正・死属性削除・README書き直し） | ✅ 完了 |
-
-#### Phase 64.19 変更内容（`src/core/`直下ファイル整理）
-
-| 変更 | 内容 |
-|------|------|
-| **__init__.py** | 再エクスポート27件・`__version__`等全削除（103行→1行） |
-| **exceptions.py** | デッド例外2件（ConfigError/DataQualityError）+ ErrorSeverity系統全削除（-65行） |
-| **logger.py** | LogLevel enum + デッドメソッド3件 + `_discord_manager` + discord_notifyパラメータ全除去（-117行） |
-| **discord_notify除去** | logger.py 6メソッド + 呼び出し元8ファイル40箇所から完全除去 |
-| **テスト** | test_exceptions/test_logger/test_trading_logger/test_orchestratorから削除コードテスト除去（-317行） |
-
-#### Phase 64.21 変更内容（`src/`横断最終監査クリーンアップ）
-
-| 変更 | 内容 |
-|------|------|
-| **drawdown.pyデッドパス修正** | デフォルトパス`src/core/state/`→`data/`（64.18でstate/削除済み）+ unified.yaml同期 |
-| **Discord残骸（trading/5ファイル）** | manager.py: `enable_discord_notifications`・`_send_discord_notifications()`全削除 / \_\_init\_\_.py・executor.py・monitor.py・bitbank_client.py: discord引数削除 |
-| **Discord設定（config/3ファイル）** | features.yaml: 13行 / unified.yaml: 42行 / thresholds.yaml: 3キー削除 |
-| **config_classes.py** | `LoggingConfig.discord_enabled`・`LoggingConfig.discord`フィールド削除 |
-| **死属性（executor.py）** | `self.trade_history`・`self.pending_limit_orders`削除（参照0件） |
-| **`src/__init__.py`** | 全面書き直し（44行→1行） |
-| **`src/README.md`** | 全面書き直し（337行→54行・Phase 64情報に更新） |
-| **テスト** | Discord通知テスト削除 + 位置引数修正 |
-
-#### Phase 64.20 変更内容（`src/core/`最終監査クリーンアップ）
-
-| 変更 | 内容 |
-|------|------|
-| **死属性削除** | `base_runner.execution_interval`ローカル変数化・`backtest_runner/paper_trading_runner.session_stats`削除・`live_trading_runner.total_pnl`削除 |
-| **死メソッド削除** | `RegimeType.from_string()`・`RegimeType.is_range()`（呼び出し0件） |
-| **Discord残骸** | 5ファイル9箇所のDiscordコメント・docstring除去 |
-| **import os統合** | logger.pyメソッド内6箇所→モジュール先頭1箇所 |
-| **docstring簡素化** | `orchestration/__init__.py`（14行→1行） |
-| **テスト** | regime_types死メソッドテスト3件 + 未使用pytest import削除 |
-
-#### Phase 64.18 変更内容（`src/core/state/`全削除）
-
-| 変更 | 内容 |
-|------|------|
-| **src/core/state/** | ディレクトリ全削除（drawdown_persistence.py 286行 + __init__.py 30行 + README.md 140行 + 空サブディレクトリ3件） |
-| **テスト** | test_drawdown_persistence.py（432行）削除 |
-| **src/core/README.md** | state/セクション・参照7箇所削除 |
-| **背景** | Phase 29/49で設計されたが本番呼び出し0件。実際のドローダウン永続化はsrc/trading/risk/drawdown.pyが独自実装 |
-
-#### Phase 64.17 変更内容（`src/core/services/`整理）
-
-| 変更 | 内容 |
-|------|------|
-| **health_checker.py** | デッドメソッド2件削除（`check_service_status`・`get_health_summary`）+ docstring簡素化（-67行） |
-| **system_recovery.py** | デッドメソッド2件削除（`get_recovery_status`・`reset_recovery_attempts`）+ docstring簡素化（-27行） |
-| **trading_logger.py** | デッドメソッド3件削除（`format_performance_summary`・`log_cycle_start`・`log_cycle_end`）+ docstring簡素化（-53行） |
-| **market_regime_classifier.py** | `get_regime_stats`・`_calc_donchian_width`・未使用代入削除 + docstring簡素化（-56行） |
-| **regime_types.py** | `get_description`・`is_high_risk`削除 + docstring簡素化（-22行） |
-| **全9ファイル** | module docstring「Phase XX完了」→簡素化 |
-| **README.md** | 全面書き直し（188行→41行） |
-| **テスト** | 削除メソッドテスト23件除去（-271行） |
-
-#### Phase 64.16 変更内容（`src/core/reporting/`整理 + Discord全削除）
-
-| 変更 | 内容 |
-|------|------|
-| **discord_notifier.py** | ファイル削除（585行: DiscordClient・DiscordManager・notify） |
-| **base_reporter.py** | デッドメソッド4件削除（format_markdown/format_discord_embed/save_markdown_report/get_report_summary）+ Phase参照22→64（-130行） |
-| **paper_trading_reporter.py** | `format_discord_notification()`削除 + Phase参照22→64（-55行） |
-| **executor.py / risk/manager.py / orchestrator.py** | DiscordManager import・初期化ブロック全削除 |
-| **logger.py** | `set_discord_manager()`・`set_discord_notifier()`削除（`_discord_manager=None`は互換性保持） |
-| **テスト** | test_discord_notifier.py(973行)・test_discord_client.py削除 + executor/orchestrator/loggerのDiscordパッチ全除去 |
-
-#### Phase 64.15 変更内容（`src/core/orchestration/`整理）
-
-| 変更 | 内容 |
-|------|------|
-| **ml_fallback.py** | DummyModel未使用属性2件削除（`model_name`・`n_features_`）+ 関連import（-5行） |
-| **protocols.py** | `_create_hold_signal` privateメソッド削除（Protocolにprivate不適切）（-2行） |
-| **ml_adapter.py** | バージョン文字列更新（`Phase22_Optimized`→`Phase64`） |
-| **orchestrator.py** | ファイル末尾孤児コメント削除（-1行） |
-
-#### Phase 64.13 変更内容（`src/core/config/`整理）
-
-| 変更 | 内容 |
-|------|------|
-| **threshold_manager.py** | Optuna runtime override 4関数 + 未使用アクセサ2関数 + `_runtime_overrides`変数削除（-54行） |
-| **__init__.py** | 再エクスポート11件削除 + `reload_features_config`削除 + `_create_generic_config`をdataclassフィールドベースに改良（-20行） |
-| **runtime_flags.py** | `paper_mode` + `reset_all_flags` + `get_all_flags`削除（-38行） |
-| **feature_manager.py** | 未使用メソッド3件（validate_features/get_feature_info/get_basic_feature_names）+ ラッパー3件削除（-97行） |
-| **config_classes.py** | MLConfig未使用フィールド6件削除（model_update_check/meta_learning/min_confidence/market_features/performance_tracking/model_config） |
-| **thresholds.yaml** | ml内デッドキー5セクション削除（-30行） |
-| **unified.yaml** | `model_update_check`削除 |
-
-#### Phase 64.14 変更内容（`src/core/execution/`整理）
-
-| 変更 | 内容 |
-|------|------|
-| **backtest_runner.py** | コメントアウトコード4行 + `_setup_current_market_data()`レガシーメソッド5行 + `_save_progress_report()`デッドメソッド21行削除（-30行） |
-| **live_trading_runner.py** | `from config import load_config`→`from ..config import load_config`（importバグ修正）+ 冗長`get_threshold` import削除（-1行） |
-
-#### Phase 64.12 変更内容（SL安全網の根本修正）
-
-| 変更 | 内容 |
-|------|------|
-| **バグ1: 50062無限ループ** | 成行決済前に既存注文全キャンセル（tp_sl_manager.py） |
-| **バグ2: canceled放置** | closed/canceled分離、canceled時sl_order_idクリア→Bot側SLチェック復活（stop_manager.py） |
-| **バグ3: VP無限ループ** | SLのみ成功でもVP追加（TPは次回再試行）（tp_sl_manager.py） |
-| **バグ4: 孤児SL誤採用** | SL復元マッチングに価格妥当性検証追加（3%閾値）（position_restorer.py） |
-| **安全網: SL超過チェック** | timeout分岐でSL価格超過時はフォールバック実行（stop_manager.py） |
-| **安全網: カバレッジ検証** | 価格乖離3%超のSL注文をカバレッジ計算から除外（tp_sl_manager.py） |
-
-#### Phase 64.7-64.8 変更内容
-
-| 変更 | 内容 |
-|------|------|
-| **64.7 features** | デッドコード・コメントアウト削除、async/sync共通化、docstring修正（feature_generator.py 960→778行） |
-| **64.8 data** | デッドメソッド2件削除、4h/15m直接API統合（bitbank_client.py 2,104→1,861行） |
-
-#### Phase 64.6 変更内容
-
-| 変更 | 内容 |
-|------|------|
-| 未使用クラス削除 | VotingSystem・EnsembleModel・StackingEnsemble・VotingMethod（ensemble.py 1,070行→200行） |
-| ファイル削除 | model_manager.py（337行）・meta_learning.py（669行） |
-| ml_loader.py簡素化 | Stacking関連コード~160行削除・フォールバック3段階→2段階 |
-| trading_cycle_manager.py | Meta-Learning初期化削除・`_get_dynamic_weights`簡素化 |
-| テスト整理 | テストファイル4件削除・4件修正 |
-| **src/ml/ 合計** | **2,712行→813行（-70%）** |
-
-#### Phase 64.4 変更内容
-
-| 変更 | 内容 |
-|------|------|
-| デッドコード削除 | 未使用定数4件・`_check_tp_sl_orders_exist()`メソッド削除 |
-| 整合性バグ修正 | position_restorer TP/SL検出をboolean→数量ベース95%カバレッジに統一 |
-| 重複統合 | TP/SL価格計算→`calculate_recovery_tp_sl_prices()`、SL超過→`place_sl_or_market_close()` |
-| regime不統一修正 | `_place_missing_tp_sl`のregimeをnormal_range→tight_range（安全方向） |
-| ラッパー削除 | cleanup委譲メソッド2件削除→executor.pyからposition_restorer直接呼出 |
-| レイヤー簡素化 | `_verify_and_rebuild_tp_sl` 169行→30行（ensure_tp_slに委譲） |
-
-#### Phase 64.2 修正効果
-
-```
-Before: API失敗 → None返却 → 3回空回り → rollback（リトライ無意味）
-After:  API失敗 → 例外 → 1s→2s→4sリトライ → 最終失敗→rollback（リトライ正常動作）
-
-Before: 復旧失敗 → virtual_positionsにNoneエントリ追加 → ゾンビ化
-After:  復旧失敗 → 追加しない → 10分/30分後の定期チェックで再試行
-```
-
-#### ファイル構成（Phase 64.4完了時点）
-
-```
-src/trading/execution/
-├── executor.py           ~1,300行  エントリー実行に集中
-├── stop_manager.py       ~1,525行  TP/SL到達判定・決済のみ
-├── order_strategy.py       ~770行  注文タイプ決定・Maker実行・最小ロット保証
-├── tp_sl_config.py         ~120行  設定パス定数
-├── tp_sl_manager.py      ~1,250行  TP/SL配置・検証・復旧・計算・ロールバック統合
-└── position_restorer.py    ~560行  ポジション復元・孤児クリーンアップ統合
-```
-
-### Phase 63 成果サマリー（✅完了）
-
-| Phase | 内容 | 効果 |
-|-------|------|------|
-| **63 Bug 1-6** | stop_limit検出・マッチング緩和・asyncio廃止等 | TP/SL管理安定化 |
-| **63.2** | 固定金額TP累積手数料バグ修正 | TP膨張+48%→正常化 |
-| **63.4 Bug 1-5** | SL安全チェック・ポジション復元改善・重複防止 | 運用安全性向上 |
-| **63.5** | TP/SL定期チェック実装（10分間隔） | TP/SL欠損自動検知・復旧 |
-| **63.6 Bug 1-3** | 設定パス修正（CRITICAL）・restoredフィルタ削除 | 設定パスtypoバグ根絶 |
-
-### Phase 62 バックテスト最終結果
-
-| 指標 | 値 |
-|------|-----|
-| **期間** | 2025-07-01 ~ 2025-12-31（6ヶ月） |
-| **総取引数** | 303件 |
-| **勝率** | 59.7% |
-| **総損益** | **¥+119,815** |
-| **PF** | **1.65** |
-| **最大DD** | ¥13,352 (2.14%) |
-| **年利換算** | **約24%** |
-
-### 手数料設定（Phase 62.19: 2026年2月2日改定対応）
-
-| 項目 | エントリー | TP決済 | SL決済 |
-|------|----------|--------|--------|
-| 手数料率 | 0%（Maker） | 0%（Maker） | 0.1%（Taker） |
-| **往復（TP時）** | **0%** | - | - |
-| **往復（SL時）** | **0.1%** | - | - |
-
-**改定前（〜2/1）**: Maker -0.02%（リベート）、Taker 0.12%
-**改定後（2/2〜）**: Maker 0%（無料）、Taker 0.1%
-
-### SL設定（Phase 62.14-62.17）
-
-| 設定 | 値 | 備考 |
-|------|-----|------|
-| 注文タイプ | `stop_limit`（指値） | スリッページ抑制 |
-| slippage_buffer | 0.2% | 約定確実性確保 |
-| tight_range SL幅 | 0.4% | 0.3%から拡大 |
-| skip_bot_monitoring | true | Bot側SL監視スキップ（62.17） |
-| stop_limit_timeout | 300秒 | タイムアウトフォールバック（62.17） |
-
-### Phase 62 成果（✅完了）
-
-| 区分 | 内容 | 効果 |
-|------|------|------|
-| **Maker戦略** | エントリー/TP決済でMaker約定 | 往復手数料0%（Maker無料化対応） |
-| **SL改善** | 逆指値指値化 + 幅0.4% | スリッページ抑制・勝率改善 |
-| **手数料改定対応** | 2026年2月2日改定対応 | Maker 0%・Taker 0.1%に更新 |
-| **TP/SL欠損自動復旧** | 10分後検証・自動再構築 | APIエラー時の保護強化 |
-
-### Phase 61 成果（✅完了）
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| **61.5** | **低信頼度エントリー対策** | **✅ PF 1.58→1.78、損益+16%（¥100,629達成）** |
-| **61.7** | **固定金額TP実装** | **✅ 純利益1,000円保証・手数料考慮計算** |
-| **61.8** | **固定金額TPバックテスト対応** | **✅ SignalBuilderにposition_amount連携** |
-| **61.9** | **TP/SL自動執行検知** | **✅ SL約定ログ記録・分析可能化** |
-| **61.10** | **ポジションサイズ統一** | **✅ バックテスト・ライブ互換Dynamic Sizing** |
-| **61.12** | **取引履歴exit記録追加** | **✅ TP/SL自動執行時にpnl記録・勝率計算可能化** |
-
-### Phase 60 成果
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 60.1 | 実効レバレッジ0.5倍移行 | 14箇所設定変更・年利75%目標 |
-| 60.2 | 稼働率計算修正 | 7分間隔対応・稼働率100%表示 |
-| 60.3 | Walk-Forward検証実装 | 過学習排除・信頼性向上 |
-| 60.4 | ML重み削減・戦略重視設定 | 一致率向上・不一致ペナルティ強化 |
-| 60.5 | MLモデル差別化 | シード差別化・特徴量サンプリング・動的重み計算 |
-| 60.6 | Walk-Forward問題修正 | レジーム分布バグ修正・稼働率改善 |
-| **60.7** | **pandas 3.0互換性修正** | **¥86,639・PF 1.58達成** |
-
-### Phase 59 成果
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 59.1 | BBReversal normal_range無効化 | レジーム別分析で0%勝率判明→重み0.0に |
-| 59.2 | 信頼度逆転問題対策 | high_confidence閾値引上げ・penalty/bonus調整 |
-| 59.3 | adjusted_confidence記録修正 | 6ファイル修正・統計記録でpenalty/bonus効果可視化 |
-| 59.4-A | 2票ルール無効化 | 勝率53.8%、PF 1.55、損益¥+44,506 |
-| 59.4-B | レジーム別重み調整 | ❌ 失敗→リバート（分散効果低下） |
-| 59.5 | ライブモード分析修正 | 注文タイプ判定・年跨ぎ・タイムゾーン修正 |
-| **59.10** | **Stacking無効化・PE採用** | **✅ 過去最高¥+54,526、PF 1.60、年利22.9%相当** |
-
-### Phase 58 成果（前Phase）
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 58.1-58.4 | TP/SL管理・API修正 | 決済注文発行・ポジション同期・GETメソッド修正 |
-| 58.5-58.6 | TP/SL縮小・バックテスト精度 | 0.4%/0.3%・手数料/利息・土日縮小62.5% |
-| 58.7-58.8 | 稼働率・孤児SL防止 | BTC/JPYフィルタ・リトライ機能 |
-
-### Phase 57 成果
-
-| Phase | 内容 | 成果 |
-|-------|------|------|
-| 57.1-57.7 | リスク設定最適化・設定ファイル整理 | レバレッジ修正、ポジション拡大、レポートバグ修正 |
-| 57.10-57.14 | バックテスト・ライブ分析機能強化 | 84項目/35項目標準分析スクリプト |
-
-### 6戦略構成（Phase 62.2更新）
-
-| 区分 | 戦略名 | 核心ロジック | 備考 |
-|------|--------|-------------|------|
-| **レンジ型** | BBReversal | BB位置主導 + RSIボーナス → 平均回帰 | Phase 62.2: AND→BB主導 |
-| **レンジ型** | StochasticDivergence | 価格とStochasticの乖離検出 → 反転 | Phase 62.2: 価格変化フィルタ追加 |
-| **レンジ型** | ATRBased | ATR消尽率70%以上 → 反転期待 | 主力戦略 |
-| **レンジ型** | DonchianChannel | チャネル端部反転 + RSIボーナス | Phase 62.2: RSIボーナス制度 |
-| **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 | - |
-| **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー | - |
-
-### タイトレンジ重みづけ（Phase 65）
-
-```yaml
-tight_range:
-  BBReversal: 0.15          # Phase 65: 再有効化（62.2でBB主導ロジック変更済み）
-  StochasticReversal: 0.30  # レンジ型主力
-  ATRBased: 0.30            # レンジ型主力
-  DonchianChannel: 0.25     # 補助
-  ADXTrendStrength: 0.0     # トレンド型・タイトレンジ不向き
-  MACDEMACrossover: 0.0     # ADX>25条件でタイトレンジ不発
-```
-
-**設計思想**: Phase 65でBBReversal再有効化。Phase 62.2でBB主導ロジックに変更済みで、GCPログでBUY(0.550)連続出力を確認。HOLD支配解消のため重み0.15で有効化。
-
-### レジーム別TP/SL設定（Phase 63.3更新）
-
-#### 平日設定
-
-| レジーム | TP | SL | RR比 |
-|---------|-----|-----|------|
-| tight_range | 0.4% | 0.4% | 1.00:1 |
-| normal_range | 1.0% | 0.7% | 1.43:1 |
-| trending | 1.5% | 1.0% | 1.50:1 |
-
-#### 土日設定（Phase 58.6追加）
-
-| レジーム | TP | SL | 平日比 |
-|---------|-----|-----|--------|
-| tight_range | 0.25% | 0.25% | 62.5% |
-| normal_range | 0.65% | 0.45% | 65% |
-| trending | 1.0% | 0.65% | 67% |
-
-**根拠**: 半年分CSV分析で土日ATRは平日の65%（到達率46%）
-
-#### 固定金額TP（Phase 61.7追加・Phase 63.2累積手数料バグ修正）
-
-| 設定 | 値 | 説明 |
-|------|-----|------|
-| enabled | true | 固定金額モード有効 |
-| target_net_profit | 500 | 目標純利益（円）※1000円から変更 |
-| include_entry_fee | true | エントリー手数料を考慮（Maker 0%） |
-| include_exit_fee_rebate | true | 決済手数料を考慮（TP決済: Maker 0%） |
-
-**500円TP採用根拠**: 1000円TP比でPF+30%、勝率+15.6pt、損益+13%
-
-**計算式**: `TP価格 = エントリー価格 ± (必要含み益 / 数量)`
-**必要含み益**: `目標純利益 + エントリー手数料 + 利息 + 決済手数料`
-（Phase 63.2: fee_data累積値は使用せず、常にfallbackレート（Maker 0%）で個別計算）
-
-### 運用仕様
+## システム概要
 
 | 項目 | 値 |
 |------|-----|
 | **対象** | bitbank信用取引・BTC/JPY専用 |
-| **稼働** | 24時間（GCP Cloud Run） |
+| **稼働** | 24時間（GCP Cloud Run）・5分間隔 |
 | **月額コスト** | 700-900円 |
-| **実行間隔** | 5分 |
+| **証拠金** | 50万円 |
+| **年利目標** | 10%（DD 10%許容） |
+| **戦略数** | 6戦略（レンジ型4 + トレンド型2） |
+| **特徴量数** | 55特徴量（49基本 + 6戦略信号） |
+| **MLモデル** | ProductionEnsemble（動的重み・シード差別化） |
+| **分類方式** | 真の3クラス分類（BUY / HOLD / SELL） |
 
 ---
 
@@ -405,13 +51,11 @@ bash scripts/testing/checks.sh
 # ペーパートレード
 bash scripts/management/run_paper.sh
 
-# 停止
+# 停止 / 状況確認
 bash scripts/management/run_paper.sh stop
-
-# 状況確認
 bash scripts/management/run_paper.sh status
 
-# ライブトレード（直接実行）
+# ライブトレード
 python3 main.py --mode live
 ```
 
@@ -432,65 +76,22 @@ TZ='Asia/Tokyo' gcloud run revisions list \
 gcloud logging read "resource.type=cloud_run_revision" --limit=10
 ```
 
-### ライブモード標準分析
+### 分析コマンド
 
 ```bash
-# 基本実行（24時間分析）- Maker戦略確認含む
+# ライブモード標準分析（24時間）
 python3 scripts/live/standard_analysis.py
-
-# 期間指定（48時間）
 python3 scripts/live/standard_analysis.py --hours 48
-
-# 簡易チェック（GCPログのみ）
 python3 scripts/live/standard_analysis.py --quick
 
-# 出力先指定
-python3 scripts/live/standard_analysis.py --output results/live/
-```
-
-**45固定指標**:
-- アカウント状態（5指標）: 証拠金維持率、利用可能残高、使用中証拠金、未実現損益、マージンコール状態
-- ポジション状態（5指標）: オープンポジション数、未約定注文数、注文内訳、ロスカット価格
-- 取引履歴分析（12指標）: 取引数、勝率、総損益、戦略別統計、TP/SL発動数
-- システム健全性（6指標）: API応答時間、エラー数、サービス状態、Container再起動数
-- TP/SL適切性（4指標）: TP/SL距離%、設置状態
-- 稼働率（3指標）: 稼働時間率（目標90%）、ダウンタイム
-- 孤児SL管理（4指標）: 検出数、処理結果、リトライ状況
-- **Maker戦略（6指標）**: エントリーMaker成功/FB、TP Maker成功/FB、post_onlyキャンセル数
-
-### バックテスト
-
-```bash
-# データ確認
-wc -l src/backtest/data/historical/BTC_JPY_4h.csv   # 期待: 1,081行
-wc -l src/backtest/data/historical/BTC_JPY_15m.csv  # 期待: 17,272行
-
-# 実行
+# バックテスト実行
 bash scripts/backtest/run_backtest.sh
-# または
-python3 main.py --mode backtest
-```
 
-### バックテスト標準分析
-
-```bash
-# CIの最新バックテスト結果を取得して分析
+# バックテスト標準分析
 python3 scripts/backtest/standard_analysis.py --from-ci
-
-# ローカルJSONファイルを分析
 python3 scripts/backtest/standard_analysis.py results/backtest_result.json
 
-# Phase指定付き
-python3 scripts/backtest/standard_analysis.py --from-ci --phase 57.13
-```
-
-**85固定指標**: 基本指標(11) + 戦略別(36) + ML予測別(9) + 一致率(4) + レジーム別(12) + 時系列(6) + 改善示唆(8)
-- Phase 61.10: 平均ポジションサイズ追加（異常検知付き）
-
-### 戦略分析
-
-```bash
-# 戦略個別パフォーマンス分析（60日）
+# 戦略個別パフォーマンス分析
 python3 scripts/analysis/strategy_performance_analysis.py
 ```
 
@@ -506,7 +107,7 @@ src/
 │   ├── orchestration/      # TradingOrchestrator
 │   ├── config/             # 設定管理（unified.yaml）
 │   ├── execution/          # 取引実行制御
-│   ├── reporting/          # レポート生成（BaseReporter・PaperTradingReporter）
+│   ├── reporting/          # レポート生成
 │   └── services/           # GracefulShutdown・MarketRegimeClassifier
 ├── data/                   # Bitbank API・キャッシュ
 ├── features/               # 特徴量生成（15指標）
@@ -518,8 +119,7 @@ src/
 │   ├── execution/          # ExecutionService・OrderStrategy・TPSLManager・PositionRestorer
 │   ├── position/           # Tracker・Limits・Cleanup
 │   └── risk/               # IntegratedRiskManager
-├── backtest/               # バックテストシステム
-└── monitoring/             # 週間レポート
+└── backtest/               # バックテストシステム
 
 tax/                        # 税務システム（SQLite・移動平均法）
 scripts/                    # 運用スクリプト
@@ -549,11 +149,9 @@ ML予測（ensemble_full.pkl → 信頼度）
 取引実行（完全指値・bitbank API）
 ```
 
----
+### 設定管理
 
-## 設定管理
-
-### 3層設定体系
+#### 3層設定体系
 
 | ファイル | 役割 |
 |---------|------|
@@ -561,7 +159,23 @@ ML予測（ensemble_full.pkl → 信頼度）
 | `config/core/unified.yaml` | 基本設定（残高・実行間隔等） |
 | `config/core/thresholds.yaml` | 動的値（ML閾値・リスク設定・レジーム別重み・TP/SL） |
 
-### 動的戦略選択
+#### 設定参照パターン
+
+```python
+# ハードコード禁止
+from src.core.config.threshold_manager import get_threshold
+
+sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
+
+# TP/SL設定はTPSLConfig定数を使用（文字列リテラル禁止）
+from src.trading.execution.tp_sl_config import TPSLConfig
+
+tp_ratio = get_threshold(TPSLConfig.TP_MIN_PROFIT_RATIO, 0.009)
+sl_ratio = get_threshold(TPSLConfig.SL_MAX_LOSS_RATIO, 0.007)
+regime_tp = get_threshold(TPSLConfig.tp_regime_path("tight_range", "min_profit_ratio"), 0.004)
+```
+
+#### 動的戦略選択
 
 ```yaml
 # thresholds.yaml
@@ -574,36 +188,82 @@ dynamic_strategy_selection:
     high_volatility: # 全戦略無効化
 ```
 
-### 設定参照パターン
+#### シークレット管理
 
-```python
-# ハードコード禁止
-from src.core.config.threshold_manager import get_threshold
+- ローカル: `config/secrets/.env`（`.gitignore`で除外済み）
+- GCP: Secret Manager（具体的バージョン番号使用。`key:latest`は禁止）
 
-sl_rate = get_threshold("risk.sl_min_distance_ratio", 0.02)
+---
 
-# Phase 64: TP/SL設定はTPSLConfig定数を使用（文字列リテラル禁止）
-from src.trading.execution.tp_sl_config import TPSLConfig
+## 現行設定値
 
-tp_ratio = get_threshold(TPSLConfig.TP_MIN_PROFIT_RATIO, 0.009)
-sl_ratio = get_threshold(TPSLConfig.SL_MAX_LOSS_RATIO, 0.007)
-regime_tp = get_threshold(TPSLConfig.tp_regime_path("tight_range", "min_profit_ratio"), 0.004)
+### 6戦略構成
+
+| 区分 | 戦略名 | 核心ロジック |
+|------|--------|-------------|
+| **レンジ型** | BBReversal | BB位置主導 + RSIボーナス → 平均回帰 |
+| **レンジ型** | StochasticDivergence | 価格とStochasticの乖離検出 → 反転 |
+| **レンジ型** | ATRBased | ATR消尽率70%以上 → 反転期待（主力） |
+| **レンジ型** | DonchianChannel | チャネル端部反転 + RSIボーナス |
+| **トレンド型** | MACDEMACrossover | MACDクロス + EMAトレンド確認 |
+| **トレンド型** | ADXTrendStrength | ADX≥25 + DIクロス → トレンドフォロー |
+
+### タイトレンジ重みづけ
+
+```yaml
+tight_range:
+  BBReversal: 0.15
+  StochasticReversal: 0.30
+  ATRBased: 0.30
+  DonchianChannel: 0.25
+  ADXTrendStrength: 0.0
+  MACDEMACrossover: 0.0
 ```
 
-### ローカルシークレット
+### レジーム別TP/SL設定
 
-```
-config/secrets/
-├── .env              # 機密情報（API キー等）
-├── .env.example      # テンプレート
-└── README.md         # 設定手順
-```
+#### 平日
 
-**注意**: `.gitignore`で除外済み。Git管理外。
+| レジーム | TP | SL | RR比 |
+|---------|-----|-----|------|
+| tight_range | 0.4% | 0.4% | 1.00:1 |
+| normal_range | 1.0% | 0.7% | 1.43:1 |
+| trending | 1.5% | 1.0% | 1.50:1 |
 
-### Secret Manager（GCP）
+#### 土日（平日の約65%）
 
-具体的バージョン番号使用（`key:3`など）。`key:latest`は禁止。
+| レジーム | TP | SL |
+|---------|-----|-----|
+| tight_range | 0.25% | 0.25% |
+| normal_range | 0.65% | 0.45% |
+| trending | 1.0% | 0.65% |
+
+### 固定金額TP
+
+| 設定 | 値 |
+|------|-----|
+| enabled | true |
+| target_net_profit | 500円 |
+| include_entry_fee | true（Maker 0%） |
+| include_exit_fee_rebate | true（TP決済: Maker 0%） |
+
+計算式: `TP価格 = エントリー価格 ± (必要含み益 / 数量)`
+必要含み益: `目標純利益 + エントリー手数料 + 利息 + 決済手数料`
+
+### 手数料設定（2026年2月2日改定）
+
+| 項目 | エントリー | TP決済 | SL決済 |
+|------|----------|--------|--------|
+| 手数料率 | 0%（Maker） | 0%（Maker） | 0.1%（Taker） |
+
+### SL設定
+
+| 設定 | 値 |
+|------|-----|
+| 注文タイプ | `stop_limit`（指値） |
+| slippage_buffer | 0.2% |
+| skip_bot_monitoring | true |
+| stop_limit_timeout | 300秒 |
 
 ---
 
@@ -630,106 +290,52 @@ config/secrets/
 |------|------|
 | gVisor fork()制限 | RandomForest `n_jobs=1`固定 |
 | Cloud Runタイムアウト | `signal.alarm`無効化 |
-| Container再起動 | 起動時ポジション復元（Phase 63.4: 実ポジションベース） |
+| Container再起動 | 起動時ポジション復元（実ポジションベース） |
 
 ### Git運用規則
 
-| 規則 | 内容 | 理由 |
-|------|------|------|
-| **全体コミット必須** | `git add .`を使用 | コミット漏れ防止 |
-| **個別add禁止** | `git add <file>`禁止 | 修正漏れによる不具合防止 |
-| **コミット前確認** | `git status`必須 | 未追跡ファイルの確認 |
+| 規則 | 内容 |
+|------|------|
+| **全体コミット必須** | `git add .`を使用（個別add禁止） |
+| **コミット前確認** | `git status`必須 |
 
 ```bash
-# 正しいコミット手順
-git status              # 変更内容確認
-git add .               # 全体追加（個別addは禁止）
-git commit -m "..."     # コミット
-git push origin main    # プッシュ → CI/CD自動デプロイ
+git status && git add . && git commit -m "..." && git push origin main
 ```
 
 ---
 
-## ドキュメント索引
+## トラブルシューティング + ドキュメント索引
 
-### docs/運用ガイド/（6ファイル）
+### よくあるエラー
 
-| ファイル | 内容 |
-|---------|------|
-| [統合運用ガイド.md](docs/運用ガイド/統合運用ガイド.md) | デプロイ・日常運用・緊急対応 |
-| [GCP運用ガイド.md](docs/運用ガイド/GCP運用ガイド.md) | IAM権限・リソースクリーンアップ |
-| [システム機能一覧.md](docs/運用ガイド/システム機能一覧.md) | 実装機能リファレンス |
-| [システム要件定義.md](docs/運用ガイド/システム要件定義.md) | 判断基準・制約定義 |
-| [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
-| [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
+| エラー | 対策 |
+|--------|------|
+| `'BitbankClient' has no attribute 'get_active_orders'` | `fetch_active_orders`を使用 |
+| Container exit(1) | GCP制約対策確認（n_jobs=1, signal.alarm無効化） |
 
-### docs/開発履歴/
-
-| ファイル | 内容 |
-|---------|------|
-| [SUMMARY.md](docs/開発履歴/SUMMARY.md) | **全Phase総括**（Phase 1-64サマリー） |
-| Phase_57.md | 年利10%目標・リスク最大化 |
-| Phase_58.md | TP/SL管理・ポジション同期修正 |
-| Phase_59.md | ML最適化・Stacking検証 |
-| Phase_60.md | 実効レバレッジ最適化・MLモデル差別化 |
-| Phase_61.md | ✅完了: 500円TP採用・PF 2.68・¥149,195達成 |
-| Phase_62.md | ✅完了: Maker戦略実装・手数料0.28%削減 |
-| Phase_63.md | ✅完了: TP/SL定期チェック・残存バグ修正・最終監査バグなし確認 |
-| **Phase_64.md** | **🔄進行中: TP/SLシンプル化 + システム全体整理** |
-
-### docs/開発計画/
-
-| ファイル | 内容 |
-|---------|------|
-| [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |
-
----
-
-## トラブルシューティング
-
-### 開発時問題
+### デバッグコマンド
 
 ```bash
-# 品質チェック詳細
-bash scripts/testing/checks.sh
-
-# importエラー
+# importエラー確認
 python3 -c "import sys; sys.path.insert(0, '.'); from src.core.logger import CryptoBotLogger"
 
 # 設定整合性確認
 python3 scripts/testing/dev_check.py validate
-```
 
-### GCP問題
-
-```bash
-# エラーログ確認
+# GCPエラーログ
 gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --limit=20
-
-# Container再起動確認
-gcloud logging read "textPayload:\"Container called exit\"" --limit=10
 ```
 
-### よくあるエラー
+### ドキュメント索引
 
-| エラー | 原因 | 対策 |
-|--------|------|------|
-| `NoneType.__format__` | margin_ratioがNone | Phase 53.4で修正済み |
-| `証拠金不足: 0円` | available_marginフィールド不存在 | Phase 53.14で修正済み |
-| `'BitbankClient' has no attribute 'get_active_orders'` | メソッド名不一致 | `fetch_active_orders`を使用 |
-| Container exit(1) | n_jobs並列処理 or signal.alarm | GCP制約対策適用確認 |
-| bitbank API 20001 | GET署名に/v1プレフィックス不足 | Phase 53.2で修正済み |
-
----
-
-## 開発開始前チェックリスト
-
-1. **最新状況把握**: Phase 64進行状況・Phase_64.md確認
-2. **品質チェック**: `bash scripts/testing/checks.sh`実行
-3. **設定確認**: features.yaml / unified.yaml / thresholds.yaml
-4. **GCP確認**: サービス稼働状況・最新リビジョン
-5. **ドキュメント**: 関連する運用ガイド・開発履歴確認
-
----
-
-**📅 最終更新**: 2026年2月21日 - **Phase 65完了**（ライブ取引頻度回復・三重壁対策）+ Phase 64完了（64.1-64.21）
+| カテゴリ | ファイル | 内容 |
+|---------|---------|------|
+| **運用** | [統合運用ガイド.md](docs/運用ガイド/統合運用ガイド.md) | デプロイ・日常運用・緊急対応 |
+| **運用** | [GCP運用ガイド.md](docs/運用ガイド/GCP運用ガイド.md) | IAM権限・リソースクリーンアップ |
+| **運用** | [システムリファレンス.md](docs/運用ガイド/システムリファレンス.md) | 仕様+実装の統合リファレンス |
+| **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
+| **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
+| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-65） |
+| **履歴** | [Phase_65.md](docs/開発履歴/Phase_65.md) | 最新Phase詳細 |
+| **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |

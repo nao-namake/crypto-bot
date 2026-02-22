@@ -695,6 +695,8 @@ class TestPhase643SLBreachMarketClose:
         mock_threshold.side_effect = threshold_side_effect
 
         mock_client = MagicMock()
+        # Phase 65.2: _cancel_partial_exit_ordersで使用
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
         # SL超過: avg_price=10,000,000, SL=9,930,000, 現在価格=9,900,000
         mock_client.fetch_ticker = MagicMock(return_value={"last": 9900000.0})
         mock_client.create_order = MagicMock(return_value={"id": "market_123"})
@@ -737,6 +739,8 @@ class TestPhase643SLBreachMarketClose:
         mock_threshold.side_effect = threshold_side_effect
 
         mock_client = MagicMock()
+        # Phase 65.2: _cancel_partial_exit_ordersで使用
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
         # SL未超過: avg_price=10,000,000, SL=9,930,000, 現在価格=10,050,000
         mock_client.fetch_ticker = MagicMock(return_value={"last": 10050000.0})
         mock_client.create_stop_loss_order = MagicMock(
@@ -820,6 +824,8 @@ class TestPhase6412SLSafetyNet:
         }.get(key, default)
 
         mock_client = MagicMock()
+        # Phase 65.2: _cancel_partial_exit_ordersで使用
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
         # TP配置失敗
         mock_client.create_take_profit_order = MagicMock(side_effect=Exception("50062 error"))
         # SL配置成功

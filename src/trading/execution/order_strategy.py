@@ -446,7 +446,9 @@ class OrderStrategy:
             spread_ratio = (best_ask - best_bid) / best_bid
 
             # スプレッド狭すぎ確認（Maker不利）
-            min_spread = config.get("min_spread_for_maker", 0.001)
+            # Phase 65.2: デフォルト値をYAML設定(0.00002)と一致させる
+            # 旧: 0.001(0.1%)はYAML(0.002%)と50倍乖離、設定読み込み失敗時にMaker完全無効化
+            min_spread = config.get("min_spread_for_maker", 0.00002)
             if spread_ratio < min_spread:
                 self.logger.info(
                     f"📡 Phase 62.9: スプレッド狭すぎ {spread_ratio * 100:.4f}% < {min_spread * 100:.3f}%"

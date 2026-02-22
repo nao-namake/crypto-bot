@@ -448,6 +448,18 @@ class BotFunctionCheckResult:
     atr_success_count: int = 0  # ATR取得成功数
     atr_fallback_count: int = 0  # フォールバックATR使用数
 
+    # Phase 65/65.2: 設定検証
+    config_checks: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    config_check_passed: int = 0
+    config_check_failed: int = 0
+
+    # Phase 65.2: GCPログベース動作確認
+    phase65_2_log_count: int = 0
+    partial_cancel_count: int = 0
+    fixed_tp_recovery_count: int = 0
+    unified_tp_placement_count: int = 0
+    coverage_deficit_count: int = 0
+
     # スコア
     normal_checks: int = 0
     warning_issues: int = 0
@@ -485,6 +497,8 @@ class BotFunctionChecker:
         self._check_atomic_entry()
         self._check_maker_strategy()  # Phase 62.9-62.10
         self._check_atr_fallback()  # Phase 62.13
+        self._verify_phase65_config()  # Phase 65/65.2: 設定検証
+        self._check_phase65_2_logs()  # Phase 65.2: GCPログ動作確認
 
         # 総合スコア計算
         self.result.total_score = (
@@ -722,6 +736,95 @@ class BotFunctionChecker:
             # 記録なし（まだTP/SL再計算が発生していない）
             self.logger.info("ℹ️ ATR取得: 記録なし（TP/SL再計算未発生）")
 
+    def _verify_phase65_config(self):
+        """Phase 65/65.2: 設定値検証"""
+        self.logger.info("🔧 Phase 65/65.2: 設定値検証")
+        from src.core.config.threshold_manager import get_threshold
+
+        checks = {
+            "min_strategy_confidence": {
+                "path": "ml.strategy_integration.min_strategy_confidence",
+                "expected": 0.22,
+                "default": 0.25,
+            },
+            "BBReversal tight_range重み": {
+                "path": "dynamic_strategy_selection.regime_strategy_mapping.tight_range.BBReversal",
+                "expected": 0.15,
+                "default": 0.0,
+            },
+            "Maker max_retries": {
+                "path": "order_execution.maker_strategy.max_retries",
+                "expected": 5,
+                "default": 3,
+            },
+            "Maker retry_interval_ms": {
+                "path": "order_execution.maker_strategy.retry_interval_ms",
+                "expected": 200,
+                "default": 500,
+            },
+            "固定金額TP有効": {
+                "path": "position_management.take_profit.fixed_amount.enabled",
+                "expected": True,
+                "default": False,
+            },
+            "固定金額TP目標": {
+                "path": "position_management.take_profit.fixed_amount.target_net_profit",
+                "expected": 500,
+                "default": 1000,
+            },
+        }
+
+        for name, spec in checks.items():
+            actual = get_threshold(spec["path"], spec["default"])
+            ok = actual == spec["expected"]
+            self.result.config_checks[name] = {
+                "path": spec["path"],
+                "expected": spec["expected"],
+                "actual": actual,
+                "ok": ok,
+            }
+            if ok:
+                self.result.config_check_passed += 1
+            else:
+                self.result.config_check_failed += 1
+                self.logger.warning(f"❌ {name}: 期待={spec['expected']} 実際={actual}")
+
+        # スコア反映
+        if self.result.config_check_failed == 0:
+            self.result.normal_checks += 1
+        elif self.result.config_check_failed <= 2:
+            self.result.warning_issues += 1
+        else:
+            self.result.critical_issues += 1
+
+    def _check_phase65_2_logs(self):
+        """Phase 65.2: GCPログベース動作確認"""
+        self.logger.info("📋 Phase 65.2: TP/SLフルカバー動作確認")
+
+        self.result.phase65_2_log_count = self._count_logs('textPayload:"Phase 65.2:"', 50)
+        self.result.partial_cancel_count = self._count_logs(
+            'textPayload:"Phase 65.2: 部分TP/SL" AND textPayload:"キャンセル"', 20
+        )
+        self.result.fixed_tp_recovery_count = self._count_logs(
+            'textPayload:"Phase 65.2: 固定金額TP使用"', 20
+        )
+        self.result.unified_tp_placement_count = self._count_logs(
+            'textPayload:"Phase 65.2: 統合TP配置成功"', 20
+        )
+        self.result.coverage_deficit_count = self._count_logs(
+            'textPayload:"Phase 65.2: TP/SLカバレッジ不足検出"', 20
+        )
+
+        if self.result.phase65_2_log_count > 0:
+            self.logger.info(
+                f"📋 Phase 65.2ログ検出: {self.result.phase65_2_log_count}件 "
+                f"(部分キャンセル:{self.result.partial_cancel_count} "
+                f"固定TP復旧:{self.result.fixed_tp_recovery_count} "
+                f"統合TP:{self.result.unified_tp_placement_count})"
+            )
+        else:
+            self.logger.info("ℹ️ Phase 65.2: ログ未検出（TP/SL復旧未発生の可能性）")
+
 
 @dataclass
 class LiveAnalysisResult:
@@ -769,6 +872,11 @@ class LiveAnalysisResult:
     sl_distance_pct: Optional[float] = None
     tp_sl_placement_ok: bool = True
     tp_sl_config_deviation: Optional[float] = None
+
+    # Phase 65.2: TP/SLカバレッジ率
+    tp_coverage_ratio: Optional[float] = None
+    sl_coverage_ratio: Optional[float] = None
+    tp_sl_full_coverage: bool = True
 
     # Phase 58.8: 孤児注文検出（2指標）
     orphan_sl_detected: bool = False
@@ -1371,6 +1479,28 @@ class LiveAnalyzer:
                             f"SL注文{total_sl_amount:.4f}BTC (カバー率: {sl_pct:.1f}%)"
                         )
 
+                # Phase 65.2: カバレッジ率をresultに保存
+                if total_position_amount > 0:
+                    # TP coverage
+                    if total_tp_amount > 0:
+                        self.result.tp_coverage_ratio = total_tp_amount / total_position_amount
+                    elif len(tp_orders) > 0:
+                        self.result.tp_coverage_ratio = 1.0  # native注文はamount=None
+                    else:
+                        self.result.tp_coverage_ratio = 0.0
+
+                    # SL coverage
+                    if total_sl_amount > 0:
+                        self.result.sl_coverage_ratio = total_sl_amount / total_position_amount
+                    elif len(sl_orders) > 0:
+                        self.result.sl_coverage_ratio = 1.0
+                    else:
+                        self.result.sl_coverage_ratio = 0.0
+
+                    self.result.tp_sl_full_coverage = (
+                        self.result.tp_coverage_ratio or 0
+                    ) >= 0.95 and (self.result.sl_coverage_ratio or 0) >= 0.95
+
                 # 注文数の記録（デバッグ用）
                 self.logger.info(
                     f"TP/SL詳細 - ポジション: {total_position_amount:.4f}BTC, "
@@ -1833,6 +1963,14 @@ class LiveReportGenerator:
         tp_sl_status = "正常" if result.tp_sl_placement_ok else "要確認"
         lines.append(f"| TP/SL設置 | {tp_sl_status} | {tp_sl_status} |")
 
+        # Phase 65.2: カバレッジ率
+        if result.tp_coverage_ratio is not None:
+            tp_cov_s = "正常" if result.tp_coverage_ratio >= 0.95 else "不足"
+            lines.append(f"| TPカバレッジ率 | {result.tp_coverage_ratio * 100:.1f}% | {tp_cov_s} |")
+        if result.sl_coverage_ratio is not None:
+            sl_cov_s = "正常" if result.sl_coverage_ratio >= 0.95 else "不足"
+            lines.append(f"| SLカバレッジ率 | {result.sl_coverage_ratio * 100:.1f}% | {sl_cov_s} |")
+
         lines.extend(
             [
                 "",
@@ -2083,6 +2221,13 @@ async def main():
         print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
         print(f"   🏆 スコア: {bot_result.total_score}点")
 
+        # Phase 65/65.2: 設定検証（簡易モード）
+        if bot_result.config_checks:
+            ng = bot_result.config_check_failed
+            total = bot_result.config_check_passed + ng
+            status = "全合格" if ng == 0 else f"{ng}件NG"
+            print(f"\n🔧 設定検証: {status} ({bot_result.config_check_passed}/{total})")
+
         # Phase 62.9-62.10: Maker戦略サマリー（簡易モード）
         entry_total = bot_result.entry_maker_success_count + bot_result.entry_maker_fallback_count
         tp_total = bot_result.tp_maker_success_count + bot_result.tp_maker_fallback_count
@@ -2205,6 +2350,20 @@ async def main():
             fee_reduction = taker_rate - maker_rate  # 0.1% - 0% = 0.1%
             estimated = maker_success * 1000000 * fee_reduction
             print(f"   推定手数料削減: ¥{estimated:,.0f}")
+
+    # Phase 65/65.2: 設定検証
+    if bot_result.config_checks:
+        print("\n🔧 Phase 65/65.2: 設定検証:")
+        for name, check in bot_result.config_checks.items():
+            mark = "✅" if check["ok"] else "❌"
+            print(f"   {mark} {name}: {check['actual']} (期待: {check['expected']})")
+
+    # Phase 65.2: TP/SLフルカバー動作
+    if bot_result.phase65_2_log_count > 0:
+        print("\n📋 Phase 65.2: TP/SLフルカバー:")
+        print(f"   部分キャンセル: {bot_result.partial_cancel_count}回")
+        print(f"   固定TP復旧: {bot_result.fixed_tp_recovery_count}回")
+        print(f"   統合TP配置: {bot_result.unified_tp_placement_count}回")
 
     # Phase 62.18: SLパターン分析サマリー
     if result.sl_pattern_total_executions > 0:
@@ -2365,6 +2524,38 @@ def _generate_diagnostic_markdown(
                 f"|------|------|------|",
                 f"| ATR取得成功 | {bot_result.atr_success_count}回 | {atr_status} ({atr_success_rate:.0f}%) |",
                 f"| フォールバック使用 | {bot_result.atr_fallback_count}回 | - |",
+            ]
+        )
+
+    # Phase 65/65.2: 設定検証
+    if bot_result.config_checks:
+        lines.extend(
+            [
+                "",
+                "### Phase 65/65.2: 設定検証",
+                "",
+                "| 設定項目 | 期待値 | 実際の値 | 状態 |",
+                "|---------|--------|---------|------|",
+            ]
+        )
+        for name, check in bot_result.config_checks.items():
+            status = "✅" if check["ok"] else "❌"
+            lines.append(f"| {name} | {check['expected']} | {check['actual']} | {status} |")
+
+    # Phase 65.2: GCPログ動作確認
+    if bot_result.phase65_2_log_count > 0:
+        lines.extend(
+            [
+                "",
+                "### Phase 65.2: TP/SLフルカバー動作確認",
+                "",
+                "| 項目 | 回数 | 備考 |",
+                "|------|------|------|",
+                f"| Phase 65.2ログ総数 | {bot_result.phase65_2_log_count}回 | - |",
+                f"| 部分TP/SLキャンセル | {bot_result.partial_cancel_count}回 | tp_sl_manager.py |",
+                f"| 固定金額TP復旧 | {bot_result.fixed_tp_recovery_count}回 | tp_sl_manager.py |",
+                f"| 統合TP配置成功 | {bot_result.unified_tp_placement_count}回 | tp_sl_manager.py |",
+                f"| カバレッジ不足検出 | {bot_result.coverage_deficit_count}回 | tp_sl_manager.py |",
             ]
         )
 
