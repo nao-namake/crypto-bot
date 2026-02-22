@@ -1,14 +1,10 @@
 """
-統合設定管理システム - Phase 64.13
+統合設定管理システム - Phase 65.3
 
 環境変数とYAMLファイルの統合管理・unified.yaml統合デフォルト値
 
+Phase 65.3: 設定ファイル整理（features.yaml → thresholds.yaml統合・2層体系）
 Phase 64.13: デッドコード削除（Optuna/paper_mode/未使用再エクスポート）
-Phase 49完了:
-- 3層設定体系（features.yaml・unified.yaml・thresholds.yaml）
-- threshold_manager: 6専用アクセス関数
-- feature_manager: 55特徴量管理（Phase 41 Strategy-Aware ML）
-- runtime_flags: バックテストモード制御（Phase 35）
 Phase 28-29: 統合設定管理システム確立
 """
 
@@ -304,48 +300,17 @@ def load_config(config_path: str, cmdline_mode: Optional[str] = None) -> Config:
     return config_manager.load_config(config_path, cmdline_mode=cmdline_mode)
 
 
-# === Phase 31.1: features.yaml読み込みAPI ===
-
-# グローバルキャッシュ
-_features_config_cache: Optional[dict] = None
+# === 機能トグル設定API（Phase 65.3: thresholds.yaml統合） ===
 
 
 def load_features_config(force_reload: bool = False) -> dict:
-    """
-    features.yamlを読み込む（キャッシュ付き）
-
-    Args:
-        force_reload: 強制再読み込みフラグ
-
-    Returns:
-        features.yaml の内容（辞書）
-    """
-    global _features_config_cache
-
-    if _features_config_cache is not None and not force_reload:
-        return _features_config_cache
-
-    features_path = Path("config/core/features.yaml")
-
-    if not features_path.exists():
-        raise FileNotFoundError(f"features.yaml が見つかりません: {features_path}")
-
-    try:
-        with open(features_path, "r", encoding="utf-8") as f:
-            _features_config_cache = yaml.safe_load(f) or {}
-        return _features_config_cache
-    except Exception as e:
-        raise RuntimeError(f"features.yaml 読み込みエラー: {e}")
+    """機能トグル設定を取得（thresholds.yaml の feature_flags セクション）"""
+    return get_threshold("feature_flags", {})
 
 
 def get_features_config() -> dict:
-    """
-    features.yamlの内容を取得（キャッシュ使用）
-
-    Returns:
-        features.yaml の内容（辞書）
-    """
-    return load_features_config()
+    """機能トグル設定を取得（thresholds.yaml の feature_flags セクション）"""
+    return get_threshold("feature_flags", {})
 
 
 # 分離されたクラスと関数を再エクスポート
@@ -373,7 +338,7 @@ __all__ = [
     "get_backtest_config",
     "get_data_config",
     "get_file_config",
-    # features.yaml管理関数（Phase 31.1）
+    # 機能トグル管理関数（Phase 65.3: thresholds.yaml統合）
     "load_features_config",
     "get_features_config",
     # ランタイムフラグ管理関数（Phase 35）

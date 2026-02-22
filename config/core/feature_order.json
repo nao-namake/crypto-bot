@@ -1,19 +1,11 @@
 {
-  "feature_order_version": "v4.2.0",
-  "phase": "Phase 51.9",
+  "feature_order_version": "v4.3.0",
+  "phase": "Phase 65.3",
   "total_features": 55,
-  "last_updated": "2025-11-10T00:00:00Z",
-  "description": "55特徴量（6戦略完全対応・Phase 51.9戦略シグナルエンコーディング改善）",
+  "last_updated": "2026-02-22T00:00:00Z",
+  "description": "55特徴量（49基本+6戦略信号・6戦略完全対応）",
 
   "feature_levels": {
-    "stacking": {
-      "count": 55,
-      "description": "Phase 59.8: Stackingアンサンブル（55特徴量・6戦略信号含む）",
-      "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
-      "model_file": "stacking_ensemble.pkl",
-      "meta_learner_file": "meta_learner.pkl",
-      "phase": "Phase 59.8"
-    },
     "full": {
       "count": 55,
       "description": "完全特徴量（6戦略信号含む・49基本+6戦略）- デフォルトモデル",
@@ -574,66 +566,13 @@
 
   "reduction_history": {
     "original_features": 97,
-    "phase51_7_day2_optimization": {
-      "target": "Feature Importance分析に基づく最適化",
-      "from": 60,
-      "to": 51,
-      "optimization_type": "data_driven_optimization",
-      "method": "lightgbm_feature_importance_analysis",
-      "deleted_features_count": 20,
-      "deleted_features": [
-        "ema_20",
-        "donchian_high_20",
-        "close_ma_5",
-        "close_max_5",
-        "close_max_10",
-        "close_max_20",
-        "close_min_5",
-        "close_min_10",
-        "close_min_20",
-        "close_lag_5",
-        "month",
-        "hour_sin",
-        "is_weekend",
-        "is_quarter_end",
-        "quarter",
-        "is_asia_session",
-        "is_us_session",
-        "ema_spread_x_adx",
-        "close_max_20",
-        "donchian_high_20"
-      ],
-      "added_features_count": 11,
-      "added_features": [
-        "macd_signal",
-        "macd_histogram",
-        "bb_upper",
-        "bb_lower",
-        "stoch_k",
-        "stoch_d",
-        "volume_ema",
-        "atr_ratio",
-        "strategy_signal_BBReversal",
-        "strategy_signal_StochasticReversal",
-        "strategy_signal_MACDEMACrossover"
-      ],
-      "improvements": [
-        "データドリブン削除: Importance ≤ 1.5の特徴量を削除",
-        "6戦略対応: Stochastic, MACD拡張, BB拡張追加",
-        "重大発見: volume_lag_2（#1）・close_std_5/10（#2/#3）が最重要と判明",
-        "重大発見: 既存戦略信号がImportance=0（Phase 51.8以降で改善検討）",
-        "期待効果: ML予測精度維持・6戦略対応強化・特徴量数最適化"
-      ]
-    }
+    "current_features": 55,
+    "summary": "97→60→55特徴量（Feature Importance分析・6戦略対応・Stacking無効化）"
   },
 
   "validation": {
-    "checksum": "sha256:phase51_7_day2_def456...",
-    "last_validated": "2025-11-05T12:00:00Z",
+    "last_validated": "2026-02-22T00:00:00Z",
     "validation_status": "passed",
-    "phase51_7_day2_compliance": "verified",
-    "feature_count_validation": "51_features_confirmed",
-    "data_driven_optimization": "completed",
-    "lightgbm_importance_analysis": "completed"
+    "feature_count_validation": "55_features_confirmed"
   }
 }

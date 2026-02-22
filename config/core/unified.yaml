@@ -1,12 +1,11 @@
 # ========================================
-# 統一設定ファイル (unified.yaml)
+# 環境・構造設定ファイル (unified.yaml)
 # ========================================
 #
-# 目的: 基本設定の統一管理・動的閾値はthresholds.yamlで管理
+# 目的: 環境・構造設定の統一管理
+#       パラメータ・閾値・機能トグルは thresholds.yaml で管理
 #
-# 重要: 1つの設定ファイルで全環境をサポート
-#       モード制御: コマンドライン引数 > 環境変数MODE > YAML内mode
-#       動的閾値: thresholds.yamlで管理（get_threshold使用）
+# モード制御: コマンドライン引数 > 環境変数MODE > YAML内mode
 #
 # 使用方法:
 #   開発: python main.py --config config/core/unified.yaml --mode paper
@@ -15,26 +14,26 @@
 #
 # ========================================
 
-# 動作モード（デフォルト: ペーパートレード・安全性優先）
+# 動作モード（デフォルト: ペーパートレード）
 mode: paper  # paper/live/backtest（環境変数・CLIで上書き可能）
 
 # ========================================
-# モード別初期残高設定（一元管理）
+# モード別初期残高設定
 # ========================================
-# 用途: 将来的な残高変更時に一箇所修正で完結
-# 参照: ExecutionService、IntegratedRiskManager、DrawdownManager
 mode_balances:
   paper:
-    initial_balance: 500000.0     # Phase 57: ペーパートレード初期残高（50万円）
-    description: "ペーパートレード用初期残高（年利10%目標検証用）"
+    initial_balance: 500000.0
+    description: "ペーパートレード用初期残高（50万円）"
   live:
-    initial_balance: 500000.0     # Phase 57: ライブトレード初期残高（50万円・実運用）
-    description: "ライブトレード用初期残高（本番運用・API取得ベース）"
+    initial_balance: 500000.0
+    description: "ライブトレード用初期残高（50万円）"
   backtest:
-    initial_balance: 500000.0     # Phase 57: バックテスト初期残高（50万円・年利10%目標）
-    description: "バックテスト用初期残高（過去データ検証用・ライブモードと独立）"
+    initial_balance: 500000.0
+    description: "バックテスト用初期残高（50万円）"
 
+# ========================================
 # 取引所設定（bitbank信用取引専用）
+# ========================================
 exchange:
   name: bitbank
   symbol: BTC/JPY
@@ -46,35 +45,12 @@ exchange:
   api_version: v1
 
 # ========================================
-# 機械学習設定（統一設定管理体系最適化）
-# ========================================
-# 注意: 信頼度閾値はthresholds.yamlで管理
-# Phase 50.9: 2段階Graceful Degradation（full 55 → basic 49 → Dummy）
-# Phase 51.9-5: ensemble重みをmlセクションに統合
-ml:
-  ensemble_enabled: true
-  # アンサンブルモデル重み設定（Phase 51.9-5: 統合）
-  ensemble_weights:
-    lightgbm: 0.5      # LightGBM 50%（メインモデル）
-    xgboost: 0.3       # XGBoost 30%（補完モデル）
-    random_forest: 0.2 # RandomForest 20%（安定化モデル）
-  models:
-  - lgbm
-  - xgb
-  - rf
-  # model_path: Phase 50.9で削除（ml_loaderが動的にensemble_full/basic.pklを選択）
-  fallback_enabled: true
-  prediction:
-    lookback_periods: 100
-    retrain_frequency: weekly
-
-# ========================================
-# データ取得設定（マルチタイムフレーム統一）
+# データ取得設定（マルチタイムフレーム）
 # ========================================
 data:
   timeframes:
-  - 15m  # メインタイムフレーム（エントリー判断用）
-  - 4h   # 補助タイムフレーム（トレンド判断用）
+    - 15m  # メインタイムフレーム（エントリー判断用）
+    - 4h   # 補助タイムフレーム（トレンド判断用）
   since_hours: 96
   limit: 100
   cache_enabled: true
@@ -84,131 +60,6 @@ data:
     max_size: 1000
     disk_cache: true
     retention_days: 90
-
-# ========================================
-# 特徴量設定（Phase 51.9: 55特徴量固定システム）
-# ========================================
-# Phase 51.9: 55特徴量（49基本+6戦略シグナル）
-# - 49基本特徴量: テクニカル指標・ラグ・交差項・時間的特徴量
-# - 6戦略シグナル特徴量: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover
-# ========================================
-features:
-  mode: optimized
-  basic:
-  - close
-  - volume
-  momentum:
-  - rsi_14
-  - macd
-  volatility:
-  - atr_14
-  - bb_position
-  trend:
-  - ema_20
-  - ema_50
-  volume:
-  - volume_ratio
-  breakout:
-  - donchian_high_20
-  - donchian_low_20
-  - channel_position
-  regime:
-  - adx_14
-  - plus_di_14
-  - minus_di_14
-
-# ========================================
-# 戦略設定（6戦略統合・Phase 51.9）
-# ========================================
-# Phase 51.9-5: 戦略設定はconfig/strategies.yamlで一元管理
-# Phase 51.5-B動的戦略管理基盤により、strategies.yamlが唯一の戦略定義ソース
-#
-# 設定参照: config/strategies.yaml
-
-# ========================================
-# リスク管理設定（Kelly基準・個人開発最適化）
-# ========================================
-# 注意: Kelly基準詳細設定・リスク閾値はthresholds.yamlで管理
-risk:
-  risk_per_trade: 0.01
-  max_drawdown: 0.2
-  stop_loss_atr_multiplier: 1.2
-  consecutive_loss_limit: 5
-  take_profit_ratio: 2.0
-  daily_loss_limit: 0.05
-  weekly_loss_limit: 0.1
-  emergency_stop_enabled: true
-  drawdown_manager:
-    max_drawdown_ratio: 0.2
-    consecutive_loss_limit: 8  # 5→8（連続損失許容を増加・取引機会拡大）
-    cooldown_hours: 6          # 24→6（停止時間を大幅短縮・月100-200回対応）
-    # 初期残高設定は mode_balances セクションから取得
-    fallback_balance: 11000.0  # フォールバック残高（円）- API失敗時判別用
-    persistence:
-      local_path: "data/drawdown_state.json"  # ローカル状態ファイルパス
-      gcs_bucket: "crypto-bot-state"                    # Cloud Storageバケット名
-      gcs_path: "drawdown/state.json"                   # Cloud Storageオブジェクトパス
-  anomaly_detector:
-    lookback_period: 20
-    spread_warning_threshold: 0.003
-    spread_critical_threshold: 0.005
-    api_latency_warning: 5.0    # Phase 57.4: 1秒→5秒（実測5-7秒に対応）
-    api_latency_critical: 10.0  # Phase 57.4: 3秒→10秒（過剰拒否防止）
-
-# ========================================
-# 注文実行設定
-# ========================================
-# 注意: ポジション管理設定（TP/SL等）はthresholds.yamlで管理
-#
-
-execution:
-  mode: paper
-  order:
-    default_type: limit
-    slippage_tolerance: 0.001
-    max_retry: 3
-    retry_delay: 1.0
-  latency:
-    target_ms: 1000
-    warning_ms: 500
-    critical_ms: 2000
-
-# ========================================
-# 本番運用設定（MODE=live時有効）
-# ========================================
-# 注意: ポジションサイズ設定（min_order_size/max_order_size）は
-#       thresholds.yamlのproductionセクションで一元管理
-#       get_threshold("production.max_order_size", 0.03)で参照
-production:
-  trade_interval: 300     # 5分間隔実行（月700-900円コスト最適化）
-  margin_trading: true
-  force_margin_mode: true
-
-# ========================================
-# ログ設定（環境別対応）
-# ========================================
-logging:
-  level: INFO
-  file_enabled: true
-  retention_days: 7
-  file:
-    enabled: true
-    path: logs/production
-    rotation: daily
-    retention_days: 30
-    max_size_mb: 100
-# ========================================
-# 監視・ヘルスチェック
-# ========================================
-monitoring:
-  health_check:
-    enabled: true
-    interval_seconds: 30
-    timeout_seconds: 5
-    manual_execution: true
-  performance:
-    enabled: true
-    metrics_interval: 300
 
 # ========================================
 # GCP Cloud Run最適化
@@ -229,7 +80,7 @@ security:
   workload_identity: true
 
 # ========================================
-# 取引制約・制限事項（個人開発）
+# 取引制約・制限事項
 # ========================================
 trading_constraints:
   exchange: bitbank
@@ -237,29 +88,10 @@ trading_constraints:
   leverage_max: 2.0
   leverage_actual: 1.0
   currency_pair: BTC/JPY
-  default_order_type: limit  # 指値注文（手数料最適化: Maker -0.02%）
+  default_order_type: limit
   initial_capital: 10000
   target_capital: 500000
-  features_count: 55  # Phase 51.9: 55特徴量（49基本+6戦略シグナル・feature_order.json参照）
+  features_count: 55  # 49基本+6戦略シグナル（feature_order.json参照）
   timeframes:
-  - 15m  # メインタイムフレーム（エントリー判断用）
-  - 4h   # 補助タイムフレーム（トレンド判断用）
-
-# ========================================
-# アンサンブルモデル重み設定
-# ========================================
-# Phase 51.9-5: ensemble重みはmlセクションに統合（上記ml.ensemble_weights参照）
-# 設定削除（重複排除）
-
-# ========================================
-# レポート設定
-# ========================================
-reporting:
-  error_dir: logs/reports/errors
-  max_report_size_mb: 10
-  retention_days: 30
-  max_files_per_type: 100
-  json_enabled: true
-  markdown_enabled: true
-  timestamp_format: '%Y%m%d_%H%M%S'
-
+    - 15m
+    - 4h

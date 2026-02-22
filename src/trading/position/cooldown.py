@@ -39,7 +39,7 @@ class CooldownManager:
             bool: クールダウンを適用するか
         """
         try:
-            # features.yaml から設定取得
+            # 機能トグル設定を取得
             features = get_features_config()
             features_config = features.get("trading", {}).get("cooldown", {})
 

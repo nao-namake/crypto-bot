@@ -1370,14 +1370,14 @@ class BacktestRunner(BaseRunner):
         """
         Phase 52.2: DrawdownManager初期化（設定ファイル制御）
 
-        features.yamlの設定に基づいてDrawdownManagerを初期化。
+        機能トグル設定に基づいてDrawdownManagerを初期化。
         enabled=false: 戦略評価モード（制限なし）
         enabled=true: 本番シミュレーションモード（-20%制限適用）
         """
         from ...core.config import get_features_config
         from ...trading.risk.drawdown import DrawdownManager
 
-        # features.yamlから設定読み込み
+        # 機能トグルから設定読み込み
         features_config = get_features_config()
         backtest_config = features_config.get("development", {}).get("backtest", {})
         drawdown_config = backtest_config.get("drawdown_limits", {})

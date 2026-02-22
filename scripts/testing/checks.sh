@@ -206,7 +206,7 @@ echo ""
 echo "⚙️  [5/12] 設定ファイル整合性チェック..."
 
 # YAML構文チェック
-CONFIG_FILES=("config/core/unified.yaml" "config/core/thresholds.yaml" "config/core/features.yaml")
+CONFIG_FILES=("config/core/unified.yaml" "config/core/thresholds.yaml")
 
 for config_file in "${CONFIG_FILES[@]}"; do
     if [ ! -f "$config_file" ]; then
@@ -229,7 +229,7 @@ import yaml
 try:
     with open('config/core/unified.yaml') as f:
         data = yaml.safe_load(f)
-        required = ['mode', 'risk', 'execution']
+        required = ['mode', 'exchange', 'data']
         missing = [k for k in required if k not in data]
         if missing:
             print('MISSING:' + ','.join(missing))

@@ -4,8 +4,8 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 65完了 |
-| **直前の作業** | ライブ取引頻度回復（三重壁対策） |
+| **現在Phase** | 65.3完了 |
+| **直前の作業** | config/core 設定ファイル整理（3→2ファイル統合） |
 | **次の予定** | `docs/開発計画/ToDo.md` 参照 |
 | **最新成果** | バックテスト ¥+102,135（PF 2.47・勝率89.2%・DD 0.94%） |
 | **最終更新** | 2026年2月22日 |
@@ -151,13 +151,12 @@ ML予測（ensemble_full.pkl → 信頼度）
 
 ### 設定管理
 
-#### 3層設定体系
+#### 2層設定体系
 
 | ファイル | 役割 |
 |---------|------|
-| `config/core/features.yaml` | 機能トグル設定 |
-| `config/core/unified.yaml` | 基本設定（残高・実行間隔等） |
-| `config/core/thresholds.yaml` | 動的値（ML閾値・リスク設定・レジーム別重み・TP/SL） |
+| `config/core/unified.yaml` | 環境・構造設定（実行モード・取引所接続・GCP） |
+| `config/core/thresholds.yaml` | 全パラメータ + 機能トグル（ML閾値・リスク・TP/SL・ON/OFF） |
 
 #### 設定参照パターン
 
@@ -173,6 +172,12 @@ from src.trading.execution.tp_sl_config import TPSLConfig
 tp_ratio = get_threshold(TPSLConfig.TP_MIN_PROFIT_RATIO, 0.009)
 sl_ratio = get_threshold(TPSLConfig.SL_MAX_LOSS_RATIO, 0.007)
 regime_tp = get_threshold(TPSLConfig.tp_regime_path("tight_range", "min_profit_ratio"), 0.004)
+
+# 機能トグル参照（thresholds.yaml の feature_flags セクション）
+from src.core.config import get_features_config
+
+features = get_features_config()
+cooldown_enabled = features.get("trading", {}).get("cooldown", {}).get("enabled", True)
 ```
 
 #### 動的戦略選択
