@@ -292,58 +292,77 @@ class TestCheckMaxPositions:
 class TestCheckCapitalUsage:
     """_check_capital_usage() テスト"""
 
-    @patch("src.core.config.load_config")
     @patch("src.trading.position.limits.get_threshold")
-    def test_capital_usage_within_limit(self, mock_threshold, mock_load_config, limits):
-        """資金利用率制限内"""
-        mock_threshold.return_value = 0.3
-        mock_config = Mock()
-        mock_config.mode_balances = {
-            "paper": {"initial_balance": 10000.0},
-            "live": {"initial_balance": 100000.0},
-        }
-        mock_load_config.return_value = mock_config
+    def test_capital_usage_within_limit(self, mock_threshold, limits):
+        """資金利用率制限内（Phase 65.6: mode引数使用）"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "risk.max_capital_usage":
+                return 0.3
+            if key == "mode_balances.paper.initial_balance":
+                return 10000.0
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
 
         # 10,000円初期残高、8,000円現在残高 = 20%使用
-        result = limits._check_capital_usage(8000.0)
+        result = limits._check_capital_usage(8000.0, mode="paper")
 
         assert result["allowed"] is True
         assert "資金利用率OK" in result["reason"]
 
     @patch("src.trading.position.limits.get_threshold")
     def test_capital_usage_at_limit(self, mock_threshold, limits):
-        """資金利用率制限到達（Phase 55.12: get_threshold使用に修正）"""
+        """資金利用率制限到達（Phase 65.6: mode引数使用）"""
 
         def threshold_side_effect(key, default=None):
             if key == "risk.max_capital_usage":
                 return 0.3
-            # 6800円残高はbacktestモードと判定される
             if key == "mode_balances.backtest.initial_balance":
-                return 10000.0  # 初期残高を10,000円に設定
+                return 10000.0
             return default
 
         mock_threshold.side_effect = threshold_side_effect
 
         # 10,000円初期残高、6,800円現在残高 = 32%使用
-        result = limits._check_capital_usage(6800.0)
+        result = limits._check_capital_usage(6800.0, mode="backtest")
 
         assert result["allowed"] is False
         assert "資金利用率制限" in result["reason"]
 
-    @patch("src.core.config.load_config")
     @patch("src.trading.position.limits.get_threshold")
-    def test_capital_usage_live_mode_detection(self, mock_threshold, mock_load_config, limits):
-        """ライブモード検出"""
-        mock_threshold.return_value = 0.3
-        mock_config = Mock()
-        mock_config.mode_balances = {
-            "paper": {"initial_balance": 10000.0},
-            "live": {"initial_balance": 100000.0},
-        }
-        mock_load_config.return_value = mock_config
+    def test_capital_usage_live_mode_explicit(self, mock_threshold, limits):
+        """Phase 65.6: mode明示でライブモード判定"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "risk.max_capital_usage":
+                return 0.3
+            if key == "mode_balances.live.initial_balance":
+                return 100000.0
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
 
         # 100,000円初期残高、95,000円現在残高 = 5%使用
-        result = limits._check_capital_usage(95000.0)
+        result = limits._check_capital_usage(95000.0, mode="live")
+
+        assert result["allowed"] is True
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_capital_usage_fallback_mode_detection(self, mock_threshold, limits):
+        """Phase 65.6: mode=None時は残高ベースフォールバック"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "risk.max_capital_usage":
+                return 0.3
+            if key == "mode_balances.live.initial_balance":
+                return 500000.0
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        # mode=None、残高>=90000 → liveと推定
+        result = limits._check_capital_usage(450000.0)
 
         assert result["allowed"] is True
 

@@ -42,6 +42,7 @@ class PositionLimits:
         current_balance: float,
         regime: Optional[RegimeType] = None,
         current_time: Optional[datetime] = None,
+        mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         ポジション管理制限チェック（口座残高使い切り問題対策）
@@ -53,6 +54,7 @@ class PositionLimits:
             current_balance: 現在の残高
             regime: 市場レジーム（Phase 51.8: レジーム別ポジション制限）
             current_time: 判定基準時刻（Phase 56.3: バックテスト時刻対応）
+            mode: 実行モード（Phase 65.6: 残高ベース推定を排除）
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
@@ -74,8 +76,8 @@ class PositionLimits:
             if not position_count_check["allowed"]:
                 return position_count_check
 
-            # 2. 残高利用率チェック
-            capital_usage_check = self._check_capital_usage(current_balance)
+            # 2. 残高利用率チェック（Phase 65.6: mode伝搬）
+            capital_usage_check = self._check_capital_usage(current_balance, mode)
             if not capital_usage_check["allowed"]:
                 return capital_usage_check
 
@@ -227,26 +229,29 @@ class PositionLimits:
 
         return {"allowed": True, "reason": "ポジション数OK"}
 
-    def _check_capital_usage(self, current_balance: float) -> Dict[str, Any]:
+    def _check_capital_usage(
+        self, current_balance: float, mode: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         残高利用率チェック
 
         Args:
             current_balance: 現在の残高
+            mode: 実行モード（Phase 65.6: 残高ベース推定を排除）
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
         """
         max_capital_usage = get_threshold("risk.max_capital_usage", 0.3)
 
-        # 初期残高の取得（Phase 55.9: get_threshold()使用に変更）
-        # 簡易的なモード判定
-        if current_balance >= 90000:
-            mode = "live"
-        elif current_balance >= 8000:
-            mode = "paper"
-        else:
-            mode = "backtest"
+        # Phase 65.6: mode引数優先、フォールバックは残高ベース推定（後方互換）
+        if not mode:
+            if current_balance >= 90000:
+                mode = "live"
+            elif current_balance >= 8000:
+                mode = "paper"
+            else:
+                mode = "backtest"
 
         if mode == "backtest":
             initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
@@ -293,7 +298,8 @@ class PositionLimits:
             elif isinstance(timestamp, str):
                 try:
                     trade_date = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).date()
-                except Exception:
+                except Exception as e:
+                    self.logger.debug(f"⏭️ タイムスタンプパース失敗: {timestamp} - {e}")
                     continue
             else:
                 continue

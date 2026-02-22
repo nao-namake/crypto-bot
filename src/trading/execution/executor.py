@@ -10,8 +10,8 @@ Phase 49.16: TP/SL設定完全渡し（thresholds.yaml完全準拠）
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 from tax.trade_history_recorder import TradeHistoryRecorder
 
@@ -213,6 +213,7 @@ class ExecutionService:
                     ),
                     regime=regime,  # Phase 51.8: レジーム別制限適用
                     current_time=self.current_time,  # Phase 56.3: バックテスト時刻
+                    mode=self.mode,  # Phase 65.6: 残高ベース推定排除
                 )
                 if not position_check_result["allowed"]:
                     self.logger.warning(
@@ -462,14 +463,17 @@ class ExecutionService:
             except CryptoBotError as e:
                 # ATR取得失敗・TP/SL再計算失敗時のエントリー中止
                 self.logger.error(f"❌ Phase 51.6: TP/SL再計算エラー - {e}")
+                # Phase 65.5: order_id・約定情報を保持（ロールバック追跡用）
                 return ExecutionResult(
                     success=False,
                     error_message=str(e),
                     mode=ExecutionMode.LIVE,
-                    order_id=None,
+                    order_id=result.order_id,
                     side=side,
-                    amount=0.0,
-                    price=0.0,
+                    amount=result.amount,
+                    price=result.price,
+                    filled_price=result.filled_price,
+                    filled_amount=result.filled_amount,
                     status=OrderStatus.FAILED,
                     timestamp=datetime.now(),
                 )
@@ -660,9 +664,9 @@ class ExecutionService:
                             self.bitbank_client.fetch_order, result.order_id, symbol
                         )
                         if order_info:
-                            partial_filled = float(order_info.get("filled", 0))
-                    except Exception:
-                        pass  # 取得失敗時は0として扱う
+                            partial_filled = float(order_info.get("filled") or 0)
+                    except Exception as e:
+                        self.logger.debug(f"Phase 65.5: 注文情報取得失敗（0として扱う）: {e}")
 
                     if partial_filled > 0:
                         # 部分約定あり → virtual_positionsを約定量で更新（削除しない）
@@ -756,8 +760,10 @@ class ExecutionService:
                         ]
 
                     # エラー結果返却
+                    # Phase 65.5: mode引数追加
                     return ExecutionResult(
                         success=False,
+                        mode=ExecutionMode.LIVE,
                         order_id=result.order_id,
                         side=side,
                         amount=amount,

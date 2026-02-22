@@ -1,12 +1,19 @@
 # Phase 65: ライブ取引頻度回復 + TP/SLフルカバー統合
 
-**期間**: 2026年2月21日-22日
-**状態**: Phase 65.2完了
+**期間**: 2026年2月21日-23日
+**状態**: Phase 65.9完了
 
 | Sub-Phase | 内容 | 状態 |
 |-----------|------|------|
 | **65** | ライブ取引頻度回復（三重壁対策） | ✅ 完了 |
 | **65.2** | TP/SLフルカバー統合 + Maker戦略改善 | ✅ 完了 |
+| **65.3** | config/core 設定ファイル整理（3→2ファイル体系） | ✅ 完了 |
+| **65.4** | NoneType安全性修正 + INACTIVE対応 | ✅ 完了 |
+| **65.5** | execution/ 包括的コードレビュー（バグ修正19箇所 + 重複統合3箇所） | ✅ 完了 |
+| **65.6** | position/ 包括的コードレビュー（バグ修正3箇所 + 重複統合1箇所） | ✅ 完了 |
+| **65.7** | risk/ 包括的コードレビュー（バグ修正2箇所） | ✅ 完了 |
+| **65.8** | balance/ 包括的コードレビュー（変更不要） | ✅ 完了 |
+| **65.9** | core/ 包括的コードレビュー（変更不要） | ✅ 完了 |
 
 ---
 
@@ -261,3 +268,328 @@ python3 scripts/live/standard_analysis.py
 # - 固定500円TPが復旧パスでも正しく配置される
 # - 50062エラーがログに出ない
 ```
+
+---
+
+## Phase 65.3: config/core 設定ファイル整理
+
+**日付**: 2026年2月22日
+**目的**: 設定ファイルを3ファイル→2ファイル体系に統合し、保守性を向上
+
+### 背景
+
+config/core に設定ファイルが分散し、以下の問題があった:
+
+| 問題 | 内容 |
+|------|------|
+| **features.yaml冗長** | 291行中、コード参照箇所はわずか3-4箇所。大半がドキュメント/note |
+| **同名セクション分散** | unified.yaml と thresholds.yaml で ml/risk/execution 等が重複 |
+| **古いコメント蓄積** | thresholds.yaml に Phase 40-61 のロールバック履歴が残存 |
+| **未使用設定残存** | Optunaセクション（~80行）、Stacking定義等がコード未参照のまま存在 |
+
+### 変更内容
+
+#### features.yaml → thresholds.yaml 統合（features.yaml 削除）
+
+| 変更 | 内容 |
+|------|------|
+| thresholds.yaml に `feature_flags:` セクション追加 | features.yaml のトグル設定を移植 |
+| `get_features_config()` 変更 | `get_threshold("feature_flags", {})` ラッパーに変更 |
+| `_features_config_cache` 削除 | threshold_manager のキャッシュ機構を使用 |
+| features.yaml 削除 | 291行削除 |
+
+呼び出し元（cooldown.py, strategy_manager.py, backtest_runner.py）は**変更不要**。
+
+#### unified.yaml スリム化（266行→97行）
+
+| 残した設定（環境・構造） | 移動した設定（パラメータ系） |
+|------------------------|--------------------------|
+| mode, mode_balances | ml（ensemble_weights等） |
+| exchange, data | risk（position_limits等） |
+| cloud_run, security | execution, production |
+| trading_constraints | reporting, logging, monitoring |
+
+#### thresholds.yaml 整理
+
+| 変更 | 削減量 |
+|------|--------|
+| Optunaセクション削除（コード未参照） | ~80行 |
+| Phase 40-61 ロールバック詳細コメント削除 | ~40行 |
+| 未使用設定削除（position_sizing.stop_loss_rate等） | ~5行 |
+| unified.yaml からの移動設定追加 | +120行 |
+
+#### その他
+
+| ファイル | 変更 |
+|---------|------|
+| feature_order.json | Stacking定義削除、メタ情報更新（640→578行） |
+| README.md | Phase 65.3対応に全面書き換え（471→153行） |
+| CLAUDE.md | 3層設定体系→2層設定体系に更新 |
+| checks.sh | features.yaml参照削除、unified.yaml必須フィールド変更 |
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | feature_flags追加 + unified.yaml移動 + 古い設定/コメント削除 |
+| `config/core/features.yaml` | **削除** |
+| `config/core/unified.yaml` | 環境・構造設定のみに縮小（266→97行） |
+| `config/core/feature_order.json` | Stacking定義削除 + メタ情報更新 |
+| `config/core/README.md` | Phase 65.3対応に全面更新 |
+| `src/core/config/__init__.py` | `get_features_config()` を `get_threshold()` ラッパーに変更 |
+| `src/core/execution/backtest_runner.py` | コメント更新 |
+| `src/trading/__init__.py` | コメント更新 |
+| `src/trading/position/cooldown.py` | コメント更新 |
+| `scripts/testing/checks.sh` | features.yaml参照削除 + 必須フィールド更新 |
+| `CLAUDE.md` | 2層設定体系に更新 |
+
+### 数値サマリー
+
+| 指標 | Before | After | 削減 |
+|------|--------|-------|------|
+| 設定ファイル数 | 3 | **2** | -1 |
+| features.yaml | 291行 | **0（削除）** | -291行 |
+| unified.yaml | 266行 | **97行** | -169行 |
+| thresholds.yaml | 1,101行 | **906行** | -195行 |
+| 合計（3ファイル） | 1,658行 | **1,003行** | **-655行（-39%）** |
+
+### 品質チェック結果
+
+```
+pytest: 1752 passed, 1 skipped
+Coverage: 71.77%
+flake8: PASS
+black: PASS
+isort: PASS
+ML validation: PASS
+System integrity: PASS (5 items)
+```
+
+---
+
+## Phase 65.4: NoneType安全性修正 + INACTIVE対応
+
+**日付**: 2026年2月22日
+**目的**: ライブ運用中のNoneTypeクラッシュ修正 + bitbank INACTIVE状態対応
+
+### 修正内容
+
+| ファイル | 変更 |
+|---------|------|
+| `src/trading/execution/tp_sl_manager.py` | VP追跡でTP/SLカバレッジ補完（INACTIVE注文対応） |
+| `src/trading/execution/stop_manager.py` | INACTIVE状態をstop_limit正常状態として認識 |
+| `config/core/thresholds.yaml` | `min_spread_for_maker: 0`（post_only保護でチェック不要に） |
+
+---
+
+## Phase 65.5: execution/ 包括的コードレビュー
+
+**日付**: 2026年2月23日
+**目的**: Phase 65.4を機にexecution/フォルダ全5ファイルを包括レビュー。バグ修正19箇所 + 重複統合3箇所。
+
+### バグ修正（A-I: 19箇所）
+
+| ID | 重要度 | 内容 | ファイル |
+|----|--------|------|---------|
+| **A** | CRITICAL | `"recovered": True` → `"restored": True` に統一（保護対象チェック不一致） | tp_sl_manager.py |
+| **B** | CRITICAL | 孤児スキャンの `avg_price` → `average_price` キー修正（bitbank API準拠） | position_restorer.py |
+| **C** | HIGH | ExecutionResult 必須引数 `mode` 欠落追加 | executor.py |
+| **D** | HIGH | TP/SL再計算失敗時に `order_id=None` → `result.order_id` + 約定情報保持 | executor.py |
+| **E** | HIGH | `place_stop_loss` ブロッキング呼び出しを `await asyncio.to_thread()` でラップ | tp_sl_manager.py |
+| **F** | HIGH | NoneType安全性パターン残存8箇所を `or 0` パターンに統一 | 全5ファイル |
+| **G** | MEDIUM | `stop_loss=None` 時の f-string クラッシュ修正 | stop_manager.py |
+| **H** | MEDIUM | `except Exception: pass` ログなし握りつぶし2箇所にログ追加 | executor.py, stop_manager.py |
+| **I** | LOW | 未使用 import 4箇所削除 | executor.py, stop_manager.py |
+
+### 重複統合（J-L: 3箇所）
+
+| ID | 内容 | 統合先 |
+|----|------|--------|
+| **J** | 保護対象注文ID収集ロジック統合 | `PositionRestorer.collect_protected_order_ids()` |
+| **K** | `_mark_orphan_sl` を PositionRestorer に移動 | `PositionRestorer.mark_orphan_sl()` |
+| **L** | `_execute_position_exit` の PnL計算を `_calc_pnl` に統合 | `StopManager._calc_pnl()` |
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/execution/executor.py` | C, D, F×1, H×1, I×2 |
+| `src/trading/execution/order_strategy.py` | F×3 |
+| `src/trading/execution/stop_manager.py` | F×1, G, H×1, I×2, K(呼び出し変更), L |
+| `src/trading/execution/tp_sl_manager.py` | A, E, F×1, J(呼び出し変更) |
+| `src/trading/execution/position_restorer.py` | B×3, F×1, J(ヘルパー追加), K(メソッド受入れ) |
+
+---
+
+## Phase 65.6: position/ 包括的コードレビュー
+
+**日付**: 2026年2月23日
+**目的**: execution/レビュー（Phase 65.5）に続き、position/フォルダ（5ファイル・1,365行）を包括レビュー。バグ修正3箇所 + 重複統合1箇所。
+
+### レビュー結果サマリー
+
+| ファイル | 行数 | 状態 |
+|---------|------|------|
+| `__init__.py` | 17 | OK — 変更不要 |
+| `cleanup.py` | 321 | D: 重複ロジック1箇所 |
+| `cooldown.py` | 178 | OK — 変更不要 |
+| `limits.py` | 379 | A: 例外握りつぶし, B: 脆弱モード判定 |
+| `tracker.py` | 470 | C: 末尾デッドコメント |
+
+### バグ修正（A-C: 3箇所）
+
+| ID | 重要度 | 内容 | ファイル |
+|----|--------|------|---------|
+| **A** | MEDIUM | `except Exception: continue` にログ追加（タイムスタンプパース失敗） | limits.py |
+| **B** | HIGH | 残高ベース脆弱モード判定を `mode` パラメータ伝搬に変更 | limits.py, executor.py |
+| **C** | LOW | 末尾デッドコメント4行削除 | tracker.py |
+
+### 重複統合（D: 1箇所）
+
+| ID | 内容 | 統合先 |
+|----|------|--------|
+| **D** | TP/SL注文キャンセルロジック（cleanup_orphaned + emergency_cleanup） | `PositionCleanup._cancel_position_orders()` |
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/position/limits.py` | A（例外ログ追加）, B（mode パラメータ追加） |
+| `src/trading/position/cleanup.py` | D（`_cancel_position_orders` ヘルパー抽出） |
+| `src/trading/position/tracker.py` | C（デッドコメント削除） |
+| `src/trading/execution/executor.py` | B（`mode=self.mode` 引数追加） |
+| `tests/unit/trading/position/test_limits.py` | B（テスト更新: mode引数対応 + フォールバックテスト追加） |
+
+---
+
+## Phase 65.7: risk/ 包括的コードレビュー
+
+**日付**: 2026年2月23日
+**目的**: execution/（65.5）→ position/（65.6）に続き、risk/フォルダ（6ファイル・2,355行）を包括レビュー。バグ修正2箇所。
+
+### レビュー結果サマリー
+
+| ファイル | 行数 | 状態 |
+|---------|------|------|
+| `__init__.py` | 30 | OK — 変更不要 |
+| `anomaly.py` | 267 | OK — 変更不要 |
+| `drawdown.py` | 308 | OK — 変更不要 |
+| `kelly.py` | 562 | A: max_order_size デフォルト値不整合2箇所 |
+| `manager.py` | 882 | B: 残高ベース脆弱モード判定（limits.pyと同パターン） |
+| `sizer.py` | 306 | OK — 変更不要 |
+
+確認済み（問題なし）:
+- 未使用import: なし
+- NoneType安全性: 全パターン正しい（`or 0` / `.get()` 使用済み）
+- ハードコード値: `get_threshold()` を28箇所以上で使用（適切）
+- async/await: 正しく使用（manager.py全async処理にawait適切）
+- bitbank APIキー名: risk/はAPI直接呼び出しなし（安全）
+- 例外処理: bare except なし、全23箇所で `except Exception as e:` + ログ
+- 重複ロジック: 許容範囲（max_order_size取得の重複はあるが、各メソッドの独立性を維持する方が保守的に安全）
+
+### バグ修正（A-B: 2箇所）
+
+| ID | 重要度 | 内容 | ファイル |
+|----|--------|------|---------|
+| **A** | MEDIUM | `max_order_size` デフォルト値 0.02 → 0.03 に統一（他3箇所と一致） | kelly.py |
+| **B** | HIGH | 残高ベース脆弱モード判定を `self.mode` 直接使用に変更（Phase 65.6 limits.pyと同パターン） | manager.py |
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/risk/kelly.py` | A: L316, L339 のデフォルト値 0.02 → 0.03 |
+| `src/trading/risk/manager.py` | B: L460-465 を `mode = self.mode` に置換 |
+
+---
+
+## Phase 65.8: balance/ 包括的コードレビュー
+
+**日付**: 2026年2月23日
+**目的**: execution/（65.5）→ position/（65.6）→ risk/（65.7）に続き、balance/フォルダ（2ファイル・473行）を包括レビュー。変更不要。
+
+### レビュー結果サマリー
+
+| ファイル | 行数 | 状態 |
+|---------|------|------|
+| `__init__.py` | 11 | OK — 変更不要 |
+| `monitor.py` | 462 | OK — 変更不要 |
+
+### 確認済み項目（全て問題なし）
+
+- 未使用import: なし
+- NoneType安全性: 全パターン正しい（`.get()` / `is not None` / `or 0` 使用済み）
+- ハードコード値: `get_threshold()` を12箇所で使用（適切）
+- デフォルト値不整合: なし（`balance_alert.min_required_margin` 14000.0 が2箇所で一致）
+- 残高ベース脆弱モード判定: なし（`mode` パラメータを直接受取り）
+- async/await: 全5箇所で正しく `await` 使用
+- bitbank APIキー名: `fetch_margin_status()` / `has_open_positions()` で適切
+- 例外処理: bare except なし、全3箇所で `except Exception as e:` + ログ出力
+- 重複ロジック: threshold取得が3メソッドで重複するが、各メソッドが異なる閾値を異なる目的で使用しており独立性維持が妥当
+- デッドコード: なし
+- 型安全性: f-string内で全てfloat保証済み
+
+### 検討して問題なしと判断した点
+
+**`get_margin_status()` に `critical_threshold` がない件**:
+- `_get_recommendation()` と `should_warn_user()` は `critical_threshold=80.0` を取得
+- `get_margin_status()` は取得していない（else節で < 100 は全てCRITICAL）
+- MarginStatus enumに80%と100%の区別がない（CRITICAL一種のみ）ため、取得しても未使用コードになる
+- 現在の実装が正しい
+
+### 修正ファイル
+
+ソースコード変更なし。ドキュメント更新のみ。
+
+---
+
+## Phase 65.9: core/ 包括的コードレビュー
+
+**日付**: 2026年2月23日
+**目的**: execution/（65.5）→ position/（65.6）→ risk/（65.7）→ balance/（65.8）に続き、core/フォルダ（3ファイル・265行）を包括レビュー。データクラスとenumのみの純粋な型定義フォルダであり、変更不要。
+
+### レビュー結果サマリー
+
+| ファイル | 行数 | 状態 |
+|---------|------|------|
+| `__init__.py` | 36 | OK — 変更不要（re-export のみ） |
+| `enums.py` | 57 | OK — 変更不要（4 enum 定義） |
+| `types.py` | 175 | OK — 変更不要（6 dataclass 定義） |
+
+### 確認済み項目（全て問題なし）
+
+- 未使用import: なし（全import使用済み）
+- NoneType安全性: `PositionFeeData.from_api_response()` で `.get(key, 0) or 0` の二重ガード使用（適切）
+- ハードコード値: データクラスのデフォルト値のみ（`get_threshold()` 対象外）
+- デフォルト値不整合: なし
+- async/await: なし（データクラスのみ、ロジックなし）
+- bitbank APIキー名: 直接API呼び出しなし（安全）
+- 例外処理: なし（データクラスに例外処理不要）
+- デッドコード: なし（`TradeEvaluation.action` プロパティはテストで使用確認済み）
+- 重複ロジック: なし
+- 型安全性: f-string なし、算術演算なし
+
+### 検討して問題なしと判断した点
+
+**`ExecutionResult.timestamp: datetime = None`（L69）**:
+- 型アノテーション上は `datetime` だがデフォルト値が `None`
+- `__post_init__`（L82-84）で `None` の場合 `datetime.now()` を自動設定 → ランタイムで必ず datetime になる
+- `Optional[datetime]` に変更すると「None かもしれない」と誤解を招く（実際は常に datetime）
+- プロジェクトで mypy/pyright 未使用のため型チェッカー問題は発生しない
+- 現在の実装が正しい
+
+**`MarginData.timestamp: datetime = None`（L114）**:
+- 同パターンだが `__post_init__` なし
+- 唯一の生成箇所（`balance/monitor.py`）で常に `datetime.now()` を明示的に渡している
+- ランタイムで None になるパスが存在しない
+- 現在の実装で問題なし
+
+**`TradeEvaluation.strategy_name` のフィールド順序（L43）**:
+- `str = "unknown"` が Optional フィールド群の間に位置（慣例と異なる）
+- Python dataclass として正常動作（全てデフォルト値あり）
+- フィールド順変更は既存の全呼び出し箇所に影響する可能性あり
+- スタイル問題のみ、変更不要
+
+### 修正ファイル
+
+ソースコード変更なし。ドキュメント更新のみ。

@@ -1666,7 +1666,7 @@ class TestEnsureTpSlForExistingPositions:
         service.tp_sl_manager.place_stop_loss.assert_called_once()
         # virtual_positionsにも追加される
         assert len(service.virtual_positions) == 1
-        assert service.virtual_positions[0]["recovered"] is True
+        assert service.virtual_positions[0]["restored"] is True
 
     async def test_ensure_tp_sl_short_position(self, mock_bitbank_client):
         """Shortポジションのtp/sl配置テスト"""

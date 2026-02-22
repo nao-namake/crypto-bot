@@ -446,10 +446,9 @@ class OrderStrategy:
             spread_ratio = (best_ask - best_bid) / best_bid
 
             # スプレッド狭すぎ確認（Maker不利）
-            # Phase 65.2: デフォルト値をYAML設定(0.00002)と一致させる
-            # 旧: 0.001(0.1%)はYAML(0.002%)と50倍乖離、設定読み込み失敗時にMaker完全無効化
-            min_spread = config.get("min_spread_for_maker", 0.00002)
-            if spread_ratio < min_spread:
+            # Phase 65.4: min_spread=0でチェック無効化（post_onlyで保護）
+            min_spread = config.get("min_spread_for_maker", 0)
+            if min_spread > 0 and spread_ratio < min_spread:
                 self.logger.info(
                     f"📡 Phase 62.9: スプレッド狭すぎ {spread_ratio * 100:.4f}% < {min_spread * 100:.3f}%"
                 )
@@ -701,15 +700,15 @@ class OrderStrategy:
 
                 if order:
                     status = order.get("status", "").lower()
-                    filled_amount = float(order.get("filled", 0))
-                    order_amount = float(order.get("amount", 0))
+                    filled_amount = float(order.get("filled") or 0)
+                    order_amount = float(order.get("amount") or 0)
 
                     # 完全約定
                     if status == "closed" or (
                         filled_amount > 0 and filled_amount >= order_amount * 0.99
                     ):
                         return {
-                            "price": float(order.get("average", order.get("price", 0))),
+                            "price": float(order.get("average") or order.get("price") or 0),
                             "amount": filled_amount,
                         }
 

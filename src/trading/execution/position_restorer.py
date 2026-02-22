@@ -28,6 +28,81 @@ class PositionRestorer:
         self._last_orphan_scan_time: Optional[datetime] = None
 
     # ========================================
+    # Phase 65.5: 共通ヘルパー
+    # ========================================
+
+    @staticmethod
+    def collect_protected_order_ids(
+        virtual_positions: List[Dict[str, Any]],
+    ) -> set:
+        """
+        Phase 65.5: 保護対象の注文ID収集（tp_sl_manager/position_restorer共通）
+
+        virtual_positionsからTP/SL注文IDおよびrestoredポジションのorder_idを収集。
+        クリーンアップ処理での誤キャンセル防止に使用。
+
+        Args:
+            virtual_positions: 仮想ポジションリスト
+
+        Returns:
+            set: 保護対象注文IDのセット
+        """
+        protected = set()
+        for pos in virtual_positions or []:
+            tp_id = pos.get("tp_order_id")
+            sl_id = pos.get("sl_order_id")
+            if tp_id:
+                protected.add(str(tp_id))
+            if sl_id:
+                protected.add(str(sl_id))
+            if pos.get("restored"):
+                order_id = pos.get("order_id")
+                if order_id:
+                    protected.add(str(order_id))
+        return protected
+
+    @staticmethod
+    def mark_orphan_sl(sl_order_id: str, reason: str) -> None:
+        """
+        Phase 65.5: 孤児SL候補をファイルに記録（次回起動時にクリーンアップ）
+
+        stop_manager.py から移動。書き込み（ここ）と読み込み（cleanup_orphan_sl_orders）を
+        同一クラスに集約。
+
+        Args:
+            sl_order_id: キャンセルに失敗したSL注文ID
+            reason: 失敗理由（take_profit, manual, position_exit等）
+        """
+        from ...core.logger import get_logger
+
+        logger = get_logger()
+        try:
+            orphan_file = Path("logs/orphan_sl_orders.json")
+            orphan_file.parent.mkdir(parents=True, exist_ok=True)
+
+            orphans = []
+            if orphan_file.exists():
+                try:
+                    orphans = json.loads(orphan_file.read_text())
+                except json.JSONDecodeError:
+                    orphans = []
+
+            existing_ids = {o.get("sl_order_id") for o in orphans}
+            if sl_order_id not in existing_ids:
+                orphans.append(
+                    {
+                        "sl_order_id": sl_order_id,
+                        "reason": reason,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+                orphan_file.write_text(json.dumps(orphans, indent=2, ensure_ascii=False))
+                logger.info(f"📝 Phase 59.6: 孤児SL候補記録 - ID: {sl_order_id}, 理由: {reason}")
+
+        except Exception as e:
+            logger.error(f"❌ Phase 59.6: 孤児SL記録失敗: {e}")
+
+    # ========================================
     # 起動時ポジション復元
     # ========================================
 
@@ -79,8 +154,8 @@ class PositionRestorer:
             restored_count = 0
             for pos in margin_positions:
                 pos_side = pos.get("side")  # "long" or "short"
-                pos_amount = float(pos.get("amount", 0))
-                avg_price = float(pos.get("average_price", pos.get("avg_price", 0)))
+                pos_amount = float(pos.get("amount") or 0)
+                avg_price = float(pos.get("average_price") or 0)
 
                 if pos_amount <= 0:
                     continue
@@ -102,7 +177,7 @@ class PositionRestorer:
                     if order_side == exit_side:
                         if order_type == "limit" and not tp_order_id:
                             tp_order_id = str(order.get("id", ""))
-                            tp_price = float(order.get("price", 0))
+                            tp_price = float(order.get("price") or 0)
                         elif order_type in ("stop", "stop_limit") and not sl_order_id:
                             # Phase 64.12: トリガー価格の妥当性検証（3%以内）
                             trigger_price = float(
@@ -200,7 +275,7 @@ class PositionRestorer:
 
             for pos in actual_positions:
                 pos_side = pos.get("side", "")
-                pos_amount = float(pos.get("amount", 0))
+                pos_amount = float(pos.get("amount") or 0)
 
                 if pos_amount <= 0:
                     continue
@@ -247,7 +322,7 @@ class PositionRestorer:
                         f"✅ Phase 63.3: 孤児ポジションにTP/SL既設置 - "
                         f"side={pos_side}, amount={pos_amount} BTC"
                     )
-                    avg_price = float(pos.get("avg_price", pos.get("price", 0)))
+                    avg_price = float(pos.get("average_price") or pos.get("price") or 0)
                     orphan_entry = {
                         "order_id": f"orphan_{pos_side}_{int(now.timestamp())}",
                         "side": entry_side,
@@ -264,7 +339,7 @@ class PositionRestorer:
                     continue
 
                 # TP/SLがない場合は設置試行
-                avg_price = float(pos.get("avg_price", pos.get("price", 0)))
+                avg_price = float(pos.get("average_price") or pos.get("price") or 0)
                 if avg_price <= 0:
                     self.logger.critical(
                         f"🚨 Phase 63.3: 孤児ポジションの平均価格取得失敗 - "
@@ -395,22 +470,8 @@ class PositionRestorer:
                 f"⚠️ Phase 51.6: アクティブ注文数{order_count}件（{threshold_count}件以上）- 古い注文クリーンアップ開始"
             )
 
-            # アクティブポジションのTP/SL注文IDを収集（削除対象から除外）
-            protected_order_ids = set()
-            for position in virtual_positions:
-                # Phase 53.12: 復元されたポジションのorder_idを保護
-                if position.get("restored"):
-                    order_id = position.get("order_id")
-                    if order_id:
-                        protected_order_ids.add(str(order_id))
-                # 通常のポジションのTP/SL注文を保護
-                else:
-                    tp_id = position.get("tp_order_id")
-                    sl_id = position.get("sl_order_id")
-                    if tp_id:
-                        protected_order_ids.add(str(tp_id))
-                    if sl_id:
-                        protected_order_ids.add(str(sl_id))
+            # Phase 65.5: 共通ヘルパーで保護対象ID収集
+            protected_order_ids = self.collect_protected_order_ids(virtual_positions)
 
             if protected_order_ids:
                 self.logger.info(

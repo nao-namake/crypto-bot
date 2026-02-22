@@ -463,8 +463,3 @@ class PositionTracker:
 
         self.logger.warning(f"⚠️ Phase 61.9: ポジション未検出 - tp_or_sl_order_id={order_id}")
         return None
-
-    # ========================================
-    # Phase 46: 個別TP/SL実装（デイトレード特化）
-    # ========================================
-    # デイトレード特化設計では個別TP/SL配置を採用

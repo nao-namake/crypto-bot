@@ -302,8 +302,9 @@ class TPSLManager:
                 f"trigger={stop_loss_price:.0f}円, limit={limit_price:.0f}円"
             )
 
-        # SL注文配置
-        sl_order = bitbank_client.create_stop_loss_order(
+        # SL注文配置（Phase 65.5: asyncio.to_threadでラップ）
+        sl_order = await asyncio.to_thread(
+            bitbank_client.create_stop_loss_order,
             entry_side=side,
             amount=amount,
             stop_loss_price=stop_loss_price,
@@ -499,20 +500,20 @@ class TPSLManager:
 
             # Phase 64.3: サイド別合計でTP/SLカバレッジ判定（数量ベース）
             long_total = sum(
-                float(p.get("amount", 0)) for p in margin_positions if p.get("side") == "long"
+                float(p.get("amount") or 0) for p in margin_positions if p.get("side") == "long"
             )
             short_total = sum(
-                float(p.get("amount", 0)) for p in margin_positions if p.get("side") == "short"
+                float(p.get("amount") or 0) for p in margin_positions if p.get("side") == "short"
             )
 
             # Phase 64.12: SL価格妥当性検証用の平均取得価格
             long_avg_price = 0.0
             short_avg_price = 0.0
             for p in margin_positions:
-                if p.get("side") == "long" and float(p.get("amount", 0)) > 0:
-                    long_avg_price = float(p.get("average_price", 0))
-                elif p.get("side") == "short" and float(p.get("amount", 0)) > 0:
-                    short_avg_price = float(p.get("average_price", 0))
+                if p.get("side") == "long" and float(p.get("amount") or 0) > 0:
+                    long_avg_price = float(p.get("average_price") or 0)
+                elif p.get("side") == "short" and float(p.get("amount") or 0) > 0:
+                    short_avg_price = float(p.get("average_price") or 0)
 
             def _is_sl_price_valid(order: dict, ref_price: float) -> bool:
                 """Phase 64.12: SL注文の価格がポジション取得価格から3%以内か"""
@@ -529,7 +530,7 @@ class TPSLManager:
             tp_sell_total = sum(
                 float(o.get("amount", 0))
                 for o in active_orders
-                if o.get("side") == "sell" and o.get("type") == "limit"
+                if o.get("side") == "sell" and o.get("type") in ("limit", "take_profit")
             )
             sl_sell_total = sum(
                 float(o.get("amount", 0))
@@ -541,7 +542,7 @@ class TPSLManager:
             tp_buy_total = sum(
                 float(o.get("amount", 0))
                 for o in active_orders
-                if o.get("side") == "buy" and o.get("type") == "limit"
+                if o.get("side") == "buy" and o.get("type") in ("limit", "take_profit")
             )
             sl_buy_total = sum(
                 float(o.get("amount", 0))
@@ -550,6 +551,33 @@ class TPSLManager:
                 and o.get("type") in ("stop", "stop_limit")
                 and _is_sl_price_valid(o, short_avg_price)
             )
+
+            # Phase 65.4: VPのTP追跡で補完
+            # take_profit型注文もstop_limitと同様にINACTIVE状態では
+            # fetch_active_ordersに含まれないため、VP側のtp_order_idで補完する
+            for vp in virtual_positions:
+                if not vp.get("tp_order_id"):
+                    continue
+                vp_side = vp.get("side", "")
+                vp_amount = float(vp.get("amount", 0))
+                if vp_side == "buy":  # long position → sell TP
+                    tp_sell_total += vp_amount
+                elif vp_side == "sell":  # short position → buy TP
+                    tp_buy_total += vp_amount
+
+            # Phase 65.4: VPのSL追跡で補完
+            # bitbankのINACTIVE注文（stop_limitのトリガー待ち）は
+            # fetch_active_orders（= ccxt fetch_open_orders）に含まれないため、
+            # VP側のsl_order_idで補完する
+            for vp in virtual_positions:
+                if not vp.get("sl_order_id"):
+                    continue
+                vp_side = vp.get("side", "")
+                vp_amount = float(vp.get("amount", 0))
+                if vp_side == "buy":  # long position → sell SL
+                    sl_sell_total += vp_amount
+                elif vp_side == "sell":  # short position → buy SL
+                    sl_buy_total += vp_amount
 
             # 95%カバレッジで判定（端数誤差許容）
             long_tp_ok = long_total <= 0 or tp_sell_total >= long_total * 0.95
@@ -568,8 +596,8 @@ class TPSLManager:
                 if position_side in processed_sides:
                     continue
 
-                amount = float(position.get("amount", 0))
-                avg_price = float(position.get("average_price", 0))
+                amount = float(position.get("amount") or 0)
+                avg_price = float(position.get("average_price") or 0)
                 if amount <= 0:
                     continue
 
@@ -675,7 +703,7 @@ class TPSLManager:
         # ticker取得 → SL超過判定
         try:
             ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, symbol)
-            current_price = float(ticker.get("last", 0))
+            current_price = float(ticker.get("last") or 0)
         except Exception:
             current_price = 0
 
@@ -864,7 +892,7 @@ class TPSLManager:
                 "timestamp": datetime.now(),
                 "take_profit": tp_price,
                 "stop_loss": sl_price,
-                "recovered": True,
+                "restored": True,
                 "tp_order_id": tp_order.get("order_id") if tp_order else None,
                 "sl_order_id": sl_order.get("order_id") if sl_order else None,
                 "sl_placed_at": sl_order.get("sl_placed_at") if sl_order else None,
@@ -1026,24 +1054,10 @@ class TPSLManager:
             target_tp_side = "sell" if side == "buy" else "buy"
             target_sl_side = "sell" if side == "buy" else "buy"
 
-            # 保護対象の注文IDを収集
-            protected_order_ids = set()
-            if virtual_positions:
-                for pos in virtual_positions:
-                    tp_id = pos.get("tp_order_id")
-                    sl_id = pos.get("sl_order_id")
-                    if tp_id:
-                        protected_order_ids.add(str(tp_id))
-                    if sl_id:
-                        protected_order_ids.add(str(sl_id))
+            # Phase 65.5: 共通ヘルパーで保護対象ID収集
+            from .position_restorer import PositionRestorer
 
-                    if pos.get("restored"):
-                        order_id = pos.get("order_id")
-                        if order_id:
-                            protected_order_ids.add(str(order_id))
-                            self.logger.debug(
-                                f"🛡️ Phase 58.1: 復元ポジション保護 - order_id={order_id}"
-                            )
+            protected_order_ids = PositionRestorer.collect_protected_order_ids(virtual_positions)
 
             if protected_order_ids:
                 self.logger.info(

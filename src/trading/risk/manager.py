@@ -457,12 +457,7 @@ class IntegratedRiskManager:
 
             # 初期残高取得（Phase 55.9: get_threshold()使用に変更）
             # 実行モード判定
-            if current_balance >= 90000:
-                mode = "live"
-            elif current_balance >= 8000:
-                mode = "paper"
-            else:
-                mode = "backtest"
+            mode = self.mode
 
             if mode == "backtest":
                 initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)

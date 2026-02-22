@@ -797,7 +797,7 @@ order_execution:
     fallback_to_taker: true            # タイムアウト時Takerフォールバック
     disable_on_high_volatility: true   # 高ボラティリティ時無効化
     volatility_threshold: 0.02         # ボラティリティ閾値（2%）
-    min_spread_for_maker: 0.00002      # 最小スプレッド（0.002%≒約200円）
+    min_spread_for_maker: 0             # Phase 65.4: チェック無効化（post_onlyで保護）
 
 # ========================================
 # 残高アラート設定（Balance Alert Settings）

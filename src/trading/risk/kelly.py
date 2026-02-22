@@ -313,7 +313,7 @@ class KellyCriterion:
 
                     # max_order_size制限チェック
                     # Phase 56.3: ログレベルをERROR→DEBUGに変更（正常動作のため）
-                    max_order_size = get_threshold("production.max_order_size", 0.02)
+                    max_order_size = get_threshold("production.max_order_size", 0.03)
                     if conservative_size > max_order_size:
                         self.logger.debug(
                             f"ポジションサイズ制限適用: 計算値={conservative_size:.6f} > "
@@ -336,7 +336,7 @@ class KellyCriterion:
             final_size = min(data_confidence_adjusted, self.max_position_ratio)
 
             # Silent failure対策: max_order_size制限チェック（Kelly履歴がある場合も）
-            max_order_size = get_threshold("production.max_order_size", 0.02)
+            max_order_size = get_threshold("production.max_order_size", 0.03)
             if final_size > max_order_size:
                 # Phase 56.3: ログレベルをERROR→DEBUGに変更（正常動作のため）
                 self.logger.debug(

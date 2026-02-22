@@ -383,7 +383,8 @@ class TestExecutePositionExit:
         assert result.side == "sell"
         assert result.amount == 0.001
         assert result.price == 14300000.0
-        assert result.paper_pnl == 300.0  # (14,300,000 - 14,000,000) * 0.001
+        # Phase 65.5: _calc_pnl統合により手数料考慮（粗利300 - entry手数料14.0 - exit手数料14.3 = 271.7）
+        assert abs(result.paper_pnl - 271.7) < 0.1
         assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
@@ -399,7 +400,8 @@ class TestExecutePositionExit:
         assert result.side == "sell"
         assert result.amount == 0.001
         assert result.price == 13700000.0
-        assert result.paper_pnl == -300.0  # (13,700,000 - 14,000,000) * 0.001
+        # Phase 65.5: _calc_pnl統合により手数料考慮（粗利-300 - entry手数料14.0 - exit手数料13.7 = -327.7）
+        assert abs(result.paper_pnl - (-327.7)) < 0.1
         assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
@@ -415,7 +417,8 @@ class TestExecutePositionExit:
         assert result.side == "buy"
         assert result.amount == 0.001
         assert result.price == 13700000.0
-        assert result.paper_pnl == 300.0  # (14,000,000 - 13,700,000) * 0.001
+        # Phase 65.5: _calc_pnl統合により手数料考慮（粗利300 - entry手数料14.0 - exit手数料13.7 = 272.3）
+        assert abs(result.paper_pnl - 272.3) < 0.1
         assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
@@ -431,7 +434,8 @@ class TestExecutePositionExit:
         assert result.side == "buy"
         assert result.amount == 0.001
         assert result.price == 14300000.0
-        assert result.paper_pnl == -300.0  # (14,000,000 - 14,300,000) * 0.001
+        # Phase 65.5: _calc_pnl統合により手数料考慮（粗利-300 - entry手数料14.0 - exit手数料14.3 = -328.3）
+        assert abs(result.paper_pnl - (-328.3)) < 0.1
         assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
@@ -474,11 +478,22 @@ class TestCheckEmergencyStopLoss:
         self, mock_threshold, stop_manager, sample_position
     ):
         """最大損失閾値超過で緊急決済"""
-        mock_threshold.return_value = {
+        emergency_config = {
             "enable": True,
             "max_loss_threshold": 0.05,
             "min_hold_minutes": 0,  # 保有時間チェックスキップ
         }
+
+        def threshold_side_effect(key, default=None):
+            if key == "position_management.emergency_stop_loss":
+                return emergency_config
+            if key == "trading.fees.entry_taker_rate":
+                return 0.001
+            if key == "trading.fees.exit_taker_rate":
+                return 0.001
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
 
         # 5%以上の損失（14,000,000 → 13,200,000 = -5.7%）
         result = await stop_manager._check_emergency_stop_loss(
@@ -697,15 +712,16 @@ class TestPhase596OrphanSLManagement:
 
     def test_mark_orphan_sl_creates_file(self, stop_manager, tmp_path):
         """Phase 59.6: 孤児SLマーク - ファイル作成"""
-        import json
         from pathlib import Path
+
+        from src.trading.execution.position_restorer import PositionRestorer
 
         # テスト用に一時ディレクトリを使用
         orphan_file = tmp_path / "orphan_sl_orders.json"
 
         with patch.object(Path, "__new__", return_value=orphan_file):
-            # _mark_orphan_slの内部でPathを使うので直接テスト
-            stop_manager._mark_orphan_sl("sl_order_123", "take_profit")
+            # Phase 65.5: PositionRestorer.mark_orphan_sl に移動
+            PositionRestorer.mark_orphan_sl("sl_order_123", "take_profit")
 
         # ファイルが作成され、内容が正しいことを確認
         # 注: 実際のPathを使用するため、dataディレクトリに作成される
@@ -713,11 +729,11 @@ class TestPhase596OrphanSLManagement:
 
     def test_mark_orphan_sl_appends_to_existing(self, stop_manager, tmp_path):
         """Phase 59.6: 孤児SLマーク - 既存ファイルに追記"""
-        import json
+        from src.trading.execution.position_restorer import PositionRestorer
 
-        # 孤児SLを2回マーク
-        stop_manager._mark_orphan_sl("sl_order_001", "take_profit")
-        stop_manager._mark_orphan_sl("sl_order_002", "manual")
+        # 孤児SLを2回マーク（Phase 65.5: PositionRestorer に移動）
+        PositionRestorer.mark_orphan_sl("sl_order_001", "take_profit")
+        PositionRestorer.mark_orphan_sl("sl_order_002", "manual")
 
         # 例外が発生しないことを確認（実際のファイル操作は別テストで検証）
 
@@ -1591,7 +1607,10 @@ class TestCleanupPositionOrders:
         # 全リトライ失敗
         mock_bitbank_client.cancel_order = MagicMock(side_effect=Exception("Permanent Error"))
 
-        with patch.object(stop_manager, "_mark_orphan_sl") as mock_mark:
+        # Phase 65.5: mark_orphan_sl は PositionRestorer に移動
+        with patch(
+            "src.trading.execution.position_restorer.PositionRestorer.mark_orphan_sl"
+        ) as mock_mark:
             result = await stop_manager.cleanup_position_orders(
                 tp_order_id=None,
                 sl_order_id="sl_456",

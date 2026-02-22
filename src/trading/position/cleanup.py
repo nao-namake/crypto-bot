@@ -69,38 +69,27 @@ class PositionCleanup:
                 self.logger.debug("🔍 孤児ポジションなし - クリーンアップ不要")
                 return {"success": True, "message": "孤児ポジションなし", "cleaned": 0}
 
-            # TP/SL注文削除
+            # Phase 65.6: TP/SL注文削除（ヘルパー使用）
             cleaned_count = 0
             failed_cancels = []
 
             for position in orphaned:
-                # Phase 53.12: 復元されたポジションはorder_idを使用
-                if position.get("restored"):
-                    order_id = position.get("order_id")
-                    if order_id:
-                        if await self._cancel_order(bitbank_client, order_id):
-                            cleaned_count += 1
-                            self.logger.info(f"🧹 Phase 53.12: 復元注文削除成功: {order_id}")
-                        else:
-                            failed_cancels.append(f"Restored:{order_id}")
-                else:
-                    # TP注文削除
-                    tp_order_id = position.get("tp_order_id")
-                    if tp_order_id:
-                        if await self._cancel_order(bitbank_client, tp_order_id):
-                            cleaned_count += 1
-                            self.logger.info(f"🧹 TP注文削除成功: {tp_order_id}")
-                        else:
-                            failed_cancels.append(f"TP:{tp_order_id}")
+                canceled = await self._cancel_position_orders(bitbank_client, position)
+                cleaned_count += len(canceled)
+                for desc in canceled:
+                    self.logger.info(f"🧹 注文削除成功: {desc}")
 
-                    # SL注文削除
-                    sl_order_id = position.get("sl_order_id")
-                    if sl_order_id:
-                        if await self._cancel_order(bitbank_client, sl_order_id):
-                            cleaned_count += 1
-                            self.logger.info(f"🧹 SL注文削除成功: {sl_order_id}")
-                        else:
-                            failed_cancels.append(f"SL:{sl_order_id}")
+                # キャンセル試行したが失敗した注文を記録
+                expected = []
+                if position.get("restored"):
+                    if position.get("order_id"):
+                        expected.append(f"Restored:{position['order_id']}")
+                else:
+                    if position.get("tp_order_id"):
+                        expected.append(f"TP:{position['tp_order_id']}")
+                    if position.get("sl_order_id"):
+                        expected.append(f"SL:{position['sl_order_id']}")
+                failed_cancels.extend([e for e in expected if e not in canceled])
 
                 # 仮想ポジション削除
                 self.position_tracker.remove_position(position["order_id"])
@@ -152,8 +141,8 @@ class PositionCleanup:
                 actual_positions.append(
                     {
                         "side": pos.get("side", "").lower(),
-                        "amount": float(pos.get("amount", 0)),
-                        "price": float(pos.get("price", 0)),
+                        "amount": float(pos.get("amount") or 0),
+                        "price": float(pos.get("price") or 0),
                     }
                 )
 
@@ -196,6 +185,39 @@ class PositionCleanup:
 
             self.logger.error(f"❌ 注文キャンセルエラー ({order_id}): {e}")
             return False
+
+    async def _cancel_position_orders(
+        self, bitbank_client: BitbankClient, position: Dict[str, Any]
+    ) -> List[str]:
+        """
+        Phase 65.6: ポジションに紐づくTP/SL注文をキャンセル
+
+        Phase 53.12: 復元されたポジションはorder_idを使用。
+        通常ポジションはtp_order_id/sl_order_idを使用。
+
+        Args:
+            bitbank_client: Bitbank APIクライアント
+            position: ポジション情報
+
+        Returns:
+            キャンセル成功した注文の説明リスト
+        """
+        canceled = []
+
+        if position.get("restored"):
+            order_id = position.get("order_id")
+            if order_id and await self._cancel_order(bitbank_client, order_id):
+                canceled.append(f"Restored:{order_id}")
+        else:
+            tp_order_id = position.get("tp_order_id")
+            if tp_order_id and await self._cancel_order(bitbank_client, tp_order_id):
+                canceled.append(f"TP:{tp_order_id}")
+
+            sl_order_id = position.get("sl_order_id")
+            if sl_order_id and await self._cancel_order(bitbank_client, sl_order_id):
+                canceled.append(f"SL:{sl_order_id}")
+
+        return canceled
 
     async def check_stale_positions(
         self, max_age_hours: Optional[int] = None
@@ -278,28 +300,12 @@ class PositionCleanup:
             if not all_positions:
                 return {"success": True, "message": "仮想ポジションなし", "cleaned": 0}
 
-            # TP/SL注文削除（BitbankClient利用可能な場合）
+            # Phase 65.6: TP/SL注文削除（ヘルパー使用）
             canceled_orders = 0
             if bitbank_client:
                 for position in all_positions:
-                    # Phase 53.12: 復元されたポジションはorder_idを使用
-                    if position.get("restored"):
-                        order_id = position.get("order_id")
-                        if order_id:
-                            if await self._cancel_order(bitbank_client, order_id):
-                                canceled_orders += 1
-                    else:
-                        # TP注文削除
-                        tp_order_id = position.get("tp_order_id")
-                        if tp_order_id:
-                            if await self._cancel_order(bitbank_client, tp_order_id):
-                                canceled_orders += 1
-
-                        # SL注文削除
-                        sl_order_id = position.get("sl_order_id")
-                        if sl_order_id:
-                            if await self._cancel_order(bitbank_client, sl_order_id):
-                                canceled_orders += 1
+                    canceled = await self._cancel_position_orders(bitbank_client, position)
+                    canceled_orders += len(canceled)
 
             # 全仮想ポジションクリア
             cleared_count = self.position_tracker.clear_all_positions()
