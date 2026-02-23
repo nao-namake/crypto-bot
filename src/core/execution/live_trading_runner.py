@@ -151,10 +151,10 @@ class LiveTradingRunner(BaseRunner):
                         balance = jpy_balance
                         self.logger.info(f"✅ 残高再取得成功: {jpy_balance:,.0f}円")
                     else:
-                        # 統一設定管理体系: unified.yamlからフォールバック残高取得
+                        # フォールバック残高取得
                         from ..config import load_config
 
-                        config = load_config("config/core/unified.yaml")
+                        config = load_config("config/core/thresholds.yaml")
                         drawdown_config = (
                             config.risk.drawdown_manager
                             if hasattr(config.risk, "drawdown_manager")
@@ -168,10 +168,10 @@ class LiveTradingRunner(BaseRunner):
 
                 except Exception as re_error:
                     self.logger.error(f"❌ 残高再取得失敗: {re_error}")
-                    # 統一設定管理体系: unified.yamlからフォールバック残高取得
+                    # フォールバック残高取得
                     from ..config import load_config
 
-                    config = load_config("config/core/unified.yaml")
+                    config = load_config("config/core/thresholds.yaml")
                     drawdown_config = getattr(config.risk, "drawdown_manager", {})
                     fallback = drawdown_config.get("fallback_balance", 11000.0)
                     if hasattr(self.orchestrator.execution_service, "current_balance"):

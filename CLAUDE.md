@@ -4,11 +4,11 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 65.11完了 |
-| **直前の作業** | strategies.yaml → thresholds.yaml 統合（設定3→2ファイル完全移行） |
+| **現在Phase** | 65.12完了 |
+| **直前の作業** | unified.yaml → thresholds.yaml 統合（設定2→1ファイル完全移行） |
 | **次の予定** | `docs/開発計画/ToDo.md` 参照 |
 | **最新成果** | バックテスト ¥+102,135（PF 2.47・勝率89.2%・DD 0.94%） |
-| **最終更新** | 2026年2月23日 |
+| **最終更新** | 2026年2月24日 |
 
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-64）、`docs/開発履歴/Phase_65.md`（最新）
 
@@ -105,7 +105,7 @@ python3 scripts/analysis/strategy_performance_analysis.py
 src/
 ├── core/                   # 基盤システム
 │   ├── orchestration/      # TradingOrchestrator
-│   ├── config/             # 設定管理（unified.yaml）
+│   ├── config/             # 設定管理（thresholds.yaml）
 │   ├── execution/          # 取引実行制御
 │   ├── reporting/          # レポート生成
 │   └── services/           # GracefulShutdown・MarketRegimeClassifier
@@ -151,12 +151,11 @@ ML予測（ensemble_full.pkl → 信頼度）
 
 ### 設定管理
 
-#### 2層設定体系
+#### 1ファイル設定体系
 
 | ファイル | 役割 |
 |---------|------|
-| `config/core/unified.yaml` | 環境・構造設定（実行モード・取引所接続・GCP） |
-| `config/core/thresholds.yaml` | 全パラメータ + 機能トグル（ML閾値・リスク・TP/SL・ON/OFF） |
+| `config/core/thresholds.yaml` | 全設定一元管理（環境設定 + パラメータ + 機能トグル） |
 
 #### 設定参照パターン
 

@@ -38,7 +38,7 @@ sys.path.insert(0, str(project_root))
 from src.core.config import load_config
 
 try:
-    load_config("config/core/unified.yaml")
+    load_config("config/core/thresholds.yaml")
 except Exception:
     pass
 

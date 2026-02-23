@@ -61,7 +61,7 @@ class NewSystemMLModelCreator:
 
     def __init__(
         self,
-        config_path: str = "config/core/unified.yaml",
+        config_path: str = "config/core/thresholds.yaml",
         verbose: bool = False,
         target_threshold: float = 0.0005,
         n_classes: int = 3,
@@ -1423,7 +1423,7 @@ def main():
         default=180,
         help="学習データ期間（日数、デフォルト: 180日）",
     )
-    parser.add_argument("--config", default="config/core/unified.yaml", help="設定ファイルパス")
+    parser.add_argument("--config", default="config/core/thresholds.yaml", help="設定ファイルパス")
 
     # Phase 39.2: ターゲット設定引数
     parser.add_argument(

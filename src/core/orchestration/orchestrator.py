@@ -453,7 +453,7 @@ async def create_trading_orchestrator(
 async def _get_actual_balance(config, logger) -> float:
     """残高取得（モード別一元管理対応・Phase 38.4完了版）"""
 
-    # モード別初期残高をunified.yamlから取得（Phase 28-29最適化）
+    # モード別初期残高を設定から取得（Phase 28-29最適化）
     def _get_mode_balance(mode: str) -> float:
         """mode_balancesから該当モードの初期残高を取得（Phase 55.9: get_threshold使用）"""
         from ..config import get_threshold

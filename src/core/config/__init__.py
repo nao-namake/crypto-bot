@@ -1,9 +1,10 @@
 """
-統合設定管理システム - Phase 65.3
+統合設定管理システム - Phase 65.12
 
-環境変数とYAMLファイルの統合管理・unified.yaml統合デフォルト値
+環境変数とYAMLファイルの統合管理
 
-Phase 65.3: 設定ファイル整理（features.yaml → thresholds.yaml統合・2層体系）
+Phase 65.12: unified.yaml統合（2→1ファイル体系・thresholds.yaml単一読み込み）
+Phase 65.3: 設定ファイル整理（features.yaml → thresholds.yaml統合）
 Phase 64.13: デッドコード削除（Optuna/paper_mode/未使用再エクスポート）
 Phase 28-29: 統合設定管理システム確立
 """
@@ -11,10 +12,7 @@ Phase 28-29: 統合設定管理システム確立
 import dataclasses
 import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
-
-import yaml
 
 from .config_classes import DataConfig, ExchangeConfig, LoggingConfig, MLConfig, RiskConfig
 
@@ -55,31 +53,23 @@ class Config:
     @classmethod
     def load_from_file(cls, config_path: str, cmdline_mode: Optional[str] = None) -> "Config":
         """
-        YAMLファイルから設定を読み込み（モード設定一元化・thresholds.yaml統合）
+        設定を読み込み（Phase 65.12: thresholds.yaml単一ファイル体系）
 
         Args:
-            config_path: 設定ファイルパス
+            config_path: 設定ファイルパス（後方互換のため残すが、load_thresholds()を使用）
             cmdline_mode: コマンドライン引数で指定されたモード
 
         Returns:
             設定済みConfigオブジェクト
         """
-        config_file = Path(config_path)
-        if not config_file.exists():
-            raise FileNotFoundError(f"設定ファイルが見つかりません: {config_path}")
-
-        # メインYAMLファイル読み込み
-        with open(config_file, "r", encoding="utf-8") as f:
-            config_data = yaml.safe_load(f) or {}
-
-        # thresholds.yamlを統合ロード（フォールバック値として使用）
+        # Phase 65.12: load_thresholds()で全設定を一括読み込み
         try:
-            thresholds_data = load_thresholds()
-            # 設定データをthresholdsで補完
-            config_data = cls._merge_config_with_thresholds(config_data, thresholds_data)
+            config_data = load_thresholds()
+            # フィールド名の正規化
+            config_data = cls._normalize_threshold_keys(config_data)
         except Exception as e:
-            # thresholds.yaml読み込み失敗時は警告を出して継続
-            print(f"⚠️ thresholds.yaml読み込み失敗: {e}")
+            print(f"⚠️ 設定読み込み失敗: {e}")
+            config_data = {}
 
         # モード設定一元化: コマンドライン > 環境変数 > YAML
         mode = "paper"
@@ -120,24 +110,6 @@ class Config:
             logging=logging_config,
             mode=mode,
         )
-
-    @staticmethod
-    def _merge_config_with_thresholds(config_data: dict, thresholds_data: dict) -> dict:
-        """設定データとthresholdsデータをマージ（深いマージ + フィールド名正規化）"""
-
-        def deep_merge(base: dict, updates: dict) -> dict:
-            """深いマージ（ベースの値を優先）"""
-            result = base.copy()
-            for key, value in updates.items():
-                if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                    result[key] = deep_merge(result[key], value)
-                elif key not in result:  # ベースにない場合のみ追加
-                    result[key] = value
-            return result
-
-        # フィールド名の正規化（thresholds.yamlのキー名をdataclassのフィールド名に変換）
-        normalized_thresholds = Config._normalize_threshold_keys(thresholds_data)
-        return deep_merge(config_data, normalized_thresholds)
 
     @staticmethod
     def _normalize_threshold_keys(thresholds_data: dict) -> dict:
@@ -199,7 +171,7 @@ class Config:
 
     @staticmethod
     def _create_exchange_config(config_data: dict, exchange_data: dict) -> ExchangeConfig:
-        """取引所設定を作成（unified.yamlからデフォルト値取得）"""
+        """取引所設定を作成"""
         extra_data = {
             "api_key": os.getenv("BITBANK_API_KEY"),
             "api_secret": os.getenv("BITBANK_API_SECRET"),
@@ -211,22 +183,22 @@ class Config:
 
     @staticmethod
     def _create_ml_config(config_data: dict) -> MLConfig:
-        """機械学習設定を作成（unified.yamlからデフォルト値取得）"""
+        """機械学習設定を作成"""
         return Config._create_generic_config(MLConfig, "ml", config_data)
 
     @staticmethod
     def _create_risk_config(config_data: dict) -> RiskConfig:
-        """リスク管理設定を作成（unified.yamlからデフォルト値取得）"""
+        """リスク管理設定を作成"""
         return Config._create_generic_config(RiskConfig, "risk", config_data)
 
     @staticmethod
     def _create_data_config(config_data: dict) -> DataConfig:
-        """データ取得設定を作成（unified.yamlからデフォルト値取得）"""
+        """データ取得設定を作成"""
         return Config._create_generic_config(DataConfig, "data", config_data)
 
     @staticmethod
     def _create_logging_config(config_data: dict) -> LoggingConfig:
-        """ログ設定を作成（unified.yamlからデフォルト値取得）"""
+        """ログ設定を作成"""
         return Config._create_generic_config(LoggingConfig, "logging", config_data)
 
     def validate(self) -> bool:

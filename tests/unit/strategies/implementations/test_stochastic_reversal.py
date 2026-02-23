@@ -42,7 +42,7 @@ def init_config():
     try:
         from src.core.config import load_config
 
-        load_config("config/core/unified.yaml")
+        load_config("config/core/thresholds.yaml")
     except Exception:
         from src.core.config import config_manager
 

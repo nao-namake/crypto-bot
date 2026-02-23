@@ -1,7 +1,7 @@
 # Phase 65: ライブ取引頻度回復 + TP/SLフルカバー統合
 
-**期間**: 2026年2月21日-23日
-**状態**: Phase 65.11完了
+**期間**: 2026年2月21日-24日
+**状態**: Phase 65.12完了
 
 | Sub-Phase | 内容 | 状態 |
 |-----------|------|------|
@@ -16,6 +16,7 @@
 | **65.9** | core/ 包括的コードレビュー（変更不要） | ✅ 完了 |
 | **65.10** | strategies.yaml 整理 + config/core/ 移動 | ✅ 完了 |
 | **65.11** | strategies.yaml → thresholds.yaml 統合（設定3→2ファイル完全移行） | ✅ 完了 |
+| **65.12** | unified.yaml → thresholds.yaml 統合（設定2→1ファイル完全移行） | ✅ 完了 |
 
 ---
 
@@ -740,3 +741,42 @@ Phase 65.10 で strategies.yaml を整理・`config/core/` に移動したが、
 | `_get_strategy_thresholds()` 参照 | ゼロ |
 | `config_path` 関連（strategy_loader） | ゼロ |
 | CI/Dockerfile/ワークフロー内参照 | ゼロ |
+
+---
+
+## Phase 65.12: unified.yaml → thresholds.yaml 統合（設定2→1ファイル完全移行）
+
+**日付**: 2026年2月24日
+**目的**: unified.yaml（環境設定7セクション）をthresholds.yamlに統合し、設定管理を完全1ファイル体系に移行
+
+### 背景
+
+Phase 65.11で3→2ファイル体系を完了したが、unified.yaml（98行・7キー）とthresholds.yaml（967行・26キー）はトップレベルキーの重複がゼロで、実行時に`load_thresholds()`が両ファイルをdeep mergeして1つの辞書として使用しており、分離する実質的メリットがなかった。
+
+### 変更内容
+
+| ファイル | 変更 |
+|---------|------|
+| `config/core/thresholds.yaml` | unified.yamlの7セクション（mode/mode_balances/exchange/data/cloud_run/security/trading_constraints）を先頭に統合 |
+| `config/core/unified.yaml` | **削除** |
+| `src/core/config/threshold_manager.py` | unified.yaml読み込み・deep mergeロジック削除。thresholds.yaml単一読み込みに簡素化 |
+| `src/core/config/__init__.py` | load_from_file()の二重読み込み解消。load_thresholds()結果をそのまま使用 |
+| `main.py` | デフォルトconfigパス → thresholds.yaml |
+| `scripts/deployment/docker-entrypoint.sh` | configパス → thresholds.yaml |
+| `scripts/testing/checks.sh` | unified.yaml検証削除、thresholds.yaml必須フィールドにmode/exchange/data追加 |
+| `scripts/ml/create_ml_models.py` | パス更新 |
+| `scripts/analysis/unified_strategy_analyzer.py` | パス更新 |
+| `scripts/backtest/walk_forward_validation.py` | パス更新 |
+| `src/core/execution/live_trading_runner.py` | パス更新 |
+| `.github/workflows/walk_forward.yml` | git checkoutパス簡素化 |
+| テスト3ファイル | パス更新 |
+| ドキュメント5ファイル | 設定体系の記述更新 |
+
+### 数値サマリー
+
+| 指標 | Before | After |
+|------|--------|-------|
+| 設定ファイル数 | 2 | **1** |
+| unified.yaml | 98行 | **0（削除）** |
+| thresholds.yaml | 967行 | **~1,060行** |
+| load_thresholds() | 2ファイル読み込み+deep merge | **1ファイル直接読み込み** |

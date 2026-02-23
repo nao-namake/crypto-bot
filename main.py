@@ -202,7 +202,7 @@ def parse_arguments():
   python main.py --mode paper              # ペーパートレード（デフォルト）
   python main.py --mode live               # ライブトレード
   python main.py --mode backtest           # バックテスト
-  python main.py --config config/core/unified.yaml # 統一設定使用
+  python main.py --config config/core/thresholds.yaml # 設定ファイル指定
         """,
     )
 
@@ -214,8 +214,8 @@ def parse_arguments():
     )
     parser.add_argument(
         "--config",
-        default="config/core/unified.yaml",
-        help="設定ファイルパス (default: config/core/unified.yaml)",
+        default="config/core/thresholds.yaml",
+        help="設定ファイルパス (default: config/core/thresholds.yaml)",
     )
 
     return parser.parse_args()
@@ -246,7 +246,7 @@ async def main():
             print(f"🎯 バックテストモード検出: ログレベル{log_level}、API呼び出しモック化")
 
             # グローバルフラグ設定（全コンポーネントで参照可能）
-            from src.core.config import set_backtest_mode, set_backtest_log_level
+            from src.core.config import set_backtest_log_level, set_backtest_mode
 
             set_backtest_mode(True)
             set_backtest_log_level(log_level)
@@ -258,9 +258,7 @@ async def main():
 
     # 3. TradingOrchestratorに実行を委譲
     try:
-        logger.info(
-            f"🚀 暗号資産取引Bot Phase 61 起動 - モード: {config.mode.upper()}"
-        )
+        logger.info(f"🚀 暗号資産取引Bot Phase 61 起動 - モード: {config.mode.upper()}")
 
         # 依存性組み立て済みOrchestratorを取得
         orchestrator = await create_trading_orchestrator(config, logger)

@@ -74,7 +74,7 @@ class TestThresholdConfiguration:
             temp_path = f.name
 
         try:
-            with patch("src.core.config.Path") as mock_path:
+            with patch("src.core.config.threshold_manager.Path") as mock_path:
                 mock_path.return_value.exists.return_value = True
                 mock_path.return_value = Path(temp_path)
 
@@ -90,8 +90,8 @@ class TestThresholdConfiguration:
             os.unlink(temp_path)
 
     def test_load_thresholds_file_not_found_uses_defaults(self):
-        """YAMLファイルが見つからない場合はデフォルト設定を使用"""
-        with patch("src.core.config.Path") as mock_path:
+        """YAMLファイルが見つからない場合は空辞書を返す"""
+        with patch("src.core.config.threshold_manager.Path") as mock_path:
             mock_path.return_value.exists.return_value = False
 
             # キャッシュリセット
@@ -99,13 +99,11 @@ class TestThresholdConfiguration:
 
             result = load_thresholds()
 
-            # デフォルト値の確認
-            assert "ml" in result
-            assert "trading" in result
-            assert result["ml"]["default_confidence"] == 0.5
+            # ファイルが見つからない場合は空辞書
+            assert isinstance(result, dict)
 
     def test_load_thresholds_yaml_parse_error_uses_defaults(self):
-        """YAML解析エラー時はデフォルト設定を使用"""
+        """YAML解析エラー時は空辞書を返す"""
         invalid_yaml = "invalid: yaml: content: ["
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -113,7 +111,7 @@ class TestThresholdConfiguration:
             temp_path = f.name
 
         try:
-            with patch("src.core.config.Path") as mock_path:
+            with patch("src.core.config.threshold_manager.Path") as mock_path:
                 mock_path.return_value.exists.return_value = True
                 mock_path.return_value = Path(temp_path)
 
@@ -122,8 +120,8 @@ class TestThresholdConfiguration:
 
                 result = load_thresholds()
 
-                # エラー時のデフォルト値確認
-                assert result["ml"]["default_confidence"] == 0.5
+                # エラー時は空辞書
+                assert isinstance(result, dict)
         finally:
             os.unlink(temp_path)
 

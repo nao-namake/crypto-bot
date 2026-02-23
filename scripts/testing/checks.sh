@@ -205,31 +205,28 @@ fi
 echo ""
 echo "⚙️  [5/12] 設定ファイル整合性チェック..."
 
-# YAML構文チェック
-CONFIG_FILES=("config/core/unified.yaml" "config/core/thresholds.yaml")
+# YAML構文チェック（thresholds.yaml単一ファイル体系）
+CONFIG_FILE="config/core/thresholds.yaml"
 
-for config_file in "${CONFIG_FILES[@]}"; do
-    if [ ! -f "$config_file" ]; then
-        echo "  ❌ ERROR: $config_file が見つかりません"
-        ERRORS=$((ERRORS + 1))
-        continue
-    fi
-
-    if ! python3 -c "import yaml; yaml.safe_load(open('$config_file'))" 2>/dev/null; then
-        echo "  ❌ ERROR: $config_file のYAML構文エラー"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "  ❌ ERROR: $CONFIG_FILE が見つかりません"
+    ERRORS=$((ERRORS + 1))
+else
+    if ! python3 -c "import yaml; yaml.safe_load(open('$CONFIG_FILE'))" 2>/dev/null; then
+        echo "  ❌ ERROR: $CONFIG_FILE のYAML構文エラー"
         ERRORS=$((ERRORS + 1))
     else
-        echo "  ✅ $config_file - 構文OK"
+        echo "  ✅ $CONFIG_FILE - 構文OK"
     fi
-done
+fi
 
-# unified.yaml 必須フィールド確認
-UNIFIED_CHECK=$(python3 -c "
+# thresholds.yaml 必須フィールド確認（環境設定+パラメータ）
+REQUIRED_CHECK=$(python3 -c "
 import yaml
 try:
-    with open('config/core/unified.yaml') as f:
+    with open('config/core/thresholds.yaml') as f:
         data = yaml.safe_load(f)
-        required = ['mode', 'exchange', 'data']
+        required = ['mode', 'exchange', 'data', 'strategies', 'ml', 'risk']
         missing = [k for k in required if k not in data]
         if missing:
             print('MISSING:' + ','.join(missing))
@@ -239,15 +236,15 @@ except Exception as e:
     print(f'ERROR:{e}')
 " 2>&1)
 
-if [[ "$UNIFIED_CHECK" == "MISSING:"* ]]; then
-    MISSING_FIELDS=$(echo "$UNIFIED_CHECK" | cut -d':' -f2)
-    echo "  ❌ ERROR: unified.yaml 必須フィールド不足: $MISSING_FIELDS"
+if [[ "$REQUIRED_CHECK" == "MISSING:"* ]]; then
+    MISSING_FIELDS=$(echo "$REQUIRED_CHECK" | cut -d':' -f2)
+    echo "  ❌ ERROR: thresholds.yaml 必須フィールド不足: $MISSING_FIELDS"
     ERRORS=$((ERRORS + 1))
-elif [[ "$UNIFIED_CHECK" == "ERROR:"* ]]; then
-    echo "  ❌ ERROR: unified.yaml 読み込み失敗"
+elif [[ "$REQUIRED_CHECK" == "ERROR:"* ]]; then
+    echo "  ❌ ERROR: thresholds.yaml 読み込み失敗"
     ERRORS=$((ERRORS + 1))
 else
-    echo "  ✅ unified.yaml 必須フィールド確認完了"
+    echo "  ✅ thresholds.yaml 必須フィールド確認完了"
 fi
 
 # thresholds.yaml 設定値妥当性チェック

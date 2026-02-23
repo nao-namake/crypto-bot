@@ -23,7 +23,7 @@ from src.strategies.base.strategy_base import StrategyBase, StrategySignal
 def init_config():
     """テスト用設定初期化"""
     try:
-        load_config("config/core/unified.yaml")
+        load_config("config/core/thresholds.yaml")
     except Exception:
         # テスト環境で設定ファイルが見つからない場合はダミー設定
         from src.core.config import config_manager

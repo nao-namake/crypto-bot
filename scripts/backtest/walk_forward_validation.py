@@ -390,7 +390,7 @@ class WalkForwardValidator:
                 set_backtest_log_level("WARNING")
 
                 # cmdline_mode="backtest"でconfig.mode=backtestになる
-                config = load_config("config/core/unified.yaml", cmdline_mode="backtest")
+                config = load_config("config/core/thresholds.yaml", cmdline_mode="backtest")
                 orchestrator = await create_trading_orchestrator(config=config, logger=self.logger)
 
                 # バックテスト実行

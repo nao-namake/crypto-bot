@@ -2,23 +2,24 @@
 
 ## 役割・責任
 
-システム全体で使用する基本設定を管理する中核フォルダです。3つのファイルにより、環境設定・パラメータ・機能トグル・特徴量定義を管理します。
+システム全体で使用する基本設定を管理する中核フォルダです。2つのファイルにより、全設定・特徴量定義を管理します。
 
-**Phase 65.11（2026年2月23日）**:
+**Phase 65.12（2026年2月24日）**:
 - 55特徴量（49基本+6戦略信号）
 - 6戦略統合・3モデルアンサンブル
-- 2ファイル体系（unified.yaml + thresholds.yaml）
+- 1ファイル体系（thresholds.yaml）
 
 ---
 
 ## ファイル構成
 
-### 1. **unified.yaml** - 環境・構造設定（~100行）
+### 1. **thresholds.yaml** - システム統合設定
 
-**役割**: 環境固有の接続設定・構造定義
+**役割**: 環境設定 + 全パラメータ + 機能トグル + 戦略定義の一元管理
 
 **主要セクション**:
 ```yaml
+# 環境・構造設定
 mode:               # 実行モード（paper/live/backtest）
 mode_balances:      # モード別初期残高（50万円）
 exchange:           # 取引所接続設定（bitbank）
@@ -26,20 +27,8 @@ data:               # タイムフレーム定義（15m/4h）
 cloud_run:          # GCPリソース設定（1Gi/1CPU）
 security:           # Secret Manager設定
 trading_constraints: # 通貨ペア・取引制約
-```
 
-**使い方**:
-- モード制御: CLI引数 > 環境変数MODE > YAML内mode
-- 基本的な構造設定（パラメータは`thresholds.yaml`を使用）
-
----
-
-### 2. **thresholds.yaml** - 全パラメータ + 機能トグル
-
-**役割**: 動的閾値・パラメータ・機能ON/OFFの一元管理
-
-**主要セクション**:
-```yaml
+# パラメータ・閾値
 ml:                    # ML統合設定（アンサンブル重み・信頼度閾値）
 dynamic_confidence:    # 動的信頼度計算（6戦略の信頼度範囲）
 strategies:            # 戦略定義+パラメータ（6戦略・定義/閾値/重み統合）
@@ -52,12 +41,13 @@ feature_flags:         # 機能トグル（旧features.yaml）
 ```
 
 **使い方**:
+- モード制御: CLI引数 > 環境変数MODE > YAML内mode
 - コードから参照: `get_threshold("パラメータ名")`
 - 機能トグル: `get_features_config()` → `feature_flags` セクション
 
 ---
 
-### 3. **feature_order.json** - 特徴量定義（単一真実源）
+### 2. **feature_order.json** - 特徴量定義（単一真実源）
 
 **役割**: 全システムで使用する55特徴量の順序・定義を一元管理
 
@@ -99,7 +89,7 @@ vim config/core/thresholds.yaml  # feature_flags セクション
 vim config/core/thresholds.yaml  # production/cloud_run セクション
 
 # 接続設定変更
-vim config/core/unified.yaml
+vim config/core/thresholds.yaml  # exchange セクション
 
 # 特徴量追加
 vim config/core/feature_order.json
@@ -150,4 +140,4 @@ print(get_threshold('position_management.take_profit.min_profit_ratio'))
 
 ---
 
-**最終更新**: Phase 65.11（2026年2月23日）
+**最終更新**: Phase 65.12（2026年2月24日）

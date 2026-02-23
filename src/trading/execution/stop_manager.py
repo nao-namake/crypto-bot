@@ -754,8 +754,15 @@ class StopManager:
                     )
                     if timeout_result:
                         return timeout_result
-                    # タイムアウトしていない場合は、bitbankのstop_limitトリガー待機
-                    return None
+                    # Phase 65.13: SL注文がクリアされた場合、Bot側SLチェックにフォールスルー
+                    if not position.get("sl_order_id"):
+                        self.logger.info(
+                            "📊 Phase 65.13: SL注文クリア済み - Bot側SLチェックにフォールスルー"
+                        )
+                        # passしてBot側SLチェック（従来ロジック）へ進む
+                    else:
+                        # SL注文健在: bitbankのstop_limitトリガー待機継続
+                        return None
 
                 # 従来のBot側SLチェック（stop_limit未配置 or stop_limit以外の場合）
                 sl_triggered = False
@@ -905,13 +912,22 @@ class StopManager:
                     )
                     return None
                 elif order_status in ("canceled", "cancelled"):
-                    # Phase 64.12: canceledはSL消失 → sl_order_idクリアしBot側SLチェック復活
+                    # Phase 65.13: canceledはSL消失 → sl_order_idクリア + 即時超過チェック
                     self.logger.warning(
-                        f"⚠️ Phase 64.12: SL注文 {sl_order_id} はキャンセル済み - SL不在!"
+                        f"⚠️ Phase 65.13: SL注文 {sl_order_id} はキャンセル済み - SL不在!"
                     )
                     position["sl_order_id"] = None
                     position["sl_placed_at"] = None
-                    return None
+                    # Phase 65.13: SL超過チェック - 超過していれば即座にフォールバック決済へ
+                    if self._is_sl_price_breached(position, current_price):
+                        self.logger.critical(
+                            f"🚨 Phase 65.13: SLキャンセル且つSL超過検出 - 即時成行決済へ "
+                            f"(SL={position.get('stop_loss', 'N/A')}, "
+                            f"現在={current_price:.0f})"
+                        )
+                        # return Noneせず、下のフォールバック決済コードへフォールスルー
+                    else:
+                        return None
                 elif order_status in ("open", "INACTIVE"):
                     # Phase 65.4: INACTIVEはbitbankのstop_limit正常状態（トリガー価格待ち）
                     # Phase 64.12: open時はSL超過チェック

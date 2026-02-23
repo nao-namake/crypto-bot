@@ -2963,3 +2963,73 @@ class TestPhase6412SLSafetyNet:
 
         # SL未到達のため待機継続
         assert result is None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_timeout_canceled_and_breached_fallthrough(self, mock_threshold, stop_manager):
+        """Phase 65.13: canceled + SL超過 → フォールバック決済へフォールスルー"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.emergency.enable": False,
+        }.get(key, default if default is not None else {})
+
+        position = {
+            "order_id": "order_456",
+            "side": "buy",
+            "amount": 0.0218,
+            "price": 10162000.0,
+            "stop_loss": 10083725.0,
+            "sl_order_id": "sl_456",
+            "sl_placed_at": "2026-02-23T16:17:00+00:00",
+            "tp_order_id": None,
+        }
+
+        mock_client = MagicMock()
+        mock_client.fetch_order = MagicMock(return_value={"status": "canceled", "id": "sl_456"})
+        mock_client.create_order = MagicMock(return_value={"id": "close_002"})
+
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=10003561.0,  # SL(10,083,725)より大幅に下
+            sl_config={"stop_limit_timeout": 0},
+            mode="live",
+            bitbank_client=mock_client,
+        )
+
+        # Phase 65.13: SLキャンセル + SL超過 → フォールバック決済実行
+        assert result is not None
+        assert position["sl_order_id"] is None
+        assert position["sl_placed_at"] is None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_canceled_not_breached_returns_none(self, mock_threshold, stop_manager):
+        """Phase 65.13: canceled + SL未超過 → return None（次サイクルでSL再配置）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        position = {
+            "side": "buy",
+            "amount": 0.01,
+            "price": 10000000.0,
+            "stop_loss": 9900000.0,
+            "sl_order_id": "sl_789",
+            "sl_placed_at": "2026-02-23T16:00:00+00:00",
+        }
+
+        mock_client = MagicMock()
+        mock_client.fetch_order = MagicMock(return_value={"status": "canceled", "id": "sl_789"})
+
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=9950000.0,  # SL(9,900,000)より上 → 未超過
+            sl_config={"stop_limit_timeout": 0},
+            mode="live",
+            bitbank_client=mock_client,
+        )
+
+        # SL未超過 → return None
+        assert result is None
+        assert position["sl_order_id"] is None  # クリアはされる
+        assert position["sl_placed_at"] is None

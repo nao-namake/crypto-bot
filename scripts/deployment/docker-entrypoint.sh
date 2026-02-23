@@ -144,7 +144,7 @@ if [ "$MODE" = "live" ] && [ "$CI" != "true" ]; then
     
     # ライブトレードをバックグラウンドで実行
     echo "🔄 ライブトレード起動..."
-    python3 main.py --mode live --config config/core/unified.yaml &
+    python3 main.py --mode live --config config/core/thresholds.yaml &
     TRADING_PID=$!
     echo "✅ ライブトレード起動完了 (PID: $TRADING_PID)"
     
@@ -170,7 +170,7 @@ elif [ "$MODE" = "paper" ]; then
     
     # ペーパートレードをバックグラウンドで実行
     echo "🔄 ペーパートレード起動..."
-    python3 main.py --mode paper --config config/core/unified.yaml &
+    python3 main.py --mode paper --config config/core/thresholds.yaml &
     TRADING_PID=$!
     echo "✅ ペーパートレード起動完了 (PID: $TRADING_PID)"
     

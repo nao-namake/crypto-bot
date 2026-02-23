@@ -219,7 +219,6 @@ jobs:
           # （thresholds.yamlはML訓練時に一時的に変更されるが、コミット対象外）
           echo "🔄 一時変更ファイルをリセット..."
           git checkout -- config/core/thresholds.yaml 2>/dev/null || true
-          git checkout -- config/core/*.yaml 2>/dev/null || true
 
           # 一時生成ファイルを削除（model_metadata.json等）
           rm -f models/production/model_metadata.json 2>/dev/null || true
