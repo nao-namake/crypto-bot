@@ -3,9 +3,9 @@
 # ペーパートレード実行スクリプト（Phase 61）
 #
 # 使用方法:
-#   bash scripts/management/run_paper.sh         # ペーパートレード開始
-#   bash scripts/management/run_paper.sh stop    # 停止
-#   bash scripts/management/run_paper.sh status  # 状況確認
+#   bash scripts/paper/run_paper.sh         # ペーパートレード開始
+#   bash scripts/paper/run_paper.sh stop    # 停止
+#   bash scripts/paper/run_paper.sh status  # 状況確認
 #
 
 set -euo pipefail

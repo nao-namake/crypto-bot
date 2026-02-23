@@ -1,11 +1,11 @@
-# scripts/management/ - ローカル実行スクリプト（Phase 61）
+# scripts/paper/ - ローカル実行スクリプト（Phase 61）
 
 **最終更新**: 2026年1月24日
 
 ## ファイル構成
 
 ```
-scripts/management/
+scripts/paper/
 ├── README.md        # このファイル
 └── run_paper.sh     # ペーパートレード実行スクリプト
 ```
@@ -18,13 +18,13 @@ scripts/management/
 
 ```bash
 # ペーパートレード開始
-bash scripts/management/run_paper.sh
+bash scripts/paper/run_paper.sh
 
 # 状況確認
-bash scripts/management/run_paper.sh status
+bash scripts/paper/run_paper.sh status
 
 # 停止
-bash scripts/management/run_paper.sh stop
+bash scripts/paper/run_paper.sh stop
 ```
 
 ### 機能
@@ -39,7 +39,7 @@ bash scripts/management/run_paper.sh stop
 
 ```bash
 # スクリプト使用（推奨）
-bash scripts/management/run_paper.sh
+bash scripts/paper/run_paper.sh
 
 # 直接実行（上級者向け）
 source config/secrets/.env

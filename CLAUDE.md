@@ -49,11 +49,11 @@ bash scripts/testing/checks.sh
 
 ```bash
 # ペーパートレード
-bash scripts/management/run_paper.sh
+bash scripts/paper/run_paper.sh
 
 # 停止 / 状況確認
-bash scripts/management/run_paper.sh stop
-bash scripts/management/run_paper.sh status
+bash scripts/paper/run_paper.sh stop
+bash scripts/paper/run_paper.sh status
 
 # ライブトレード
 python3 main.py --mode live

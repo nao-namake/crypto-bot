@@ -70,9 +70,9 @@ scripts/
 | docker-entrypoint.sh | Dockerコンテナ起動制御・ヘルスチェック |
 | archive/ | 初期セットアップ用スクリプト（環境構築済みのため使用頻度低） |
 
-### **management/ - Bot管理スクリプト（Phase 61版）**
+### **paper/ - ペーパートレードスクリプト（Phase 61版）**
 
-Botの安全で効率的な実行・管理を支援。
+ペーパートレードの実行・管理を支援。
 
 | ファイル | 役割 |
 |----------|------|
@@ -122,13 +122,13 @@ bash scripts/testing/checks.sh
 
 ```bash
 # 実行
-bash scripts/management/run_paper.sh
+bash scripts/paper/run_paper.sh
 
 # 停止
-bash scripts/management/run_paper.sh stop
+bash scripts/paper/run_paper.sh stop
 
 # 状況確認
-bash scripts/management/run_paper.sh status
+bash scripts/paper/run_paper.sh status
 ```
 
 ### バックテストワークフロー

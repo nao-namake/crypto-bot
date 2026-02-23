@@ -24,7 +24,7 @@ cp config/secrets/.env.example config/secrets/.env
 bash scripts/testing/checks.sh  # 全テスト成功・75%+カバレッジ
 
 # ペーパートレード
-bash scripts/management/run_paper.sh
+bash scripts/paper/run_paper.sh
 
 # ライブトレード
 python3 main.py --mode live
