@@ -1360,20 +1360,25 @@ class TestPhase516AtomicEntry:
         mock_bitbank_client.cancel_order.assert_any_call("old_sl_1", "BTC/JPY")
 
     async def test_cleanup_old_tp_sl_before_entry_with_protected_orders(self, mock_bitbank_client):
-        """Phase 51.10-A: エントリー前クリーンアップ - アクティブポジションのTP/SL保護"""
+        """Phase 65.14: エントリー前クリーンアップ - 同一sideのVP注文もキャンセル
+
+        Phase 65.14変更: bitbankはポジションを統合管理するため、
+        同一sideの古いVP注文はINACTIVE含め全キャンセル。
+        新エントリー後に全量カバーするTP/SLが再配置される。
+        """
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
         # Phase 53.7: fetch_active_ordersに変更（リスト形式・idキー）
         mock_bitbank_client.fetch_active_orders.return_value = [
-            # 保護対象: アクティブポジションのTP
+            # VP追跡のTP（protected_order_idsで保護されるがVPキャンセルで先にNullされる）
             {"id": "active_tp", "side": "sell", "type": "limit", "price": 15600000},
-            # 保護対象: アクティブポジションのSL
+            # VP追跡のSL（同上）
             {"id": "active_sl", "side": "sell", "type": "stop", "price": 15400000},
-            # 削除対象: 古いTP
+            # 古いTP（VP未追跡）
             {"id": "old_tp", "side": "sell", "type": "limit", "price": 15550000},
         ]
 
-        # アクティブポジションのTP/SL注文ID（保護対象）
+        # アクティブポジションのTP/SL注文ID
         virtual_positions = [
             {
                 "side": "buy",
@@ -1392,9 +1397,15 @@ class TestPhase516AtomicEntry:
             bitbank_client=mock_bitbank_client,
         )
 
-        # 古いTP注文のみ削除（アクティブポジションのTP/SLは保護）
-        assert mock_bitbank_client.cancel_order.call_count == 1
-        mock_bitbank_client.cancel_order.assert_called_once_with("old_tp", "BTC/JPY")
+        # Phase 65.14: VP追跡注文2件 + active_orders由来の古いTP 1件 = 3件キャンセル
+        assert mock_bitbank_client.cancel_order.call_count == 3
+        cancel_ids = [call.args[0] for call in mock_bitbank_client.cancel_order.call_args_list]
+        assert "active_tp" in cancel_ids
+        assert "active_sl" in cancel_ids
+        assert "old_tp" in cancel_ids
+        # VPの注文IDがクリアされていること
+        assert virtual_positions[0]["tp_order_id"] is None
+        assert virtual_positions[0]["sl_order_id"] is None
 
     async def test_cleanup_old_tp_sl_before_entry_no_orders(self, mock_bitbank_client):
         """Phase 51.10-A: エントリー前クリーンアップ - アクティブ注文なし"""

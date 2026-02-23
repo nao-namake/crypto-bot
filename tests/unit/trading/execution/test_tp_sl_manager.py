@@ -848,3 +848,378 @@ class TestPhase6412SLSafetyNet:
         vp = virtual_positions[0]
         assert vp["sl_order_id"] == "sl_999"
         assert vp["tp_order_id"] is None  # TP失敗
+
+
+# ========================================
+# Phase 65.14: float(None)耐性テスト
+# ========================================
+
+
+class TestPhase6514FloatNoneSafety:
+    """Phase 65.14: float(None)バグ修正テスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_ensure_tp_sl_with_none_amount_in_orders(self, mock_threshold, tp_sl_manager):
+        """Phase 65.14: active_ordersのamountがNoneでもTypeErrorにならない"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = MagicMock(
+            return_value=[
+                {"side": "long", "amount": "0.001", "average_price": "14000000"},
+            ]
+        )
+        # amount=Noneの注文（bitbankが返すことがある）
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "order_1",
+                    "side": "sell",
+                    "type": "limit",
+                    "amount": None,
+                    "price": "14100000",
+                },
+                {
+                    "id": "order_2",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "amount": None,
+                    "stopPrice": None,
+                    "price": "13900000",
+                },
+            ]
+        )
+
+        # TypeErrorが出ずに正常完了すること
+        await tp_sl_manager.ensure_tp_sl_for_existing_positions(
+            virtual_positions=[],
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_is_sl_price_valid_with_none_stop_price(self, mock_threshold, tp_sl_manager):
+        """Phase 65.14: stopPrice/triggerPrice/priceがNoneでもTypeErrorにならない"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = MagicMock(
+            return_value=[
+                {"side": "long", "amount": "0.001", "average_price": "14000000"},
+            ]
+        )
+        # 全ての価格フィールドがNone
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "order_1",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "amount": "0.001",
+                    "stopPrice": None,
+                    "triggerPrice": None,
+                    "price": None,
+                },
+            ]
+        )
+
+        await tp_sl_manager.ensure_tp_sl_for_existing_positions(
+            virtual_positions=[],
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+
+# ========================================
+# Phase 65.14: INACTIVE SLキャンセルテスト
+# ========================================
+
+
+class TestPhase6514InactiveSLCancel:
+    """Phase 65.14: cleanup_old_tp_sl_before_entryのINACTIVE SLキャンセルテスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_vp_tracked_orders_cancelled_before_entry(self, mock_threshold, tp_sl_manager):
+        """Phase 65.14: VP追跡の古いTP/SL注文がキャンセルされる"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
+        mock_client.cancel_order = MagicMock()
+
+        virtual_positions = [
+            {
+                "order_id": "old_entry_1",
+                "side": "buy",
+                "amount": 0.001,
+                "tp_order_id": "old_tp_1",
+                "sl_order_id": "old_sl_1",
+            },
+        ]
+
+        await tp_sl_manager.cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="new_entry_1",
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+        )
+
+        # VP追跡の注文がキャンセルされた
+        assert mock_client.cancel_order.call_count == 2
+        cancel_ids = [call.args[0] for call in mock_client.cancel_order.call_args_list]
+        assert "old_tp_1" in cancel_ids
+        assert "old_sl_1" in cancel_ids
+
+        # VPの注文IDがクリアされている
+        assert virtual_positions[0]["tp_order_id"] is None
+        assert virtual_positions[0]["sl_order_id"] is None
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_vp_tracked_orders_opposite_side_not_cancelled(
+        self, mock_threshold, tp_sl_manager
+    ):
+        """Phase 65.14: 反対サイドのVP注文はキャンセルされない"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
+        mock_client.cancel_order = MagicMock()
+
+        virtual_positions = [
+            {
+                "order_id": "old_entry_1",
+                "side": "sell",  # 反対サイド
+                "amount": 0.001,
+                "tp_order_id": "sell_tp_1",
+                "sl_order_id": "sell_sl_1",
+            },
+        ]
+
+        await tp_sl_manager.cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="new_entry_1",
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+        )
+
+        # 反対サイドの注文はキャンセルされない
+        mock_client.cancel_order.assert_not_called()
+        assert virtual_positions[0]["tp_order_id"] == "sell_tp_1"
+        assert virtual_positions[0]["sl_order_id"] == "sell_sl_1"
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_vp_cancel_failure_ignored(self, mock_threshold, tp_sl_manager):
+        """Phase 65.14: VP注文キャンセル失敗は無視して続行"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
+        mock_client.cancel_order = MagicMock(side_effect=Exception("already cancelled"))
+
+        virtual_positions = [
+            {
+                "order_id": "old_entry_1",
+                "side": "buy",
+                "amount": 0.001,
+                "tp_order_id": "old_tp_1",
+                "sl_order_id": "old_sl_1",
+            },
+        ]
+
+        # 例外が伝播しないこと
+        await tp_sl_manager.cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="new_entry_1",
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+        )
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_stop_limit_detected_as_sl_in_cleanup(self, mock_threshold, tp_sl_manager):
+        """Phase 65.14: stop_limit型もSLとして検出・キャンセルされる"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "sl_stop_limit_1",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "price": "13900000",
+                },
+            ]
+        )
+        mock_client.cancel_order = MagicMock()
+
+        await tp_sl_manager.cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="new_entry_1",
+            virtual_positions=[],
+            bitbank_client=mock_client,
+        )
+
+        # stop_limit型の注文がSLとしてキャンセルされた
+        mock_client.cancel_order.assert_called_once_with("sl_stop_limit_1", "BTC/JPY")
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_take_profit_type_detected_as_tp_in_cleanup(self, mock_threshold, tp_sl_manager):
+        """Phase 65.15: take_profit型もTPとして検出・キャンセルされる"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_native_1",
+                    "side": "sell",
+                    "type": "take_profit",
+                    "price": "14100000",
+                },
+            ]
+        )
+        mock_client.cancel_order = MagicMock()
+
+        await tp_sl_manager.cleanup_old_tp_sl_before_entry(
+            side="buy",
+            symbol="BTC/JPY",
+            entry_order_id="new_entry_1",
+            virtual_positions=[],
+            bitbank_client=mock_client,
+        )
+
+        # take_profit型の注文がTPとしてキャンセルされた
+        mock_client.cancel_order.assert_called_once_with("tp_native_1", "BTC/JPY")
+
+
+# ========================================
+# Phase 65.15: VP二重カウント防止テスト
+# ========================================
+
+
+class TestPhase6515VPDoubleCountPrevention:
+    """Phase 65.15: VP補完の二重カウント防止テスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_vp_tp_not_double_counted_when_in_active_orders(
+        self, mock_threshold, tp_sl_manager
+    ):
+        """Phase 65.15: active_ordersに含まれるTP注文IDはVP補完でスキップされる"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = MagicMock(
+            return_value=[
+                {"side": "long", "amount": "0.01", "average_price": "14000000"},
+            ]
+        )
+        # active_ordersにTP注文（amount=0.01）
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_001",
+                    "side": "sell",
+                    "type": "take_profit",
+                    "amount": "0.01",
+                    "price": "14100000",
+                },
+                {
+                    "id": "sl_001",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "amount": "0.01",
+                    "stopPrice": "13900000",
+                },
+            ]
+        )
+
+        # VPにも同じTP/SL注文IDが記録されている（二重カウントのリスク）
+        virtual_positions = [
+            {
+                "order_id": "entry_1",
+                "side": "buy",
+                "amount": 0.01,
+                "tp_order_id": "tp_001",
+                "sl_order_id": "sl_001",
+            }
+        ]
+
+        # 二重カウントされるとTP/SLが2倍カウント→カバレッジOKになる
+        # 二重カウント防止が効いていればactive_ordersだけでカバレッジ判定される
+        await tp_sl_manager.ensure_tp_sl_for_existing_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # カバレッジOK（active_ordersだけで十分）→再配置されない
+        # _place_missing_tp_slが呼ばれない（TP/SLが足りているため）
+        mock_client.create_take_profit_order = MagicMock()
+        mock_client.create_stop_loss_order = MagicMock()
+        mock_client.create_take_profit_order.assert_not_called()
+        mock_client.create_stop_loss_order.assert_not_called()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_vp_inactive_sl_supplemented_correctly(self, mock_threshold, tp_sl_manager):
+        """Phase 65.15: INACTIVE SL（active_ordersに不在）はVP補完でカウントされる"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = MagicMock(
+            return_value=[
+                {"side": "long", "amount": "0.01", "average_price": "14000000"},
+            ]
+        )
+        # active_ordersにはTP注文のみ（SLはINACTIVEで返されない）
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_001",
+                    "side": "sell",
+                    "type": "take_profit",
+                    "amount": "0.01",
+                    "price": "14100000",
+                },
+            ]
+        )
+
+        # VPにSL注文IDが記録されている（INACTIVEのstop_limit）
+        virtual_positions = [
+            {
+                "order_id": "entry_1",
+                "side": "buy",
+                "amount": 0.01,
+                "tp_order_id": "tp_001",
+                "sl_order_id": "sl_inactive_001",  # active_ordersにない
+            }
+        ]
+
+        await tp_sl_manager.ensure_tp_sl_for_existing_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # INACTIVE SLはVP補完でカウント→カバレッジOK→再配置されない
+        mock_client.create_stop_loss_order = MagicMock()
+        mock_client.create_stop_loss_order.assert_not_called()

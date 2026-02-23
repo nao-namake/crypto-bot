@@ -175,19 +175,17 @@ class PositionRestorer:
                     order_type = order.get("type", "").lower()
 
                     if order_side == exit_side:
-                        if order_type == "limit" and not tp_order_id:
+                        if order_type in ("limit", "take_profit") and not tp_order_id:
                             tp_order_id = str(order.get("id", ""))
                             tp_price = float(order.get("price") or 0)
                         elif order_type in ("stop", "stop_limit") and not sl_order_id:
                             # Phase 64.12: トリガー価格の妥当性検証（3%以内）
+                            # Phase 65.15: None安全パターン（orチェーン）
                             trigger_price = float(
-                                order.get(
-                                    "stopPrice",
-                                    order.get(
-                                        "triggerPrice",
-                                        order.get("price", 0),
-                                    ),
-                                )
+                                order.get("stopPrice")
+                                or order.get("triggerPrice")
+                                or order.get("price")
+                                or 0
                             )
                             if avg_price > 0 and trigger_price > 0:
                                 distance_ratio = abs(trigger_price - avg_price) / avg_price
@@ -302,14 +300,15 @@ class PositionRestorer:
                 entry_side = "buy" if pos_side == "long" else "sell"
                 exit_side = "sell" if pos_side == "long" else "buy"
 
+                # Phase 65.15: None安全パターン + take_profit型TP判定
                 tp_total = sum(
-                    float(o.get("amount", 0))
+                    float(o.get("amount") or 0)
                     for o in active_orders
                     if o.get("side", "").lower() == exit_side
-                    and o.get("type", "").lower() == "limit"
+                    and o.get("type", "").lower() in ("limit", "take_profit")
                 )
                 sl_total = sum(
-                    float(o.get("amount", 0))
+                    float(o.get("amount") or 0)
                     for o in active_orders
                     if o.get("side", "").lower() == exit_side
                     and o.get("type", "").lower() in ("stop", "stop_limit")

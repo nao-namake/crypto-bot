@@ -519,47 +519,54 @@ class TPSLManager:
                 """Phase 64.12: SL注文の価格がポジション取得価格から3%以内か"""
                 if ref_price <= 0:
                     return True  # 参照価格なしは許容
+                # Phase 65.14: None安全パターン（キーが存在しても値がNoneの場合に対応）
                 trigger = float(
-                    order.get("stopPrice", order.get("triggerPrice", order.get("price", 0)))
+                    order.get("stopPrice") or order.get("triggerPrice") or order.get("price") or 0
                 )
                 if trigger <= 0:
                     return True
                 return abs(trigger - ref_price) / ref_price <= 0.03
 
             # exit側の注文合計
+            # Phase 65.14: None安全パターン（amount=Noneでfloat(None)→TypeError回避）
             tp_sell_total = sum(
-                float(o.get("amount", 0))
+                float(o.get("amount") or 0)
                 for o in active_orders
                 if o.get("side") == "sell" and o.get("type") in ("limit", "take_profit")
             )
             sl_sell_total = sum(
-                float(o.get("amount", 0))
+                float(o.get("amount") or 0)
                 for o in active_orders
                 if o.get("side") == "sell"
                 and o.get("type") in ("stop", "stop_limit")
                 and _is_sl_price_valid(o, long_avg_price)
             )
             tp_buy_total = sum(
-                float(o.get("amount", 0))
+                float(o.get("amount") or 0)
                 for o in active_orders
                 if o.get("side") == "buy" and o.get("type") in ("limit", "take_profit")
             )
             sl_buy_total = sum(
-                float(o.get("amount", 0))
+                float(o.get("amount") or 0)
                 for o in active_orders
                 if o.get("side") == "buy"
                 and o.get("type") in ("stop", "stop_limit")
                 and _is_sl_price_valid(o, short_avg_price)
             )
 
+            # Phase 65.15: active_ordersのorder IDセットを収集（二重カウント防止）
+            active_order_ids = {str(o.get("id", "")) for o in active_orders}
+
             # Phase 65.4: VPのTP追跡で補完
             # take_profit型注文もstop_limitと同様にINACTIVE状態では
             # fetch_active_ordersに含まれないため、VP側のtp_order_idで補完する
+            # Phase 65.15: active_ordersに既にある注文はスキップ（二重カウント防止）
             for vp in virtual_positions:
-                if not vp.get("tp_order_id"):
-                    continue
+                tp_id = vp.get("tp_order_id")
+                if not tp_id or str(tp_id) in active_order_ids:
+                    continue  # active_ordersで既にカウント済み
                 vp_side = vp.get("side", "")
-                vp_amount = float(vp.get("amount", 0))
+                vp_amount = float(vp.get("amount") or 0)
                 if vp_side == "buy":  # long position → sell TP
                     tp_sell_total += vp_amount
                 elif vp_side == "sell":  # short position → buy TP
@@ -569,11 +576,13 @@ class TPSLManager:
             # bitbankのINACTIVE注文（stop_limitのトリガー待ち）は
             # fetch_active_orders（= ccxt fetch_open_orders）に含まれないため、
             # VP側のsl_order_idで補完する
+            # Phase 65.15: active_ordersに既にある注文はスキップ（二重カウント防止）
             for vp in virtual_positions:
-                if not vp.get("sl_order_id"):
-                    continue
+                sl_id = vp.get("sl_order_id")
+                if not sl_id or str(sl_id) in active_order_ids:
+                    continue  # active_ordersで既にカウント済み
                 vp_side = vp.get("side", "")
-                vp_amount = float(vp.get("amount", 0))
+                vp_amount = float(vp.get("amount") or 0)
                 if vp_side == "buy":  # long position → sell SL
                     sl_sell_total += vp_amount
                 elif vp_side == "sell":  # short position → buy SL
@@ -1047,10 +1056,6 @@ class TPSLManager:
                 TPSLConfig.API_ORDER_LIMIT,
             )
 
-            if not active_orders:
-                self.logger.debug("📋 Phase 51.10-A: アクティブ注文なし - クリーンアップ不要")
-                return
-
             target_tp_side = "sell" if side == "buy" else "buy"
             target_sl_side = "sell" if side == "buy" else "buy"
 
@@ -1064,6 +1069,40 @@ class TPSLManager:
                     f"🛡️ Phase 53.12: {len(protected_order_ids)}件の注文を保護対象に設定"
                 )
 
+            # Phase 65.14: VP追跡のTP/SL注文をID指定でキャンセル（INACTIVE対策）
+            # bitbankのINACTIVE状態のstop_limit注文はfetch_active_ordersに返されないが、
+            # order ID指定でキャンセル可能。VP側で追跡している古い注文を確実にキャンセルする。
+            # 注: このメソッドはTP/SL配置前に呼ばれるため、同一side VPの注文は全て古い注文。
+            # protected_order_idsチェックは不要（fetch_active_orders由来の注文保護用に維持）。
+            vp_cancelled = 0
+            for vp in virtual_positions:
+                if vp.get("side") != side:
+                    continue
+                for id_key in ("tp_order_id", "sl_order_id"):
+                    order_id = vp.get(id_key)
+                    if not order_id:
+                        continue
+                    try:
+                        await asyncio.to_thread(bitbank_client.cancel_order, str(order_id), symbol)
+                        vp[id_key] = None
+                        vp_cancelled += 1
+                        self.logger.info(
+                            f"🗑️ Phase 65.14: VP追跡注文キャンセル - "
+                            f"ID: {order_id}, key: {id_key}"
+                        )
+                    except Exception:
+                        pass  # 既にキャンセル済みや約定済みの場合は無視
+
+            if vp_cancelled > 0:
+                self.logger.info(
+                    f"✅ Phase 65.14: VP追跡TP/SL {vp_cancelled}件キャンセル（INACTIVE含む）"
+                )
+
+            if not active_orders:
+                if vp_cancelled == 0:
+                    self.logger.debug("📋 Phase 51.10-A: アクティブ注文なし - クリーンアップ不要")
+                return
+
             # 削除対象の注文を収集
             orders_to_cancel = []
             for order in active_orders:
@@ -1074,8 +1113,10 @@ class TPSLManager:
                 if order_id in protected_order_ids:
                     continue
 
-                is_tp = order_type == "limit" and order_side == target_tp_side
-                is_sl = order_type == "stop" and order_side == target_sl_side
+                # Phase 65.15: take_profit型TP注文も判定対象に追加
+                is_tp = order_type in ("limit", "take_profit") and order_side == target_tp_side
+                # Phase 65.14: stop_limit型もSLとして判定
+                is_sl = order_type in ("stop", "stop_limit") and order_side == target_sl_side
 
                 if is_tp or is_sl:
                     orders_to_cancel.append(

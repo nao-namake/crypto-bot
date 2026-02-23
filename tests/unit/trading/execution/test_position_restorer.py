@@ -621,3 +621,208 @@ class TestPhase6412SLSafetyNet:
 
         assert len(virtual_positions) == 1
         assert virtual_positions[0]["sl_order_id"] == "sl_valid"
+
+
+# ========================================
+# Phase 65.15: NoneType安全性・take_profit型判定テスト
+# ========================================
+
+
+class TestPhase6515NoneTypeSafety:
+    """Phase 65.15: position_restorer.pyのNoneType安全性テスト"""
+
+    @pytest.fixture
+    def restorer(self):
+        return PositionRestorer()
+
+    async def test_restore_with_none_amount_in_orders(self, restorer):
+        """Phase 65.15: active_ordersのamountがNoneでもTypeErrorにならない"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 10000000}]
+        )
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_1",
+                    "side": "sell",
+                    "type": "limit",
+                    "price": 10100000,
+                    "amount": None,  # NoneでTypeError回避
+                },
+                {
+                    "id": "sl_1",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "price": 9900000,
+                    "stopPrice": 9900000,
+                    "amount": None,  # NoneでTypeError回避
+                },
+            ]
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["tp_order_id"] == "tp_1"
+        assert virtual_positions[0]["sl_order_id"] == "sl_1"
+
+    async def test_restore_with_none_trigger_prices(self, restorer):
+        """Phase 65.15: stopPrice/triggerPrice/priceが全てNoneでもクラッシュしない"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 10000000}]
+        )
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "sl_none_prices",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "stopPrice": None,
+                    "triggerPrice": None,
+                    "price": None,
+                    "amount": "0.01",
+                },
+            ]
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # trigger_price=0で妥当性検証スキップされSLマッチング
+        assert len(virtual_positions) == 1
+
+    async def test_orphan_scan_with_none_amount(self, restorer):
+        """Phase 65.15: 孤児スキャンでamount=NoneのTP/SL注文があってもクラッシュしない"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 10000000}]
+        )
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_none",
+                    "side": "sell",
+                    "type": "take_profit",
+                    "amount": None,
+                },
+                {
+                    "id": "sl_none",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "amount": None,
+                },
+            ]
+        )
+
+        mock_tp_sl = MagicMock()
+        mock_tp_sl.calculate_recovery_tp_sl_prices = MagicMock(return_value=(10100000, 9900000))
+        mock_tp_sl.place_tp_with_retry = AsyncMock(return_value={"order_id": "tp_new"})
+        mock_tp_sl.place_sl_or_market_close = AsyncMock(return_value={"order_id": "sl_new"})
+
+        virtual_positions = []
+        restorer._last_orphan_scan_time = None
+        await restorer.scan_orphan_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            tp_sl_manager=mock_tp_sl,
+        )
+
+        # amount=NoneでもTypeErrorにならずTP/SL設置試行される
+        assert len(virtual_positions) == 1
+
+
+class TestPhase6515TakeProfitTypeDetection:
+    """Phase 65.15: take_profit型TP注文の判定テスト"""
+
+    @pytest.fixture
+    def restorer(self):
+        return PositionRestorer()
+
+    async def test_restore_matches_take_profit_type_tp(self, restorer):
+        """Phase 65.15: take_profit型注文がTPとしてマッチングされる"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 10000000}]
+        )
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_native_001",
+                    "side": "sell",
+                    "type": "take_profit",  # take_profit型
+                    "price": 10100000,
+                    "amount": "0.01",
+                },
+            ]
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["tp_order_id"] == "tp_native_001"
+
+    async def test_orphan_scan_detects_take_profit_type(self, restorer):
+        """Phase 65.15: 孤児スキャンでtake_profit型注文がTPとして検出される"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 10000000}]
+        )
+        # take_profit型TP(0.01) + stop_limit型SL(0.01) → 95%カバレッジ達成
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_native",
+                    "side": "sell",
+                    "type": "take_profit",
+                    "amount": "0.01",
+                },
+                {
+                    "id": "sl_001",
+                    "side": "sell",
+                    "type": "stop_limit",
+                    "amount": "0.01",
+                },
+            ]
+        )
+
+        virtual_positions = []
+        restorer._last_orphan_scan_time = None
+        await restorer.scan_orphan_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            tp_sl_manager=MagicMock(),
+        )
+
+        # TP/SL両方検出されて「既設置」判定される
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["tp_order_id"] == "existing"
+        assert virtual_positions[0]["sl_order_id"] == "existing"
