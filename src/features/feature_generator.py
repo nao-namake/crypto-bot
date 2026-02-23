@@ -36,7 +36,7 @@ class FeatureGenerator:
     - 移動統計量（5個）: MA, Std
     - 交互作用（5個）: RSI×ATR, MACD×Volume等
     - 時間（7個）: hour, day_of_week, is_market_open_hour, is_europe_session, hour_cos, day_sin, day_cos
-    - 戦略シグナル（6個）: 6戦略の判断エンコード（設定駆動型・strategies.yamlから動的取得）
+    - 戦略シグナル（6個）: 6戦略の判断エンコード（設定駆動型・config/core/thresholds.yamlから動的取得）
     - NaN時は0埋め、strategy_signals=None時も6個を0.0で生成
     """
 
@@ -412,7 +412,7 @@ class FeatureGenerator:
         """
         Phase 51.7 Day 7: 戦略シグナル特徴量名を動的取得（設定駆動型）
 
-        strategies.yamlから戦略リストを読み込み、特徴量名辞書を生成。
+        config/core/thresholds.yamlから戦略リストを読み込み、特徴量名辞書を生成。
         これにより、戦略追加時に修正が不要になる。
 
         Returns:
@@ -444,10 +444,10 @@ class FeatureGenerator:
                 }
 
         Returns:
-            戦略シグナル特徴量が追加されたDataFrame（strategies.yamlから動的取得）
+            戦略シグナル特徴量が追加されたDataFrame（config/core/thresholds.yamlから動的取得）
 
         Note:
-            - Phase 51.7 Day 7: 6戦略統合・設定駆動型（strategies.yamlから動的読み込み）
+            - Phase 51.7 Day 7: 6戦略統合・設定駆動型（config/core/thresholds.yamlから動的読み込み）
             - Phase 50.1: 確実な特徴量生成（strategy_signals=None時も0.0で追加）
             - Phase 41: Strategy-Aware ML実装
             - MLが戦略の専門知識を学習可能に

@@ -1,7 +1,7 @@
 # Phase 65: ライブ取引頻度回復 + TP/SLフルカバー統合
 
 **期間**: 2026年2月21日-23日
-**状態**: Phase 65.9完了
+**状態**: Phase 65.11完了
 
 | Sub-Phase | 内容 | 状態 |
 |-----------|------|------|
@@ -14,6 +14,8 @@
 | **65.7** | risk/ 包括的コードレビュー（バグ修正2箇所） | ✅ 完了 |
 | **65.8** | balance/ 包括的コードレビュー（変更不要） | ✅ 完了 |
 | **65.9** | core/ 包括的コードレビュー（変更不要） | ✅ 完了 |
+| **65.10** | strategies.yaml 整理 + config/core/ 移動 | ✅ 完了 |
+| **65.11** | strategies.yaml → thresholds.yaml 統合（設定3→2ファイル完全移行） | ✅ 完了 |
 
 ---
 
@@ -593,3 +595,148 @@ System integrity: PASS (5 items)
 ### 修正ファイル
 
 ソースコード変更なし。ドキュメント更新のみ。
+
+---
+
+## Phase 65.10: strategies.yaml 整理 + config/core/ 移動
+
+**日付**: 2026年2月23日
+**目的**: Phase 65.3の設定ファイル整理に続き、`config/strategies.yaml`を整理して`config/core/`に移動。設定ファイルを`config/core/`に集約。
+
+### 背景
+
+`config/strategies.yaml`（161行）の調査で、**32フィールド中6フィールドのみ**がコードで使用されていることが判明。4つのセクション（計16フィールド）は完全に未参照。
+
+### 変更内容
+
+#### strategies.yaml 整理（161行→73行）
+
+**削除対象:**
+- トップレベル: `last_updated`, `phase`（コード未参照）
+- 各戦略から: `indicators`, `description`, `config_section`（未使用）
+- `integration` セクション全体（5フィールド）
+- `ml_features` セクション全体（3フィールド）
+- `management` セクション全体（5フィールド）
+- `logging` セクション全体（3フィールド）
+- 末尾コメントブロック
+
+**保持対象（各戦略7フィールド）:**
+- `enabled`, `class_name`, `module_path`, `strategy_type`, `weight`, `priority`, `regime_affinity`
+- `strategy_system_version`（ログで使用）
+
+#### ファイル移動
+
+```
+config/strategies.yaml → config/core/strategies.yaml
+```
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `config/strategies.yaml` | 整理（161→73行）+ `config/core/` に移動 |
+| `src/strategies/strategy_loader.py` | デフォルトパス + metadata 簡素化 + docstring |
+| `src/core/orchestration/orchestrator.py` | パス文字列更新 |
+| `scripts/ml/create_ml_models.py` | パス文字列更新 |
+| `scripts/testing/checks.sh` | パス + メッセージ更新 |
+| `scripts/testing/validate_ml_models.py` | パス + メッセージ更新 |
+| `tests/unit/strategies/test_strategy_loader.py` | アサーション更新 |
+| `src/core/services/dynamic_strategy_selector.py` | docstring更新 |
+| `src/features/feature_generator.py` | docstring更新 |
+| `src/features/__init__.py` | docstring更新 |
+| `src/features/README.md` | パス更新 |
+| `scripts/testing/README.md` | パス更新 |
+| `docs/運用ガイド/システムリファレンス.md` | パス更新（4箇所） |
+| `docs/運用ガイド/統合運用ガイド.md` | パス更新（2箇所） |
+| `CLAUDE.md` | しおり更新 |
+
+### 数値サマリー
+
+| 指標 | Before | After |
+|------|--------|-------|
+| strategies.yaml 行数 | 161行 | 73行（**-55%**） |
+| 使用フィールド数 | 6/32 | 6/6（未使用26削除） |
+| 未使用セクション | 4 | 0 |
+| ファイル場所 | `config/` | `config/core/`（統一） |
+
+---
+
+## Phase 65.11: strategies.yaml → thresholds.yaml 統合
+
+**日付**: 2026年2月23日
+**目的**: strategies.yaml を thresholds.yaml に統合し、設定ファイルを3→2体系に完全移行。戦略追加時の編集ファイルを2→1に削減。
+
+### 背景
+
+Phase 65.10 で strategies.yaml を整理・`config/core/` に移動したが、thresholds.yaml にも同じ6戦略の `strategies:` セクションがあり、**同一戦略の設定が2ファイルに分散**していた。
+
+### 変更内容
+
+#### thresholds.yaml: 戦略定義フィールドをマージ
+
+各戦略エントリの先頭に定義フィールド7個（enabled, class_name, module_path, strategy_type, weight, priority, regime_affinity）を追加。`strategy_system_version` をトップレベルに追加。
+
+#### strategy_loader.py: リファクタ
+
+| 変更 | 内容 |
+|------|------|
+| `__init__` | `config_path` 引数削除。`Path` / `yaml` import 不要に |
+| `_load_config()` | `yaml.safe_load()` → `get_all_thresholds()` 経由に変更 |
+| `_load_strategy()` | `_get_strategy_thresholds()` 呼び出し削除。`strategy_config` をそのまま渡す |
+| `_get_strategy_thresholds()` | メソッド削除 |
+
+#### strategies.yaml 削除
+
+`config/core/strategies.yaml` を削除。
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `config/core/thresholds.yaml` | `strategy_system_version` 追加 + 各戦略に定義フィールド追加 |
+| `config/core/strategies.yaml` | **削除** |
+| `src/strategies/strategy_loader.py` | リファクタ（config_path廃止・get_all_thresholds使用・_get_strategy_thresholds削除） |
+| `src/core/orchestration/orchestrator.py` | `StrategyLoader()` 引数削除 |
+| `scripts/ml/create_ml_models.py` | 同上 |
+| `scripts/testing/checks.sh` | thresholds.yaml から戦略読み込みに変更 |
+| `scripts/testing/validate_ml_models.py` | 同上 |
+| `tests/unit/strategies/test_strategy_loader.py` | 全テスト書き換え（get_all_thresholds モック方式） |
+| `src/features/feature_generator.py` | docstring更新 |
+| `src/features/__init__.py` | docstring更新 |
+| `src/features/README.md` | パス更新 |
+| `src/core/services/dynamic_strategy_selector.py` | docstring更新 |
+| `scripts/testing/README.md` | パス更新 |
+| `docs/運用ガイド/システムリファレンス.md` | パス・記述更新 |
+| `docs/運用ガイド/統合運用ガイド.md` | パス更新 |
+| `CLAUDE.md` | しおり + 設定体系更新 |
+| `docs/開発履歴/Phase_65.md` | Phase 65.11 追記 |
+
+### 数値サマリー
+
+| 指標 | Before | After |
+|------|--------|-------|
+| 設定ファイル数 | 3（unified + thresholds + strategies） | **2（unified + thresholds）** |
+| 戦略追加時の編集ファイル | 2 | **1** |
+| strategy_loader.py 行数 | ~299行 | ~252行 |
+
+### 検証結果
+
+#### 品質チェック（checks.sh 全12項目PASS）
+
+| チェック項目 | 結果 |
+|---|---|
+| [4/12] 戦略整合性検証 | ✅ thresholds.yaml から6戦略読み込み成功 |
+| [7/12] ML検証 | ✅ 55特徴量・3クラス分類 |
+| [8-10/12] flake8/isort/black | ✅ PASS |
+| [11/12] pytest | ✅ 1750件成功（test_strategy_loader.py 17件含む） |
+| [12/12] カバレッジ | ✅ 71.59% |
+
+#### 修正漏れチェック（全項目クリーン）
+
+| 検索パターン | 結果 |
+|---|---|
+| `strategies.yaml` 参照（コード・スクリプト・設定） | ゼロ（歴史的記録のみ） |
+| `StrategyLoader()` 引数付き呼び出し | ゼロ（全25箇所が引数なし） |
+| `_get_strategy_thresholds()` 参照 | ゼロ |
+| `config_path` 関連（strategy_loader） | ゼロ |
+| CI/Dockerfile/ワークフロー内参照 | ゼロ |

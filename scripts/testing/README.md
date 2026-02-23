@@ -167,9 +167,7 @@ python scripts/testing/validate_ml_models.py --check distribution
 ### 設定ファイル
 - `config/core/unified.yaml`: 統一設定
 - `config/core/thresholds.yaml`: 動的閾値・TP/SL設定
-- `config/core/features.yaml`: 機能トグル
 - `config/core/feature_order.json`: 55特徴量順序定義
-- `config/strategies.yaml`: 6戦略定義
 
 ### CI/CD
 - `.github/workflows/ci.yml`: CI品質ゲート

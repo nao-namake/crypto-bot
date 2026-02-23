@@ -223,7 +223,7 @@ class TestDynamicStrategySelector:
 
         # Phase 51.8: 6戦略全てを含む
         assert len(weights) == 6
-        # Phase 51.7 Day 7: 設定駆動型のため、strategies.yamlの構成に依存
+        # Phase 51.7 Day 7: 設定駆動型のため、thresholds.yamlの構成に依存
         # レンジ型戦略が正の重みを持つことを確認
         assert weights.get("ATRBased", 0) > 0 or weights.get("BBReversal", 0) > 0
         # トレンド型戦略は0.0か低い重み
@@ -237,7 +237,7 @@ class TestDynamicStrategySelector:
 
         # Phase 51.8: 6戦略全てを含む
         assert len(weights) == 6
-        # Phase 51.7 Day 7: 設定駆動型のため、strategies.yamlの構成に依存
+        # Phase 51.7 Day 7: 設定駆動型のため、thresholds.yamlの構成に依存
         # バランス型配分を確認
         assert sum(weights.values()) >= 0.0
         # 重み合計が1.0または0.0
@@ -249,7 +249,7 @@ class TestDynamicStrategySelector:
 
         # Phase 51.8: 6戦略全てを含む
         assert len(weights) == 6
-        # Phase 51.7 Day 7: 設定駆動型のため、strategies.yamlの構成に依存
+        # Phase 51.7 Day 7: 設定駆動型のため、thresholds.yamlの構成に依存
         # トレンド型戦略が正の重みを持つことを確認
         assert weights.get("ADXTrendStrength", 0) > 0 or weights.get("MACDEMACrossover", 0) > 0
         # 重み合計が1.0または0.0

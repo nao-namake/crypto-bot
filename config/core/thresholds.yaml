@@ -1,25 +1,32 @@
 # ========================================
 # パラメータ・閾値・機能トグル設定 (thresholds.yaml)
 # ========================================
-# 目的: 全パラメータ + 機能トグルの一元管理
+# 目的: 全パラメータ + 機能トグル + 戦略定義の一元管理
 #
 # このファイルの役割:
 #   1. ML統合パラメータ（信頼度閾値・重み・ボーナス/ペナルティ）
 #   2. 動的信頼度計算（市場不確実性調整・戦略別信頼度範囲）
-#   3. 戦略パラメータ（6戦略の閾値・信頼度計算）
+#   3. 戦略定義 + パラメータ（6戦略の定義・閾値・信頼度計算）
 #   4. リスク管理設定（Kelly基準・ドローダウン・証拠金維持率）
 #   5. ポジション管理設定（TP/SL・緊急決済）
 #   6. 機能トグル設定（feature_flags セクション）
 #
 # 設定ファイル体系:
 #   - unified.yaml: 環境・構造設定（exchange、mode、cloud_run等）
-#   - thresholds.yaml: 全パラメータ + 機能トグル（このファイル）
+#   - thresholds.yaml: 全パラメータ + 戦略定義 + 機能トグル（このファイル）
 #   - feature_order.json: 特徴量定義
+#
+# 戦略追加手順:
+#   1. 戦略クラスに@StrategyRegistry.register()追加
+#   2. このファイルの strategies セクションに戦略定義 + パラメータ追加
+#   → 完了！（orchestrator.py等の修正不要）
 #
 # 使用方法:
 #   - get_threshold()関数で動的に参照（ハードコード禁止）
 #
 # ========================================
+
+strategy_system_version: "2.0.0"
 
 # ========================================
 # 実行設定（Execution Settings）
@@ -311,12 +318,21 @@ position_limits:
   reject_on_limit: true
 
 # ========================================
-# 戦略パラメータ（Strategy Parameters）
+# 戦略定義 + パラメータ（Strategy Definitions & Parameters）
 # ========================================
-# 6戦略の閾値・信頼度計算設定
+# 6戦略の定義（enabled/class_name/module_path等）+ 閾値・信頼度計算設定
 # ========================================
 strategies:
   adx_trend:
+    # 戦略定義
+    enabled: true
+    class_name: "ADXTrendStrength"
+    module_path: "src.strategies.implementations.adx_trend"
+    strategy_type: "adx_trend"
+    weight: 0.10
+    priority: 3
+    regime_affinity: "range"
+    # 戦略パラメータ
     di_crossover_threshold: 0.5
     di_weak_signal_confidence: 0.35
     hold_confidence: 0.45
@@ -349,7 +365,15 @@ strategies:
     use_di_divergence: false          # DI乖離モード無効
 
   atr_based:
-    # ATR消尽率パラメータ
+    # 戦略定義
+    enabled: true
+    class_name: "ATRBased"
+    module_path: "src.strategies.implementations.atr_based"
+    strategy_type: "atr_based"
+    weight: 0.15
+    priority: 1
+    regime_affinity: "range"
+    # 戦略パラメータ（ATR消尽率）
     exhaustion_threshold: 0.70       # 高品質シグナルのみ
     high_exhaustion_threshold: 0.85  # 高確信シグナル
     adx_range_threshold: 25          # レンジ判定
@@ -369,6 +393,15 @@ strategies:
     # ストップロス設定
     sl_atr_multiplier: 1.5
   donchian_channel:
+    # 戦略定義
+    enabled: true
+    class_name: "DonchianChannel"
+    module_path: "src.strategies.implementations.donchian_channel"
+    strategy_type: "donchian_channel"
+    weight: 0.20
+    priority: 2
+    regime_affinity: "range"
+    # 戦略パラメータ
     adx_max_threshold: 28
     extreme_zone_threshold: 0.18
     rsi_oversold: 48
@@ -382,6 +415,15 @@ strategies:
     rsi_as_bonus: true
     rsi_mismatch_penalty: 0.08
   bb_reversal:
+    # 戦略定義
+    enabled: true
+    class_name: "BBReversal"
+    module_path: "src.strategies.implementations.bb_reversal"
+    strategy_type: "bb_reversal"
+    weight: 0.30
+    priority: 4
+    regime_affinity: "range"
+    # 戦略パラメータ
     min_confidence: 0.25
     hold_confidence: 0.20
     bb_width_threshold: 0.035
@@ -397,6 +439,15 @@ strategies:
     rsi_extreme_bonus: 0.05
     rsi_mismatch_penalty: 0.05
   stochastic_reversal:
+    # 戦略定義
+    enabled: true
+    class_name: "StochasticReversal"
+    module_path: "src.strategies.implementations.stochastic_reversal"
+    strategy_type: "stochastic_reversal"
+    weight: 0.20
+    priority: 5
+    regime_affinity: "range"
+    # 戦略パラメータ
     divergence_lookback: 5
     divergence_price_threshold: 0.0010
     divergence_stoch_threshold: 4
@@ -412,6 +463,15 @@ strategies:
     zone_bonus: 0.12
     sl_multiplier: 1.5
   macd_ema_crossover:
+    # 戦略定義
+    enabled: true
+    class_name: "MACDEMACrossover"
+    module_path: "src.strategies.implementations.macd_ema_crossover"
+    strategy_type: "macd_ema_crossover"
+    weight: 0.05
+    priority: 6
+    regime_affinity: "trend"
+    # 戦略パラメータ
     min_confidence: 0.30
     hold_confidence: 0.25
     adx_trend_threshold: 18

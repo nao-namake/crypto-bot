@@ -111,7 +111,7 @@ class DynamicStrategySelector:
         """
         Phase 51.7 Day 7: レジーム別デフォルト重み取得（設定駆動型・6戦略対応）
 
-        strategies.yamlから戦略を動的読み込みし、regime_affinityに基づいて
+        config/core/thresholds.yamlから戦略を動的読み込みし、regime_affinityに基づいて
         レジーム別の重み付けを自動計算。戦略追加時の修正箇所を削減。
 
         重要: StrategyManager.update_strategy_weights()は部分的な更新のみを行うため、

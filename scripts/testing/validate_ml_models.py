@@ -101,8 +101,8 @@ class MLModelValidator:
             return None
 
     def _count_active_strategies(self) -> int:
-        """strategies.yamlから有効戦略数をカウント"""
-        path = self.project_root / "config/strategies.yaml"
+        """thresholds.yamlから有効戦略数をカウント"""
+        path = self.project_root / "config/core/thresholds.yaml"
         if not path.exists():
             self.warnings.append(f"⚠️  {path} not found - 戦略数検証スキップ")
             return 0
@@ -111,15 +111,15 @@ class MLModelValidator:
             import yaml
 
             with open(path, "r", encoding="utf-8") as f:
-                strategies_config = yaml.safe_load(f)
+                thresholds_config = yaml.safe_load(f)
 
-            strategies = strategies_config.get("strategies", {})
+            strategies = thresholds_config.get("strategies", {})
             if isinstance(strategies, dict):
                 active = [
                     (name, cfg) for name, cfg in strategies.items() if cfg.get("enabled", False)
                 ]
                 count = len(active)
-                print(f"\n✅ strategies.yaml読み込み成功")
+                print(f"\n✅ config/core/thresholds.yaml 戦略読み込み成功")
                 print(f"   有効戦略数: {count}")
                 for name, _ in active:
                     print(f"     - {name}")
@@ -128,7 +128,7 @@ class MLModelValidator:
                 count = len(active)
             return count
         except Exception as e:
-            self.warnings.append(f"⚠️  strategies.yaml読み込みエラー: {e}")
+            self.warnings.append(f"⚠️  config/core/thresholds.yaml 戦略読み込みエラー: {e}")
             return 0
 
     def validate_feature_counts(self) -> None:

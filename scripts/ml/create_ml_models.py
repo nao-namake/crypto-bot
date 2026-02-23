@@ -335,10 +335,10 @@ class NewSystemMLModelCreator:
         Returns:
             pd.DataFrame: 戦略信号5列のDataFrame (index aligned with df)
         """
-        # Phase 51.7 Day 7: strategies.yamlから動的ロード（6戦略対応）
+        # Phase 51.7 Day 7: thresholds.yamlから動的ロード（6戦略対応）
         from src.strategies.strategy_loader import StrategyLoader
 
-        strategy_loader = StrategyLoader("config/strategies.yaml")
+        strategy_loader = StrategyLoader()
         loaded_strategies = strategy_loader.load_strategies()
         strategy_names = [s["metadata"]["name"] for s in loaded_strategies]
 

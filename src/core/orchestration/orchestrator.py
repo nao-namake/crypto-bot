@@ -339,7 +339,7 @@ async def create_trading_orchestrator(
 
         # Phase 51.5-B: 動的戦略管理システム（StrategyLoader使用）
         strategy_service = StrategyManager()
-        strategy_loader = StrategyLoader("config/strategies.yaml")
+        strategy_loader = StrategyLoader()
         loaded_strategies = strategy_loader.load_strategies()
 
         logger.info(f"✅ Phase 51.5-B: {len(loaded_strategies)}戦略をロードしました")

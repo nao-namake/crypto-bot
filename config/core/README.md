@@ -4,7 +4,7 @@
 
 システム全体で使用する基本設定を管理する中核フォルダです。3つのファイルにより、環境設定・パラメータ・機能トグル・特徴量定義を管理します。
 
-**Phase 65.3（2026年2月22日）**:
+**Phase 65.11（2026年2月23日）**:
 - 55特徴量（49基本+6戦略信号）
 - 6戦略統合・3モデルアンサンブル
 - 2ファイル体系（unified.yaml + thresholds.yaml）
@@ -42,7 +42,7 @@ trading_constraints: # 通貨ペア・取引制約
 ```yaml
 ml:                    # ML統合設定（アンサンブル重み・信頼度閾値）
 dynamic_confidence:    # 動的信頼度計算（6戦略の信頼度範囲）
-strategies:            # 戦略パラメータ（6戦略の閾値）
+strategies:            # 戦略定義+パラメータ（6戦略・定義/閾値/重み統合）
 trading:               # 取引設定（手数料・Kelly基準・信頼度レベル）
 position_management:   # ポジション管理（TP/SL・クールダウン）
 margin:                # 証拠金管理（維持率閾値80%）
@@ -150,4 +150,4 @@ print(get_threshold('position_management.take_profit.min_profit_ratio'))
 
 ---
 
-**最終更新**: Phase 65.3（2026年2月22日）
+**最終更新**: Phase 65.11（2026年2月23日）

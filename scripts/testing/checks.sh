@@ -154,20 +154,20 @@ fi
 echo ""
 echo "🎯 [4/12] 戦略整合性検証..."
 
-# strategies.yaml から戦略リスト取得
+# thresholds.yaml から戦略リスト取得
 STRATEGIES_YAML_STRATEGIES=$(python3 -c "
 import yaml
-with open('config/strategies.yaml') as f:
+with open('config/core/thresholds.yaml') as f:
     data = yaml.safe_load(f)
     strategies = data.get('strategies', {})
     print(' '.join(sorted(strategies.keys())))
 " 2>&1)
 
 if [ $? -ne 0 ]; then
-    echo "  ❌ ERROR: strategies.yaml の読み込みに失敗"
+    echo "  ❌ ERROR: config/core/thresholds.yaml の戦略読み込みに失敗"
     ERRORS=$((ERRORS + 1))
 else
-    echo "  📋 strategies.yaml 戦略: $STRATEGIES_YAML_STRATEGIES"
+    echo "  📋 thresholds.yaml 戦略: $STRATEGIES_YAML_STRATEGIES"
 fi
 
 # feature_order.json の strategy_signal 特徴量取得
@@ -193,7 +193,7 @@ if [ -n "$STRATEGIES_YAML_STRATEGIES" ] && [ -n "$FEATURE_STRATEGIES" ]; then
     FEATURE_COUNT=$(echo $FEATURE_STRATEGIES | wc -w | tr -d ' ')
 
     if [ "$STRATEGIES_COUNT" != "$FEATURE_COUNT" ]; then
-        echo "  ⚠️  WARNING: 戦略数不一致 - strategies.yaml:$STRATEGIES_COUNT vs feature_order.json:$FEATURE_COUNT"
+        echo "  ⚠️  WARNING: 戦略数不一致 - thresholds.yaml:$STRATEGIES_COUNT vs feature_order.json:$FEATURE_COUNT"
     else
         echo "  ✅ 戦略数一致: $STRATEGIES_COUNT 戦略"
     fi
