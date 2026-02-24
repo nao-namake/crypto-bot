@@ -475,7 +475,7 @@ class OrderStrategy:
 
     def _calculate_maker_price(self, side: str, best_bid: float, best_ask: float) -> float:
         """
-        Phase 62.9: Maker価格計算（板の内側に配置）
+        Phase 62.9 + Phase 65.16: Maker価格計算（板の内側に配置）
 
         Args:
             side: 売買方向（buy/sell）
@@ -488,25 +488,25 @@ class OrderStrategy:
         tick = get_threshold("order_execution.maker_strategy.price_adjustment_tick", 1)
 
         if side.lower() == "buy":
-            # 買い注文: bid直上（最良買い気配+1tick）
             price = best_bid + tick
-            # ask以上になってはいけない（即時約定=Taker化）
             if price >= best_ask:
-                self.logger.debug(
-                    f"📡 Phase 62.9: 買いMaker価格がask以上 {price:.0f} >= {best_ask:.0f}"
+                # Phase 65.16: スプレッド≤1tickでinside配置不可 → best_bidに配置（Maker確定）
+                price = best_bid
+                self.logger.info(
+                    f"📡 Phase 65.16: スプレッド狭小({best_ask - best_bid:.0f}円) "
+                    f"→ best_bid={best_bid:.0f}円に配置"
                 )
-                return 0
             return round(price)
 
         elif side.lower() == "sell":
-            # 売り注文: ask直下（最良売り気配-1tick）
             price = best_ask - tick
-            # bid以下になってはいけない（即時約定=Taker化）
             if price <= best_bid:
-                self.logger.debug(
-                    f"📡 Phase 62.9: 売りMaker価格がbid以下 {price:.0f} <= {best_bid:.0f}"
+                # Phase 65.16: スプレッド≤1tickでinside配置不可 → best_askに配置（Maker確定）
+                price = best_ask
+                self.logger.info(
+                    f"📡 Phase 65.16: スプレッド狭小({best_ask - best_bid:.0f}円) "
+                    f"→ best_ask={best_ask:.0f}円に配置"
                 )
-                return 0
             return round(price)
 
         else:

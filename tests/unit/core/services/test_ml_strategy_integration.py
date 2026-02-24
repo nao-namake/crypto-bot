@@ -534,3 +534,370 @@ class TestMinStrategyConfidence:
         assert result.action == "hold"
         assert result.metadata["forced_hold_reason"] == "min_strategy_confidence"
         assert result.metadata["original_action"] == "sell"
+
+
+class TestMLSignalRecovery:
+    """Phase 65.16: ML Signal Recovery テスト"""
+
+    @pytest.fixture
+    def mock_orchestrator(self):
+        orchestrator = Mock()
+        orchestrator.config = Mock()
+        orchestrator.config.mode = "paper"
+        return orchestrator
+
+    @pytest.fixture
+    def trading_cycle_manager(self, mock_orchestrator):
+        logger = CryptoBotLogger(name="test_ml_recovery")
+        return TradingCycleManager(mock_orchestrator, logger)
+
+    def _make_threshold_side_effect(self, recovery_enabled=True, recovery_overrides=None):
+        """ML Signal Recovery用のthreshold mock生成"""
+        recovery_config = {
+            "enabled": recovery_enabled,
+            "min_ml_confidence": 0.55,
+            "min_individual_confidence": 0.30,
+            "recovery_confidence_cap": 0.35,
+        }
+        if recovery_overrides:
+            recovery_config.update(recovery_overrides)
+
+        def side_effect(key, default):
+            thresholds = {
+                "ml.strategy_integration.enabled": True,
+                "ml.strategy_integration.min_strategy_confidence": 0.22,
+                "ml.strategy_integration.min_ml_confidence": 0.32,
+                "ml.strategy_integration.ml_weight": 0.35,
+                "ml.strategy_integration.strategy_weight": 0.7,
+                "ml.strategy_integration.high_confidence_threshold": 0.6,
+                "ml.strategy_integration.agreement_bonus": 1.2,
+                "ml.strategy_integration.disagreement_penalty": 0.95,
+                "ml.strategy_integration.hold_conversion_threshold": 0.15,
+                "ml.strategy_integration.ml_signal_recovery": recovery_config,
+                "ml.regime_ml_integration.enabled": False,
+            }
+            return thresholds.get(key, default)
+
+        return side_effect
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_basic_buy(self, mock_get_threshold, trading_cycle_manager):
+        """ML Recovery基本動作: 戦略HOLD + ML BUY + 個別戦略BUY → BUY回復"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 2, "confidence": 0.65}  # BUY
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.35,
+            strength=0.35,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.45},
+            "BBReversal": {"action": "hold", "confidence": 0.30},
+            "StochasticDivergence": {"action": "hold", "confidence": 0.25},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "buy"
+        assert result.metadata["ml_recovery"] is True
+        assert result.metadata["recovery_strategy"] == "ATRBased"
+        assert result.confidence <= 0.35  # cap適用
+        assert result.confidence == min(0.65 * 0.45, 0.35)
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_basic_sell(self, mock_get_threshold, trading_cycle_manager):
+        """ML Recovery: 戦略HOLD + ML SELL + 個別戦略SELL → SELL回復"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 0, "confidence": 0.70}  # SELL
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "MACDEMACrossover": {"action": "sell", "confidence": 0.40},
+            "BBReversal": {"action": "hold", "confidence": 0.20},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "sell"
+        assert result.metadata["ml_recovery"] is True
+        assert result.metadata["recovery_strategy"] == "MACDEMACrossover"
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_not_triggered_ml_hold(self, mock_get_threshold, trading_cycle_manager):
+        """ML自体がHOLD → Recovery不発動"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 1, "confidence": 0.80}  # HOLD
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.50},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "hold"
+        assert result.metadata.get("ml_recovery") is not True
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_not_triggered_ml_low_confidence(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """ML信頼度不足（0.50 < 0.55） → Recovery不発動"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 2, "confidence": 0.50}  # BUY but low confidence
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.50},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "hold"
+        assert result.metadata.get("ml_recovery") is not True
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_not_triggered_no_agreeing_strategy(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """個別戦略が同方向なし → Recovery不発動"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 2, "confidence": 0.70}  # BUY
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "hold", "confidence": 0.50},
+            "BBReversal": {"action": "sell", "confidence": 0.40},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "hold"
+        assert result.metadata.get("ml_recovery") is not True
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_not_triggered_strategy_low_confidence(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """同方向戦略あるが信頼度不足（0.25 < 0.30） → Recovery不発動"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 2, "confidence": 0.70}  # BUY
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.25},  # 0.25 < 0.30
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "hold"
+        assert result.metadata.get("ml_recovery") is not True
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_disabled(self, mock_get_threshold, trading_cycle_manager):
+        """Recovery無効時 → Recovery不発動"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect(recovery_enabled=False)
+
+        ml_prediction = {"prediction": 2, "confidence": 0.70}  # BUY
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.50},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "hold"
+        assert result.metadata.get("ml_recovery") is not True
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_confidence_cap(self, mock_get_threshold, trading_cycle_manager):
+        """回復信頼度がcapを超えない"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect(
+            recovery_overrides={"recovery_confidence_cap": 0.20}
+        )
+
+        ml_prediction = {"prediction": 2, "confidence": 0.90}  # BUY high
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.80},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "buy"
+        assert result.metadata["ml_recovery"] is True
+        # 0.90 * 0.80 = 0.72 → cap 0.20
+        assert result.confidence == 0.20
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_picks_highest_confidence_strategy(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """複数の同方向戦略 → 最高信頼度を選択"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 2, "confidence": 0.65}  # BUY
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.35},
+            "StochasticDivergence": {"action": "buy", "confidence": 0.50},
+            "BBReversal": {"action": "hold", "confidence": 0.40},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        assert result.action == "buy"
+        assert result.metadata["ml_recovery"] is True
+        assert result.metadata["recovery_strategy"] == "StochasticDivergence"
+        assert result.metadata["recovery_strategy_confidence"] == 0.50
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_not_triggered_when_strategy_not_hold(
+        self, mock_get_threshold, trading_cycle_manager
+    ):
+        """戦略がHOLDでない場合 → Recovery不発動（通常フロー）"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 2, "confidence": 0.70}  # BUY
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="buy",  # 既にBUY
+            confidence=0.50,
+            strength=0.50,
+            current_price=14500000.0,
+        )
+        individual_signals = {
+            "ATRBased": {"action": "buy", "confidence": 0.50},
+        }
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=individual_signals,
+        )
+
+        # 通常のML統合フロー（Recoveryではない）
+        assert result.action == "buy"
+        assert result.metadata.get("ml_recovery") is not True
+        assert result.metadata["ml_adjusted"] is True
+
+    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    def test_recovery_no_individual_signals(self, mock_get_threshold, trading_cycle_manager):
+        """individual_strategy_signals=None → Recovery不発動"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect()
+
+        ml_prediction = {"prediction": 2, "confidence": 0.70}  # BUY
+        strategy_signal = StrategySignal(
+            strategy_name="weighted_vote",
+            timestamp=datetime.now(),
+            action="hold",
+            confidence=0.30,
+            strength=0.30,
+            current_price=14500000.0,
+        )
+
+        result = trading_cycle_manager._integrate_ml_with_strategy(
+            ml_prediction,
+            strategy_signal,
+            individual_strategy_signals=None,
+        )
+
+        assert result.action == "hold"
+        assert result.metadata.get("ml_recovery") is not True

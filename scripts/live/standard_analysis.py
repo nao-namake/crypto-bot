@@ -1132,10 +1132,29 @@ class LiveAnalyzer:
             """,
                 (start_time,),
             )
-            trades = [dict(row) for row in cursor.fetchall()]
+            all_rows = [dict(row) for row in cursor.fetchall()]
             conn.close()
 
+            # Phase 65.15: Paper tradeを除外 + order_id重複排除
+            # Paper tradeはライブ分析の対象外
+            live_rows = [r for r in all_rows if "Paper trade" not in (r.get("notes") or "")]
+            # 同一order_idの重複レコードを排除（最新のみ残す）
+            seen_order_ids = set()
+            trades = []
+            for r in live_rows:
+                oid = r.get("order_id")
+                if oid and oid in seen_order_ids:
+                    continue
+                if oid:
+                    seen_order_ids.add(oid)
+                trades.append(r)
+
             self.result.trades_count = len(trades)
+            if len(all_rows) != len(trades):
+                self.logger.info(
+                    f"📊 Phase 65.15: DB {len(all_rows)}件 → "
+                    f"Paper除外・重複排除後 {len(trades)}件"
+                )
 
             # Phase 61.11: GCPログからTP/SL発動数を取得（DBにexit記録がないため）
             # Phase 61.9の自動執行検知ログを使用
@@ -2297,11 +2316,17 @@ async def main():
         print("証拠金維持率: N/A (ポジションなし)")
     else:
         print(f"証拠金維持率: {result.margin_ratio:.1f}%")
-    print(f"取引数: {result.trades_count}件")
+    # Phase 65.15: エントリー数と決済数を分けて表示
+    tp_count = getattr(result, "tp_triggered_count", 0)
+    sl_count = getattr(result, "sl_triggered_count", 0)
+    exit_count = tp_count + sl_count
+    print(
+        f"取引数: エントリー{result.trades_count}件 / 決済{exit_count}件 (TP:{tp_count} SL:{sl_count})"
+    )
     # Phase 61.11: 勝率N/A対応
     if result.win_rate < 0:
         print("勝率: N/A (pnlデータなし)")
-    elif result.total_pnl == 0 and (result.tp_triggered_count > 0 or result.sl_triggered_count > 0):
+    elif result.total_pnl == 0 and (tp_count > 0 or sl_count > 0):
         print(f"勝率: {result.win_rate:.1f}% (TP/SL推定)")
     else:
         print(f"勝率: {result.win_rate:.1f}%")

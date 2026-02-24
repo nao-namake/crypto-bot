@@ -107,9 +107,13 @@ class TradingCycleManager:
             # Phase 6: 追加情報取得（リスク管理のため）
             trading_info = await self._fetch_trading_info(market_data)
 
-            # Phase 7: リスク管理・統合判定
+            # Phase 7: リスク管理・統合判定（Phase 65.16: 個別戦略シグナル受け渡し）
             trade_evaluation = await self._evaluate_risk(
-                ml_prediction, strategy_signal, main_features, trading_info
+                ml_prediction,
+                strategy_signal,
+                main_features,
+                trading_info,
+                individual_strategy_signals=strategy_signals,
             )
 
             # Phase 8: 注文実行
@@ -580,7 +584,14 @@ class TradingCycleManager:
             "api_latency_ms": api_latency_ms,
         }
 
-    async def _evaluate_risk(self, ml_prediction, strategy_signal, main_features, trading_info):
+    async def _evaluate_risk(
+        self,
+        ml_prediction,
+        strategy_signal,
+        main_features,
+        trading_info,
+        individual_strategy_signals=None,
+    ):
         """Phase 7: リスク管理・統合判定（Phase 29.5: ML予測統合）"""
         try:
             # Phase 51.9: レジーム分類（ML統合前に実行）
@@ -593,9 +604,12 @@ class TradingCycleManager:
                     self.logger.warning(f"⚠️ レジーム分類エラー: {e} - デフォルト設定使用")
                     regime = "unknown"
 
-            # Phase 29.5 + Phase 51.9: ML予測を戦略シグナルと統合（レジーム別）
+            # Phase 29.5 + Phase 51.9 + Phase 65.16: ML予測を戦略シグナルと統合
             integrated_signal = self._integrate_ml_with_strategy(
-                ml_prediction, strategy_signal, regime=regime
+                ml_prediction,
+                strategy_signal,
+                regime=regime,
+                individual_strategy_signals=individual_strategy_signals,
             )
 
             # Phase 54.9: バックテスト用基準時刻を取得
@@ -649,14 +663,18 @@ class TradingCycleManager:
         }
 
     def _integrate_ml_with_strategy(
-        self, ml_prediction: dict, strategy_signal: StrategySignal, regime: str = "unknown"
+        self,
+        ml_prediction: dict,
+        strategy_signal: StrategySignal,
+        regime: str = "unknown",
+        individual_strategy_signals: dict = None,
     ) -> StrategySignal:
         """
-        Phase 29.5 + Phase 51.9: ML予測と戦略シグナルの統合（レジーム別最適化）
+        Phase 29.5 + Phase 51.9 + Phase 65.16: ML予測と戦略シグナルの統合
 
         ML予測結果を戦略シグナルと統合し、最終的な取引信頼度を調整。
         Phase 51.9: レジーム別にML統合パラメータを動的適用。
-        一致時はボーナス、不一致時はペナルティを適用。
+        Phase 65.16: ML Signal Recovery（戦略HOLDをMLでオーバーライド）。
 
         Args:
             ml_prediction: ML予測結果 {"prediction": int, "confidence": float}
@@ -664,6 +682,7 @@ class TradingCycleManager:
             strategy_signal: 戦略シグナル (StrategySignalオブジェクト)
             regime: 市場レジーム (Phase 51.9: レジーム別パラメータ適用)
                    "tight_range", "normal_range", "trending", "high_volatility", "unknown"
+            individual_strategy_signals: 個別戦略シグナル辞書（Phase 65.16: ML Recovery用）
 
         Returns:
             StrategySignal: 統合後のシグナル（ML調整済み）
@@ -859,6 +878,64 @@ class TradingCycleManager:
                 # ML信頼度が高くない場合は加重平均のみ
                 adjusted_confidence = base_confidence
                 self.logger.debug(f"📊 ML通常統合（加重平均のみ）: {base_confidence:.3f}")
+
+            # Phase 65.16: ML Signal Recovery
+            # 戦略がHOLD → MLが方向性を持つ → 個別戦略が1つでも同方向 → HOLDオーバーライド
+            if strategy_action == "hold" and ml_action != "hold" and individual_strategy_signals:
+                recovery_config = get_threshold("ml.strategy_integration.ml_signal_recovery", {})
+                if recovery_config.get("enabled", False):
+                    recovery_min_ml = recovery_config.get("min_ml_confidence", 0.55)
+                    recovery_min_strategy = recovery_config.get("min_individual_confidence", 0.30)
+                    recovery_cap = recovery_config.get("recovery_confidence_cap", 0.35)
+
+                    if ml_confidence >= recovery_min_ml:
+                        # MLと同方向の個別戦略を検索
+                        agreeing_strategy = None
+                        for name, sig in individual_strategy_signals.items():
+                            sig_action = sig.get("action", "hold")
+                            sig_conf = sig.get("confidence", 0)
+                            if sig_action == ml_action and sig_conf >= recovery_min_strategy:
+                                if agreeing_strategy is None or sig_conf > agreeing_strategy[1]:
+                                    agreeing_strategy = (name, sig_conf)
+
+                        if agreeing_strategy:
+                            strategy_name, strategy_conf = agreeing_strategy
+                            recovery_confidence = min(ml_confidence * strategy_conf, recovery_cap)
+
+                            self.logger.warning(
+                                f"🔄 Phase 65.16: ML Signal Recovery発動 - "
+                                f"HOLD→{ml_action.upper()} "
+                                f"(ML={ml_action}({ml_confidence:.3f}), "
+                                f"支持戦略={strategy_name}({strategy_conf:.3f}), "
+                                f"回復信頼度={recovery_confidence:.3f})"
+                            )
+
+                            from ...strategies.base.strategy_base import StrategySignal
+
+                            return StrategySignal(
+                                strategy_name=strategy_name,
+                                timestamp=strategy_signal.timestamp,
+                                action=ml_action,
+                                confidence=recovery_confidence,
+                                strength=recovery_confidence,
+                                current_price=strategy_signal.current_price,
+                                entry_price=strategy_signal.entry_price,
+                                stop_loss=strategy_signal.stop_loss,
+                                take_profit=strategy_signal.take_profit,
+                                position_size=strategy_signal.position_size,
+                                risk_ratio=strategy_signal.risk_ratio,
+                                indicators=strategy_signal.indicators,
+                                reason=f"Phase 65.16: ML Recovery ({strategy_name}+ML合意)",
+                                metadata={
+                                    **(strategy_signal.metadata or {}),
+                                    "ml_recovery": True,
+                                    "ml_action": ml_action,
+                                    "ml_confidence": ml_confidence,
+                                    "recovery_strategy": strategy_name,
+                                    "recovery_strategy_confidence": strategy_conf,
+                                    "original_action": "hold",
+                                },
+                            )
 
             # 統合結果を新しいStrategySignalオブジェクトとして返す
             from ...strategies.base.strategy_base import StrategySignal

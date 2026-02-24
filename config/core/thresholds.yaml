@@ -223,6 +223,12 @@ ml:
     min_ml_confidence: 0.32      # Phase 55.3: 0.35→0.32（閾値緩和）
     hold_conversion_threshold: 0.15  # Phase 55.5: 0.20→0.15（HOLD変換さらに緩和）
     min_strategy_confidence: 0.22   # Phase 65: 0.25→0.22（0.246-0.248のシグナルが僅差で遮断されていた問題を解消）
+    # Phase 65.16: ML Signal Recovery（戦略HOLDをMLでオーバーライド）
+    ml_signal_recovery:
+      enabled: true
+      min_ml_confidence: 0.55          # ML信頼度の最低閾値
+      min_individual_confidence: 0.30   # 同方向戦略の最低信頼度
+      recovery_confidence_cap: 0.35     # 回復シグナル信頼度の上限
   # レジーム別ML統合設定
   regime_ml_integration:
     enabled: true  # Phase 51.9: レジーム別ML統合有効化
