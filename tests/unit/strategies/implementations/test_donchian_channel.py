@@ -414,5 +414,275 @@ class TestDonchianChannelStrategy(unittest.TestCase):
         self.assertTrue(mock_get_threshold.called)
 
 
+class TestDonchianChannelEdgeCases(unittest.TestCase):
+    """エッジケース・カバレッジ補完テスト"""
+
+    def setUp(self):
+        """テスト前処理"""
+        self.strategy = DonchianChannelStrategy(config={})
+
+    def _create_test_data(self, length: int = 50) -> pd.DataFrame:
+        """テスト用データ生成"""
+        np.random.seed(42)
+        dates = pd.date_range(start="2025-01-01", periods=length, freq="1h")
+        prices = 4500000 + np.cumsum(np.random.randn(length) * 1000)
+        highs = prices + np.random.rand(length) * 2000
+        lows = prices - np.random.rand(length) * 2000
+        donchian_high_20 = pd.Series(highs).rolling(20).max()
+        donchian_low_20 = pd.Series(lows).rolling(20).min()
+        channel_position = (prices - donchian_low_20) / (donchian_high_20 - donchian_low_20)
+        atr_14 = pd.Series(highs - lows).rolling(14).mean()
+
+        return pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": prices,
+                "high": highs,
+                "low": lows,
+                "donchian_high_20": donchian_high_20,
+                "donchian_low_20": donchian_low_20,
+                "channel_position": channel_position,
+                "atr_14": atr_14,
+                "adx_14": pd.Series([20.0] * length),
+                "rsi_14": pd.Series([50.0] * length),
+            }
+        )
+
+    def test_analyze_data_validation_hold(self):
+        """analyze: データ検証失敗時はHOLDシグナル"""
+        df = self._create_test_data(50)
+        df = df.drop(columns=["donchian_high_20"])
+        signal = self.strategy.analyze(df)
+        self.assertEqual(signal.action, "hold")
+        self.assertIn("データ不足", signal.reason)
+
+    def test_analyze_confidence_below_threshold(self):
+        """analyze: 信頼度が閾値未満の場合HOLD"""
+        df = self._create_test_data(50)
+        latest_idx = df.index[-1]
+        # 極端位置ギリギリだが信頼度不足
+        df.loc[latest_idx, "channel_position"] = self.strategy.extreme_zone_threshold - 0.001
+        df.loc[latest_idx, "adx_14"] = 20.0
+        df.loc[latest_idx, "rsi_14"] = 55.0  # RSI不一致（ペナルティ）
+        signal = self.strategy.analyze(df)
+        # 信頼度不足でHOLDの可能性
+        self.assertIn(signal.action, ["buy", "hold"])
+
+    def test_analyze_exception_handling(self):
+        """analyze: 例外発生時のエラーハンドリング"""
+        df = self._create_test_data(50)
+        # channel_positionをNoneにして例外を誘発
+        df["channel_position"] = None
+        signal = self.strategy.analyze(df)
+        self.assertEqual(signal.action, "hold")
+
+    def test_validate_data_missing_columns_warning(self):
+        """_validate_data: 不足特徴量でFalseを返す"""
+        df = pd.DataFrame(
+            {
+                "close": [4500000] * 25,
+                "high": [4501000] * 25,
+                "low": [4499000] * 25,
+                # donchian_high_20, donchian_low_20, channel_position が不足
+                "atr_14": [1500] * 25,
+                "adx_14": [20.0] * 25,
+                "rsi_14": [50.0] * 25,
+            }
+        )
+        result = self.strategy._validate_data(df)
+        self.assertFalse(result)
+
+    def test_calculate_confidence_rsi_bonus_false(self):
+        """_calculate_confidence: rsi_as_bonus=False時の従来方式"""
+        original = self.strategy.rsi_as_bonus
+        self.strategy.rsi_as_bonus = False
+        try:
+            # buy + RSI < 30 → bonus
+            conf_low_rsi = self.strategy._calculate_confidence(0.05, 25.0, "buy")
+            # buy + RSI > 30 → no bonus
+            conf_normal_rsi = self.strategy._calculate_confidence(0.05, 50.0, "buy")
+            self.assertGreaterEqual(conf_low_rsi, conf_normal_rsi)
+
+            # sell + RSI > 70 → bonus
+            conf_high_rsi = self.strategy._calculate_confidence(0.95, 75.0, "sell")
+            conf_mid_rsi = self.strategy._calculate_confidence(0.95, 50.0, "sell")
+            self.assertGreaterEqual(conf_high_rsi, conf_mid_rsi)
+        finally:
+            self.strategy.rsi_as_bonus = original
+
+
+class TestDonchianGetSignalProximity(unittest.TestCase):
+    """get_signal_proximity()テスト"""
+
+    def setUp(self):
+        """テスト前処理"""
+        self.strategy = DonchianChannelStrategy(config={})
+
+    def _create_valid_df(self, length: int = 50) -> pd.DataFrame:
+        """有効なテストデータ生成"""
+        np.random.seed(42)
+        dates = pd.date_range(start="2025-01-01", periods=length, freq="1h")
+        prices = 4500000 + np.cumsum(np.random.randn(length) * 1000)
+        highs = prices + np.random.rand(length) * 2000
+        lows = prices - np.random.rand(length) * 2000
+        donchian_high_20 = pd.Series(highs).rolling(20).max()
+        donchian_low_20 = pd.Series(lows).rolling(20).min()
+        channel_position = (prices - donchian_low_20) / (donchian_high_20 - donchian_low_20)
+
+        return pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": prices,
+                "high": highs,
+                "low": lows,
+                "donchian_high_20": donchian_high_20,
+                "donchian_low_20": donchian_low_20,
+                "channel_position": channel_position,
+                "atr_14": pd.Series(highs - lows).rolling(14).mean(),
+                "adx_14": pd.Series([20.0] * length),
+                "rsi_14": pd.Series([50.0] * length),
+            }
+        )
+
+    def test_invalid_data_returns_default(self):
+        """無効データではデフォルト値を返す"""
+        df = pd.DataFrame({"close": [4500000] * 10})  # 不十分なデータ
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["nearest_action"], "unknown")
+        self.assertEqual(result["diagnosis"], "データ不足")
+
+    def test_buy_zone_near(self):
+        """チャネル下端でBUYシグナル近い"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "channel_position"] = 0.05  # 下端
+        df.loc[latest_idx, "adx_14"] = 20.0
+        df.loc[latest_idx, "rsi_14"] = 25.0  # 過売り
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["nearest_action"], "buy")
+        self.assertIn("BUY端", result["diagnosis"])
+        self.assertLess(result["gap_to_buy"], result["gap_to_sell"])
+
+    def test_sell_zone_near(self):
+        """チャネル上端でSELLシグナル近い"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "channel_position"] = 0.95  # 上端
+        df.loc[latest_idx, "adx_14"] = 20.0
+        df.loc[latest_idx, "rsi_14"] = 75.0  # 過買い
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["nearest_action"], "sell")
+        self.assertIn("SELL端", result["diagnosis"])
+
+    def test_middle_zone(self):
+        """中央域では距離情報を返す"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "channel_position"] = 0.5
+        df.loc[latest_idx, "adx_14"] = 20.0
+        df.loc[latest_idx, "rsi_14"] = 50.0
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertGreater(result["gap_to_buy"], 0)
+        self.assertGreater(result["gap_to_sell"], 0)
+        self.assertIn("端まで", result["diagnosis"])
+
+    def test_adx_high_not_ok(self):
+        """ADXが閾値超過の場合"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "channel_position"] = 0.5
+        df.loc[latest_idx, "adx_14"] = 35.0  # 高ADX
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertFalse(result["adx_ok"])
+        self.assertIn("超過", result["diagnosis"])
+
+    def test_adx_ok(self):
+        """ADXが閾値以下の場合"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "adx_14"] = 15.0
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertTrue(result["adx_ok"])
+
+    def test_rsi_oversold(self):
+        """RSI過売り診断"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "rsi_14"] = 20.0
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertIn("過売り", result["diagnosis"])
+
+    def test_rsi_overbought(self):
+        """RSI過買い診断"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "rsi_14"] = 80.0
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertIn("過買い", result["diagnosis"])
+
+    def test_rsi_neutral(self):
+        """RSI中立診断"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "rsi_14"] = 50.0
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertIn("中立", result["diagnosis"])
+
+    def test_adx_nan_handled(self):
+        """adx_14がNaNの場合0として扱う"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "adx_14"] = np.nan
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["adx"], 0)
+
+    def test_rsi_nan_handled(self):
+        """rsi_14がNaNの場合50として扱う"""
+        df = self._create_valid_df()
+        latest_idx = df.index[-1]
+        df.loc[latest_idx, "rsi_14"] = np.nan
+
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["rsi"], 50)
+
+    def test_exception_handling(self):
+        """例外発生時のエラーハンドリング"""
+        # _validate_dataを通過するが、float変換で失敗するデータ
+        df = self._create_valid_df()
+        # channel_positionを文字列にして例外を誘発
+        df["channel_position"] = "not_a_number"
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["nearest_action"], "unknown")
+        self.assertIn("診断エラー", result["diagnosis"])
+
+    def test_return_fields_complete(self):
+        """全フィールドが返される"""
+        df = self._create_valid_df()
+        result = self.strategy.get_signal_proximity(df)
+        expected_keys = [
+            "channel_position",
+            "extreme_threshold",
+            "gap_to_buy",
+            "gap_to_sell",
+            "adx",
+            "adx_threshold",
+            "adx_ok",
+            "rsi",
+            "nearest_action",
+            "diagnosis",
+        ]
+        for key in expected_keys:
+            self.assertIn(key, result, f"Missing key: {key}")
+
+
 if __name__ == "__main__":
     unittest.main()

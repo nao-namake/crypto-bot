@@ -635,5 +635,179 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         self.assertFalse(analysis["adx_rising"])
 
 
+class TestADXRSIDrivenMode(unittest.TestCase):
+    """Phase 56.9: RSI主導型レンジ逆張りモードテスト"""
+
+    def setUp(self):
+        """テスト前処理"""
+        self.config = {}
+        self.strategy = ADXTrendStrengthStrategy(config=self.config)
+        # テスト用にRSI主導モードを強制有効化
+        self.strategy.use_rsi_driven_mode = True
+
+    def _create_test_data(self, length: int = 50) -> pd.DataFrame:
+        """テスト用データ生成"""
+        np.random.seed(42)
+        dates = pd.date_range(start="2025-01-01", periods=length, freq="1h")
+        prices = 4500000 + np.cumsum(np.random.randn(length) * 1000)
+        highs = prices + np.random.rand(length) * 2000
+        lows = prices - np.random.rand(length) * 2000
+        volumes = 1000 + np.random.rand(length) * 500
+        adx_14 = np.full(length, 18.0)  # レンジ相場
+        plus_di_14 = np.full(length, 15.0)
+        minus_di_14 = np.full(length, 15.0)
+        atr_14 = pd.Series(highs - lows).rolling(14).mean()
+
+        return pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": prices,
+                "high": highs,
+                "low": lows,
+                "volume": volumes,
+                "adx_14": adx_14,
+                "plus_di_14": plus_di_14,
+                "minus_di_14": minus_di_14,
+                "atr_14": atr_14,
+                "volume_ratio": np.full(length, 1.0),
+                "rsi_14": np.full(length, 50.0),
+                "bb_position": np.full(length, 0.5),
+            }
+        )
+
+    def test_rsi_buy_signal(self):
+        """RSI主導: 売られすぎ + BB下端でBUY"""
+        df = self._create_test_data()
+        latest_idx = df.index[-1]
+        prev_idx = df.index[-2]
+
+        # レンジ相場 + RSI売られすぎ + BB下端
+        df.loc[latest_idx, "adx_14"] = 15.0
+        df.loc[prev_idx, "adx_14"] = 16.0  # ADX下降
+        df.loc[latest_idx, "plus_di_14"] = 15.0
+        df.loc[latest_idx, "minus_di_14"] = 15.0
+        df.loc[prev_idx, "plus_di_14"] = 15.0
+        df.loc[prev_idx, "minus_di_14"] = 15.0
+        df.loc[latest_idx, "rsi_14"] = 25.0  # 売られすぎ
+        df.loc[latest_idx, "bb_position"] = 0.10  # BB下端
+
+        signal = self.strategy.generate_signal(df)
+        self.assertEqual(signal.action, "buy")
+
+    def test_rsi_sell_signal(self):
+        """RSI主導: 買われすぎ + BB上端でSELL"""
+        df = self._create_test_data()
+        latest_idx = df.index[-1]
+        prev_idx = df.index[-2]
+
+        df.loc[latest_idx, "adx_14"] = 15.0
+        df.loc[prev_idx, "adx_14"] = 16.0
+        df.loc[latest_idx, "plus_di_14"] = 15.0
+        df.loc[latest_idx, "minus_di_14"] = 15.0
+        df.loc[prev_idx, "plus_di_14"] = 15.0
+        df.loc[prev_idx, "minus_di_14"] = 15.0
+        df.loc[latest_idx, "rsi_14"] = 75.0  # 買われすぎ
+        df.loc[latest_idx, "bb_position"] = 0.90  # BB上端
+
+        signal = self.strategy.generate_signal(df)
+        self.assertEqual(signal.action, "sell")
+
+    def test_rsi_no_match_hold(self):
+        """RSI主導: 条件不適合でHOLD"""
+        df = self._create_test_data()
+        latest_idx = df.index[-1]
+        prev_idx = df.index[-2]
+
+        df.loc[latest_idx, "adx_14"] = 15.0
+        df.loc[prev_idx, "adx_14"] = 16.0
+        df.loc[latest_idx, "plus_di_14"] = 15.0
+        df.loc[latest_idx, "minus_di_14"] = 15.0
+        df.loc[prev_idx, "plus_di_14"] = 15.0
+        df.loc[prev_idx, "minus_di_14"] = 15.0
+        df.loc[latest_idx, "rsi_14"] = 50.0  # 中立
+        df.loc[latest_idx, "bb_position"] = 0.5  # 中央
+
+        signal = self.strategy.generate_signal(df)
+        self.assertEqual(signal.action, "hold")
+
+    def test_rsi_missing_feature(self):
+        """RSI主導: rsi_14がない場合はStrategyError"""
+        from src.core.exceptions import StrategyError
+
+        df = self._create_test_data()
+        latest_idx = df.index[-1]
+        prev_idx = df.index[-2]
+
+        df.loc[latest_idx, "adx_14"] = 15.0
+        df.loc[prev_idx, "adx_14"] = 16.0
+        df.loc[latest_idx, "plus_di_14"] = 15.0
+        df.loc[latest_idx, "minus_di_14"] = 15.0
+        df.loc[prev_idx, "plus_di_14"] = 15.0
+        df.loc[prev_idx, "minus_di_14"] = 15.0
+        df = df.drop(columns=["rsi_14"])
+
+        with self.assertRaises(StrategyError):
+            self.strategy.generate_signal(df)
+
+
+class TestADXConfidenceCalculations(unittest.TestCase):
+    """ADX信頼度計算テスト"""
+
+    def setUp(self):
+        """テスト前処理"""
+        self.strategy = ADXTrendStrengthStrategy(config={})
+
+    def test_rsi_reversal_confidence_buy_extreme(self):
+        """RSI逆張り信頼度: 買い極端RSI"""
+        conf = self.strategy._calculate_rsi_reversal_confidence(
+            rsi=20.0, bb_position=0.10, adx_falling=True, direction="buy"
+        )
+        self.assertGreaterEqual(conf, 0.40)
+        self.assertLessEqual(conf, 0.70)
+
+    def test_rsi_reversal_confidence_sell_extreme(self):
+        """RSI逆張り信頼度: 売り極端RSI"""
+        conf = self.strategy._calculate_rsi_reversal_confidence(
+            rsi=80.0, bb_position=0.90, adx_falling=True, direction="sell"
+        )
+        self.assertGreaterEqual(conf, 0.40)
+        self.assertLessEqual(conf, 0.70)
+
+    def test_rsi_reversal_confidence_no_bonus(self):
+        """RSI逆張り信頼度: ボーナスなし"""
+        conf = self.strategy._calculate_rsi_reversal_confidence(
+            rsi=40.0, bb_position=0.40, adx_falling=False, direction="buy"
+        )
+        self.assertGreaterEqual(conf, 0.40)
+
+    def test_di_divergence_confidence_low_adx(self):
+        """DI乖離信頼度: 低ADX"""
+        analysis = {"adx": 10, "volume_ratio": 0.8}
+        conf = self.strategy._calculate_di_divergence_confidence(analysis, 15.0)
+        self.assertGreaterEqual(conf, 0.40)
+        self.assertLessEqual(conf, 0.60)
+
+    def test_di_divergence_confidence_mid_adx(self):
+        """DI乖離信頼度: 中ADX"""
+        analysis = {"adx": 14, "volume_ratio": 1.0}
+        conf = self.strategy._calculate_di_divergence_confidence(analysis, 15.0)
+        self.assertGreaterEqual(conf, 0.40)
+
+    def test_di_divergence_confidence_high_volume(self):
+        """DI乖離信頼度: 高ボリューム"""
+        analysis = {"adx": 17, "volume_ratio": 1.5}
+        conf = self.strategy._calculate_di_divergence_confidence(analysis, 15.0)
+        self.assertGreaterEqual(conf, 0.40)
+
+    def test_range_reversal_confidence_low_adx_high_volume(self):
+        """レンジ逆張り信頼度: 低ADX+高ボリューム"""
+        analysis = {"adx": 12, "volume_ratio": 1.5}
+        conf = self.strategy._calculate_range_reversal_confidence(
+            analysis, di_change=8.0, di_diff_abs=12.0
+        )
+        self.assertGreaterEqual(conf, 0.35)
+        self.assertLessEqual(conf, 0.55)
+
+
 if __name__ == "__main__":
     unittest.main()

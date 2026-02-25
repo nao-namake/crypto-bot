@@ -891,3 +891,114 @@ System integrity: PASS (6 items)
 - 「Phase 56.5: 既存ポジションTP/SL確保失敗」ログが消滅すること
 - 「Phase 65.14: VP追跡注文キャンセル」ログが新エントリー時に出現すること
 - SLキャンセル後の定期チェックでSL再配置が成功すること
+
+---
+
+## Phase 65.15: TP/SL設置フロー最終チェック
+
+**日付**: 2026年2月24日
+**目的**: Phase 65.14に続き、TP/SL設置フローの残存NoneTypeバグ横展開・take_profit型TP判定漏れ・VP二重カウント防止を修正
+
+### 修正1: NoneType安全性の横展開（position_restorer.py: 3箇所）
+
+Phase 65.14ではtp_sl_manager.pyのfloat(None)を修正したが、同パターンがposition_restorer.pyにも残存:
+
+| # | 箇所 | 内容 |
+|---|------|------|
+| 1 | triggerPrice取得 | `float(o.get("triggerPrice") or 0)` に統一 |
+| 2 | amount取得（TP集計） | `float(o.get("amount") or 0)` に統一 |
+| 3 | amount取得（SL集計） | 同上 |
+
+### 修正2: take_profit型TP判定（3箇所）
+
+bitbankのTP注文は`order_type="take_profit"`を返す場合があるが、既存コードは`"limit"`のみをTP判定していた:
+
+| # | ファイル | 修正内容 |
+|---|---------|---------|
+| 1 | position_restorer.py | TP判定に`take_profit`型を追加 |
+| 2 | position_restorer.py | 孤児スキャンのTP判定に`take_profit`型を追加 |
+| 3 | tp_sl_manager.py | カバレッジ計算のTP判定に`take_profit`型を追加 |
+
+### 修正3: VP補完二重カウント防止（tp_sl_manager.py）
+
+`ensure_tp_sl_for_existing_positions`でVP追跡のTP/SL注文をカバレッジに加算する際、アクティブ注文と重複してカウントされる問題を修正。既にアクティブ注文で計上済みのorder_idをスキップ。
+
+### 修正4: VP amount安全性（tp_sl_manager.py: 2箇所）
+
+VP追跡のTP/SL amount取得時のNoneType安全性を追加。
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/execution/position_restorer.py` | NoneType安全性3箇所 + take_profit型TP判定2箇所 |
+| `src/trading/execution/tp_sl_manager.py` | take_profit型TP判定1箇所 + VP二重カウント防止 + VP amount安全性2箇所 |
+| `tests/unit/trading/execution/test_position_restorer.py` | NoneType耐性テスト追加 |
+| `tests/unit/trading/execution/test_tp_sl_manager.py` | take_profit型検出・VP二重カウント防止テスト追加 |
+| `tests/unit/trading/execution/test_executor.py` | Phase 65.15の動作変更に対応 |
+
+### 品質チェック結果
+
+```
+pytest: 1766 passed, 1 skipped
+flake8: PASS
+black: PASS
+isort: PASS
+ML validation: PASS
+System integrity: PASS (6 items)
+```
+
+---
+
+## Phase 65.16: Maker約定修正（1円スプレッド対応）+ ML Signal Recovery実装
+
+**日付**: 2026年2月25日
+**目的**: Maker戦略の1円スプレッド問題を修正し、ML Signal Recovery機能を実装
+
+### 修正1: Maker約定修正 — 1円スプレッド対応
+
+**問題**: BTC/JPYのスプレッドが最小1円（1tick）の場合、`_calculate_maker_price()`がinside配置不可（best_bidとbest_askの間に価格がない）→ return 0 → Takerフォールバックとなっていた。
+
+**修正**: スプレッド≤1tickの場合にbest_bid（買い）/ best_ask（売り）に配置し、`post_only=True`でMaker確定。
+
+| ファイル | 変更 |
+|---------|------|
+| `src/trading/execution/order_strategy.py` | `_calculate_maker_price()`: スプレッド≤1tick時にbest_bid/best_ask配置 |
+
+### 新機能2: ML Signal Recovery
+
+**背景**: 戦略の加重投票がHOLDになるケースが多い（特にtight_range）。MLが方向性を持ち、個別戦略が1つ以上同方向に投票している場合でも、加重平均でHOLDに丸められて取引機会を逃していた。
+
+**設計**: MLを7つ目の擬似戦略として活用。戦略統合がHOLDでも、ML + 個別戦略の合意があればHOLDをオーバーライドしてシグナルを回復する。
+
+| 発動条件 | 閾値 |
+|---------|------|
+| 戦略統合結果 | hold（必須） |
+| ML予測方向 | buy or sell（holdでない） |
+| ML信頼度 | 0.55以上 |
+| 同方向個別戦略信頼度 | 0.30以上 |
+| 回復信頼度キャップ | 0.35（ポジションサイズ抑制） |
+
+**回復信頼度計算**: `min(ML信頼度 × 同方向戦略信頼度, 0.35)`
+
+### 修正ファイル一覧
+
+| ファイル | 修正内容 |
+|---------|---------|
+| `src/trading/execution/order_strategy.py` | `_calculate_maker_price()` 1円スプレッド対応 |
+| `src/core/services/trading_cycle_manager.py` | `_integrate_ml_with_strategy()` ML Signal Recovery実装 |
+| `config/core/thresholds.yaml` | `ml.strategy_integration.ml_signal_recovery` 設定追加 |
+| `tests/unit/trading/execution/test_order_strategy.py` | Maker価格計算テスト10件追加 |
+| `tests/unit/core/services/test_ml_strategy_integration.py` | ML Recoveryテスト11件追加 |
+
+### 設定
+
+```yaml
+ml:
+  strategy_integration:
+    ml_signal_recovery:
+      enabled: true
+      min_ml_confidence: 0.55
+      min_strategy_confidence: 0.30
+      recovery_confidence_cap: 0.35
+```

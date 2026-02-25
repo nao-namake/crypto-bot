@@ -117,3 +117,42 @@ class TestTradingInitUtilities:
         assert drawdown_config["max_drawdown_ratio"] == 0.20
         assert drawdown_config["consecutive_loss_limit"] == 5
         assert drawdown_config["cooldown_hours"] == 6  # Phase 55.12: 6時間に変更
+
+    def test_create_risk_manager_backtest_mode(self):
+        """backtestモードでのリスク管理器作成（mode_balancesから取得）"""
+        risk_manager = create_risk_manager(mode="backtest")
+        assert risk_manager is not None
+
+    def test_create_risk_manager_paper_mode(self):
+        """paperモードでのリスク管理器作成（mode_balancesから取得）"""
+        risk_manager = create_risk_manager(mode="paper")
+        assert risk_manager is not None
+
+
+class TestTradeEvaluationAction:
+    """TradeEvaluation.actionプロパティテスト"""
+
+    def test_action_property(self):
+        """actionプロパティはsideフィールドを返す"""
+        from datetime import datetime
+
+        from src.trading.core.enums import RiskDecision
+        from src.trading.core.types import TradeEvaluation
+
+        eval_ = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.2,
+            position_size=0.001,
+            stop_loss=14000000.0,
+            take_profit=14200000.0,
+            confidence_level=0.8,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.05,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+        assert eval_.action == "buy"

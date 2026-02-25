@@ -517,3 +517,34 @@ def test_realistic_anomaly_scenario():
     # should_pause, reasons = detector.should_pause_trading()
     # assert should_pause == True
     # assert len(reasons) >= 2
+
+
+def test_volume_spike_with_varying_data():
+    """出来高スパイク検知: 分散のあるデータで閾値超えテスト"""
+    import numpy as np
+
+    detector = TradingAnomalyDetector(volume_spike_zscore_threshold=3.0)
+    # 平均1000, std~100のボリュームデータ
+    np.random.seed(42)
+    volumes = (1000 + np.random.randn(20) * 100).tolist()
+    market_data = pd.DataFrame({"close": [50000] * 20, "volume": volumes})
+
+    # 非常に大きなボリューム（平均+10σ超）で検知される
+    alerts = detector.comprehensive_anomaly_check(
+        bid=50000,
+        ask=50100,
+        last_price=50050,
+        volume=5000,  # 平均1000に対し4σ以上
+        api_latency_ms=500,
+        market_data=market_data,
+    )
+    volume_alerts = [a for a in alerts if "ボリューム" in a.message]
+    assert len(volume_alerts) == 1
+    assert volume_alerts[0].level == AnomalyLevel.WARNING
+
+
+def test_spread_anomaly_zero_price():
+    """スプレッド異常: last_price=0のときNone"""
+    detector = TradingAnomalyDetector()
+    result = detector._check_spread_anomaly(bid=50000, ask=50100, last_price=0)
+    assert result is None

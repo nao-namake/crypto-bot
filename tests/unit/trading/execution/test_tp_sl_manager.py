@@ -1223,3 +1223,21 @@ class TestPhase6515VPDoubleCountPrevention:
         # INACTIVE SLはVP補完でカウント→カバレッジOK→再配置されない
         mock_client.create_stop_loss_order = MagicMock()
         mock_client.create_stop_loss_order.assert_not_called()
+
+
+class TestTPSLConfigPaths:
+    """TPSLConfig パス生成メソッドテスト"""
+
+    def test_tp_regime_config(self):
+        """tp_regime_config: レジーム別TP設定ブロックパス"""
+        from src.trading.execution.tp_sl_config import TPSLConfig
+
+        path = TPSLConfig.tp_regime_config("tight_range")
+        assert path == "position_management.take_profit.regime_based.tight_range"
+
+    def test_sl_regime_config(self):
+        """sl_regime_config: レジーム別SL設定ブロックパス"""
+        from src.trading.execution.tp_sl_config import TPSLConfig
+
+        path = TPSLConfig.sl_regime_config("trending")
+        assert path == "position_management.stop_loss.regime_based.trending"

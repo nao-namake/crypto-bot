@@ -905,3 +905,436 @@ class TestOrderStrategyErrorHandling:
         # 検証
         assert result["order_type"] == "market"
         assert result["strategy"] == "emergency_market"
+
+
+class TestOrderStrategyUnfavorableStrategy:
+    """確実約定戦略テスト（entry_price_strategy=unfavorable）"""
+
+    def setup_method(self):
+        self.order_strategy = OrderStrategy()
+
+        from src.trading import RiskDecision
+
+        self.buy_eval = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+
+        self.sell_eval = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="sell",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_unfavorable_buy_price(self, mock_threshold):
+        """確実約定戦略: 買いはask+premium"""
+        mock_threshold.side_effect = lambda key, default: {
+            "order_execution.entry_price_strategy": "unfavorable",
+            "order_execution.guaranteed_execution_premium": 0.0005,
+        }.get(key, default)
+
+        conditions = {"best_bid": 14500000, "best_ask": 14510000}
+        price = await self.order_strategy._calculate_limit_price(self.buy_eval, conditions)
+        expected = round(14510000 * 1.0005)
+        assert price == expected
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_unfavorable_sell_price(self, mock_threshold):
+        """確実約定戦略: 売りはbid-premium"""
+        mock_threshold.side_effect = lambda key, default: {
+            "order_execution.entry_price_strategy": "unfavorable",
+            "order_execution.guaranteed_execution_premium": 0.0005,
+        }.get(key, default)
+
+        conditions = {"best_bid": 14500000, "best_ask": 14510000}
+        price = await self.order_strategy._calculate_limit_price(self.sell_eval, conditions)
+        expected = round(14500000 * 0.9995)
+        assert price == expected
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_unfavorable_invalid_side(self, mock_threshold):
+        """確実約定戦略: 不正side→0"""
+        mock_threshold.side_effect = lambda key, default: {
+            "order_execution.entry_price_strategy": "unfavorable",
+            "order_execution.guaranteed_execution_premium": 0.0005,
+        }.get(key, default)
+
+        from src.trading import RiskDecision
+
+        invalid_eval = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="invalid",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+        conditions = {"best_bid": 14500000, "best_ask": 14510000}
+        price = await self.order_strategy._calculate_limit_price(invalid_eval, conditions)
+        assert price == 0
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_limit_price_exception(self, mock_threshold):
+        """_calculate_limit_price: 例外発生時は0を返す"""
+        mock_threshold.side_effect = Exception("threshold error")
+        conditions = {"best_bid": 14500000, "best_ask": 14510000}
+        price = await self.order_strategy._calculate_limit_price(self.buy_eval, conditions)
+        assert price == 0
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_determine_order_strategy_exception(self, mock_threshold):
+        """_determine_order_strategy: 例外時はerror_fallback_market"""
+        mock_threshold.side_effect = Exception("error")
+        from src.trading import RiskDecision
+
+        eval_ = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.65,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+        result = await self.order_strategy._determine_order_strategy(0.8, 0.75, {}, eval_)
+        assert result["strategy"] == "error_fallback_market"
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_assess_market_conditions_inner_exception(self, mock_threshold):
+        """_assess_market_conditions: 板情報取得エラーでorderbook_error"""
+        mock_threshold.return_value = 0.005
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(side_effect=Exception("inner error"))
+        result = await self.order_strategy._assess_market_conditions(mock_client)
+        assert "orderbook_error" in result
+
+
+class TestMakerExecutionConfig:
+    """get_maker_execution_config テスト"""
+
+    def setup_method(self):
+        self.order_strategy = OrderStrategy()
+
+        from src.trading import RiskDecision
+
+        self.eval_ = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.0001,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_maker_disabled(self, mock_threshold):
+        """Maker戦略無効時"""
+        mock_threshold.return_value = {"enabled": False}
+        result = await self.order_strategy.get_maker_execution_config(self.eval_)
+        assert result["use_maker"] is False
+        assert result["disable_reason"] == "disabled"
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_maker_no_client(self, mock_threshold):
+        """クライアントなし時"""
+        mock_threshold.return_value = {"enabled": True}
+        result = await self.order_strategy.get_maker_execution_config(self.eval_)
+        assert result["use_maker"] is False
+        assert result["disable_reason"] == "no_client"
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_maker_conditions_not_viable(self, mock_threshold):
+        """市場条件不適格時"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "order_execution.maker_strategy": {
+                "enabled": True,
+                "volatility_threshold": 0.02,
+            },
+            "order_execution.maker_strategy.price_adjustment_tick": 1,
+        }.get(key, default)
+
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(return_value=None)
+
+        result = await self.order_strategy.get_maker_execution_config(
+            self.eval_, bitbank_client=mock_client
+        )
+        assert result["use_maker"] is False
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    async def test_maker_success(self, mock_threshold):
+        """Maker戦略成功時"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "order_execution.maker_strategy": {
+                "enabled": True,
+                "min_spread_for_maker": 0,
+                "volatility_threshold": 0.02,
+            },
+            "order_execution.maker_strategy.price_adjustment_tick": 1,
+        }.get(key, default)
+
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(
+            return_value={
+                "bids": [[14500000, 0.5]],
+                "asks": [[14500010, 0.3]],
+            }
+        )
+
+        result = await self.order_strategy.get_maker_execution_config(
+            self.eval_, bitbank_client=mock_client
+        )
+        assert result["use_maker"] is True
+        assert result["price"] > 0
+
+
+class TestAssessMakerConditions:
+    """_assess_maker_conditions テスト"""
+
+    def setup_method(self):
+        self.order_strategy = OrderStrategy()
+
+    @pytest.mark.asyncio
+    async def test_orderbook_unavailable(self):
+        """板情報取得失敗"""
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(return_value=None)
+        config = {"volatility_threshold": 0.02}
+        result = await self.order_strategy._assess_maker_conditions(mock_client, config)
+        assert result["maker_viable"] is False
+
+    @pytest.mark.asyncio
+    async def test_empty_bids(self):
+        """bidsが空"""
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(return_value={"bids": [], "asks": [[14500000, 0.3]]})
+        config = {"volatility_threshold": 0.02}
+        result = await self.order_strategy._assess_maker_conditions(mock_client, config)
+        assert result["maker_viable"] is False
+
+    @pytest.mark.asyncio
+    async def test_invalid_prices(self):
+        """無効な価格"""
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(
+            return_value={"bids": [[0, 0.5]], "asks": [[14500000, 0.3]]}
+        )
+        config = {"volatility_threshold": 0.02}
+        result = await self.order_strategy._assess_maker_conditions(mock_client, config)
+        assert result["maker_viable"] is False
+
+    @pytest.mark.asyncio
+    async def test_spread_too_narrow(self):
+        """スプレッドが狭すぎる"""
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(
+            return_value={"bids": [[14500000, 0.5]], "asks": [[14500001, 0.3]]}
+        )
+        config = {"min_spread_for_maker": 0.001, "volatility_threshold": 0.02}
+        result = await self.order_strategy._assess_maker_conditions(mock_client, config)
+        assert result["maker_viable"] is False
+        assert result["disable_reason"] == "spread_too_narrow"
+
+    @pytest.mark.asyncio
+    async def test_high_volatility(self):
+        """高ボラティリティ"""
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(
+            return_value={"bids": [[14500000, 0.5]], "asks": [[14800000, 0.3]]}
+        )
+        config = {"min_spread_for_maker": 0, "volatility_threshold": 0.01}
+        result = await self.order_strategy._assess_maker_conditions(mock_client, config)
+        assert result["maker_viable"] is False
+        assert result["disable_reason"] == "high_volatility"
+
+    @pytest.mark.asyncio
+    async def test_viable(self):
+        """条件適格"""
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(
+            return_value={"bids": [[14500000, 0.5]], "asks": [[14500100, 0.3]]}
+        )
+        config = {"min_spread_for_maker": 0, "volatility_threshold": 0.02}
+        result = await self.order_strategy._assess_maker_conditions(mock_client, config)
+        assert result["maker_viable"] is True
+
+    @pytest.mark.asyncio
+    async def test_exception(self):
+        """例外発生時"""
+        mock_client = AsyncMock()
+        mock_client.fetch_order_book = Mock(side_effect=Exception("network error"))
+        config = {"volatility_threshold": 0.02}
+        result = await self.order_strategy._assess_maker_conditions(mock_client, config)
+        assert result["maker_viable"] is False
+
+
+class TestEnsureMinimumTradeSize:
+    """ensure_minimum_trade_size テスト"""
+
+    def setup_method(self):
+        self.order_strategy = OrderStrategy()
+
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    def test_dynamic_disabled(self, mock_threshold):
+        """動的ポジションサイジング無効時は変更なし"""
+        mock_threshold.return_value = False
+        from src.trading import RiskDecision
+
+        eval_ = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.00005,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+        result = self.order_strategy.ensure_minimum_trade_size(eval_)
+        assert result.position_size == 0.00005
+
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    def test_below_minimum(self, mock_threshold):
+        """最小ロット未満の場合最小ロットに補正"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.dynamic_position_sizing.enabled": True,
+            "trading_constraints.min_trade_size": 0.0001,
+        }.get(key, default)
+
+        from src.trading import RiskDecision
+
+        eval_ = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.00005,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+        result = self.order_strategy.ensure_minimum_trade_size(eval_)
+        assert result.position_size == 0.0001
+
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    def test_above_minimum(self, mock_threshold):
+        """最小ロット以上の場合変更なし"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.dynamic_position_sizing.enabled": True,
+            "trading_constraints.min_trade_size": 0.0001,
+        }.get(key, default)
+
+        from src.trading import RiskDecision
+
+        eval_ = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.001,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+        result = self.order_strategy.ensure_minimum_trade_size(eval_)
+        assert result.position_size == 0.001
+
+    @patch("src.trading.execution.order_strategy.get_threshold")
+    def test_exception(self, mock_threshold):
+        """例外時は元のevaluation返却"""
+        mock_threshold.side_effect = Exception("error")
+        from src.trading import RiskDecision
+
+        eval_ = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.1,
+            position_size=0.00005,
+            stop_loss=14000000.0,
+            take_profit=14500000.0,
+            confidence_level=0.85,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=datetime.now(),
+            kelly_recommendation=0.03,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+        )
+        result = self.order_strategy.ensure_minimum_trade_size(eval_)
+        assert result.position_size == 0.00005

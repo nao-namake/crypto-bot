@@ -32,7 +32,7 @@ echo "🚀 品質チェック開始 (Phase 61)"
 echo "============================================="
 
 # カバレッジ最低ライン
-COV_FAIL_UNDER=62
+COV_FAIL_UNDER=75
 
 # プロジェクトルート設定
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

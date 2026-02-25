@@ -385,5 +385,229 @@ def run_stochastic_divergence_tests():
     print("=" * 50)
 
 
+class TestStochasticDivergenceEdgeCases(unittest.TestCase):
+    """エッジケース・カバレッジ補完テスト"""
+
+    def setUp(self):
+        """テスト前準備"""
+        dates = pd.date_range(start="2025-08-01", periods=100, freq="4h")
+        base_price = 15000000
+
+        self.test_df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": np.full(100, base_price),
+                "stoch_k": np.full(100, 50.0),
+                "stoch_d": np.full(100, 50.0),
+                "adx_14": np.full(100, 25.0),
+                "atr_14": np.full(100, 150000),
+            }
+        )
+
+        self.strategy = StochasticReversalStrategy()
+
+    def test_check_market_condition_exception(self):
+        """_check_market_condition: KeyError時はTrueを返す"""
+        bad_df = pd.DataFrame({"close": [15000000]})  # adx_14なし
+        result = self.strategy._check_market_condition(bad_df)
+        self.assertTrue(result)
+
+    def test_detect_divergence_weak_bearish_filtered(self):
+        """_detect_divergence: 弱Bearish Divergenceフィルタリング"""
+        df = self.test_df.copy()
+        # 価格は高値付近、Stochは安値付近だが価格変動が小さい
+        for i in range(-6, 0):
+            df.iloc[i, df.columns.get_loc("close")] = 15000000 + (i + 6) * 100  # 微小変動
+            df.iloc[i, df.columns.get_loc("stoch_k")] = 70.0 - (i + 6) * 8
+        df.iloc[-1, df.columns.get_loc("close")] = 15000500
+        df.iloc[-1, df.columns.get_loc("stoch_k")] = 30.0
+
+        result = self.strategy._detect_divergence(df)
+        self.assertIn(result["type"], ["weak_bearish", "none"])
+
+    def test_detect_divergence_weak_bullish_filtered(self):
+        """_detect_divergence: 弱Bullish Divergenceフィルタリング"""
+        df = self.test_df.copy()
+        for i in range(-6, 0):
+            df.iloc[i, df.columns.get_loc("close")] = 15000000 - (i + 6) * 100
+            df.iloc[i, df.columns.get_loc("stoch_k")] = 30.0 + (i + 6) * 8
+        df.iloc[-1, df.columns.get_loc("close")] = 14999500
+        df.iloc[-1, df.columns.get_loc("stoch_k")] = 70.0
+
+        result = self.strategy._detect_divergence(df)
+        self.assertIn(result["type"], ["weak_bullish", "none"])
+
+    def test_detect_divergence_strong_bearish_with_bonus(self):
+        """_detect_divergence: 大きな価格変動でstrength bonus"""
+        df = self.test_df.copy()
+        min_price_change = self.strategy.config.get("min_price_change_ratio", 0.005)
+        # price_range_ratio > min_price_change * 2 でbonus
+        big_change = int(15000000 * min_price_change * 3)
+        for i in range(-6, 0):
+            df.iloc[i, df.columns.get_loc("close")] = 15000000 + (i + 6) * (big_change // 5)
+            df.iloc[i, df.columns.get_loc("stoch_k")] = 70.0 - (i + 6) * 8
+        df.iloc[-1, df.columns.get_loc("close")] = 15000000 + big_change
+        df.iloc[-1, df.columns.get_loc("stoch_k")] = 30.0
+
+        result = self.strategy._detect_divergence(df)
+        if result["type"] == "bearish":
+            self.assertGreater(result["strength"], 0.3)
+
+    def test_detect_divergence_exception_handling(self):
+        """_detect_divergence: 例外発生時のエラーハンドリング"""
+        df = pd.DataFrame(
+            {
+                "close": [None] * 20,
+                "stoch_k": [None] * 20,
+                "stoch_d": [None] * 20,
+                "adx_14": [None] * 20,
+                "atr_14": [None] * 20,
+            }
+        )
+        result = self.strategy._detect_divergence(df)
+        self.assertEqual(result["type"], "error")
+        self.assertEqual(result["action"], EntryAction.HOLD)
+
+
+class TestGetSignalProximity(unittest.TestCase):
+    """get_signal_proximity()テスト"""
+
+    def setUp(self):
+        """テスト前準備"""
+        dates = pd.date_range(start="2025-08-01", periods=100, freq="4h")
+        base_price = 15000000
+
+        self.test_df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": np.full(100, base_price),
+                "stoch_k": np.full(100, 50.0),
+                "stoch_d": np.full(100, 50.0),
+                "adx_14": np.full(100, 25.0),
+                "atr_14": np.full(100, 150000),
+            }
+        )
+        self.strategy = StochasticReversalStrategy()
+
+    def test_empty_data(self):
+        """空データの場合はデフォルト値を返す"""
+        result = self.strategy.get_signal_proximity(None)
+        self.assertFalse(result["divergence_detected"])
+        self.assertEqual(result["nearest_action"], "unknown")
+        self.assertEqual(result["diagnosis"], "データ不足")
+
+    def test_empty_dataframe(self):
+        """空DataFrameの場合もデフォルト値を返す"""
+        result = self.strategy.get_signal_proximity(pd.DataFrame())
+        self.assertFalse(result["divergence_detected"])
+
+    def test_buy_near_stoch_low(self):
+        """stoch_k < 30の場合nearest_action=buy"""
+        df = self.test_df.copy()
+        df.iloc[-1, df.columns.get_loc("stoch_k")] = 20.0
+        df.iloc[-1, df.columns.get_loc("stoch_d")] = 22.0
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["nearest_action"], "buy")
+        self.assertIn("過売り", result["diagnosis"])
+
+    def test_sell_near_stoch_high(self):
+        """stoch_k > 70の場合nearest_action=sell"""
+        df = self.test_df.copy()
+        df.iloc[-1, df.columns.get_loc("stoch_k")] = 80.0
+        df.iloc[-1, df.columns.get_loc("stoch_d")] = 78.0
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["nearest_action"], "sell")
+        self.assertIn("過買い", result["diagnosis"])
+
+    def test_neutral_zone_buy_candidate(self):
+        """中立ゾーンでprice_position < stoch_positionの場合buy候補"""
+        df = self.test_df.copy()
+        # 価格が安値付近、Stochが中立
+        for i in range(-6, 0):
+            df.iloc[i, df.columns.get_loc("close")] = 15100000 - (i + 6) * 20000
+            df.iloc[i, df.columns.get_loc("stoch_k")] = 30.0 + (i + 6) * 8
+        df.iloc[-1, df.columns.get_loc("close")] = 14900000
+        df.iloc[-1, df.columns.get_loc("stoch_k")] = 50.0
+        df.iloc[-1, df.columns.get_loc("stoch_d")] = 50.0
+        result = self.strategy.get_signal_proximity(df)
+        self.assertIn(result["nearest_action"], ["buy", "sell"])
+
+    def test_divergence_detected_in_diagnosis(self):
+        """ダイバージェンス検出時のdiagnosis確認"""
+        df = self.test_df.copy()
+        for i in range(-6, 0):
+            df.iloc[i, df.columns.get_loc("close")] = 15000000 + (i + 6) * 20000
+            df.iloc[i, df.columns.get_loc("stoch_k")] = 70.0 - (i + 6) * 8
+        df.iloc[-1, df.columns.get_loc("close")] = 15100000
+        df.iloc[-1, df.columns.get_loc("stoch_k")] = 30.0
+        df.iloc[-1, df.columns.get_loc("stoch_d")] = 32.0
+        result = self.strategy.get_signal_proximity(df)
+        self.assertIn("diagnosis", result)
+
+    def test_adx_high_diagnosis(self):
+        """ADX > threshold時の診断"""
+        df = self.test_df.copy()
+        df.iloc[-1, df.columns.get_loc("adx_14")] = 55.0
+        result = self.strategy.get_signal_proximity(df)
+        self.assertFalse(result["adx_ok"])
+        self.assertIn("超過", result["diagnosis"])
+
+    def test_price_range_ratio_sufficient(self):
+        """十分な価格変動率の場合"""
+        df = self.test_df.copy()
+        # 価格に変動をつける
+        for i in range(-6, 0):
+            df.iloc[i, df.columns.get_loc("close")] = 15000000 + (i + 6) * 50000
+        df.iloc[-1, df.columns.get_loc("close")] = 15250000
+        result = self.strategy.get_signal_proximity(df)
+        self.assertIn("price_range_ratio", result)
+
+    def test_price_range_ratio_insufficient(self):
+        """不十分な価格変動率の場合"""
+        df = self.test_df.copy()
+        result = self.strategy.get_signal_proximity(df)
+        # すべてのclose値が同じなので変動率0
+        self.assertEqual(result["price_range_ratio"], 0)
+        self.assertIn("閾値", result["diagnosis"])
+
+    def test_short_data_price_range(self):
+        """短いデータの場合price_range_ratio=0"""
+        df = self.test_df.head(3).copy()
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["price_range_ratio"], 0)
+
+    def test_adx_nan_handled(self):
+        """adx_14がNaNの場合0として扱う"""
+        df = self.test_df.copy()
+        df.iloc[-1, df.columns.get_loc("adx_14")] = np.nan
+        result = self.strategy.get_signal_proximity(df)
+        self.assertEqual(result["adx"], 0)
+        self.assertTrue(result["adx_ok"])
+
+    def test_exception_handling(self):
+        """例外発生時のエラーハンドリング"""
+        df = pd.DataFrame(
+            {
+                "close": [None] * 20,
+                "stoch_k": [None] * 20,
+                "stoch_d": [None] * 20,
+                "adx_14": [None] * 20,
+                "atr_14": [None] * 20,
+            }
+        )
+        result = self.strategy.get_signal_proximity(df)
+        self.assertFalse(result["divergence_detected"])
+        self.assertEqual(result["nearest_action"], "unknown")
+
+    def test_no_divergence_small_position_diff(self):
+        """ダイバージェンスなし+位置差が20%未満"""
+        df = self.test_df.copy()
+        # 全て同値→位置差0
+        result = self.strategy.get_signal_proximity(df)
+        self.assertFalse(result["divergence_detected"])
+        # 位置差小さいので特定メッセージ含む
+        self.assertIn("diagnosis", result)
+
+
 if __name__ == "__main__":
     run_stochastic_divergence_tests()

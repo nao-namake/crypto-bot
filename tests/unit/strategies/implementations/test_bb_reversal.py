@@ -317,6 +317,113 @@ class TestBBReversalStrategy(unittest.TestCase):
         self.assertAlmostEqual(decision["strength"], expected_strength, places=2)
 
 
+class TestBBReversalEdgeCases(unittest.TestCase):
+    """BB Reversal エッジケース・カバレッジ補完テスト"""
+
+    def setUp(self):
+        """テスト前処理"""
+        self.config = {
+            "min_confidence": 0.30,
+            "hold_confidence": 0.25,
+            "bb_width_threshold": 0.02,
+            "rsi_overbought": 70,
+            "rsi_oversold": 30,
+            "bb_upper_threshold": 0.95,
+            "bb_lower_threshold": 0.05,
+            "adx_range_threshold": 20,
+            "sl_multiplier": 1.5,
+        }
+        self.strategy = BBReversalStrategy(config=self.config)
+
+    def _create_test_data(self, length=50, bb_position=0.5, rsi=50, adx=15) -> pd.DataFrame:
+        """テスト用データ生成"""
+        np.random.seed(42)
+        dates = pd.date_range(start="2025-01-01", periods=length, freq="1h")
+        prices = np.full(length, 4500000.0)
+        bb_upper = prices + 50000
+        bb_lower = prices - 50000
+
+        return pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": prices,
+                "bb_position": np.full(length, bb_position),
+                "bb_upper": bb_upper,
+                "bb_lower": bb_lower,
+                "rsi_14": np.full(length, rsi),
+                "adx_14": np.full(length, adx),
+                "atr_14": np.full(length, 30000.0),
+            }
+        )
+
+    def test_traditional_mode_sell(self):
+        """従来モード: BB上限+RSI買われすぎでSELL"""
+        original = self.strategy.config.get("bb_primary_mode", True)
+        self.strategy.config["bb_primary_mode"] = False
+        try:
+            df = self._create_test_data(bb_position=0.97, rsi=75, adx=15)
+            decision = self.strategy._analyze_bb_reversal_signal(df)
+            self.assertEqual(decision["action"], EntryAction.SELL)
+            self.assertIn("BB反転SELL", decision["reason"])
+        finally:
+            self.strategy.config["bb_primary_mode"] = original
+
+    def test_traditional_mode_buy(self):
+        """従来モード: BB下限+RSI売られすぎでBUY"""
+        original = self.strategy.config.get("bb_primary_mode", True)
+        self.strategy.config["bb_primary_mode"] = False
+        try:
+            df = self._create_test_data(bb_position=0.03, rsi=25, adx=15)
+            decision = self.strategy._analyze_bb_reversal_signal(df)
+            self.assertEqual(decision["action"], EntryAction.BUY)
+            self.assertIn("BB反転BUY", decision["reason"])
+        finally:
+            self.strategy.config["bb_primary_mode"] = original
+
+    def test_traditional_mode_hold(self):
+        """従来モード: 条件不適合でHOLD"""
+        original = self.strategy.config.get("bb_primary_mode", True)
+        self.strategy.config["bb_primary_mode"] = False
+        try:
+            df = self._create_test_data(bb_position=0.5, rsi=50, adx=15)
+            decision = self.strategy._analyze_bb_reversal_signal(df)
+            self.assertEqual(decision["action"], EntryAction.HOLD)
+        finally:
+            self.strategy.config["bb_primary_mode"] = original
+
+    def test_analyze_exception_handling(self):
+        """_analyze_bb_reversal_signal: 例外時HOLD"""
+        df = pd.DataFrame({"close": [None]})  # 不正データ
+        decision = self.strategy._analyze_bb_reversal_signal(df)
+        self.assertEqual(decision["action"], EntryAction.HOLD)
+
+    def test_calculate_bb_width_nan(self):
+        """_calculate_bb_width: NaN値時は0.0"""
+        df = self._create_test_data()
+        df.loc[df.index[-1], "bb_upper"] = np.nan
+        width = self.strategy._calculate_bb_width(df)
+        self.assertEqual(width, 0.0)
+
+    def test_calculate_bb_width_exception(self):
+        """_calculate_bb_width: 例外時は0.0"""
+        df = pd.DataFrame({"close": ["invalid"]})
+        width = self.strategy._calculate_bb_width(df)
+        self.assertEqual(width, 0.0)
+
+    def test_is_range_market_exception(self):
+        """_is_range_market: 例外時はFalse"""
+        df = pd.DataFrame({"close": [None]})
+        result = self.strategy._is_range_market(df)
+        self.assertFalse(result)
+
+    def test_create_hold_signal_exception(self):
+        """_create_hold_signal: DataFrame例外時price=0"""
+        df = pd.DataFrame()  # 空
+        signal = self.strategy._create_hold_signal("テスト", df)
+        self.assertEqual(signal.action, "hold")
+        self.assertEqual(signal.current_price, 0.0)
+
+
 # pytest実行用
 if __name__ == "__main__":
     unittest.main()
