@@ -405,4 +405,5 @@ class BBReversalStrategy(StrategyBase):
             current_price=current_price,
             reason=reason,
             strategy_type=StrategyType.BB_REVERSAL,
+            confidence=self.config["hold_confidence"],
         )

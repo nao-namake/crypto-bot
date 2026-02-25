@@ -754,6 +754,7 @@ class SignalBuilder:
         current_price: float,
         reason: str = "条件不適合",
         strategy_type: Optional[str] = None,
+        confidence: Optional[float] = None,
     ) -> StrategySignal:
         """
         ホールドシグナル生成
@@ -763,6 +764,7 @@ class SignalBuilder:
             current_price: 現在価格
             reason: ホールド理由
             strategy_type: 戦略タイプ
+            confidence: 信頼度（Noneの場合0.5）
 
         Returns:
             ホールドStrategySignal
@@ -771,7 +773,7 @@ class SignalBuilder:
             strategy_name=strategy_name,
             timestamp=datetime.now(),
             action=EntryAction.HOLD,
-            confidence=0.5,  # ニュートラル
+            confidence=confidence if confidence is not None else 0.5,
             strength=0.0,
             current_price=current_price,
             reason=reason,

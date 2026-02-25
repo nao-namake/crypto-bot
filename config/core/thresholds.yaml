@@ -1,59 +1,15 @@
-# ========================================
-# システム統合設定ファイル (thresholds.yaml)
-# ========================================
-# 目的: 環境設定 + 全パラメータ + 機能トグル + 戦略定義の一元管理
-#
-# このファイルの役割:
-#   1. 環境・構造設定（実行モード・取引所接続・GCP・セキュリティ）
-#   2. ML統合パラメータ（信頼度閾値・重み・ボーナス/ペナルティ）
-#   3. 動的信頼度計算（市場不確実性調整・戦略別信頼度範囲）
-#   4. 戦略定義 + パラメータ（6戦略の定義・閾値・信頼度計算）
-#   5. リスク管理設定（Kelly基準・ドローダウン・証拠金維持率）
-#   6. ポジション管理設定（TP/SL・緊急決済）
-#   7. 機能トグル設定（feature_flags セクション）
-#
-# 設定ファイル体系:
-#   - thresholds.yaml: 全設定の一元管理（このファイル）
-#   - feature_order.json: 特徴量定義
-#
-# モード制御: コマンドライン引数 > 環境変数MODE > YAML内mode
-#
-# 戦略追加手順:
-#   1. 戦略クラスに@StrategyRegistry.register()追加
-#   2. このファイルの strategies セクションに戦略定義 + パラメータ追加
-#   → 完了！（orchestrator.py等の修正不要）
-#
-# 使用方法:
-#   - get_threshold()関数で動的に参照（ハードコード禁止）
-#   - 開発: python main.py --config config/core/thresholds.yaml --mode paper
-#   - 本番: python main.py --config config/core/thresholds.yaml --mode live
-#
-# ========================================
-
-strategy_system_version: "2.0.0"
-
-# ========================================
-# 動作モード（デフォルト: ペーパートレード）
-# ========================================
-mode: paper  # paper/live/backtest（環境変数・CLIで上書き可能）
-
-# ========================================
-# モード別初期残高設定
-# ========================================
+strategy_system_version: 2.0.0
+mode: paper
 mode_balances:
   paper:
     initial_balance: 500000.0
-    description: "ペーパートレード用初期残高（50万円）"
+    description: ペーパートレード用初期残高（50万円）
   live:
     initial_balance: 500000.0
-    description: "ライブトレード用初期残高（50万円）"
+    description: ライブトレード用初期残高（50万円）
   backtest:
     initial_balance: 500000.0
-    description: "バックテスト用初期残高（50万円）"
-
-# ========================================
-# 取引所設定（bitbank信用取引専用）
-# ========================================
+    description: バックテスト用初期残高（50万円）
 exchange:
   name: bitbank
   symbol: BTC/JPY
@@ -63,14 +19,10 @@ exchange:
   retries: 5
   ssl_verify: true
   api_version: v1
-
-# ========================================
-# データ取得設定（マルチタイムフレーム）
-# ========================================
 data:
   timeframes:
-    - 15m  # メインタイムフレーム（エントリー判断用）
-    - 4h   # 補助タイムフレーム（トレンド判断用）
+  - 15m
+  - 4h
   since_hours: 96
   limit: 100
   cache_enabled: true
@@ -80,10 +32,6 @@ data:
     max_size: 1000
     disk_cache: true
     retention_days: 90
-
-# ========================================
-# GCP Cloud Run最適化
-# ========================================
 cloud_run:
   memory: 1Gi
   cpu: 1
@@ -91,17 +39,9 @@ cloud_run:
   max_instances: 2
   concurrency: 1
   timeout_seconds: 3600
-
-# ========================================
-# セキュリティ設定
-# ========================================
 security:
   secret_management: gcp_secret_manager
   workload_identity: true
-
-# ========================================
-# 取引制約・制限事項
-# ========================================
 trading_constraints:
   exchange: bitbank
   trading_type: margin
@@ -111,22 +51,17 @@ trading_constraints:
   default_order_type: limit
   initial_capital: 10000
   target_capital: 500000
-  features_count: 55  # 49基本+6戦略シグナル（feature_order.json参照）
+  features_count: 55
   timeframes:
-    - 15m
-    - 4h
-
-# ========================================
-# 実行設定（Execution Settings）
-# ========================================
+  - 15m
+  - 4h
 execution:
   backtest_period_days: 180
   backtest_use_fixed_dates: true
-  backtest_start_date: "2025-07-01"
-  backtest_end_date: "2025-12-31"
+  backtest_start_date: '2025-07-01'
+  backtest_end_date: '2025-12-31'
   live_mode_interval_seconds: 300
   paper_mode_interval_seconds: 300
-  # unified.yamlから統合
   mode: paper
   order:
     default_type: limit
@@ -137,75 +72,48 @@ execution:
     target_ms: 1000
     warning_ms: 500
     critical_ms: 2000
-
-# ========================================
-# 本番運用設定（Production Settings）
-# ========================================
 production:
-  min_order_size: 0.0001  # Bitbank最小取引単位
-  max_order_size: 0.15    # 実効レバレッジ0.5倍
-  # unified.yamlから統合
-  trade_interval: 300     # 5分間隔実行
+  min_order_size: 0.0001
+  max_order_size: 0.15
+  trade_interval: 300
   margin_trading: true
   force_margin_mode: true
-
-# ========================================
-# Phase 55.5: ポジションサイズ統合設定
-# ========================================
-# 目的: min()からの加重平均方式へ移行
-# 問題: min()だとDynamic（BTC高価格で極小化）が常にボトルネック化
-# 解決: Kelly 50% / Dynamic 30% / RiskManager 20%の加重平均
-# 効果: 0.0001 BTC → 約0.009 BTC（Kelly基準が活かされる）
-# ========================================
 position_integrator:
-  kelly_weight: 0.5          # Phase 57.9: 70%→50%（12/30設定に復元）
-  dynamic_weight: 0.3        # Phase 57.9: 20%→30%（12/30設定に復元）
-  risk_manager_weight: 0.2   # Phase 57.9: 10%→20%（12/30設定に復元）
-
-# ========================================
-# バックテスト設定（Backtest Settings）
-# ========================================
+  kelly_weight: 0.5
+  dynamic_weight: 0.3
+  risk_manager_weight: 0.2
 backtest:
   log_level: WARNING
-  data_limit: 10000  # Phase 51.10-C: サンプル数上限（10,000件で停止）
-  progress_interval: 100  # Phase 51.10-C: 進捗表示間隔（100件毎・1000→100に改善）
+  data_limit: 10000
+  progress_interval: 100
   report_interval: 10000
   mock_api_calls: true
   enable_detailed_logging: false
   fast_data_slicing: true
-  data_sampling_ratio: 1.0  # Phase 51.8-10: 全データ使用（backtest_period_daysで期間制限）
-  inner_loop_count: 1  # Phase 51.8-J4-H: 高速化（1回実行・約40分）注: Phase 51.8-K完了後、最終検証時は3に戻す
-
-# ========================================
-# 市場レジーム判定設定（Market Regime Classification）
-# ========================================
+  data_sampling_ratio: 1.0
+  inner_loop_count: 1
 market_regime:
   tight_range:
     bb_width_threshold: 0.03
     price_range_threshold: 0.02
   trending:
     adx_threshold: 25
-    ema_slope_threshold: 0.01
+    ema_slope_threshold: 0.003
   normal_range:
     bb_width_threshold: 0.05
     adx_threshold: 20
   high_volatility:
-    atr_ratio_threshold: 0.018        # 4時間足最適化済み
-
-# ========================================
-# ML統合設定（ML Integration Settings）
-# ========================================
+    atr_ratio_threshold: 0.018
 ml:
-  # アンサンブルモデル設定（unified.yamlから統合）
   ensemble_enabled: true
   ensemble_weights:
-    lightgbm: 0.5      # LightGBM 50%（メインモデル）
-    xgboost: 0.3       # XGBoost 30%（補完モデル）
-    random_forest: 0.2  # RandomForest 20%（安定化モデル）
+    lightgbm: 0.5
+    xgboost: 0.3
+    random_forest: 0.2
   models:
-    - lgbm
-    - xgb
-    - rf
+  - lgbm
+  - xgb
+  - rf
   fallback_enabled: true
   prediction:
     lookback_periods: 100
@@ -219,39 +127,31 @@ ml:
     strategy_weight: 0.7
     high_confidence_threshold: 0.6
     agreement_bonus: 1.2
-    disagreement_penalty: 0.95  # Phase 55.3: 0.90→0.95（ペナルティ緩和）
-    min_ml_confidence: 0.32      # Phase 55.3: 0.35→0.32（閾値緩和）
-    hold_conversion_threshold: 0.15  # Phase 55.5: 0.20→0.15（HOLD変換さらに緩和）
-    min_strategy_confidence: 0.22   # Phase 65: 0.25→0.22（0.246-0.248のシグナルが僅差で遮断されていた問題を解消）
-    # Phase 65.16: ML Signal Recovery（戦略HOLDをMLでオーバーライド）
+    disagreement_penalty: 0.95
+    min_ml_confidence: 0.32
+    hold_conversion_threshold: 0.15
+    min_strategy_confidence: 0.22
     ml_signal_recovery:
       enabled: true
-      min_ml_confidence: 0.55          # ML信頼度の最低閾値
-      min_individual_confidence: 0.30   # 同方向戦略の最低信頼度
-      recovery_confidence_cap: 0.35     # 回復シグナル信頼度の上限
-  # レジーム別ML統合設定
+      min_ml_confidence: 0.55
+      min_individual_confidence: 0.3
+      recovery_confidence_cap: 0.35
   regime_ml_integration:
-    enabled: true  # Phase 51.9: レジーム別ML統合有効化
-
-    # tight_range: 戦略重視型
+    enabled: true
     tight_range:
       min_ml_confidence: 0.33
       high_confidence_threshold: 0.55
       ml_weight: 0.15
       strategy_weight: 0.85
       agreement_bonus: 1.25
-      disagreement_penalty: 0.70
-
-    # normal_range: バランス型
+      disagreement_penalty: 0.7
     normal_range:
-      min_ml_confidence: 0.30
+      min_ml_confidence: 0.3
       high_confidence_threshold: 0.55
-      ml_weight: 0.20
-      strategy_weight: 0.80
+      ml_weight: 0.2
+      strategy_weight: 0.8
       agreement_bonus: 1.25
-      disagreement_penalty: 0.70
-
-    # trending: ML補完重視型
+      disagreement_penalty: 0.7
     trending:
       min_ml_confidence: 0.35
       high_confidence_threshold: 0.55
@@ -259,16 +159,13 @@ ml:
       strategy_weight: 0.65
       agreement_bonus: 1.25
       disagreement_penalty: 0.88
-
-    # high_volatility: 超保守型（実質エントリーなし）
     high_volatility:
-      min_ml_confidence: 0.80
-      high_confidence_threshold: 0.90
-      ml_weight: 0.10
-      strategy_weight: 0.90
-      agreement_bonus: 1.10
+      min_ml_confidence: 0.8
+      high_confidence_threshold: 0.9
+      ml_weight: 0.1
+      strategy_weight: 0.9
+      agreement_bonus: 1.1
       disagreement_penalty: 0.85
-
   dynamic_confidence:
     base_hold: 0.35
     error_fallback: 0.25
@@ -284,7 +181,6 @@ ml:
       uncertainty_max: 0.2
       uncertainty_boost: 1.0
     strategies:
-      # DonchianChannel戦略動的信頼度設定
       donchian_channel:
         breakout_base: 0.6
         breakout_min: 0.3
@@ -297,8 +193,6 @@ ml:
         hold_max: 0.6
         volume_bonus_max: 0.1
         volume_multiplier: 0.2
-
-      # ADXTrend戦略動的信頼度設定（Phase 51.9-5: インデント修正）
       adx_trend:
         strong_base: 0.65
         strong_min: 0.4
@@ -320,8 +214,6 @@ ml:
         di_divisor: 12
         volume_bonus_max: 0.1
         volume_multiplier: 0.15
-
-      # ATRBased戦略動的信頼度設定（Phase 51.9-5: strategies配下に移動）
       atr_based:
         high_volatility_base: 0.55
         high_volatility_min: 0.35
@@ -339,7 +231,7 @@ ml:
         weak_multiplier: 0.1
         volatility_bonus: 1.02
         volatility_max: 0.85
-        position_size_base: 0.015       # ← ML訓練で参照（Phase 51.9-5: 階層修正で解決）
+        position_size_base: 0.015
         market_stress_threshold: 0.7
         min_atr_ratio: 0.5
         strength_divisor: 0.2
@@ -352,53 +244,39 @@ ml:
     base_path: /app
     local_path: .
     training_path: models/training
-
-# ========================================
-# 動的信頼度計算（Dynamic Confidence Calculation）
-# ========================================
 performance:
   default_latency_ms: 100.0
-
-# ========================================
-# 動的戦略選択設定（Dynamic Strategy Selection）
-# ========================================
-# レジーム別に戦略の重みを動的変更（合計1.0）
-# ========================================
 dynamic_strategy_selection:
   enabled: true
   regime_strategy_mapping:
-    tight_range:              # 狭いレンジ相場
+    tight_range:
       BBReversal: 0.15
-      StochasticReversal: 0.30
-      ATRBased: 0.30
+      StochasticReversal: 0.3
+      ATRBased: 0.3
       DonchianChannel: 0.25
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
-    normal_range:             # 通常レンジ相場
-      ATRBased: 0.50
-      StochasticReversal: 0.30
-      DonchianChannel: 0.20
+    normal_range:
+      ATRBased: 0.5
+      StochasticReversal: 0.3
+      DonchianChannel: 0.2
       BBReversal: 0.0
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
-    trending:                 # トレンド相場
-      ADXTrendStrength: 0.50
-      MACDEMACrossover: 0.30
+    trending:
+      ADXTrendStrength: 0.5
+      MACDEMACrossover: 0.3
       ATRBased: 0.15
       DonchianChannel: 0.05
       BBReversal: 0.0
       StochasticReversal: 0.0
-    high_volatility:          # 高ボラティリティ（全戦略無効化）
+    high_volatility:
       ATRBased: 0.0
       BBReversal: 0.0
       DonchianChannel: 0.0
       StochasticReversal: 0.0
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
-
-# ========================================
-# レジーム別ポジション制限設定
-# ========================================
 position_limits:
   tight_range:
     max_positions: 6
@@ -407,26 +285,18 @@ position_limits:
   trending:
     max_positions: 2
   high_volatility:
-    max_positions: 0              # 完全待機
-  fallback_max_positions: 2       # レジーム情報取得失敗時
+    max_positions: 0
+  fallback_max_positions: 2
   reject_on_limit: true
-
-# ========================================
-# 戦略定義 + パラメータ（Strategy Definitions & Parameters）
-# ========================================
-# 6戦略の定義（enabled/class_name/module_path等）+ 閾値・信頼度計算設定
-# ========================================
 strategies:
   adx_trend:
-    # 戦略定義
     enabled: true
-    class_name: "ADXTrendStrength"
-    module_path: "src.strategies.implementations.adx_trend"
-    strategy_type: "adx_trend"
-    weight: 0.10
+    class_name: ADXTrendStrength
+    module_path: src.strategies.implementations.adx_trend
+    strategy_type: adx_trend
+    weight: 0.1
     priority: 3
-    regime_affinity: "range"
-    # 戦略パラメータ
+    regime_affinity: range
     di_crossover_threshold: 0.5
     di_weak_signal_confidence: 0.35
     hold_confidence: 0.45
@@ -436,176 +306,141 @@ strategies:
     strong_trend_threshold: 25
     weak_di_threshold: 0.8
     weak_trend_threshold: 15
-
-    # レンジ逆張りモード
     range_mode_enabled: true
-    range_adx_threshold: 20           # ADX < 20 でレンジモード
-    use_rsi_driven_mode: false        # RSI主導モード無効化
-    rsi_oversold_trigger: 40          # RSI < 40 で買いシグナル
-    rsi_overbought_trigger: 60        # RSI > 60 で売りシグナル
-    bb_lower_trigger: 0.30            # BB位置 < 0.30 で買い（データ分析に基づく）
-    bb_upper_trigger: 0.70            # BB位置 > 0.70 で売り（データ分析に基づく）
-
-    # 信頼度設定
-    range_signal_confidence: 0.40     # 基本信頼度
-    rsi_extreme_bonus: 0.10           # RSI < 25 or > 75 ボーナス
-    bb_extreme_bonus: 0.05            # BB < 0.15 or > 0.85 ボーナス
-    adx_falling_bonus: 0.05           # ADX下降中ボーナス
-
-    # 従来DI設定（フォールバック用）
-    di_reversal_threshold: 5.0        # DI変化量閾値
-    di_diff_threshold: 8.0            # DI差分閾値
-    di_divergence_threshold: 12.0     # DI乖離閾値
-    use_di_divergence: false          # DI乖離モード無効
-
+    range_adx_threshold: 20
+    use_rsi_driven_mode: false
+    rsi_oversold_trigger: 40
+    rsi_overbought_trigger: 60
+    bb_lower_trigger: 0.3
+    bb_upper_trigger: 0.7
+    range_signal_confidence: 0.4
+    rsi_extreme_bonus: 0.1
+    bb_extreme_bonus: 0.05
+    adx_falling_bonus: 0.05
+    di_reversal_threshold: 5.0
+    di_diff_threshold: 8.0
+    di_divergence_threshold: 12.0
+    use_di_divergence: false
   atr_based:
-    # 戦略定義
     enabled: true
-    class_name: "ATRBased"
-    module_path: "src.strategies.implementations.atr_based"
-    strategy_type: "atr_based"
+    class_name: ATRBased
+    module_path: src.strategies.implementations.atr_based
+    strategy_type: atr_based
     weight: 0.15
     priority: 1
-    regime_affinity: "range"
-    # 戦略パラメータ（ATR消尽率）
-    exhaustion_threshold: 0.70       # 高品質シグナルのみ
-    high_exhaustion_threshold: 0.85  # 高確信シグナル
-    adx_range_threshold: 25          # レンジ判定
+    regime_affinity: range
+    exhaustion_threshold: 0.7
+    high_exhaustion_threshold: 0.85
+    adx_range_threshold: 25
     rsi_upper: 60
     rsi_lower: 40
     rsi_confirmation_bonus: 0.05
-    # 信頼度設定
     min_confidence: 0.35
-    hold_confidence: 0.20
-    base_confidence: 0.40
-    high_confidence: 0.60
+    hold_confidence: 0.2
+    base_confidence: 0.4
+    high_confidence: 0.6
     min_score_threshold: 0.65
-    # BB位置確認（ボーナスとして使用）
     bb_position_enabled: true
-    bb_position_threshold: 0.20
-    bb_as_main_condition: false      # メイン条件ではなくボーナスとして使用
-    # ストップロス設定
+    bb_position_threshold: 0.2
+    bb_as_main_condition: false
     sl_atr_multiplier: 1.5
   donchian_channel:
-    # 戦略定義
     enabled: true
-    class_name: "DonchianChannel"
-    module_path: "src.strategies.implementations.donchian_channel"
-    strategy_type: "donchian_channel"
-    weight: 0.20
+    class_name: DonchianChannel
+    module_path: src.strategies.implementations.donchian_channel
+    strategy_type: donchian_channel
+    weight: 0.2
     priority: 2
-    regime_affinity: "range"
-    # 戦略パラメータ
+    regime_affinity: range
     adx_max_threshold: 28
     extreme_zone_threshold: 0.18
     rsi_oversold: 48
     rsi_overbought: 52
-    base_confidence: 0.40
-    max_confidence: 0.60
-    min_confidence: 0.30
+    base_confidence: 0.4
+    max_confidence: 0.6
+    min_confidence: 0.3
     hold_confidence: 0.25
-    extreme_position_bonus: 0.10
+    extreme_position_bonus: 0.1
     rsi_confirmation_bonus: 0.05
     rsi_as_bonus: true
     rsi_mismatch_penalty: 0.08
   bb_reversal:
-    # 戦略定義
     enabled: true
-    class_name: "BBReversal"
-    module_path: "src.strategies.implementations.bb_reversal"
-    strategy_type: "bb_reversal"
-    weight: 0.30
+    class_name: BBReversal
+    module_path: src.strategies.implementations.bb_reversal
+    strategy_type: bb_reversal
+    weight: 0.3
     priority: 4
-    regime_affinity: "range"
-    # 戦略パラメータ
+    regime_affinity: range
     min_confidence: 0.25
-    hold_confidence: 0.20
+    hold_confidence: 0.2
     bb_width_threshold: 0.035
     rsi_overbought: 55
     rsi_oversold: 45
-    bb_upper_threshold: 0.70
-    bb_lower_threshold: 0.30
+    bb_upper_threshold: 0.7
+    bb_lower_threshold: 0.3
     adx_range_threshold: 30
     sl_multiplier: 1.5
-    # BB位置主導・RSIボーナス制度
     bb_primary_mode: true
     rsi_match_bonus: 0.08
     rsi_extreme_bonus: 0.05
     rsi_mismatch_penalty: 0.05
   stochastic_reversal:
-    # 戦略定義
     enabled: true
-    class_name: "StochasticReversal"
-    module_path: "src.strategies.implementations.stochastic_reversal"
-    strategy_type: "stochastic_reversal"
-    weight: 0.20
+    class_name: StochasticReversal
+    module_path: src.strategies.implementations.stochastic_reversal
+    strategy_type: stochastic_reversal
+    weight: 0.2
     priority: 5
-    regime_affinity: "range"
-    # 戦略パラメータ
+    regime_affinity: range
     divergence_lookback: 5
-    divergence_price_threshold: 0.0010
+    divergence_price_threshold: 0.001
     divergence_stoch_threshold: 4
-    min_price_change_ratio: 0.005       # 最小価格変化（0.5%以上）
+    min_price_change_ratio: 0.005
     enable_min_price_filter: true
     stoch_overbought: 60
     stoch_oversold: 40
     adx_max_threshold: 50
     min_confidence: 0.25
-    hold_confidence: 0.20
+    hold_confidence: 0.2
     base_confidence: 0.32
-    max_confidence: 0.60
+    max_confidence: 0.6
     zone_bonus: 0.12
     sl_multiplier: 1.5
   macd_ema_crossover:
-    # 戦略定義
     enabled: true
-    class_name: "MACDEMACrossover"
-    module_path: "src.strategies.implementations.macd_ema_crossover"
-    strategy_type: "macd_ema_crossover"
+    class_name: MACDEMACrossover
+    module_path: src.strategies.implementations.macd_ema_crossover
+    strategy_type: macd_ema_crossover
     weight: 0.05
     priority: 6
-    regime_affinity: "trend"
-    # 戦略パラメータ
-    min_confidence: 0.30
+    regime_affinity: trend
+    min_confidence: 0.3
     hold_confidence: 0.25
     adx_trend_threshold: 18
     volume_ratio_threshold: 1.0
-    macd_strong_threshold: 50000    # MACD強い閾値（ヒストグラム正規化用）
-    ema_divergence_threshold: 0.01  # EMA乖離度閾値（1%）
-    sl_multiplier: 1.5              # SL ATR倍率（トレンド相場用）
-
-# ========================================
-# TP/SL自動執行検知設定
-# ========================================
+    macd_strong_threshold: 50000
+    ema_divergence_threshold: 0.01
+    sl_multiplier: 1.5
 tp_sl_auto_detection:
-  enabled: true                    # 自動執行検知機能ON/OFF
-  log_level: "info"                # ログレベル（"info" / "warning"）
-
-# ========================================
-# TP/SL欠損自動復旧設定
-# ========================================
+  enabled: true
+  log_level: info
 tp_sl_verification:
-  enabled: true                    # TP/SL検証機能ON/OFF
-  delay_seconds: 600               # 検証までの待機時間（秒）- 10分
-  rebuild_on_missing: true         # 欠損時に自動再構築
-  default_regime: "tight_range"    # 再構築時のデフォルトレジーム（保守的）
-
-# ========================================
-# 取引設定（Trading Settings）
-# ========================================
+  enabled: true
+  delay_seconds: 600
+  rebuild_on_missing: true
+  default_regime: tight_range
 trading:
-  # 手数料設定（2026年2月2日改定）
-  # エントリー: Maker 0% / TP決済: Maker 0% / SL決済: Taker 0.1%
   fees:
-    maker_rate: 0.0             # Maker 0%
-    taker_rate: 0.001           # Taker 0.1%
-    entry_taker_rate: 0.001     # エントリー Taker 0.1%（フォールバック時）
-    exit_taker_rate: 0.001      # 決済 Taker 0.1%（SL自動執行）
-    backtest_entry_rate: 0.0    # バックテスト: Maker 0%
-    backtest_tp_exit_rate: 0.0  # バックテスト: TP決済 Maker 0%
-    backtest_sl_exit_rate: 0.001  # バックテスト: SL決済 Taker 0.1%
-    backtest_exit_rate: 0.001   # 後方互換 Taker 0.1%
-  capital_allocation_limit: 500000.0  # 50万円全額使用
+    maker_rate: 0.0
+    taker_rate: 0.001
+    entry_taker_rate: 0.001
+    exit_taker_rate: 0.001
+    backtest_entry_rate: 0.0
+    backtest_tp_exit_rate: 0.0
+    backtest_sl_exit_rate: 0.001
+    backtest_exit_rate: 0.001
+  capital_allocation_limit: 500000.0
   anomaly:
     spread_critical_threshold: 0.005
     spread_warning_threshold: 0.003
@@ -625,14 +460,14 @@ trading:
     default_bid: 15900000.0
   kelly_criterion:
     min_trades_for_kelly: 5
-    max_position_ratio: 1.00    # Phase 60.1: 0.35→1.00（実効レバレッジ0.5倍移行）
-    safety_factor: 0.9          # Phase 57.9: 1.0 → 0.9（12/30設定に復元）
+    max_position_ratio: 1.0
+    safety_factor: 0.9
   min_trade_size: 0.0001
-  initial_position_size: 0.015    # Phase 60.1: 0.005→0.015（実効レバレッジ0.5倍移行）
-  fee_rate: 0.001   # Phase 62.19: Taker 0.1%
+  initial_position_size: 0.015
+  fee_rate: 0.001
   minimum_live_balance: 3000
   position_sizing:
-    max_position_ratio: 1.00    # 実効レバレッジ0.5倍
+    max_position_ratio: 1.0
     stop_loss_atr_multiplier: 1.2
     take_profit_ratio: 2.0
   risk_thresholds:
@@ -640,28 +475,20 @@ trading:
     deny: 0.85
     min_ml_confidence: 0.12
   stats_log_interval: 10
-
-# ========================================
-# アンサンブルモデル設定（Ensemble Model Settings）
-# ========================================
 ensemble:
   max_nan_ratio_features: 0.5
   max_nan_ratio_target: 0.3
   min_training_samples: 50
-  stacking_enabled: false  # Stacking無効化（PE方式が高収益）
+  stacking_enabled: false
   meta_learner:
-    type: "lightgbm"       # Meta-Learnerモデルタイプ
+    type: lightgbm
     params:
-      num_leaves: 15       # 軽量設定（過学習防止）
-      learning_rate: 0.05  # 控えめな学習率
-      n_estimators: 50     # 少なめのツリー数
-      max_depth: 4         # 浅いツリー（Meta-Learner用）
+      num_leaves: 15
+      learning_rate: 0.05
+      n_estimators: 50
+      max_depth: 4
       random_state: 42
-      class_weight: "balanced"  # クラス不均衡対策
-
-# ========================================
-# MLモデル設定（ML Model Settings）
-# ========================================
+      class_weight: balanced
 models:
   lgbm:
     num_leaves: 31
@@ -694,14 +521,9 @@ models:
     alpha: 0
     lambda: 1
     gamma: 0
-
-# ========================================
-# レポート設定（Reporting Settings）
-# ========================================
 reporting:
   base_dir: logs/reports
   paper_trading_dir: logs/paper_trading_reports
-  # unified.yamlから統合
   error_dir: logs/reports/errors
   max_report_size_mb: 10
   retention_days: 30
@@ -709,12 +531,7 @@ reporting:
   json_enabled: true
   markdown_enabled: true
   timestamp_format: '%Y%m%d_%H%M%S'
-
-# ========================================
-# リスク管理設定（Risk Management Settings）
-# ========================================
 risk:
-  # unified.yamlから統合
   risk_per_trade: 0.01
   max_drawdown: 0.2
   stop_loss_atr_multiplier: 1.2
@@ -729,9 +546,9 @@ risk:
     cooldown_hours: 6
     fallback_balance: 11000.0
     persistence:
-      local_path: "data/drawdown_state.json"
-      gcs_bucket: "crypto-bot-state"
-      gcs_path: "drawdown/state.json"
+      local_path: data/drawdown_state.json
+      gcs_bucket: crypto-bot-state
+      gcs_path: drawdown/state.json
   anomaly_detector:
     lookback_period: 20
     spread_warning_threshold: 0.003
@@ -744,17 +561,13 @@ risk:
   fallback_min_ratio: 0.01
   fallback_stop_ratio: 0.95
   kelly_lookback_days: 30
-  kelly_max_fraction: 1.00   # Kelly最大ポジション比率
+  kelly_max_fraction: 1.0
   recent_lookback_hours: 24
   safe_balance_ratio: 0.3
-  max_capital_usage: 1.5     # 実効レバレッジ0.5倍
-  reserve_ratio: 0.5         # reserve 50%
-  fallback_atr: 120000       # ATR取得失敗時のフォールバック
+  max_capital_usage: 1.5
+  reserve_ratio: 0.5
+  fallback_atr: 120000
   require_tpsl_recalculation: true
-
-# ========================================
-# ポジション管理設定（Position Management Settings）
-# ========================================
 position_management:
   min_account_balance: 10000
   max_open_positions: 3
@@ -762,20 +575,20 @@ position_management:
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
-    low_confidence: 0.80
-    medium_confidence: 1.00
-    high_confidence: 1.50
+    low_confidence: 0.8
+    medium_confidence: 1.0
+    high_confidence: 1.5
     enforce_minimum: true
   dynamic_position_sizing:
     enabled: true
     low_confidence:
-      min_ratio: 0.30
-      max_ratio: 0.60
+      min_ratio: 0.3
+      max_ratio: 0.6
     medium_confidence:
       min_ratio: 0.45
       max_ratio: 0.75
     high_confidence:
-      min_ratio: 0.60
+      min_ratio: 0.6
       max_ratio: 1.05
   account_size_adjustments:
     small:
@@ -796,87 +609,79 @@ position_management:
     min_hold_minutes: 1
   take_profit:
     enabled: true
-    default_ratio: 1.29              # RR比1.29:1
-    min_profit_ratio: 0.009          # TP 0.9%
+    default_ratio: 1.29
+    min_profit_ratio: 0.009
     override_strategy_tp: false
     position_partial_exit: false
-    use_native_type: true            # bitbank API直接（UIで「利確」表示）
-    # TP Maker戦略
+    use_native_type: true
     maker_strategy:
       enabled: true
       max_retries: 2
       retry_interval_ms: 300
       timeout_seconds: 10
       fallback_to_native: true
-    # 固定金額TP: 必要含み益 = 目標純利益 + エントリー手数料 + 利息 - 決済リベート
     fixed_amount:
       enabled: true
-      target_net_profit: 500         # 500円
+      target_net_profit: 500
       include_entry_fee: true
       include_exit_fee_rebate: true
       include_interest: true
-      fallback_entry_fee_rate: 0.0   # Maker 0%
-      fallback_exit_fee_rate: 0.0    # TP決済 Maker 0%
-    # レジーム別TP設定
+      fallback_entry_fee_rate: 0.0
+      fallback_exit_fee_rate: 0.0
     regime_based:
       enabled: true
       tight_range:
-        min_profit_ratio: 0.004      # TP 0.4%
-        weekend_ratio: 0.0025        # 土日 TP 0.25%
+        min_profit_ratio: 0.004
+        weekend_ratio: 0.0025
         default_ratio: 1.33
         fixed_amount_target: 500
       normal_range:
-        min_profit_ratio: 0.010      # TP 1.0%
-        weekend_ratio: 0.0065        # 土日 TP 0.65%
+        min_profit_ratio: 0.01
+        weekend_ratio: 0.0065
         default_ratio: 1.43
         fixed_amount_target: 500
       trending:
-        min_profit_ratio: 0.015      # TP 1.5%
-        weekend_ratio: 0.010         # 土日 TP 1.0%
-        default_ratio: 1.50
+        min_profit_ratio: 0.015
+        weekend_ratio: 0.01
+        default_ratio: 1.5
         fixed_amount_target: 500
       high_volatility:
-        min_profit_ratio: 0.020      # TP 2.0%（参考値）
+        min_profit_ratio: 0.02
         default_ratio: 1.33
         fixed_amount_target: 500
   stop_loss:
     enabled: true
-    order_type: "stop_limit"         # 指値SL
-    slippage_buffer: 0.005           # 0.5%（急落時の指値約定率改善）
-    stop_limit_timeout: 300          # 5分
+    order_type: stop_limit
+    slippage_buffer: 0.005
+    stop_limit_timeout: 300
     skip_bot_monitoring: true
     default_atr_multiplier: 2.0
-    max_loss_ratio: 0.007            # SL 0.7%
+    max_loss_ratio: 0.007
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003
-
-    use_native_type: false           # stop_limit（指値SL）
+    use_native_type: false
     fill_confirmation:
-      enabled: true                  # 約定確認機能ON
-      timeout_seconds: 30            # 約定待機タイムアウト
-      check_interval_seconds: 3      # 約定確認間隔
-
+      enabled: true
+      timeout_seconds: 30
+      check_interval_seconds: 3
     retry_on_unfilled:
-      enabled: true                  # リトライ機能ON
-      max_retries: 3                 # 最大リトライ回数
-      slippage_increase_per_retry: 0.001  # リトライ毎のスリッページ増加（0.1%）
-
-    # レジーム別SL設定
+      enabled: true
+      max_retries: 3
+      slippage_increase_per_retry: 0.001
     regime_based:
       enabled: true
       tight_range:
-        max_loss_ratio: 0.004        # SL 0.4%
-        weekend_ratio: 0.0025        # 土日 SL 0.25%
+        max_loss_ratio: 0.004
+        weekend_ratio: 0.0025
       normal_range:
-        max_loss_ratio: 0.007        # SL 0.7%
-        weekend_ratio: 0.0045        # 土日 SL 0.45%
+        max_loss_ratio: 0.007
+        weekend_ratio: 0.0045
       trending:
-        max_loss_ratio: 0.010        # SL 1.0%
-        weekend_ratio: 0.0065        # 土日 SL 0.65%
+        max_loss_ratio: 0.01
+        weekend_ratio: 0.0065
       high_volatility:
-        max_loss_ratio: 0.015        # SL 1.5%（参考値）
-
+        max_loss_ratio: 0.015
     adaptive_atr:
       enabled: true
       use_15m_timeframe: true
@@ -891,7 +696,7 @@ position_management:
         multiplier: 1.5
     min_distance:
       enabled: true
-      ratio: 0.007               # SL 0.7%に合わせた最小距離
+      ratio: 0.007
       override_atr: false
       min_atr_multiplier: 1.5
     trailing:
@@ -901,18 +706,11 @@ position_management:
       min_update_distance: 200
       min_profit_lock: 0.005
       cancel_tp_when_exceeds: true
-
-  # 土日TP/SL調整（ATR65%・レンジ60%に対応）
   weekend_adjustment:
     enabled: true
-    reduction_factor: 0.625          # 土日は平日の62.5%
-
-# ========================================
-# 証拠金管理設定（Margin Management Settings）
-# ========================================
+    reduction_factor: 0.625
 margin:
   position_value_estimation_ratio: 0.8
-  # 維持率閾値（80%確実遵守）
   thresholds:
     critical: 80.0
     warning: 100.0
@@ -921,10 +719,6 @@ margin:
   large_drop_threshold: 50.0
   min_position_value: 1000.0
   max_ratio_cap: 10000.0
-
-# ========================================
-# 注文実行設定（Order Execution Settings）
-# ========================================
 order_execution:
   smart_order_enabled: true
   high_confidence_threshold: 0.0
@@ -939,32 +733,22 @@ order_execution:
     fallback_to_market: true
     max_price_deviation: 0.05
     check_interval_seconds: 60
-
-  # Maker戦略設定
   maker_strategy:
     enabled: true
     max_retries: 5
     retry_interval_ms: 200
-    timeout_seconds: 30                # タイムアウト（秒）
-    price_adjustment_tick: 1           # 価格調整単位（1円）
-    max_price_adjustment_ratio: 0.001  # 最大価格調整率（0.1%）
-    fallback_to_taker: true            # タイムアウト時Takerフォールバック
-    disable_on_high_volatility: true   # 高ボラティリティ時無効化
-    volatility_threshold: 0.02         # ボラティリティ閾値（2%）
-    min_spread_for_maker: 0             # Phase 65.4: チェック無効化（post_onlyで保護）
-
-# ========================================
-# 残高アラート設定（Balance Alert Settings）
-# ========================================
+    timeout_seconds: 30
+    price_adjustment_tick: 1
+    max_price_adjustment_ratio: 0.001
+    fallback_to_taker: true
+    disable_on_high_volatility: true
+    volatility_threshold: 0.02
+    min_spread_for_maker: 0
 balance_alert:
   enabled: true
   min_required_margin: 14000.0
   alert_threshold_ratio: 1.2
   check_interval_minutes: 3
-
-# ========================================
-# ログ設定（unified.yamlから統合）
-# ========================================
 logging:
   level: INFO
   file_enabled: true
@@ -975,10 +759,6 @@ logging:
     rotation: daily
     retention_days: 30
     max_size_mb: 100
-
-# ========================================
-# 監視・ヘルスチェック（unified.yamlから統合）
-# ========================================
 monitoring:
   health_check:
     enabled: true
@@ -988,10 +768,6 @@ monitoring:
   performance:
     enabled: true
     metrics_interval: 300
-
-# ========================================
-# 機能トグル設定（旧 features.yaml）
-# ========================================
 feature_flags:
   trading:
     cooldown:
@@ -1019,14 +795,20 @@ feature_flags:
     dynamic_confidence:
       enabled: true
     consensus:
-      enabled: false                # 2票ルール無効化（重み付け統合に戻す）
+      enabled: false
     individual:
-      BBReversal: { enabled: true }
-      StochasticReversal: { enabled: true }
-      ATRBased: { enabled: true }
-      DonchianChannel: { enabled: true }
-      ADXTrendStrength: { enabled: true }
-      MACDEMACrossover: { enabled: true }
+      BBReversal:
+        enabled: true
+      StochasticReversal:
+        enabled: true
+      ATRBased:
+        enabled: true
+      DonchianChannel:
+        enabled: true
+      ADXTrendStrength:
+        enabled: true
+      MACDEMACrossover:
+        enabled: true
   data:
     caching:
       enabled: true
@@ -1054,7 +836,7 @@ feature_flags:
       enabled: true
       drawdown_limits:
         enabled: true
-        max_drawdown_pct: 0.20
+        max_drawdown_pct: 0.2
         max_drawdown_ratio: 0.2
         consecutive_loss_limit: 8
         cooldown_hours: 6

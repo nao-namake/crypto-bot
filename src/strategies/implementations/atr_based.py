@@ -113,6 +113,7 @@ class ATRBasedStrategy(StrategyBase):
                     current_price=current_price,
                     reason=exhaustion_analysis["reason"],
                     strategy_type=StrategyType.ATR_BASED,
+                    confidence=self.config["hold_confidence"],
                 )
 
             # Step 2: レンジ相場チェック（必須条件）
@@ -123,6 +124,7 @@ class ATRBasedStrategy(StrategyBase):
                     current_price=current_price,
                     reason=range_check["reason"],
                     strategy_type=StrategyType.ATR_BASED,
+                    confidence=self.config["hold_confidence"],
                 )
 
             # Phase 56.10: BB位置メイン条件モード
@@ -139,6 +141,7 @@ class ATRBasedStrategy(StrategyBase):
                     current_price=current_price,
                     reason=direction_analysis["reason"],
                     strategy_type=StrategyType.ATR_BASED,
+                    confidence=self.config["hold_confidence"],
                 )
 
             # BB位置確認（オプション：信頼度ボーナス）
@@ -193,6 +196,7 @@ class ATRBasedStrategy(StrategyBase):
                 current_price=current_price,
                 reason=bb_check["reason"],
                 strategy_type=StrategyType.ATR_BASED,
+                confidence=self.config["hold_confidence"],
             )
 
         # BB方向からEntryActionに変換
@@ -206,6 +210,7 @@ class ATRBasedStrategy(StrategyBase):
                 current_price=current_price,
                 reason="BB方向不明",
                 strategy_type=StrategyType.ATR_BASED,
+                confidence=self.config["hold_confidence"],
             )
 
         # Step 4: 信頼度計算
