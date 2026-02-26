@@ -233,9 +233,15 @@ class NewSystemMLModelCreator:
             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
             df.set_index("timestamp", inplace=True)
 
-            # 期間フィルタ
-            cutoff_date = datetime.now() - timedelta(days=days)
-            df = df[df.index >= cutoff_date]
+            # 期間フィルタ: CSVに十分なデータがある場合はCSV全体を使用
+            if len(df) >= days * 24 * 4 * 0.9:  # 期待行数の90%以上あれば十分
+                self.logger.info(
+                    f"✅ CSV全データ使用: {len(df)}行 "
+                    f"({df.index.min().strftime('%Y-%m-%d')} ~ {df.index.max().strftime('%Y-%m-%d')})"
+                )
+            else:
+                cutoff_date = datetime.now() - timedelta(days=days)
+                df = df[df.index >= cutoff_date]
 
             # 欠損値チェック
             if df.isnull().any().any():

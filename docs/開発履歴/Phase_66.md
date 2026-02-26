@@ -7,7 +7,7 @@
 |------|------|------|
 | **修正1** | HOLD信頼度ハードコード修正（ATRBased 5箇所 + BBReversal 1箇所） | ✅ 完了 |
 | **修正2** | レジーム分類バグ修正（EMA slope閾値 0.01→0.003） | ✅ 完了 |
-| **修正3** | ML再学習 + Recovery閾値調整 | ⏳ 進行中 |
+| **修正3** | ML再学習 + Recovery閾値調整 | ✅ 完了 |
 
 ---
 
@@ -119,9 +119,38 @@ BBReversalも同じ問題（`SignalBuilder.create_hold_signal()`をconfidenceな
 1. 最新180日分データでモデル再学習（Optuna最適化 n-trials=50）
 2. 再学習後の信頼度分布に基づきRecovery閾値を調整
 
-### 結果
+| ファイル / 設定 | 変更前 | 変更後 | 根拠 |
+|---------------|--------|--------|------|
+| `models/production/ensemble_full.pkl` | 2/6作成（19日前） | 2/26再学習 | 最新180日分データ（11,793サンプル） |
+| `models/production/ensemble_basic.pkl` | 2/6作成 | 2/26再学習 | 同上 |
+| `min_ml_confidence` | 0.55 | 0.45 | 平均信頼度0.425+0.025。平均以上に自信がある時のみRecovery発動 |
+| `recovery_confidence_cap` | 0.35 | 0.30 | 保守的サイズで過大エントリーを防止 |
 
-（再学習完了後に記載）
+### 再学習モデルの性能
+
+| モデル | Accuracy | F1 Score | CV F1 Mean |
+|--------|----------|----------|------------|
+| LightGBM | 0.484 | 0.465 | 0.385 |
+| XGBoost | 0.485 | 0.464 | 0.387 |
+| RandomForest | 0.494 | 0.467 | 0.378 |
+
+### 信頼度分布（検証時）
+
+| 指標 | 値 |
+|------|-----|
+| 平均信頼度 | 0.425 |
+| 最大信頼度 | 0.494 |
+| 最小信頼度 | 0.384 |
+| 標準偏差 | 0.017 |
+| 高信頼度(>60%) | 0.0% |
+
+→ 信頼度が0.40-0.50に集中する控えめなモデル。旧`min_ml_confidence=0.55`では最大でも届かず、Recovery発動不能だった。
+
+---
+
+## バックテスト結果（全修正込み）
+
+（GitHub Actions実行中 — 完了後に記載）
 
 ---
 
@@ -133,5 +162,7 @@ BBReversalも同じ問題（`SignalBuilder.create_hold_signal()`をconfidenceな
 | `src/strategies/implementations/atr_based.py` | 5箇所のcreate_hold_signal()にconfidence=config値追加 |
 | `src/strategies/implementations/bb_reversal.py` | 1箇所のcreate_hold_signal()にconfidence=config値追加 |
 | `config/core/thresholds.yaml` | `ema_slope_threshold: 0.01→0.003` |
-| `models/production/ensemble_*.pkl` | MLモデル再学習（予定） |
-| `config/core/thresholds.yaml` | `ml_signal_recovery`閾値調整（予定） |
+| `config/core/thresholds.yaml` | `ml_signal_recovery.min_ml_confidence: 0.55→0.45` |
+| `config/core/thresholds.yaml` | `recovery_confidence_cap: 0.35→0.30` |
+| `models/production/ensemble_full.pkl` | MLモデル再学習（Optuna n-trials=50） |
+| `models/production/ensemble_basic.pkl` | MLモデル再学習（基本特徴量版） |
