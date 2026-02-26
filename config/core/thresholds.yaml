@@ -133,9 +133,9 @@ ml:
     min_strategy_confidence: 0.22
     ml_signal_recovery:
       enabled: true
-      min_ml_confidence: 0.55
+      min_ml_confidence: 0.45
       min_individual_confidence: 0.3
-      recovery_confidence_cap: 0.35
+      recovery_confidence_cap: 0.30
   regime_ml_integration:
     enabled: true
     tight_range:
