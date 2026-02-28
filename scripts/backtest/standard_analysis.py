@@ -111,6 +111,17 @@ class AnalysisResult:
     sl_missed_profit_total: float = 0.0  # 逃した利益合計
     sl_missed_profit_avg: float = 0.0  # 平均逃した利益
 
+    # Phase 66.4: RR比・TP/SL分析指標
+    rr_tp_avg_pnl: float = 0.0  # TP取引の平均利益
+    rr_sl_avg_pnl: float = 0.0  # SL取引の平均損失
+    rr_effective_ratio: float = 0.0  # 実効RR比
+    rr_breakeven_winrate: float = 0.0  # 損益分岐勝率
+    rr_tp_target_achievement: float = 0.0  # TP目標達成率（%）
+    rr_tp_pnl_median: float = 0.0  # TP利益の中央値
+    rr_regime_rr: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    rr_tp_mae_safe_at_500: float = 0.0  # MAE>=-500円のTP取引割合
+    rr_whatif_sl_fixed: Dict[int, Dict[str, Any]] = field(default_factory=dict)
+
 
 class StandardAnalyzer:
     """標準分析クラス"""
@@ -186,6 +197,9 @@ class StandardAnalyzer:
 
         # Phase 62.18: SLパターン分析
         self._calc_sl_pattern_stats()
+
+        # Phase 66.4: RR比・TP/SL分析
+        self._calc_rr_stats()
 
         return self.result
 
@@ -441,6 +455,100 @@ class StandardAnalyzer:
                 tp_reachable
             )
 
+    def _calc_rr_stats(self):
+        """Phase 66.4: RR比・TP/SL分析"""
+        tp_target = 500.0
+
+        # TP/SL分類（exit_reasonベース、強制決済は除外）
+        tp_trades = []
+        sl_trades = []
+        for t in self.trades:
+            reason = t.get("exit_reason", "")
+            if "TP" in reason:
+                tp_trades.append(t)
+            elif "SL" in reason:
+                sl_trades.append(t)
+            # 強制決済・その他はRR分析対象外
+
+        if not tp_trades and not sl_trades:
+            return
+
+        # 基本RR指標
+        tp_pnls = [t.get("pnl", 0) for t in tp_trades]
+        sl_pnls = [t.get("pnl", 0) for t in sl_trades]
+
+        if tp_pnls:
+            self.result.rr_tp_avg_pnl = sum(tp_pnls) / len(tp_pnls)
+            sorted_tp = sorted(tp_pnls)
+            self.result.rr_tp_pnl_median = sorted_tp[len(sorted_tp) // 2]
+            self.result.rr_tp_target_achievement = self.result.rr_tp_avg_pnl / tp_target * 100
+
+        if sl_pnls:
+            self.result.rr_sl_avg_pnl = sum(sl_pnls) / len(sl_pnls)
+
+        # 実効RR比
+        if self.result.rr_sl_avg_pnl != 0:
+            self.result.rr_effective_ratio = abs(
+                self.result.rr_tp_avg_pnl / self.result.rr_sl_avg_pnl
+            )
+            # 損益分岐勝率 = 1 / (1 + RR)
+            if self.result.rr_effective_ratio > 0:
+                self.result.rr_breakeven_winrate = 1 / (1 + self.result.rr_effective_ratio) * 100
+
+        # レジーム別RR（強制決済は除外）
+        regime_trades = {}
+        for t in self.trades:
+            reason = t.get("exit_reason", "")
+            if "TP" not in reason and "SL" not in reason:
+                continue
+            regime = t.get("regime", "unknown")
+            if regime not in regime_trades:
+                regime_trades[regime] = {"tp": [], "sl": []}
+            if "TP" in reason:
+                regime_trades[regime]["tp"].append(t.get("pnl", 0))
+            else:
+                regime_trades[regime]["sl"].append(t.get("pnl", 0))
+
+        for regime, data in regime_trades.items():
+            tp_avg = sum(data["tp"]) / len(data["tp"]) if data["tp"] else 0
+            sl_avg = sum(data["sl"]) / len(data["sl"]) if data["sl"] else 0
+            rr = abs(tp_avg / sl_avg) if sl_avg != 0 else 0
+            be_wr = (1 / (1 + rr) * 100) if rr > 0 else 0
+            self.result.rr_regime_rr[regime] = {
+                "tp_count": len(data["tp"]),
+                "sl_count": len(data["sl"]),
+                "tp_avg": tp_avg,
+                "sl_avg": sl_avg,
+                "rr": rr,
+                "breakeven_wr": be_wr,
+            }
+
+        # TP取引のMAE安全率（SL=500円固定で影響を受けない割合）
+        tp_mae_values = [t.get("mae", 0) or 0 for t in tp_trades]
+        if tp_mae_values:
+            safe_count = sum(1 for m in tp_mae_values if m >= -tp_target)
+            self.result.rr_tp_mae_safe_at_500 = safe_count / len(tp_mae_values) * 100
+
+        # What-if SL固定金額シミュレーション
+        for sl_amount in [300, 500, 800]:
+            # TP取引のうち、MAEがSL金額を超えるもの = SL固定にすると損切りされる
+            affected = sum(1 for m in tp_mae_values if m < -sl_amount) if tp_mae_values else 0
+            total_tp = len(tp_trades)
+            # SL取引の損失が制限される効果
+            sl_capped_pnls = [max(pnl, -sl_amount) for pnl in sl_pnls]
+            sl_capped_avg = sum(sl_capped_pnls) / len(sl_capped_pnls) if sl_capped_pnls else 0
+            # 推定RR
+            estimated_rr = (
+                abs(self.result.rr_tp_avg_pnl / sl_capped_avg) if sl_capped_avg != 0 else 0
+            )
+            self.result.rr_whatif_sl_fixed[sl_amount] = {
+                "tp_affected": affected,
+                "tp_total": total_tp,
+                "tp_safe_pct": ((total_tp - affected) / total_tp * 100) if total_tp > 0 else 0,
+                "sl_avg_capped": sl_capped_avg,
+                "estimated_rr": estimated_rr,
+            }
+
 
 class ReportGenerator:
     """レポート生成クラス"""
@@ -516,6 +624,9 @@ class ReportGenerator:
 
         # Phase 62.18: SLパターン分析
         self._print_sl_pattern_analysis()
+
+        # Phase 66.4: RR比・TP/SL分析
+        self._print_rr_analysis()
 
         # 改善提案
         print("\n" + "=" * 60)
@@ -651,6 +762,62 @@ class ReportGenerator:
         for s in sl_suggestions:
             print(s)
 
+    def _print_rr_analysis(self):
+        """Phase 66.4: RR比・TP/SL分析出力"""
+        r = self.result
+
+        if r.rr_tp_avg_pnl == 0 and r.rr_sl_avg_pnl == 0:
+            return
+
+        print("\n" + "-" * 60)
+        print("📊 RR比・TP/SL分析 (Phase 66.4)")
+        print("-" * 60)
+
+        # 実効RR比
+        print("\n  【実効リスクリワード比】")
+        print(f"    TP平均利益: ¥{r.rr_tp_avg_pnl:+,.0f}")
+        print(f"    TP中央値:   ¥{r.rr_tp_pnl_median:+,.0f}")
+        print(f"    SL平均損失: ¥{r.rr_sl_avg_pnl:+,.0f}")
+        print(f"    実効RR比:   {r.rr_effective_ratio:.2f}:1")
+        print(f"    損益分岐勝率: {r.rr_breakeven_winrate:.1f}%")
+        rr_status = (
+            "✅ 余裕あり"
+            if r.win_rate > r.rr_breakeven_winrate + 10
+            else ("⚠️ マージン不足" if r.win_rate > r.rr_breakeven_winrate else "❌ 赤字構造")
+        )
+        print(f"    現在勝率:    {r.win_rate:.1f}% {rr_status}")
+
+        # TP目標達成率
+        print(f"\n  【TP目標達成率（目標500円）】")
+        print(f"    達成率: {r.rr_tp_target_achievement:.1f}%")
+
+        # レジーム別RR
+        if r.rr_regime_rr:
+            print("\n  【レジーム別RR】")
+            for regime, data in r.rr_regime_rr.items():
+                if data["tp_count"] + data["sl_count"] > 0:
+                    print(
+                        f"    {regime}: TP {data['tp_count']}件(avg ¥{data['tp_avg']:+,.0f}) / "
+                        f"SL {data['sl_count']}件(avg ¥{data['sl_avg']:+,.0f}) "
+                        f"→ RR {data['rr']:.2f}:1 "
+                        f"(損益分岐 {data['breakeven_wr']:.0f}%)"
+                    )
+
+        # MAE安全率
+        print(f"\n  【SL固定500円の安全性】")
+        print(f"    TP取引のMAE >= -500円: {r.rr_tp_mae_safe_at_500:.1f}%")
+
+        # What-if SL固定
+        if r.rr_whatif_sl_fixed:
+            print("\n  【What-if: SL固定金額】")
+            for amount, data in sorted(r.rr_whatif_sl_fixed.items()):
+                print(
+                    f"    SL={amount}円: TP影響 {data['tp_affected']}/{data['tp_total']}件"
+                    f"({100 - data['tp_safe_pct']:.1f}%), "
+                    f"SL平均 ¥{data['sl_avg_capped']:,.0f}, "
+                    f"推定RR {data['estimated_rr']:.2f}:1"
+                )
+
     def save_json(self, filename: str = None) -> str:
         """JSON出力"""
         if filename is None:
@@ -776,6 +943,68 @@ class ReportGenerator:
                 f"",
             ]
         )
+
+        # Phase 66.4: RR比・TP/SL分析
+        if r.rr_tp_avg_pnl != 0 or r.rr_sl_avg_pnl != 0:
+            rr_status = (
+                "余裕あり"
+                if r.win_rate > r.rr_breakeven_winrate + 10
+                else ("マージン不足" if r.win_rate > r.rr_breakeven_winrate else "赤字構造")
+            )
+            lines.extend(
+                [
+                    f"---",
+                    f"",
+                    f"## RR比・TP/SL分析 (Phase 66.4)",
+                    f"",
+                    f"| 指標 | 値 |",
+                    f"|------|-----|",
+                    f"| TP平均利益 | ¥{r.rr_tp_avg_pnl:+,.0f} |",
+                    f"| TP中央値 | ¥{r.rr_tp_pnl_median:+,.0f} |",
+                    f"| SL平均損失 | ¥{r.rr_sl_avg_pnl:+,.0f} |",
+                    f"| 実効RR比 | {r.rr_effective_ratio:.2f}:1 |",
+                    f"| 損益分岐勝率 | {r.rr_breakeven_winrate:.1f}% |",
+                    f"| 現在勝率 | {r.win_rate:.1f}% ({rr_status}) |",
+                    f"| TP目標達成率 | {r.rr_tp_target_achievement:.1f}% |",
+                    f"| SL=500円安全率 | {r.rr_tp_mae_safe_at_500:.1f}% |",
+                    f"",
+                ]
+            )
+
+            if r.rr_regime_rr:
+                lines.extend(
+                    [
+                        f"### レジーム別RR",
+                        f"",
+                        f"| レジーム | TP件数 | SL件数 | TP平均 | SL平均 | RR比 | 損益分岐 |",
+                        f"|---------|--------|--------|--------|--------|------|---------|",
+                    ]
+                )
+                for regime, data in r.rr_regime_rr.items():
+                    if data["tp_count"] + data["sl_count"] > 0:
+                        lines.append(
+                            f"| {regime} | {data['tp_count']}件 | {data['sl_count']}件 | "
+                            f"¥{data['tp_avg']:+,.0f} | ¥{data['sl_avg']:+,.0f} | "
+                            f"{data['rr']:.2f}:1 | {data['breakeven_wr']:.0f}% |"
+                        )
+                lines.append("")
+
+            if r.rr_whatif_sl_fixed:
+                lines.extend(
+                    [
+                        f"### What-if SL固定金額",
+                        f"",
+                        f"| SL金額 | TP影響 | SL平均 | 推定RR |",
+                        f"|--------|--------|--------|--------|",
+                    ]
+                )
+                for amount, data in sorted(r.rr_whatif_sl_fixed.items()):
+                    lines.append(
+                        f"| {amount}円 | {data['tp_affected']}/{data['tp_total']}件 "
+                        f"({100 - data['tp_safe_pct']:.1f}%) | "
+                        f"¥{data['sl_avg_capped']:,.0f} | {data['estimated_rr']:.2f}:1 |"
+                    )
+                lines.append("")
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
@@ -974,6 +1203,18 @@ class ReportGenerator:
                     "total": r.sl_missed_profit_total,
                     "avg": r.sl_missed_profit_avg,
                 },
+            },
+            # Phase 66.4: RR比・TP/SL分析
+            "rr_analysis": {
+                "tp_avg_pnl": r.rr_tp_avg_pnl,
+                "tp_pnl_median": r.rr_tp_pnl_median,
+                "sl_avg_pnl": r.rr_sl_avg_pnl,
+                "effective_rr": r.rr_effective_ratio,
+                "breakeven_winrate": r.rr_breakeven_winrate,
+                "tp_target_achievement_pct": r.rr_tp_target_achievement,
+                "tp_mae_safe_at_500_pct": r.rr_tp_mae_safe_at_500,
+                "regime_rr": r.rr_regime_rr,
+                "whatif_sl_fixed": {str(k): v for k, v in r.rr_whatif_sl_fixed.items()},
             },
         }
 

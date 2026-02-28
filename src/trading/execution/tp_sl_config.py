@@ -64,6 +64,11 @@ class TPSLConfig:
     )
     SL_MIN_DISTANCE_RATIO = "position_management.stop_loss.min_distance.ratio"
 
+    # Phase 66.6: 固定金額SL設定パス
+    SL_FIXED_AMOUNT_ENABLED = "position_management.stop_loss.fixed_amount.enabled"
+    SL_FIXED_AMOUNT_TARGET = "position_management.stop_loss.fixed_amount.target_max_loss"
+    SL_FIXED_AMOUNT_EXIT_FEE = "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate"
+
     # === TP/SLトップレベル設定パス ===
     TP_CONFIG = "position_management.take_profit"
     SL_CONFIG = "position_management.stop_loss"

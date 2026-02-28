@@ -834,7 +834,7 @@ class TPSLManager:
         except Exception as e:
             self.logger.warning(f"⚠️ Phase 65.2: 部分TP/SLキャンセル失敗（継続）: {e}")
 
-        # Phase 65.2: 固定500円TP対応（リカバリパスでも固定額計算を使用）
+        # Phase 65.2/66.6: 固定金額TP/SL対応（リカバリパスでも固定額計算を使用）
         if self._is_fixed_amount_tp_enabled() and avg_price > 0 and amount > 0:
             tp_price = self._calculate_fixed_amount_tp_for_position(
                 position_side, amount, avg_price
@@ -843,8 +843,17 @@ class TPSLManager:
                 position_side=position_side,
                 avg_price=avg_price,
             )
+            # Phase 66.6: 固定金額SLも適用
+            fixed_sl_enabled = get_threshold(
+                "position_management.stop_loss.fixed_amount.enabled", False
+            )
+            if fixed_sl_enabled:
+                sl_price = self._calculate_fixed_amount_sl_for_position(
+                    position_side, amount, avg_price
+                )
             self.logger.info(
-                f"📊 Phase 65.2: 固定金額TP使用 - TP={tp_price:.0f}円 "
+                f"📊 Phase 65.2/66.6: 固定金額TP/SL使用 - "
+                f"TP={tp_price:.0f}円, SL={sl_price:.0f}円 "
                 f"(avg={avg_price:.0f}円, amount={amount:.4f} BTC)"
             )
         else:
@@ -1024,6 +1033,39 @@ class TPSLManager:
             return avg_price + tp_offset
         else:
             return avg_price - tp_offset
+
+    def _calculate_fixed_amount_sl_for_position(
+        self,
+        position_side: str,
+        amount: float,
+        avg_price: float,
+    ) -> float:
+        """
+        Phase 66.6: 統合ポジション向け固定金額SL価格計算
+
+        Args:
+            position_side: "long" or "short"
+            amount: ポジション数量（BTC）
+            avg_price: 平均取得価格
+
+        Returns:
+            float: SL価格
+        """
+        target = get_threshold("position_management.stop_loss.fixed_amount.target_max_loss", 500)
+        # SL決済手数料考慮（Taker 0.1%）
+        exit_fee_rate = get_threshold(
+            "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate", 0.001
+        )
+        exit_fee = avg_price * amount * exit_fee_rate
+        gross_needed = target - exit_fee
+        if gross_needed <= 0:
+            gross_needed = target
+        sl_offset = gross_needed / amount
+
+        if position_side == "long":
+            return avg_price - sl_offset
+        else:
+            return avg_price + sl_offset
 
     # ========================================
     # エントリー前TP/SLクリーンアップ

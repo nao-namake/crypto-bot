@@ -306,6 +306,60 @@ class IntegratedRiskManager:
                         stop_loss = getattr(strategy_signal, "stop_loss", None)
                         take_profit = getattr(strategy_signal, "take_profit", None)
 
+                    # Phase 66.4/66.6: 固定金額TP/SL再計算（ポジションサイズ不一致修正）
+                    # シグナル生成時の推定position_sizeと、リスク評価後の実際の
+                    # position_sizeが異なるため、実際のposition_sizeでTP/SLを再計算
+                    if position_size > 0 and last_price > 0:
+                        from ...strategies.utils.strategy_utils import RiskManager
+
+                        # Phase 66.4: 固定金額TP再計算
+                        if take_profit:
+                            fixed_tp_config = get_threshold(
+                                "position_management.take_profit.fixed_amount", {}
+                            )
+                            if fixed_tp_config.get("enabled", False):
+                                recalculated_tp = RiskManager.calculate_fixed_amount_tp(
+                                    action=trade_side,
+                                    entry_price=last_price,
+                                    amount=position_size,
+                                    fee_data=None,
+                                    config=fixed_tp_config,
+                                )
+                                if recalculated_tp:
+                                    self.logger.info(
+                                        f"🔄 Phase 66.4: TP再計算 - "
+                                        f"シグナルTP={take_profit:.0f}円→"
+                                        f"再計算TP={recalculated_tp:.0f}円 "
+                                        f"(position_size={position_size:.6f}BTC)"
+                                    )
+                                    take_profit = recalculated_tp
+
+                        # Phase 66.6: 固定金額SL再計算
+                        if stop_loss:
+                            fixed_sl_config = get_threshold(
+                                "position_management.stop_loss.fixed_amount", {}
+                            )
+                            if fixed_sl_config.get("enabled", False):
+                                sl_target = fixed_sl_config.get("target_max_loss", 500)
+                                exit_fee_rate = fixed_sl_config.get("fallback_exit_fee_rate", 0.001)
+                                exit_fee = last_price * position_size * exit_fee_rate
+                                gross_loss = sl_target - exit_fee
+                                if gross_loss > 0:
+                                    sl_distance = gross_loss / position_size
+                                    if sl_distance <= last_price * 0.10:
+                                        if trade_side == "buy":
+                                            recalculated_sl = last_price - sl_distance
+                                        else:
+                                            recalculated_sl = last_price + sl_distance
+                                        if recalculated_sl > 0:
+                                            self.logger.info(
+                                                f"🔄 Phase 66.6: SL再計算 - "
+                                                f"シグナルSL={stop_loss:.0f}円→"
+                                                f"再計算SL={recalculated_sl:.0f}円 "
+                                                f"(position_size={position_size:.6f}BTC)"
+                                            )
+                                            stop_loss = recalculated_sl
+
                 except Exception as e:
                     self.logger.error(f"ポジションサイジング計算エラー: {e}")
                     warnings.append(f"ポジションサイジング計算エラー: {e}")

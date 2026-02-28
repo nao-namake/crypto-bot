@@ -427,6 +427,44 @@ class RiskManager:
                 f"→ 採用={stop_loss_distance:.0f}円({stop_loss_distance / current_price * 100:.2f}%)"
             )
 
+            # Phase 66.6: 固定金額SLモードチェック
+            fixed_sl_config = get_threshold("position_management.stop_loss.fixed_amount", {})
+            fixed_sl_enabled = fixed_sl_config.get("enabled", False)
+
+            if fixed_sl_enabled and position_amount and position_amount > 0:
+                # レジーム別SL金額取得
+                if regime:
+                    sl_target = get_threshold(
+                        f"position_management.stop_loss.regime_based.{regime}.fixed_amount_target",
+                        fixed_sl_config.get("target_max_loss", 500),
+                    )
+                else:
+                    sl_target = fixed_sl_config.get("target_max_loss", 500)
+
+                # SL決済手数料考慮（Taker 0.1%）
+                exit_fee_rate = fixed_sl_config.get("fallback_exit_fee_rate", 0.001)
+                exit_fee = current_price * position_amount * exit_fee_rate
+                # 手数料込みSL距離（損失+手数料が目標内に収まるよう距離を狭める）
+                gross_loss = sl_target - exit_fee
+                if gross_loss > 0:
+                    fixed_sl_distance = gross_loss / position_amount
+
+                    # 妥当性チェック（10%超は異常値）
+                    if fixed_sl_distance <= current_price * 0.10:
+                        stop_loss_distance = fixed_sl_distance
+                        logger.info(
+                            f"🛡️ Phase 66.6: 固定金額SL適用 - "
+                            f"目標最大損失={sl_target:.0f}円, "
+                            f"SL距離={fixed_sl_distance:.0f}円"
+                            f"({fixed_sl_distance / current_price * 100:.2f}%)"
+                        )
+                    else:
+                        logger.warning(
+                            f"⚠️ Phase 66.6: 固定金額SL計算異常 - "
+                            f"距離={fixed_sl_distance:.0f}円 > 10% "
+                            f"→ %ベースを維持"
+                        )
+
             # === TP距離計算 ===
             # Phase 61.7: 固定金額TPモードチェック
             fixed_amount_config = get_threshold("position_management.take_profit.fixed_amount", {})
