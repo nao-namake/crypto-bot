@@ -4,13 +4,13 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 65.16完了 |
-| **直前の作業** | Maker約定修正（1円スプレッド対応）+ ML Signal Recovery実装 |
+| **現在Phase** | 66.8（バックテスト検証中） |
+| **直前の作業** | 旧MLモデル復元 + 固定金額TP/SL修正 |
 | **次の予定** | `docs/開発計画/ToDo.md` 参照 |
-| **最新成果** | バックテスト ¥+102,135（PF 2.47・勝率89.2%・DD 0.94%） |
-| **最終更新** | 2026年2月25日 |
+| **最新成果** | Phase 66.8: 旧モデル復元+TP/SL500円固定（CI検証中） |
+| **最終更新** | 2026年3月1日 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-64）、`docs/開発履歴/Phase_65.md`（最新）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-65）、`docs/開発履歴/Phase_66.md`（最新）
 
 ---
 
@@ -254,6 +254,17 @@ tight_range:
 計算式: `TP価格 = エントリー価格 ± (必要含み益 / 数量)`
 必要含み益: `目標純利益 + エントリー手数料 + 利息 + 決済手数料`
 
+### 固定金額SL（Phase 66.6追加）
+
+| 設定 | 値 |
+|------|-----|
+| enabled | true |
+| target_max_loss | 500円 |
+| include_exit_fee | true（SL決済: Taker 0.1%） |
+
+計算式: `SL価格 = エントリー価格 ∓ (SL距離 / 数量)`
+SL距離: `(目標最大損失 - 決済手数料) / ポジションサイズ`
+
 ### 手数料設定（2026年2月2日改定）
 
 | 項目 | エントリー | TP決済 | SL決済 |
@@ -268,6 +279,7 @@ tight_range:
 | slippage_buffer | 0.2% |
 | skip_bot_monitoring | true |
 | stop_limit_timeout | 300秒 |
+| 固定金額SL | 500円（Phase 66.6） |
 
 ---
 
@@ -340,6 +352,6 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 | **運用** | [システムリファレンス.md](docs/運用ガイド/システムリファレンス.md) | 仕様+実装の統合リファレンス |
 | **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
-| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-65） |
-| **履歴** | [Phase_65.md](docs/開発履歴/Phase_65.md) | 最新Phase詳細 |
+| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-66） |
+| **履歴** | [Phase_66.md](docs/開発履歴/Phase_66.md) | 最新Phase詳細 |
 | **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |

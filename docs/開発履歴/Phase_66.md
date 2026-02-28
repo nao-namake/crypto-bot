@@ -12,6 +12,7 @@
 | **修正5** | RR分析機能をstandard_analysis.pyに統合 | ✅ 完了 |
 | **修正6** | SL500円固定金額の実装 | ✅ 完了 |
 | **修正7** | 取引数激減の根本原因診断 + Recovery閾値再調整 | ✅ 診断完了・調整済 |
+| **修正8** | 旧MLモデル復元（BUY54%偏り）+ Recovery閾値再調整 | ✅ 完了 |
 
 ---
 
@@ -400,13 +401,46 @@ Recovery発動は263回に増加したが、マージン維持率制限により
 
 ---
 
+## 修正8: 旧MLモデル復元 + Recovery閾値再調整
+
+### 背景
+
+修正3のML再学習（均等33%分布）で取引数535件→46件に激減。
+GitHub CIの全コミット追跡で根本原因を特定：
+- MLモデル再学習でクラス分布がBUY 54%→均等33%に変化
+- ML予測のBUYが307件→14件に激減
+- マージン維持率リジェクションとの悪循環
+
+さらにライブ72時間分析でコツコツドカン確認:
+- TP 11件 +1,028円 vs SL 3件 -5,547円 = 純損益 -4,519円
+- 実効RR比 0.13:1
+
+### 対策
+
+1. 旧MLモデル復元（fac9fac6: BUY54%偏り）
+2. Recovery閾値を旧モデル用に調整
+   - min_ml_confidence: 0.35 → 0.5
+   - recovery_confidence_cap: 0.25 → 0.35
+
+### 変更ファイル
+
+| ファイル | 変更内容 |
+|---------|---------|
+| models/production/ensemble_full.pkl | fac9fac6から復元 |
+| models/production/ensemble_basic.pkl | fac9fac6から復元 |
+| models/production/production_model_metadata.json | fac9fac6から復元 |
+| models/production/production_model_metadata_basic.json | fac9fac6から復元 |
+| config/core/thresholds.yaml | Recovery閾値2箇所修正 |
+
+---
+
 ## バックテスト結果（修正1-3）
 
 （GitHub Actions実行中 — 完了後に記載）
 
-## バックテスト結果（修正4-6込み）
+## バックテスト結果（修正4-8込み）
 
-（実行中 — 完了後に記載）
+（CI実行中 — 完了後に記載）
 
 ---
 
@@ -443,3 +477,14 @@ Recovery発動は263回に増加したが、マージン維持率制限により
 | `scripts/analysis/diagnose_trade_drop.py` | 取引数激減の根本原因診断スクリプト（新規） |
 | `config/core/thresholds.yaml` | `ml_signal_recovery.min_ml_confidence: 0.45→0.35` |
 | `config/core/thresholds.yaml` | `recovery_confidence_cap: 0.30→0.25` |
+
+### 修正8
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `models/production/ensemble_full.pkl` | fac9fac6から旧モデル復元 |
+| `models/production/ensemble_basic.pkl` | fac9fac6から旧モデル復元 |
+| `models/production/production_model_metadata.json` | fac9fac6から復元 |
+| `models/production/production_model_metadata_basic.json` | fac9fac6から復元 |
+| `config/core/thresholds.yaml` | `ml_signal_recovery.min_ml_confidence: 0.35→0.5` |
+| `config/core/thresholds.yaml` | `recovery_confidence_cap: 0.25→0.35` |
