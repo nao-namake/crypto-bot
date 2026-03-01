@@ -4,10 +4,10 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 66.8（バックテスト検証中） |
-| **直前の作業** | 旧MLモデル復元 + 固定金額TP/SL修正 |
-| **次の予定** | `docs/開発計画/ToDo.md` 参照 |
-| **最新成果** | Phase 66.8: 旧モデル復元+TP/SL500円固定（CI検証中） |
+| **現在Phase** | 67（バックテスト検証中） |
+| **直前の作業** | SL 700円 + StochasticReversal重み削減 |
+| **次の予定** | CIバックテスト結果分析 |
+| **最新成果** | Phase 67: SL500→700円 + 戦略重み最適化（CI検証中） |
 | **最終更新** | 2026年3月1日 |
 
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-65）、`docs/開発履歴/Phase_66.md`（最新）
@@ -217,9 +217,9 @@ dynamic_strategy_selection:
 ```yaml
 tight_range:
   BBReversal: 0.15
-  StochasticReversal: 0.30
-  ATRBased: 0.30
-  DonchianChannel: 0.25
+  StochasticReversal: 0.10
+  ATRBased: 0.45
+  DonchianChannel: 0.30
   ADXTrendStrength: 0.0
   MACDEMACrossover: 0.0
 ```
@@ -254,12 +254,12 @@ tight_range:
 計算式: `TP価格 = エントリー価格 ± (必要含み益 / 数量)`
 必要含み益: `目標純利益 + エントリー手数料 + 利息 + 決済手数料`
 
-### 固定金額SL（Phase 66.6追加）
+### 固定金額SL（Phase 67更新）
 
 | 設定 | 値 |
 |------|-----|
 | enabled | true |
-| target_max_loss | 500円 |
+| target_max_loss | 700円 |
 | include_exit_fee | true（SL決済: Taker 0.1%） |
 
 計算式: `SL価格 = エントリー価格 ∓ (SL距離 / 数量)`
@@ -279,7 +279,7 @@ SL距離: `(目標最大損失 - 決済手数料) / ポジションサイズ`
 | slippage_buffer | 0.2% |
 | skip_bot_monitoring | true |
 | stop_limit_timeout | 300秒 |
-| 固定金額SL | 500円（Phase 66.6） |
+| 固定金額SL | 700円（Phase 67） |
 
 ---
 
