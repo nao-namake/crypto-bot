@@ -1,5 +1,5 @@
 """
-ポジションサイジング統合システム - Phase 64更新
+ポジションサイジング統合システム - Phase 67.2更新
 
 Phase 28完了・Kelly基準と既存RiskManagerの統合クラス
 動的ポジションサイジング対応・ML信頼度連動
@@ -12,6 +12,11 @@ Phase 55.5: min()から加重平均方式に変更
 - 問題: min()だとDynamic（BTC高価格で極小化）が常にボトルネック化
 - 解決: Kelly 50% / Dynamic 30% / RiskManager 20%の加重平均
 - 効果: 0.0001 BTC → 約0.009 BTC（Kelly基準が活かされる）
+
+Phase 67.2: Kelly=0時のDynamicフォールバック
+- 問題: Kelly負(エッジなし)→0にクリップ→50%重みが0→ポジション1/3に崩壊
+- 解決: Kelly≤min_trade_size時、Dynamic sizing単独で決定
+- 効果: 0.006 BTC → 0.02 BTC（TP/SL距離も正常化）
 
 設計思想:
 - Kelly基準と既存RiskManagerの統合
@@ -101,11 +106,18 @@ class PositionSizeIntegrator:
                 dynamic_weight = get_threshold("position_integrator.dynamic_weight", 0.3)
                 risk_weight = get_threshold("position_integrator.risk_manager_weight", 0.2)
 
-                integrated_size = (
-                    kelly_size * kelly_weight
-                    + dynamic_size * dynamic_weight
-                    + risk_manager_size * risk_weight
-                )
+                # Phase 67.2: Kelly=0時のフォールバック
+                # Kelly負(エッジなし)→加重平均で50%が0→ポジション1/3に崩壊する問題を修正
+                # Kelly無信号時はDynamic sizing単独で決定（信頼度・残高・価格ベース）
+                min_trade_size = get_threshold("production.min_order_size", 0.0001)
+                if kelly_size <= min_trade_size:
+                    integrated_size = dynamic_size
+                else:
+                    integrated_size = (
+                        kelly_size * kelly_weight
+                        + dynamic_size * dynamic_weight
+                        + risk_manager_size * risk_weight
+                    )
 
                 # 安全上限チェック（max_order_sizeを超えない）
                 max_order_size = get_threshold("production.max_order_size", 0.03)
@@ -179,9 +191,14 @@ class PositionSizeIntegrator:
                 kelly_normalized = kelly_weight / total_weight
                 risk_normalized = risk_weight / total_weight
 
-                integrated_size = (
-                    kelly_size * kelly_normalized + risk_manager_size * risk_normalized
-                )
+                # Phase 67.2: Kelly=0時のフォールバック（Dynamic無し版）
+                min_trade_size = get_threshold("production.min_order_size", 0.0001)
+                if kelly_size <= min_trade_size:
+                    integrated_size = risk_manager_size
+                else:
+                    integrated_size = (
+                        kelly_size * kelly_normalized + risk_manager_size * risk_normalized
+                    )
 
                 # 安全上限チェック
                 max_order_size = get_threshold("production.max_order_size", 0.03)
