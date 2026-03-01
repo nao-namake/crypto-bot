@@ -79,9 +79,9 @@ production:
   margin_trading: true
   force_margin_mode: true
 position_integrator:
-  kelly_weight: 0.5
-  dynamic_weight: 0.3
-  risk_manager_weight: 0.2
+  kelly_weight: 0.0
+  dynamic_weight: 1.0
+  risk_manager_weight: 0.0
 backtest:
   log_level: WARNING
   data_limit: 10000
