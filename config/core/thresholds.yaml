@@ -82,6 +82,16 @@ position_integrator:
   kelly_weight: 0.0
   dynamic_weight: 1.0
   risk_manager_weight: 0.0
+# Phase 67.4: 固定ポジションサイズテーブル（動的計算を廃止）
+position_sizing:
+  mode: fixed
+  fixed_table:
+    low: 0.01
+    medium: 0.015
+    high: 0.02
+  confidence_thresholds:
+    medium_min: 0.50
+    high_min: 0.65
 backtest:
   log_level: WARNING
   data_limit: 10000

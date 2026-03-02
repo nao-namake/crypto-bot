@@ -826,7 +826,7 @@ class SignalBuilder:
         config: Dict[str, Any],
     ) -> float:
         """
-        Phase 64: PositionSizeIntegratorに統合（ライブ/バックテスト統一）
+        Phase 67.4: 固定テーブル優先・フォールバックでDynamic計算
 
         Args:
             confidence: シグナル信頼度（0.0-1.0）
@@ -840,6 +840,19 @@ class SignalBuilder:
         from ...core.config import get_threshold
         from ...trading.risk.sizer import PositionSizeIntegrator
 
+        # Phase 67.4: 固定テーブルモード
+        mode = get_threshold("position_sizing.mode", "dynamic")
+        if mode == "fixed":
+            medium_min = get_threshold("position_sizing.confidence_thresholds.medium_min", 0.50)
+            high_min = get_threshold("position_sizing.confidence_thresholds.high_min", 0.65)
+            if confidence >= high_min:
+                return get_threshold("position_sizing.fixed_table.high", 0.02)
+            elif confidence >= medium_min:
+                return get_threshold("position_sizing.fixed_table.medium", 0.015)
+            else:
+                return get_threshold("position_sizing.fixed_table.low", 0.01)
+
+        # フォールバック: 従来のDynamic計算
         max_size = get_threshold("production.max_order_size", 0.15)
         return PositionSizeIntegrator._calculate_dynamic_position_size(
             ml_confidence=confidence,

@@ -17,6 +17,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from src.core.config import get_threshold as get_threshold_real
 from src.trading import (
     KellyCalculationResult,
     KellyCriterion,
@@ -268,19 +269,316 @@ class TestPositionSizeIntegrator:
 
     def test_integrated_position_size(self):
         """統合ポジションサイズ計算テスト."""
-        # テスト用設定
         config = {"position_size_base": 0.02, "max_position_size": 0.05}
 
-        # Phase 57.7: 実際のRiskManagerを使用（モック削除）
+        # Phase 67.4: 固定テーブルモード（mode=fixed）では信頼度ベースの固定値
         size = self.integrator.calculate_integrated_position_size(
             ml_confidence=0.8, risk_manager_confidence=0.7, strategy_name="test", config=config
         )
 
         assert size > 0
-        # Phase 55.5: 加重平均方式でKellyとRiskManagerを統合
-        # max_order_size(0.40)で制限
-        assert size <= 0.40  # max_order_size以下であること
-        # 最小取引単位(0.0001)以上であること
+        # Phase 67.4: 固定テーブル high=0.02 BTC（ml_confidence=0.8 >= 0.65）
+        assert size == 0.02
+
+    def test_fixed_position_size_low(self):
+        """Phase 67.4: 低信頼度の固定サイズ."""
+        size = self.integrator._get_fixed_position_size(0.4)
+        assert size == 0.01
+
+    def test_fixed_position_size_medium(self):
+        """Phase 67.4: 中信頼度の固定サイズ."""
+        size = self.integrator._get_fixed_position_size(0.55)
+        assert size == 0.015
+
+    def test_fixed_position_size_high(self):
+        """Phase 67.4: 高信頼度の固定サイズ."""
+        size = self.integrator._get_fixed_position_size(0.7)
+        assert size == 0.02
+
+    def test_fixed_position_size_boundary_medium(self):
+        """Phase 67.4: 境界値50%はmedium."""
+        size = self.integrator._get_fixed_position_size(0.50)
+        assert size == 0.015
+
+    def test_fixed_position_size_boundary_high(self):
+        """Phase 67.4: 境界値65%はhigh."""
+        size = self.integrator._get_fixed_position_size(0.65)
+        assert size == 0.02
+
+    def test_integrated_fixed_mode_low(self):
+        """Phase 67.4: 固定モードで低信頼度の統合計算."""
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.3, risk_manager_confidence=0.5, strategy_name="test", config=config
+        )
+        assert size == 0.01
+
+    def test_integrated_fixed_mode_medium(self):
+        """Phase 67.4: 固定モードで中信頼度の統合計算."""
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.55, risk_manager_confidence=0.5, strategy_name="test", config=config
+        )
+        assert size == 0.015
+
+    def test_integrated_fixed_mode_error_fallback(self):
+        """Phase 67.4: 統合計算エラー時のフォールバック."""
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.8, risk_manager_confidence=0.7, strategy_name="test", config=config
+        )
+        assert size > 0
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_integrated_dynamic_fallback_with_balance(self, mock_get):
+        """Phase 67.4: mode=dynamicフォールバック（残高・BTC価格あり）."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            overrides = {
+                "position_sizing.mode": "dynamic",
+            }
+            if key in overrides:
+                return overrides[key]
+            return real_get(key, default)
+
+        mock_get.side_effect = side_effect
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.8,
+            risk_manager_confidence=0.7,
+            strategy_name="test",
+            config=config,
+            current_balance=500000,
+            btc_price=15000000,
+        )
+        assert size > 0
+        assert size <= 0.15
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_integrated_dynamic_fallback_low_confidence(self, mock_get):
+        """Phase 67.4: mode=dynamicフォールバック（低信頼度パス）."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            if key == "position_sizing.mode":
+                return "dynamic"
+            return real_get(key, default)
+
+        mock_get.side_effect = side_effect
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.3,
+            risk_manager_confidence=0.3,
+            strategy_name="test",
+            config=config,
+            current_balance=500000,
+            btc_price=15000000,
+        )
+        assert size > 0
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_integrated_dynamic_fallback_medium_confidence(self, mock_get):
+        """Phase 67.4: mode=dynamicフォールバック（中信頼度パス）."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            if key == "position_sizing.mode":
+                return "dynamic"
+            return real_get(key, default)
+
+        mock_get.side_effect = side_effect
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.55,
+            risk_manager_confidence=0.5,
+            strategy_name="test",
+            config=config,
+            current_balance=500000,
+            btc_price=15000000,
+        )
+        assert size > 0
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_integrated_dynamic_fallback_without_balance(self, mock_get):
+        """Phase 67.4: mode=dynamicフォールバック（残高なし→Kelly+RiskManagerパス）."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            overrides = {
+                "position_sizing.mode": "dynamic",
+                # 非ゼロ重みでゼロ除算を回避
+                "position_integrator.kelly_weight": 0.5,
+                "position_integrator.risk_manager_weight": 0.5,
+            }
+            if key in overrides:
+                return overrides[key]
+            return real_get(key, default)
+
+        mock_get.side_effect = side_effect
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.8,
+            risk_manager_confidence=0.7,
+            strategy_name="test",
+            config=config,
+        )
+        assert size > 0
+        assert size <= 0.15
+
+    def test_static_dynamic_position_size_low(self):
+        """_calculate_dynamic_position_size: 低信頼度."""
+        size = PositionSizeIntegrator._calculate_dynamic_position_size(
+            ml_confidence=0.4,
+            current_balance=500000,
+            btc_price=15000000,
+        )
+        assert 0.0001 <= size <= 0.15
+
+    def test_static_dynamic_position_size_medium(self):
+        """_calculate_dynamic_position_size: 中信頼度."""
+        size = PositionSizeIntegrator._calculate_dynamic_position_size(
+            ml_confidence=0.55,
+            current_balance=500000,
+            btc_price=15000000,
+        )
+        assert 0.0001 <= size <= 0.15
+
+    def test_static_dynamic_position_size_high(self):
+        """_calculate_dynamic_position_size: 高信頼度."""
+        size = PositionSizeIntegrator._calculate_dynamic_position_size(
+            ml_confidence=0.8,
+            current_balance=500000,
+            btc_price=15000000,
+        )
+        assert 0.0001 <= size <= 0.15
+
+    def test_static_dynamic_position_size_with_max(self):
+        """_calculate_dynamic_position_size: max_order_size制限."""
+        size = PositionSizeIntegrator._calculate_dynamic_position_size(
+            ml_confidence=1.0,
+            current_balance=50000000,
+            btc_price=1000000,
+            max_order_size=0.05,
+        )
+        assert size <= 0.05
+
+    def test_static_dynamic_position_size_small_account(self):
+        """_calculate_dynamic_position_size: 少額口座."""
+        size = PositionSizeIntegrator._calculate_dynamic_position_size(
+            ml_confidence=0.5,
+            current_balance=10000,
+            btc_price=15000000,
+        )
+        assert size >= 0.0001
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_integrated_dynamic_kelly_zero_with_balance(self, mock_get):
+        """Phase 67.4: mode=dynamic + Kelly=0 + 残高あり → line 121."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            if key == "position_sizing.mode":
+                return "dynamic"
+            return real_get(key, default)
+
+        mock_get.side_effect = side_effect
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        with patch.object(self.integrator.kelly, "calculate_optimal_size", return_value=0.0):
+            size = self.integrator.calculate_integrated_position_size(
+                ml_confidence=0.5,
+                risk_manager_confidence=0.5,
+                strategy_name="test",
+                config=config,
+                current_balance=500000,
+                btc_price=15000000,
+            )
+        assert size > 0
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_integrated_dynamic_confidence_limit_applied(self, mock_get):
+        """Phase 67.4: 信頼度別ポジション制限が適用される（lines 157-161）."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            overrides = {
+                "position_sizing.mode": "dynamic",
+                # 極小のconfidence_ratioで制限を発動させる
+                "position_management.max_position_ratio_per_trade.low_confidence": 0.001,
+            }
+            if key in overrides:
+                return overrides[key]
+            return real_get(key, default)
+
+        mock_get.side_effect = side_effect
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        with patch.object(self.integrator.kelly, "calculate_optimal_size", return_value=0.0):
+            size = self.integrator.calculate_integrated_position_size(
+                ml_confidence=0.3,
+                risk_manager_confidence=0.3,
+                strategy_name="test",
+                config=config,
+                current_balance=500000,
+                btc_price=15000000,
+            )
+        # confidence_limit = 500000 * 0.001 * 0.995 / 15000000 ≈ 0.0000332
+        # dynamic_size > confidence_limit → 制限適用
+        assert size > 0
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_integrated_dynamic_kelly_zero_without_balance(self, mock_get):
+        """Phase 67.4: mode=dynamic + Kelly=0 + 残高なし → line 198."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            overrides = {
+                "position_sizing.mode": "dynamic",
+                "position_integrator.kelly_weight": 0.5,
+                "position_integrator.risk_manager_weight": 0.5,
+            }
+            if key in overrides:
+                return overrides[key]
+            return real_get(key, default)
+
+        mock_get.side_effect = side_effect
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        with patch.object(self.integrator.kelly, "calculate_optimal_size", return_value=0.0):
+            size = self.integrator.calculate_integrated_position_size(
+                ml_confidence=0.8,
+                risk_manager_confidence=0.7,
+                strategy_name="test",
+                config=config,
+            )
+        assert size > 0
+
+    @patch("src.trading.risk.sizer.get_threshold", side_effect=Exception("test error"))
+    def test_integrated_exception_handler(self, mock_get):
+        """Phase 67.4: 統合計算例外ハンドラ."""
+        config = {"position_size_base": 0.02, "max_position_size": 0.05}
+        size = self.integrator.calculate_integrated_position_size(
+            ml_confidence=0.8, risk_manager_confidence=0.7, strategy_name="test", config=config
+        )
+        # エラー時はフォールバック値 0.01
+        assert size == 0.01
+
+    @patch("src.trading.risk.sizer.get_threshold")
+    def test_static_dynamic_size_exception_handler(self, mock_get):
+        """_calculate_dynamic_position_size: 例外ハンドラ."""
+        real_get = get_threshold_real
+
+        def side_effect(key, default=None):
+            # フォールバック用のget_thresholdは正常に返す
+            if key == "position_management.min_trade_size":
+                return real_get(key, default)
+            raise ValueError("test error")
+
+        mock_get.side_effect = side_effect
+        size = PositionSizeIntegrator._calculate_dynamic_position_size(
+            ml_confidence=0.5,
+            current_balance=500000,
+            btc_price=15000000,
+        )
+        # エラー時はフォールバック
         assert size >= 0.0001
 
 

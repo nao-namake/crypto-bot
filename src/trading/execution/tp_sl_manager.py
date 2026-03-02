@@ -863,8 +863,54 @@ class TPSLManager:
                 avg_price=avg_price,
             )
 
+        # Phase 67.4: SL価格超過の事前チェック（レースコンディション対策）
+        # キャンセル→再配置の間にSLラインを突破している場合は即成行決済
+        try:
+            ticker = await bitbank_client.fetch_ticker(symbol)
+            current_price = float(ticker.get("last", 0)) if ticker else 0
+            if current_price > 0:
+                sl_breached = False
+                if position_side == "long" and current_price <= sl_price:
+                    sl_breached = True
+                elif position_side == "short" and current_price >= sl_price:
+                    sl_breached = True
+
+                if sl_breached:
+                    self.logger.warning(
+                        f"🚨 Phase 67.4: SL価格既に超過 - "
+                        f"現在価格={current_price:.0f}円, SL={sl_price:.0f}円 "
+                        f"→ 成行決済を試行"
+                    )
+                    try:
+                        close_side = "sell" if position_side == "long" else "buy"
+                        await bitbank_client.create_market_order(
+                            symbol=symbol, side=close_side, amount=amount
+                        )
+                        self.logger.info(
+                            f"✅ Phase 67.4: SL超過による成行決済完了 - "
+                            f"{position_side} {amount:.4f} BTC"
+                        )
+                    except Exception as e:
+                        self.logger.error(f"❌ Phase 67.4: SL超過成行決済失敗: {e}")
+                    return
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 67.4: SL超過チェック失敗（継続）: {e}")
+
         tp_order = None
         sl_order = None
+
+        # Phase 67.4: SLを先に配置（レースコンディション対策）
+        # SL不在期間を最小化するため、TP→SLの順序をSL→TPに変更
+        if not has_sl:
+            sl_order = await self.place_sl_or_market_close(
+                entry_side=entry_side,
+                position_side=position_side,
+                amount=amount,
+                avg_price=avg_price,
+                sl_price=sl_price,
+                symbol=symbol,
+                bitbank_client=bitbank_client,
+            )
 
         # TP配置（全量カバー）
         if not has_tp:
@@ -884,18 +930,6 @@ class TPSLManager:
                     )
             except Exception as e:
                 self.logger.error(f"❌ Phase 65.2: TP配置失敗: {e}")
-
-        # SL配置（全量カバー・Phase 64.4: 共通ヘルパーに委譲）
-        if not has_sl:
-            sl_order = await self.place_sl_or_market_close(
-                entry_side=entry_side,
-                position_side=position_side,
-                amount=amount,
-                avg_price=avg_price,
-                sl_price=sl_price,
-                symbol=symbol,
-                bitbank_client=bitbank_client,
-            )
 
         # Phase 64.12: SLが設置されていればVP追加（TPは次回再試行）
         tp_ok = has_tp or (tp_order and tp_order.get("order_id"))

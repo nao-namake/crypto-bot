@@ -58,7 +58,7 @@ class PositionSizeIntegrator:
         reference_timestamp: Optional[datetime] = None,
     ) -> float:
         """
-        Kelly基準と既存RiskManagerの統合ポジションサイズ計算（動的サイジング対応）
+        Phase 67.4: 固定テーブル優先・フォールバックで加重平均
 
         Args:
             ml_confidence: ML予測信頼度
@@ -73,7 +73,17 @@ class PositionSizeIntegrator:
             統合ポジションサイズ（動的調整済み）
         """
         try:
-            from ...core.config import get_threshold
+            # Phase 67.4: 固定テーブルモード判定
+            mode = get_threshold("position_sizing.mode", "dynamic")
+            if mode == "fixed":
+                fixed_size = self._get_fixed_position_size(ml_confidence)
+                self.logger.info(
+                    f"Phase 67.4: 固定ポジションサイズ適用 - "
+                    f"信頼度={ml_confidence:.1%}, サイズ={fixed_size:.4f} BTC"
+                )
+                return fixed_size
+
+            # === 以下フォールバック: 従来の動的計算 ===
 
             # 動的ポジションサイジングが有効かチェック
             dynamic_enabled = get_threshold(
@@ -101,14 +111,11 @@ class PositionSizeIntegrator:
                 )
 
                 # Phase 55.5: 加重平均方式（Kelly基準を活かす）
-                # min()だとDynamic（BTC高価格で極小化）がボトルネックになる問題を解消
                 kelly_weight = get_threshold("position_integrator.kelly_weight", 0.5)
                 dynamic_weight = get_threshold("position_integrator.dynamic_weight", 0.3)
                 risk_weight = get_threshold("position_integrator.risk_manager_weight", 0.2)
 
                 # Phase 67.2: Kelly=0時のフォールバック
-                # Kelly負(エッジなし)→加重平均で50%が0→ポジション1/3に崩壊する問題を修正
-                # Kelly無信号時はDynamic sizing単独で決定（信頼度・残高・価格ベース）
                 min_trade_size = get_threshold("production.min_order_size", 0.0001)
                 if kelly_size <= min_trade_size:
                     integrated_size = dynamic_size
@@ -123,8 +130,7 @@ class PositionSizeIntegrator:
                 max_order_size = get_threshold("production.max_order_size", 0.03)
                 integrated_size = min(integrated_size, max_order_size)
 
-                # Phase 56: 信頼度別ポジション制限を事前適用（limits.pyでの拒否を防ぐ）
-                # Phase 57.2: 閾値60%→50%に変更（ML信頼度平均51.8%に対応）
+                # Phase 56: 信頼度別ポジション制限を事前適用
                 if current_balance and btc_price and btc_price > 0:
                     if ml_confidence < 0.50:
                         confidence_ratio = get_threshold(
@@ -143,8 +149,7 @@ class PositionSizeIntegrator:
                         )
                         confidence_category = "high"
 
-                    # Phase 56.3: 0.5%マージン追加（limits.pyでの境界値超過を防ぐ）
-                    margin_factor = 0.995  # 0.5%マージン
+                    margin_factor = 0.995
                     confidence_limit = (
                         current_balance * confidence_ratio * margin_factor / btc_price
                     )
@@ -170,7 +175,6 @@ class PositionSizeIntegrator:
 
             else:
                 # 従来の方法を使用
-                # Phase 54.9: バックテスト用タイムスタンプを渡す
                 kelly_size = self.kelly.calculate_optimal_size(
                     ml_confidence=ml_confidence,
                     strategy_name=strategy_name,
@@ -183,15 +187,12 @@ class PositionSizeIntegrator:
                     confidence=risk_manager_confidence, config=config
                 )
 
-                # Phase 55.5: 加重平均方式（Dynamic無しの場合）
                 kelly_weight = get_threshold("position_integrator.kelly_weight", 0.5)
                 risk_weight = get_threshold("position_integrator.risk_manager_weight", 0.2)
-                # Dynamic分の重みをKellyに加算
                 total_weight = kelly_weight + risk_weight
                 kelly_normalized = kelly_weight / total_weight
                 risk_normalized = risk_weight / total_weight
 
-                # Phase 67.2: Kelly=0時のフォールバック（Dynamic無し版）
                 min_trade_size = get_threshold("production.min_order_size", 0.0001)
                 if kelly_size <= min_trade_size:
                     integrated_size = risk_manager_size
@@ -200,11 +201,9 @@ class PositionSizeIntegrator:
                         kelly_size * kelly_normalized + risk_manager_size * risk_normalized
                     )
 
-                # 安全上限チェック
                 max_order_size = get_threshold("production.max_order_size", 0.03)
                 integrated_size = min(integrated_size, max_order_size)
 
-                # 最小取引単位チェック
                 min_trade_size = get_threshold("production.min_order_size", 0.0001)
                 integrated_size = max(integrated_size, min_trade_size)
 
@@ -219,6 +218,34 @@ class PositionSizeIntegrator:
         except Exception as e:
             self.logger.error(f"統合ポジションサイズ計算エラー: {e}")
             return 0.01  # フォールバック値
+
+    def _get_fixed_position_size(self, ml_confidence: float) -> float:
+        """
+        Phase 67.4: 固定テーブルからポジションサイズを取得
+
+        Args:
+            ml_confidence: ML予測信頼度
+
+        Returns:
+            固定ポジションサイズ（BTC）
+        """
+        medium_min = get_threshold("position_sizing.confidence_thresholds.medium_min", 0.50)
+        high_min = get_threshold("position_sizing.confidence_thresholds.high_min", 0.65)
+
+        if ml_confidence >= high_min:
+            size = get_threshold("position_sizing.fixed_table.high", 0.02)
+            category = "high"
+        elif ml_confidence >= medium_min:
+            size = get_threshold("position_sizing.fixed_table.medium", 0.015)
+            category = "medium"
+        else:
+            size = get_threshold("position_sizing.fixed_table.low", 0.01)
+            category = "low"
+
+        self.logger.debug(
+            f"Phase 67.4: 固定テーブル参照 - {category}信頼度({ml_confidence:.1%}) → {size} BTC"
+        )
+        return size
 
     @staticmethod
     def _calculate_dynamic_position_size(
@@ -243,8 +270,6 @@ class PositionSizeIntegrator:
         """
         logger = get_logger()
         try:
-            from ...core.config import get_threshold
-
             # ML信頼度によるカテゴリー決定と比率範囲取得
             # Phase 57.2: 閾値60%→50%に変更（ML信頼度平均51.8%に対応）
             if ml_confidence < 0.50:

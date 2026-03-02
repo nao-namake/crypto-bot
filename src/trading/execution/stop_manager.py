@@ -80,6 +80,7 @@ class StopManager:
             self.logger.info(f"🔍 Phase 61.9: 消失ポジション検出 - {len(disappeared)}件")
 
             # Step 2: 各消失ポジションのTP/SL注文ステータス確認
+            now = datetime.now(timezone.utc)
             for vpos in disappeared:
                 execution_info = await self._check_tp_sl_execution(vpos, bitbank_client, symbol)
 
@@ -91,6 +92,34 @@ class StopManager:
 
                     # 残注文キャンセル
                     await self._cancel_remaining_order(execution_info, bitbank_client, symbol)
+                else:
+                    # Phase 67.4: 一定時間経過した消失ポジションは強制クリーンアップ
+                    # 注文ステータス確認に失敗し続けるとvirtual_positionsに残り続け
+                    # 新規取引がブロックされる問題を解消
+                    entry_time_str = vpos.get("timestamp") or vpos.get("sl_placed_at")
+                    if entry_time_str:
+                        try:
+                            if isinstance(entry_time_str, datetime):
+                                entry_time = entry_time_str
+                            else:
+                                from datetime import timezone as tz
+
+                                entry_time = datetime.fromisoformat(str(entry_time_str))
+                            # timezone-aware比較
+                            if entry_time.tzinfo is None:
+                                entry_time = entry_time.replace(tzinfo=timezone.utc)
+                            elapsed = (now - entry_time).total_seconds()
+                            if elapsed > 3600:  # 1時間以上経過
+                                if vpos in virtual_positions:
+                                    virtual_positions.remove(vpos)
+                                    self.logger.warning(
+                                        f"🧹 Phase 67.4: 古い消失ポジション強制削除 - "
+                                        f"経過時間={elapsed / 3600:.1f}時間, "
+                                        f"side={vpos.get('side')}, "
+                                        f"amount={vpos.get('amount')}"
+                                    )
+                        except Exception as e:
+                            self.logger.debug(f"Phase 67.4: 消失ポジション時刻パースエラー: {e}")
 
             return detected_executions
 

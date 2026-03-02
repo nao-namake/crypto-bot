@@ -420,114 +420,114 @@ class TestPhase618BacktestSupport:
 
 
 class TestDynamicPositionSizing:
-    """Phase 61.10: Dynamic Position Sizing テスト"""
+    """Phase 67.4: 固定ポジションサイズテーブル テスト"""
 
     def test_low_confidence_sizing(self):
-        """低信頼度（<50%）でのポジションサイズ"""
+        """低信頼度（<50%）でのポジションサイズ → 固定0.01 BTC"""
         size = SignalBuilder._calculate_dynamic_position_size(
             confidence=0.4,
             current_balance=500000,
             btc_price=15000000,
             config={},
         )
-        # Phase 64: sizer.py統合 - low_confidence設定使用
-        # 0.40 confidence → normalized = (0.40 - 0.40) / 0.10 = 0.0
-        # position_ratio = min_ratio（設定値依存）
-        # size = 500000 * ratio / 15000000
-        assert 0.005 <= size <= 0.03
+        # Phase 67.4: 固定テーブル mode=fixed → low=0.01 BTC
+        assert size == 0.01
 
     def test_medium_confidence_sizing(self):
-        """中信頼度（50-65%）でのポジションサイズ"""
+        """中信頼度（50-65%）でのポジションサイズ → 固定0.015 BTC"""
         size = SignalBuilder._calculate_dynamic_position_size(
             confidence=0.6,
             current_balance=500000,
             btc_price=15000000,
             config={},
         )
-        # Phase 64: sizer.py統合 - medium_confidence設定使用
-        # 0.60 confidence → normalized = (0.60 - 0.50) / 0.15 = 0.667
-        # position_ratio = min_ratio + (max_ratio - min_ratio) * 0.667
-        # size = 500000 * ratio / 15000000
-        assert 0.015 <= size <= 0.03
+        # Phase 67.4: 固定テーブル mode=fixed → medium=0.015 BTC
+        assert size == 0.015
 
     def test_high_confidence_sizing(self):
-        """高信頼度（>65%）でのポジションサイズ"""
+        """高信頼度（>65%）でのポジションサイズ → 固定0.02 BTC"""
         size = SignalBuilder._calculate_dynamic_position_size(
             confidence=0.8,
             current_balance=500000,
             btc_price=15000000,
             config={},
         )
-        # Phase 64: sizer.py統合 - high_confidence設定使用
-        # 0.80 confidence → normalized = (0.80 - 0.65) / 0.35 = 0.429
-        # position_ratio = min_ratio + (max_ratio - min_ratio) * 0.429
-        # size = 500000 * ratio / 15000000
-        assert 0.02 <= size <= 0.04
+        # Phase 67.4: 固定テーブル mode=fixed → high=0.02 BTC
+        assert size == 0.02
 
-    def test_max_size_limit(self):
-        """最大サイズ制限が適用される"""
-        # 極端に低いBTC価格で計算するとmax_size制限がかかる
+    def test_boundary_medium_confidence(self):
+        """境界値: 信頼度50%ちょうどは medium"""
         size = SignalBuilder._calculate_dynamic_position_size(
-            confidence=1.0,
-            current_balance=50000000,  # 5000万円
-            btc_price=1000000,  # 100万円（極端に安い）
-            config={},
-        )
-        # 計算上は大きくなるがmax_size=0.15で制限される
-        assert size <= 0.15
-
-    def test_min_size_guarantee(self):
-        """最小サイズ保証"""
-        # 極端に低い信頼度でも最小サイズは保証される
-        size = SignalBuilder._calculate_dynamic_position_size(
-            confidence=0.1,  # 極端に低い信頼度
-            current_balance=10000,  # 1万円（少額）
+            confidence=0.50,
+            current_balance=500000,
             btc_price=15000000,
             config={},
         )
-        # min_size=0.0001 BTC
-        assert size >= 0.0001
+        assert size == 0.015
 
-    def test_fixed_amount_tp_with_dynamic_size(self):
-        """Dynamic Sizingでの固定金額TP計算が正常範囲"""
-        # まずDynamic Sizingで適切なサイズを計算
+    def test_boundary_high_confidence(self):
+        """境界値: 信頼度65%ちょうどは high"""
+        size = SignalBuilder._calculate_dynamic_position_size(
+            confidence=0.65,
+            current_balance=500000,
+            btc_price=15000000,
+            config={},
+        )
+        assert size == 0.02
+
+    def test_fixed_size_independent_of_balance_and_price(self):
+        """固定サイズは残高・BTC価格に依存しない"""
+        size1 = SignalBuilder._calculate_dynamic_position_size(
+            confidence=0.6,
+            current_balance=500000,
+            btc_price=15000000,
+            config={},
+        )
+        size2 = SignalBuilder._calculate_dynamic_position_size(
+            confidence=0.6,
+            current_balance=100000,  # 残高1/5
+            btc_price=20000000,  # 価格1.3倍
+            config={},
+        )
+        # Phase 67.4: 固定テーブルなので同じ
+        assert size1 == size2
+
+    def test_fixed_amount_tp_with_fixed_size(self):
+        """固定サイズでの固定金額TP計算が正常範囲"""
         size = SignalBuilder._calculate_dynamic_position_size(
             confidence=0.6,
             current_balance=500000,
             btc_price=15000000,
             config={},
         )
+        assert size == 0.015  # medium
 
         # Phase 62.19: 固定金額TP計算（Maker 0%）
         config = {
-            "target_net_profit": 1000,
+            "target_net_profit": 500,
             "include_entry_fee": True,
             "include_exit_fee_rebate": True,
             "fallback_entry_fee_rate": 0.0,
             "fallback_exit_fee_rate": 0.0,
         }
 
-        # 計算されたサイズが小さすぎる場合のためにテスト用サイズを使用
-        test_amount = 0.02  # 約30万円相当
-
         tp = RiskManager.calculate_fixed_amount_tp(
             action="buy",
             entry_price=15000000,
-            amount=test_amount,
+            amount=size,
             fee_data=None,
             config=config,
         )
 
-        # TPが正常範囲（エントリー価格 + 0.4-1%）
-        if tp is not None:
-            assert tp > 15000000
-            # price_distance = (1000 + 手数料) / 0.02 ≈ 60000円
-            # TP ≈ 15000000 + 60000 = 15060000
-            assert 15050000 <= tp <= 15150000
+        # TPが正常範囲
+        # price_distance = 500 / 0.015 ≈ 33333円
+        # TP ≈ 15000000 + 33333 = 15033333
+        assert tp is not None
+        assert tp > 15000000
+        assert 15030000 <= tp <= 15040000
 
     def test_backtest_live_size_consistency(self):
         """バックテストとライブのサイズ計算が同じロジックを使用"""
-        # 同じ入力で同じ結果が得られることを確認
         size1 = SignalBuilder._calculate_dynamic_position_size(
             confidence=0.55,
             current_balance=500000,

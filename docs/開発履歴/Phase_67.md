@@ -177,23 +177,72 @@ else:
 
 ---
 
-## バックテスト結果
+## バックテスト結果（Phase 67.2）
 
-（GitHub Actions実行中 -- 完了後に記載）
+（CI実行中 -- 完了後に記載）
 
-### 目標指標
+---
 
-| 指標 | Phase 66.8 | 目標 | Phase 65参考値 |
-|------|-----------|------|---------------|
-| 勝率 | 49.0% | **65%+** | 85.4% |
-| 総損益 | ¥-3,804 | **¥+100,000+** | ¥+102,135 |
-| PF | 0.97 | **1.5+** | 2.47 |
-| 最大DD | 3.72% | **2%以下** | 0.94% |
+## Phase 67.3: ポジションサイズ重み変更（Dynamic 100%）
 
-### 判断基準
+**日付**: 2026年3月1日
 
-| 勝率 | 判定 | 次のアクション |
-|------|------|---------------|
-| ≥ 65% | 成功 | ライブ投入検討 |
-| 58-65% | 部分成功 | 追加施策（ML調整等）検討 |
-| < 58% | 失敗 | SL金額再検討 or 百分率SLへの回帰 |
+position_integratorの重みをDynamic 100%に変更:
+- kelly_weight: 0.5→0.0
+- dynamic_weight: 0.3→1.0
+- risk_manager_weight: 0.2→0.0
+
+→ Kelly=0フォールバックと同等の効果を全ケースで適用。
+
+---
+
+## Phase 67.4: 固定ポジションサイズ + TP/SLレースコンディション修正
+
+**日付**: 2026年3月2日
+
+### 背景
+
+Phase 67〜67.3でポジションサイズの動的計算を6回修正したが、ML信頼度・BTC価格・残高の
+乖離により意図通りに動作しない（平均0.011 BTC、目標0.02 BTC）。
+
+さらにライブモードで深刻な問題が発覚:
+- Phase 65.2のTP/SL統合再配置でSLキャンセル→新SL配置の間にSL価格突破（レースコンディション）
+- 結果: 500円TP/700円SL目標に対し、実際に2,000円超の利確/損切りが発生
+- 「消失ポジション検出」が12時間以上繰り返し、新規取引もブロック
+
+### Part A: 固定ポジションサイズテーブル導入
+
+動的計算を廃止し、ML信頼度に応じた固定サイズに置換。
+
+| 信頼度 | 範囲 | 固定サイズ |
+|--------|------|-----------|
+| low | < 50% | 0.01 BTC |
+| medium | 50-65% | 0.015 BTC |
+| high | >= 65% | 0.02 BTC |
+
+**変更ファイル**:
+- `config/core/thresholds.yaml`: `position_sizing` セクション追加
+- `src/trading/risk/sizer.py`: `_get_fixed_position_size()` 追加、`calculate_integrated_position_size()` に固定テーブル分岐
+- `src/strategies/utils/strategy_utils.py`: `_calculate_dynamic_position_size()` に固定テーブル分岐
+
+**効果**: BTC価格・残高に依存しない安定したポジションサイズ。TP/SL距離も一定に。
+
+### Part B: TP/SLレースコンディション修正
+
+**問題1: SLキャンセル→再配置の間のSL不在**
+- `src/trading/execution/tp_sl_manager.py`: TP→SL配置順序をSL→TPに変更
+- SL価格既超過時は即成行決済（キャンセル不要）
+
+**問題2: 消失ポジション検出の無限ループ**
+- `src/trading/execution/stop_manager.py`: 1時間以上経過した消失ポジションを強制クリーンアップ
+
+### 変更ファイル一覧
+
+| ファイル | 変更内容 | Part |
+|---------|---------|------|
+| `config/core/thresholds.yaml` | 固定テーブル設定追加 | A |
+| `src/trading/risk/sizer.py` | 固定テーブル参照ロジック | A |
+| `src/strategies/utils/strategy_utils.py` | シグナル生成時も固定テーブル参照 | A |
+| `src/trading/execution/tp_sl_manager.py` | SL→TP配置順序変更 + SL超過事前チェック | B |
+| `src/trading/execution/stop_manager.py` | 消失ポジション強制クリーンアップ | B |
+| テストファイル群 | 固定サイズ対応テスト更新 | Test |
