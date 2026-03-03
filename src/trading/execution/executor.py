@@ -388,6 +388,52 @@ class ExecutionService:
                 notes=f"{order_type}注文実行 - {order_execution_config.get('strategy', 'default')}",
             )
 
+            # Phase 67.5: SUBMITTED limit注文の約定ポーリング
+            # bitbankはlimit注文を即時返却(filled_amount=0)するが、
+            # 数秒以内に約定することが多いためポーリングで確認
+            if result.status == OrderStatus.SUBMITTED and result.filled_amount <= 0:
+                poll_order_id = result.order_id
+                if poll_order_id and self.bitbank_client:
+                    max_attempts = 5
+                    poll_interval = 2  # 秒（合計最大10秒）
+                    for attempt in range(max_attempts):
+                        await asyncio.sleep(poll_interval)
+                        try:
+                            order_info = await asyncio.to_thread(
+                                self.bitbank_client.fetch_order,
+                                poll_order_id,
+                                symbol,
+                            )
+                            filled = float(order_info.get("filled", 0))
+                            if filled > 0:
+                                result.filled_amount = filled
+                                result.filled_price = float(
+                                    order_info.get("average", 0)
+                                    or order_info.get("price", 0)
+                                    or result.price
+                                )
+                                result.status = OrderStatus.FILLED
+                                self.logger.info(
+                                    f"✅ Phase 67.5: 約定確認 - "
+                                    f"試行{attempt + 1}/{max_attempts}, "
+                                    f"数量={filled}"
+                                )
+                                break
+                            order_status = order_info.get("status", "")
+                            if order_status in (
+                                "closed",
+                                "canceled",
+                                "cancelled",
+                            ):
+                                self.logger.info(
+                                    f"ℹ️ Phase 67.5: 注文状態={order_status} - ポーリング終了"
+                                )
+                                break
+                        except Exception as e:
+                            self.logger.warning(
+                                f"⚠️ Phase 67.5: 約定確認エラー " f"(試行{attempt + 1}): {e}"
+                            )
+
             # 統計更新
             self.executed_trades += 1
 
@@ -479,12 +525,15 @@ class ExecutionService:
                 )
 
             # Phase 64.3: filled_amount=0ならTP/SL配置スキップ（未約定limit注文）
-            # 約定待ちの注文は定期チェック（10分）で検出・補完される
+            # Phase 67.5: 次サイクルでTP/SLチェックを強制実行するためゲートリセット
             actual_amount = result.filled_amount
             if actual_amount <= 0:
                 self.logger.warning(
-                    f"⚠️ Phase 64.3: 約定量0 - TP/SL配置スキップ（注文状態: {result.status}）"
+                    f"⚠️ Phase 67.5: ポーリング後もfilled_amount=0 - "
+                    f"次サイクル強制チェック（注文状態: {result.status}）"
                 )
+                if self.tp_sl_manager:
+                    self.tp_sl_manager._last_tp_sl_check_time = None
                 return result
 
             # Phase 64.3: position_tracker経由で追加（単一ソース化）

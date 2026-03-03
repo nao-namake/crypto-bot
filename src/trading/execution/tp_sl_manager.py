@@ -819,22 +819,8 @@ class TPSLManager:
         symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
         entry_side = "buy" if position_side == "long" else "sell"
 
-        # Phase 65.2 Step 0: 既存の部分TP/SL注文を全キャンセル（50062回避）
-        # bitbankはTP+SLの合計数量がポジション数量を超えると50062エラー
-        # 既存の部分注文を残したまま全量注文を追加すると超過する
-        try:
-            cancelled = await self._cancel_partial_exit_orders(
-                position_side, symbol, bitbank_client
-            )
-            if cancelled > 0:
-                self.logger.info(f"🔄 Phase 65.2: 部分TP/SL {cancelled}件キャンセル → 統合再配置")
-                # キャンセルしたので全再配置が必要
-                has_tp = False
-                has_sl = False
-        except Exception as e:
-            self.logger.warning(f"⚠️ Phase 65.2: 部分TP/SLキャンセル失敗（継続）: {e}")
-
-        # Phase 65.2/66.6: 固定金額TP/SL対応（リカバリパスでも固定額計算を使用）
+        # ── Phase 67.5: TP/SL価格計算を先行実行 ──
+        # キャンセル前にSL超過チェックを行うため、価格計算を最初に実行
         if self._is_fixed_amount_tp_enabled() and avg_price > 0 and amount > 0:
             tp_price = self._calculate_fixed_amount_tp_for_position(
                 position_side, amount, avg_price
@@ -863,10 +849,10 @@ class TPSLManager:
                 avg_price=avg_price,
             )
 
-        # Phase 67.4: SL価格超過の事前チェック（レースコンディション対策）
-        # キャンセル→再配置の間にSLラインを突破している場合は即成行決済
+        # ── Phase 67.5: SL超過事前チェック（キャンセル前＝既存SL保護中に実行） ──
+        # 既存SLがまだ有効な状態でチェック → 超過なら既存SLに任せてreturn
         try:
-            ticker = await bitbank_client.fetch_ticker(symbol)
+            ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, symbol)
             current_price = float(ticker.get("last", 0)) if ticker else 0
             if current_price > 0:
                 sl_breached = False
@@ -877,24 +863,83 @@ class TPSLManager:
 
                 if sl_breached:
                     self.logger.warning(
-                        f"🚨 Phase 67.4: SL価格既に超過 - "
-                        f"現在価格={current_price:.0f}円, SL={sl_price:.0f}円 "
-                        f"→ 成行決済を試行"
+                        f"🚨 Phase 67.5: SL既超過（キャンセル前検出） - "
+                        f"現在={current_price:.0f}円, SL={sl_price:.0f}円 "
+                        f"→ 成行決済"
                     )
                     try:
                         close_side = "sell" if position_side == "long" else "buy"
-                        await bitbank_client.create_market_order(
-                            symbol=symbol, side=close_side, amount=amount
+                        await asyncio.to_thread(
+                            bitbank_client.create_order,
+                            symbol=symbol,
+                            order_type="market",
+                            side=close_side,
+                            amount=amount,
+                            is_closing_order=True,
+                            entry_position_side=position_side,
                         )
                         self.logger.info(
-                            f"✅ Phase 67.4: SL超過による成行決済完了 - "
+                            f"✅ Phase 67.5: SL超過による成行決済完了 - "
                             f"{position_side} {amount:.4f} BTC"
                         )
                     except Exception as e:
-                        self.logger.error(f"❌ Phase 67.4: SL超過成行決済失敗: {e}")
+                        self.logger.error(f"❌ Phase 67.5: SL超過成行決済失敗: {e}")
                     return
         except Exception as e:
-            self.logger.warning(f"⚠️ Phase 67.4: SL超過チェック失敗（継続）: {e}")
+            self.logger.warning(f"⚠️ Phase 67.5: SL超過事前チェック失敗（継続）: {e}")
+
+        # ── Step 0: 既存部分TP/SL注文キャンセル（ここからSL不在期間開始） ──
+        # bitbankはTP+SLの合計数量がポジション数量を超えると50062エラー
+        try:
+            cancelled = await self._cancel_partial_exit_orders(
+                position_side, symbol, bitbank_client
+            )
+            if cancelled > 0:
+                self.logger.info(f"🔄 Phase 65.2: 部分TP/SL {cancelled}件キャンセル → 統合再配置")
+                # キャンセルしたので全再配置が必要
+                has_tp = False
+                has_sl = False
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 65.2: 部分TP/SLキャンセル失敗（継続）: {e}")
+
+        # ── Phase 67.5: SL超過再チェック（キャンセル後セーフティネット） ──
+        # キャンセル中に価格が動いた場合の防御
+        try:
+            ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, symbol)
+            current_price = float(ticker.get("last", 0)) if ticker else 0
+            if current_price > 0:
+                sl_breached = False
+                if position_side == "long" and current_price <= sl_price:
+                    sl_breached = True
+                elif position_side == "short" and current_price >= sl_price:
+                    sl_breached = True
+
+                if sl_breached:
+                    self.logger.warning(
+                        f"🚨 Phase 67.5: SL超過（キャンセル後検出） - "
+                        f"現在={current_price:.0f}円, SL={sl_price:.0f}円 "
+                        f"→ 成行決済"
+                    )
+                    try:
+                        close_side = "sell" if position_side == "long" else "buy"
+                        await asyncio.to_thread(
+                            bitbank_client.create_order,
+                            symbol=symbol,
+                            order_type="market",
+                            side=close_side,
+                            amount=amount,
+                            is_closing_order=True,
+                            entry_position_side=position_side,
+                        )
+                        self.logger.info(
+                            f"✅ Phase 67.5: SL超過による成行決済完了 - "
+                            f"{position_side} {amount:.4f} BTC"
+                        )
+                    except Exception as e:
+                        self.logger.error(f"❌ Phase 67.5: SL超過成行決済失敗: {e}")
+                    return
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 67.5: SL超過再チェック失敗（継続）: {e}")
 
         tp_order = None
         sl_order = None
