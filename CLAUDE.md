@@ -4,13 +4,13 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 67.5（ライブデプロイ準備中） |
-| **直前の作業** | TP/SL損失問題の根本解決（2問題同時修正） |
+| **現在Phase** | 68（TP/SL手数料修正 + Maker改善） |
+| **直前の作業** | Phase 68: TP/SLエントリー手数料修正 + Maker価格戦略改善 + SL検出拡充 |
 | **次の予定** | ライブデプロイ → GCPログ検証 |
-| **最新成果** | Phase 67.5: 約定ポーリング + SL超過事前チェック + Phase 67.4バグ修正 |
-| **最終更新** | 2026年3月4日 |
+| **最新成果** | Phase 68: 実効RR 0.47:1→0.71:1修正、Maker best_bid/ask直接配置 |
+| **最終更新** | 2026年3月6日 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-67）、`docs/開発履歴/Phase_67.md`（最新）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-68）、`docs/開発履歴/Phase_68.md`（最新）
 
 ---
 
@@ -242,34 +242,36 @@ tight_range:
 | normal_range | 0.65% | 0.45% |
 | trending | 1.0% | 0.65% |
 
-### 固定金額TP
+### 固定金額TP（Phase 68更新）
 
 | 設定 | 値 |
 |------|-----|
 | enabled | true |
 | target_net_profit | 500円 |
-| include_entry_fee | true（Maker 0%） |
+| include_entry_fee | true（Taker 0.1%想定） |
 | include_exit_fee_rebate | true（TP決済: Maker 0%） |
 
 計算式: `TP価格 = エントリー価格 ± (必要含み益 / 数量)`
-必要含み益: `目標純利益 + エントリー手数料 + 利息 + 決済手数料`
+必要含み益: `目標純利益 + エントリー手数料(0.1%) + 利息 + 決済手数料(0%)`
 
-### 固定金額SL（Phase 67更新）
+### 固定金額SL（Phase 68更新）
 
 | 設定 | 値 |
 |------|-----|
 | enabled | true |
 | target_max_loss | 700円 |
+| include_entry_fee | true（Taker 0.1%想定） |
 | include_exit_fee | true（SL決済: Taker 0.1%） |
 
 計算式: `SL価格 = エントリー価格 ∓ (SL距離 / 数量)`
-SL距離: `(目標最大損失 - 決済手数料) / ポジションサイズ`
+SL距離: `(目標最大損失 - エントリー手数料 - 決済手数料) / ポジションサイズ`
 
 ### 手数料設定（2026年2月2日改定）
 
 | 項目 | エントリー | TP決済 | SL決済 |
 |------|----------|--------|--------|
-| 手数料率 | 0%（Maker） | 0%（Maker） | 0.1%（Taker） |
+| 手数料率 | 0%（Maker成功時）/ 0.1%（Taker） | 0%（Maker） | 0.1%（Taker） |
+| TP/SL計算時 | 0.1%（Taker想定） | 0%（Maker想定） | 0.1%（Taker想定） |
 
 ### SL設定
 
@@ -352,6 +354,6 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 | **運用** | [システムリファレンス.md](docs/運用ガイド/システムリファレンス.md) | 仕様+実装の統合リファレンス |
 | **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
-| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-66） |
-| **履歴** | [Phase_66.md](docs/開発履歴/Phase_66.md) | 最新Phase詳細 |
+| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-68） |
+| **履歴** | [Phase_68.md](docs/開発履歴/Phase_68.md) | 最新Phase詳細 |
 | **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |

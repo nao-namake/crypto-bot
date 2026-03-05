@@ -419,6 +419,114 @@ class TestPhase618BacktestSupport:
         assert tp_live == tp_backtest
 
 
+class TestPhase68EntryFeeCorrection:
+    """Phase 68: TP/SLエントリー手数料計算テスト"""
+
+    def test_tp_with_taker_entry_fee(self):
+        """TP計算にTakerエントリー手数料が含まれる"""
+        config = {
+            "target_net_profit": 500,
+            "include_entry_fee": True,
+            "fallback_entry_fee_rate": 0.001,
+            "include_exit_fee_rebate": True,
+            "fallback_exit_fee_rate": 0.0,
+            "include_interest": True,
+        }
+        tp = RiskManager.calculate_fixed_amount_tp(
+            action="buy",
+            entry_price=11500000,
+            amount=0.01,
+            fee_data=None,
+            config=config,
+        )
+        # entry_fee = 11500000 * 0.01 * 0.001 = 115
+        # required = 500 + 115 = 615
+        # distance = 615 / 0.01 = 61500
+        # tp = 11500000 + 61500 = 11561500
+        assert tp is not None
+        assert abs(tp - 11561500) < 1
+
+    def test_tp_without_entry_fee_for_comparison(self):
+        """エントリー手数料なしのTP（比較用）"""
+        config = {
+            "target_net_profit": 500,
+            "include_entry_fee": True,
+            "fallback_entry_fee_rate": 0.0,
+            "include_exit_fee_rebate": True,
+            "fallback_exit_fee_rate": 0.0,
+            "include_interest": True,
+        }
+        tp = RiskManager.calculate_fixed_amount_tp(
+            action="buy",
+            entry_price=11500000,
+            amount=0.01,
+            fee_data=None,
+            config=config,
+        )
+        # entry_fee = 0
+        # required = 500
+        # distance = 500 / 0.01 = 50000
+        # tp = 11500000 + 50000 = 11550000
+        assert tp is not None
+        assert abs(tp - 11550000) < 1
+
+    def test_tp_entry_fee_increases_distance(self):
+        """エントリー手数料によりTP距離が拡大する"""
+        config_no_fee = {
+            "target_net_profit": 500,
+            "include_entry_fee": True,
+            "fallback_entry_fee_rate": 0.0,
+            "include_exit_fee_rebate": True,
+            "fallback_exit_fee_rate": 0.0,
+        }
+        config_with_fee = {
+            "target_net_profit": 500,
+            "include_entry_fee": True,
+            "fallback_entry_fee_rate": 0.001,
+            "include_exit_fee_rebate": True,
+            "fallback_exit_fee_rate": 0.0,
+        }
+        tp_no_fee = RiskManager.calculate_fixed_amount_tp(
+            action="buy",
+            entry_price=11500000,
+            amount=0.01,
+            fee_data=None,
+            config=config_no_fee,
+        )
+        tp_with_fee = RiskManager.calculate_fixed_amount_tp(
+            action="buy",
+            entry_price=11500000,
+            amount=0.01,
+            fee_data=None,
+            config=config_with_fee,
+        )
+        # 手数料込みのほうがTP距離が大きい
+        assert tp_with_fee > tp_no_fee
+        # 差分 = 115 / 0.01 = 11500円
+        assert abs((tp_with_fee - tp_no_fee) - 11500) < 1
+
+    def test_sell_tp_with_taker_entry_fee(self):
+        """SELLでもTP計算にTakerエントリー手数料が含まれる"""
+        config = {
+            "target_net_profit": 500,
+            "include_entry_fee": True,
+            "fallback_entry_fee_rate": 0.001,
+            "include_exit_fee_rebate": True,
+            "fallback_exit_fee_rate": 0.0,
+            "include_interest": True,
+        }
+        tp = RiskManager.calculate_fixed_amount_tp(
+            action="sell",
+            entry_price=11500000,
+            amount=0.01,
+            fee_data=None,
+            config=config,
+        )
+        # SELL: tp = 11500000 - 61500 = 11438500
+        assert tp is not None
+        assert abs(tp - 11438500) < 1
+
+
 class TestDynamicPositionSizing:
     """Phase 67.4: 固定ポジションサイズテーブル テスト"""
 

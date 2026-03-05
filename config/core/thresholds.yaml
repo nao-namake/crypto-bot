@@ -636,7 +636,7 @@ position_management:
       include_entry_fee: true
       include_exit_fee_rebate: true
       include_interest: true
-      fallback_entry_fee_rate: 0.0
+      fallback_entry_fee_rate: 0.001
       fallback_exit_fee_rate: 0.0
     regime_based:
       enabled: true
@@ -679,10 +679,12 @@ position_management:
       enabled: true
       max_retries: 3
       slippage_increase_per_retry: 0.001
-    # Phase 67: 固定金額SL（500→700円、Phase 65の実効SL ~660円に合わせる）
+    # Phase 67→68: 固定金額SL（エントリー手数料も予算から差し引き）
     fixed_amount:
       enabled: true
       target_max_loss: 700
+      include_entry_fee: true
+      fallback_entry_fee_rate: 0.001
       include_exit_fee: true
       fallback_exit_fee_rate: 0.001
     regime_based:
@@ -753,12 +755,13 @@ order_execution:
     fallback_to_market: true
     max_price_deviation: 0.05
     check_interval_seconds: 60
+  # Phase 68: Maker改善（best_bid/ask直接配置 + 板の奥リトライ + 待機時間延長）
   maker_strategy:
     enabled: true
-    max_retries: 5
-    retry_interval_ms: 200
-    timeout_seconds: 30
-    price_adjustment_tick: 1
+    max_retries: 3
+    retry_interval_ms: 5000
+    timeout_seconds: 60
+    price_adjustment_tick: 100
     max_price_adjustment_ratio: 0.001
     fallback_to_taker: true
     disable_on_high_volatility: true

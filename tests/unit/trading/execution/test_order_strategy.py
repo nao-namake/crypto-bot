@@ -677,64 +677,48 @@ class TestOrderStrategyLimitPriceCalculation:
 
 
 class TestMakerPriceCalculation:
-    """Phase 65.16: Maker価格計算テスト（1円スプレッド対応）"""
+    """Phase 68: Maker価格計算テスト（best_bid/ask直接配置）"""
 
     def setup_method(self):
         self.order_strategy = OrderStrategy()
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_buy_normal_spread(self, mock_threshold):
-        """買い注文: スプレッド2円以上 → inside配置（bid+1）"""
-        mock_threshold.return_value = 1  # tick=1
+    def test_buy_normal_spread(self):
+        """Phase 68: 買い注文 → best_bid直接配置"""
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500002)
-        assert price == 14500001  # bid+1
+        assert price == 14500000  # best_bid
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_sell_normal_spread(self, mock_threshold):
-        """売り注文: スプレッド2円以上 → inside配置（ask-1）"""
-        mock_threshold.return_value = 1
+    def test_sell_normal_spread(self):
+        """Phase 68: 売り注文 → best_ask直接配置"""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500002)
-        assert price == 14500001  # ask-1
+        assert price == 14500002  # best_ask
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_buy_1yen_spread(self, mock_threshold):
-        """Phase 65.16: 買い注文・スプレッド1円 → best_bid配置"""
-        mock_threshold.return_value = 1
+    def test_buy_1yen_spread(self):
+        """Phase 68: 買い注文・スプレッド1円 → best_bid配置"""
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500001)
         assert price == 14500000  # best_bid
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_sell_1yen_spread(self, mock_threshold):
-        """Phase 65.16: 売り注文・スプレッド1円 → best_ask配置"""
-        mock_threshold.return_value = 1
+    def test_sell_1yen_spread(self):
+        """Phase 68: 売り注文・スプレッド1円 → best_ask配置"""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500001)
         assert price == 14500001  # best_ask
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_buy_zero_spread(self, mock_threshold):
+    def test_buy_zero_spread(self):
         """買い注文: スプレッド0円（bid=ask） → best_bid配置"""
-        mock_threshold.return_value = 1
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000)
         assert price == 14500000
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_sell_zero_spread(self, mock_threshold):
+    def test_sell_zero_spread(self):
         """売り注文: スプレッド0円（bid=ask） → best_ask配置"""
-        mock_threshold.return_value = 1
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000)
         assert price == 14500000
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_invalid_side(self, mock_threshold):
+    def test_invalid_side(self):
         """不正なside → 0返却"""
-        mock_threshold.return_value = 1
         price = self.order_strategy._calculate_maker_price("invalid", 14500000, 14500001)
         assert price == 0
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_buy_never_returns_zero(self, mock_threshold):
-        """Phase 65.16: 買い注文は0を返さない（フォールバック不要）"""
-        mock_threshold.return_value = 1
+    def test_buy_never_returns_zero(self):
+        """Phase 68: 買い注文は0を返さない"""
         # どのスプレッドでも有効な価格を返す
         for spread in [0, 1, 2, 5, 100]:
             price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000 + spread)

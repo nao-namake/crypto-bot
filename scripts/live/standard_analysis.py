@@ -1,35 +1,28 @@
 #!/usr/bin/env python3
 """
-ライブモード統合診断スクリプト - Phase 62.10
+ライブモード統合診断スクリプト
 
 目的:
   ライブ運用の標準化された分析とインフラ・Bot機能診断を
   統合し、単一スクリプトで完全な診断を実現。
 
 機能:
-  - 39項目の固定指標計算（LiveAnalyzer）
+  - アカウント・ポジション・取引履歴分析（LiveAnalyzer）
   - インフラ基盤診断（InfrastructureChecker）
-    - Cloud Run稼働状況
+    - Cloud Run稼働状況（conditions.Ready判定）
     - Secret Manager権限確認
-    - Container安定性
-    - Discord通知確認
-    - API残高取得確認
-    - ポジション復元確認
-    - 取引阻害エラー検出
+    - Container安定性・API・エラー検出
   - Bot機能診断（BotFunctionChecker）
-    - 55特徴量システム確認
+    - 55特徴量・ML予測・6戦略動作確認
     - Silent Failure検出
-    - 6戦略動作確認
-    - ML予測確認
-    - レジーム別TP/SL確認
-    - Kelly基準確認
-    - Atomic Entry Pattern確認
-    - Phase 62.9-62.10: Maker戦略確認（エントリー/TP決済）
+    - エントリー実行フロー検証（約定ポーリング・固定サイズ）
+    - TP/SL管理検証（SL超過チェック・緊急決済）
+    - Maker戦略・設定値検証
   - JSON/Markdown/CSV出力
   - 終了コード対応（CI/CD連携用）
 
 使い方:
-  # 基本実行（全診断 + 39指標）
+  # 基本実行（全診断）
   python3 scripts/live/standard_analysis.py
 
   # 期間指定（48時間）
@@ -126,13 +119,22 @@ class InfrastructureCheckResult:
 class InfrastructureChecker:
     """インフラ基盤診断クラス"""
 
-    def __init__(self, logger):
+    def __init__(self, logger, hours: int = 24):
         self.logger = logger
+        self.hours = hours
         self.result = InfrastructureCheckResult()
-        self.deploy_time = self._get_deploy_time()
+        self.log_since_time = self._get_log_since_time()
+        self.deploy_time = self._get_deploy_time()  # レポート表示用のみ
+
+    def _get_log_since_time(self) -> str:
+        """ログ検索の開始時刻（--hoursベース）"""
+        from datetime import timezone
+
+        utc_time = datetime.now(timezone.utc) - timedelta(hours=self.hours)
+        return utc_time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     def _get_deploy_time(self) -> str:
-        """最新CI時刻またはフォールバック時刻を取得"""
+        """最新CI時刻またはフォールバック時刻を取得（レポート表示用）"""
         try:
             result = subprocess.run(
                 [
@@ -162,7 +164,7 @@ class InfrastructureChecker:
 
     def _count_gcp_logs(self, query: str, limit: int = 50) -> int:
         """GCPログをカウント"""
-        if not self.deploy_time:
+        if not self.log_since_time:
             return 0
 
         try:
@@ -170,7 +172,7 @@ class InfrastructureChecker:
                 f'resource.type="cloud_run_revision" AND '
                 f'resource.labels.service_name="crypto-bot-service-prod" AND '
                 f"({query}) AND "
-                f'timestamp>="{self.deploy_time}"'
+                f'timestamp>="{self.log_since_time}"'
             )
             result = subprocess.run(
                 [
@@ -194,7 +196,7 @@ class InfrastructureChecker:
 
     def _fetch_gcp_logs(self, query: str, limit: int = 5) -> List[str]:
         """GCPログを取得"""
-        if not self.deploy_time:
+        if not self.log_since_time:
             return []
 
         try:
@@ -202,7 +204,7 @@ class InfrastructureChecker:
                 f'resource.type="cloud_run_revision" AND '
                 f'resource.labels.service_name="crypto-bot-service-prod" AND '
                 f"({query}) AND "
-                f'timestamp>="{self.deploy_time}"'
+                f'timestamp>="{self.log_since_time}"'
             )
             result = subprocess.run(
                 [
@@ -260,22 +262,39 @@ class InfrastructureChecker:
                     "describe",
                     "crypto-bot-service-prod",
                     "--region=asia-northeast1",
-                    "--format=value(status.conditions[0].status)",
+                    "--format=json(status.conditions)",
                 ],
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
-            self.result.cloud_run_status = (
-                result.stdout.strip() if result.returncode == 0 else "Unknown"
-            )
+            if result.returncode == 0 and result.stdout.strip():
+                import json as json_mod
+
+                data = json_mod.loads(result.stdout.strip())
+                conditions = data.get("status", {}).get("conditions", [])
+                # "Ready" タイプの条件を検索
+                ready_status = "Unknown"
+                for cond in conditions:
+                    if cond.get("type") == "Ready":
+                        ready_status = cond.get("status", "Unknown")
+                        break
+                self.result.cloud_run_status = ready_status
+            else:
+                self.result.cloud_run_status = "Unknown"
+
             if self.result.cloud_run_status == "True":
                 self.result.normal_checks += 1
+            elif self.result.cloud_run_status == "Unknown":
+                # Unknown は致命的ではなく警告に留める
+                self.result.warning_issues += 1
             else:
+                # 明示的に False の場合のみ致命的
                 self.result.critical_issues += 2
         except Exception as e:
             self.logger.warning(f"Cloud Run確認失敗: {e}")
             self.result.cloud_run_status = "Error"
+            self.result.warning_issues += 1
 
     def _check_secret_manager(self):
         """Secret Manager権限確認"""
@@ -444,11 +463,18 @@ class BotFunctionCheckResult:
     tp_maker_fallback_count: int = 0
     tp_post_only_cancelled_count: int = 0
 
-    # Phase 62.13: ATRフォールバック検知
-    atr_success_count: int = 0  # ATR取得成功数
-    atr_fallback_count: int = 0  # フォールバックATR使用数
+    # Phase 67.4/67.5: エントリー実行フロー
+    fill_polling_success: int = 0
+    fill_polling_unfilled: int = 0
+    fixed_size_count: int = 0
+    stale_vp_cleanup_count: int = 0
 
-    # Phase 65/65.2: 設定検証
+    # Phase 67.4/67.5/64.12: TP/SL管理
+    sl_breach_precheck: int = 0
+    sl_breach_postcheck: int = 0
+    emergency_market_close: int = 0
+
+    # 設定検証
     config_checks: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     config_check_passed: int = 0
     config_check_failed: int = 0
@@ -496,9 +522,10 @@ class BotFunctionChecker:
         self._check_kelly_criterion()
         self._check_atomic_entry()
         self._check_maker_strategy()  # Phase 62.9-62.10
-        self._check_atr_fallback()  # Phase 62.13
-        self._verify_phase65_config()  # Phase 65/65.2: 設定検証
+        self._verify_config()  # 設定検証
         self._check_phase65_2_logs()  # Phase 65.2: GCPログ動作確認
+        self._check_entry_execution()  # Phase 67.4/67.5: エントリー実行フロー
+        self._check_tp_sl_management()  # Phase 67.4/67.5/64.12: TP/SL管理
 
         # 総合スコア計算
         self.result.total_score = (
@@ -539,11 +566,13 @@ class BotFunctionChecker:
         """Silent Failure検出"""
         self.logger.info("🔍 Silent Failure 検出")
         self.result.signal_count = self._count_logs(
-            'textPayload:"統合シグナル生成: buy" OR textPayload:"統合シグナル生成: sell"',
+            'textPayload:"統合シグナル生成: buy" OR textPayload:"統合シグナル生成: sell"'
+            ' OR textPayload:"BUY シグナル" OR textPayload:"SELL シグナル"',
             30,
         )
         self.result.order_count = self._count_logs(
-            'textPayload:"注文実行" OR textPayload:"order_executed" OR textPayload:"create_order"',
+            'textPayload:"Atomic Entry完了" OR textPayload:"注文実行"'
+            ' OR textPayload:"Phase 67.5: 約定確認"',
             30,
         )
 
@@ -700,45 +729,9 @@ class BotFunctionChecker:
             # Maker戦略の動作記録なし（まだ取引がない可能性）
             self.logger.info("ℹ️ Maker戦略: 動作記録なし（取引なし or 未有効化）")
 
-    def _check_atr_fallback(self):
-        """Phase 62.13: ATRフォールバック検知"""
-        self.logger.info("📊 Phase 62.13: ATRフォールバック検知")
-
-        # ATR取得成功数（Phase 62.13の新ログ）
-        self.result.atr_success_count = self._count_logs(
-            'textPayload:"Phase 62.13: ATR取得成功"', 20
-        )
-
-        # フォールバックATR使用数（既存のログ）
-        self.result.atr_fallback_count = self._count_logs(
-            'textPayload:"Phase 51.5-C: フォールバックATR使用"', 20
-        )
-
-        total = self.result.atr_success_count + self.result.atr_fallback_count
-        if total > 0:
-            success_rate = self.result.atr_success_count / total * 100
-            self.logger.info(
-                f"📊 ATR取得統計 - 成功: {self.result.atr_success_count}回, "
-                f"フォールバック: {self.result.atr_fallback_count}回 ({success_rate:.0f}%成功)"
-            )
-
-            # 100%成功なら正常
-            if success_rate == 100:
-                self.result.normal_checks += 1
-            # 80%以上なら警告
-            elif success_rate >= 80:
-                self.result.warning_issues += 1
-            # 80%未満なら致命的
-            else:
-                self.result.critical_issues += 1
-                self.logger.warning(f"⚠️ ATRフォールバック多発: {self.result.atr_fallback_count}回")
-        else:
-            # 記録なし（まだTP/SL再計算が発生していない）
-            self.logger.info("ℹ️ ATR取得: 記録なし（TP/SL再計算未発生）")
-
-    def _verify_phase65_config(self):
-        """Phase 65/65.2: 設定値検証"""
-        self.logger.info("🔧 Phase 65/65.2: 設定値検証")
+    def _verify_config(self):
+        """設定値検証"""
+        self.logger.info("🔧 設定値検証")
         from src.core.config.threshold_manager import get_threshold
 
         checks = {
@@ -752,15 +745,25 @@ class BotFunctionChecker:
                 "expected": 0.15,
                 "default": 0.0,
             },
-            "Maker max_retries": {
-                "path": "order_execution.maker_strategy.max_retries",
-                "expected": 5,
-                "default": 3,
+            "Entry Maker有効": {
+                "path": "order_execution.maker_strategy.enabled",
+                "expected": True,
+                "default": True,
             },
-            "Maker retry_interval_ms": {
-                "path": "order_execution.maker_strategy.retry_interval_ms",
-                "expected": 200,
-                "default": 500,
+            "Maker timeout_seconds": {
+                "path": "order_execution.maker_strategy.timeout_seconds",
+                "expected": 60,
+                "default": 30,
+            },
+            "TP entry_fee_rate": {
+                "path": "position_management.take_profit.fixed_amount.fallback_entry_fee_rate",
+                "expected": 0.001,
+                "default": 0.0,
+            },
+            "SL entry_fee_rate": {
+                "path": "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate",
+                "expected": 0.001,
+                "default": 0.0,
             },
             "固定金額TP有効": {
                 "path": "position_management.take_profit.fixed_amount.enabled",
@@ -771,6 +774,21 @@ class BotFunctionChecker:
                 "path": "position_management.take_profit.fixed_amount.target_net_profit",
                 "expected": 500,
                 "default": 1000,
+            },
+            "固定金額SL有効": {
+                "path": "position_management.stop_loss.fixed_amount.enabled",
+                "expected": True,
+                "default": False,
+            },
+            "固定金額SL目標": {
+                "path": "position_management.stop_loss.fixed_amount.target_max_loss",
+                "expected": 700,
+                "default": 500,
+            },
+            "ポジションサイズモード": {
+                "path": "position_sizing.mode",
+                "expected": "fixed",
+                "default": "dynamic",
             },
         }
 
@@ -824,6 +842,54 @@ class BotFunctionChecker:
             )
         else:
             self.logger.info("ℹ️ Phase 65.2: ログ未検出（TP/SL復旧未発生の可能性）")
+
+    def _check_entry_execution(self):
+        """エントリー実行フロー検証（Phase 67.4/67.5）"""
+        self.logger.info("🎯 エントリー実行フロー検証")
+
+        # Phase 67.5: 約定ポーリング動作
+        self.result.fill_polling_success = self._count_logs(
+            'textPayload:"Phase 67.5: 約定確認"', 20
+        )
+        self.result.fill_polling_unfilled = self._count_logs(
+            'textPayload:"Phase 67.5: ポーリング後もfilled_amount=0"', 20
+        )
+
+        # Phase 67.4: 固定ポジションサイズ
+        self.result.fixed_size_count = self._count_logs(
+            'textPayload:"Phase 67.4: 固定ポジションサイズ"', 20
+        )
+
+        # Phase 67.4: 消失VP強制クリーンアップ
+        self.result.stale_vp_cleanup_count = self._count_logs(
+            'textPayload:"Phase 67.4: 消失VP" OR textPayload:"強制クリーンアップ"', 20
+        )
+
+        # 約定ポーリングが動作していれば正常（取引がない場合はスキップ）
+        total_polling = self.result.fill_polling_success + self.result.fill_polling_unfilled
+        if total_polling > 0:
+            self.result.normal_checks += 1
+
+    def _check_tp_sl_management(self):
+        """TP/SL管理検証（Phase 67.4/67.5/64.12）"""
+        self.logger.info("🛡️ TP/SL管理検証")
+
+        # Phase 67.5: SL超過事前チェック（キャンセル前）
+        self.result.sl_breach_precheck = self._count_logs(
+            'textPayload:"Phase 67.5: SL既超過（キャンセル前検出）"', 10
+        )
+
+        # Phase 67.4/67.5: SL超過チェック（キャンセル後）
+        self.result.sl_breach_postcheck = self._count_logs(
+            'textPayload:"Phase 67.4: SL超過検出"'
+            ' OR textPayload:"Phase 67.5: SL超過（キャンセル後）"',
+            10,
+        )
+
+        # Phase 64.12: 緊急成行決済
+        self.result.emergency_market_close = self._count_logs(
+            'textPayload:"Phase 64.12: SL超過検出" OR textPayload:"緊急成行決済"', 10
+        )
 
 
 @dataclass
@@ -1159,7 +1225,14 @@ class LiveAnalyzer:
             # Phase 61.11: GCPログからTP/SL発動数を取得（DBにexit記録がないため）
             # Phase 61.9の自動執行検知ログを使用
             tp_from_logs = self._count_logs('textPayload:"TP自動執行検知"', 50)
-            sl_from_logs = self._count_logs('textPayload:"SL自動執行検知"', 50)
+            # Phase 68: SL検出パターン拡充（Phase 63/64.12/65.13/67.5の成行SLも検出）
+            sl_from_logs = self._count_logs(
+                'textPayload:"SL自動執行検知"'
+                ' OR textPayload:"Phase 63: stop_limitタイムアウト"'
+                ' OR textPayload:"Phase 65.13: SLキャンセル且つSL超過検出"'
+                ' OR textPayload:"Phase 64.12: SLトリガー超過"',
+                50,
+            )
             self.result.tp_triggered_count = tp_from_logs
             self.result.sl_triggered_count = sl_from_logs
 
@@ -1664,9 +1737,13 @@ class LiveAnalyzer:
         self.logger.info("SLパターン分析開始...")
 
         try:
-            # GCPログから自動執行検知ログを取得
+            # Phase 68: GCPログから自動執行検知ログを取得（全SLパターン対応）
             logs = self._fetch_gcp_logs_json(
-                'textPayload:"Phase 61.9" AND textPayload:"自動執行検知"', limit=500
+                'textPayload:"Phase 61.9" AND textPayload:"自動執行検知"'
+                ' OR textPayload:"Phase 63: stop_limitタイムアウト"'
+                ' OR textPayload:"Phase 65.13: SLキャンセル且つSL超過検出"'
+                ' OR textPayload:"Phase 64.12: SLトリガー超過"',
+                limit=500,
             )
 
             if not logs:
@@ -1712,17 +1789,37 @@ class LiveAnalyzer:
                             "timestamp": ts,
                         }
                     )
+                    continue
+
+                # Phase 68: 追加SLパターン（Phase 63/64.12/65.13）
+                # PnLは取得不可のため None として件数のみカウント
+                if any(
+                    pattern in text
+                    for pattern in [
+                        "Phase 63: stop_limitタイムアウト",
+                        "Phase 65.13: SLキャンセル且つSL超過検出",
+                        "Phase 64.12: SLトリガー超過",
+                    ]
+                ):
+                    sl_executions.append(
+                        {
+                            "pnl": None,
+                            "strategy": "unknown",
+                            "timestamp": ts,
+                        }
+                    )
 
             # 結果を格納
             self.result.sl_pattern_tp_count = len(tp_executions)
             self.result.sl_pattern_sl_count = len(sl_executions)
             self.result.sl_pattern_total_executions = len(tp_executions) + len(sl_executions)
 
-            # SL損益統計
+            # SL損益統計（Phase 68: PnL不明のSLイベントはNone→除外）
             if sl_executions:
-                sl_pnls = [e["pnl"] for e in sl_executions]
-                self.result.sl_pattern_sl_pnl_total = sum(sl_pnls)
-                self.result.sl_pattern_sl_pnl_avg = sum(sl_pnls) / len(sl_pnls)
+                sl_pnls = [e["pnl"] for e in sl_executions if e["pnl"] is not None]
+                if sl_pnls:
+                    self.result.sl_pattern_sl_pnl_total = sum(sl_pnls)
+                    self.result.sl_pattern_sl_pnl_avg = sum(sl_pnls) / len(sl_pnls)
 
             # TP損益統計
             if tp_executions:
@@ -1736,7 +1833,8 @@ class LiveAnalyzer:
             )
             for e in sl_executions:
                 strategy_data[e["strategy"]]["sl_count"] += 1
-                strategy_data[e["strategy"]]["sl_pnl"] += e["pnl"]
+                if e["pnl"] is not None:
+                    strategy_data[e["strategy"]]["sl_pnl"] += e["pnl"]
             for e in tp_executions:
                 strategy_data[e["strategy"]]["tp_count"] += 1
                 strategy_data[e["strategy"]]["tp_pnl"] += e["pnl"]
@@ -2216,7 +2314,7 @@ async def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # インフラ基盤診断（常に実行）
-    infra_checker = InfrastructureChecker(logger)
+    infra_checker = InfrastructureChecker(logger, hours=args.hours)
     infra_result = infra_checker.check()
 
     # Bot機能診断（常に実行）
@@ -2240,14 +2338,14 @@ async def main():
         print(f"   ❌ 致命的問題: {bot_result.critical_issues}")
         print(f"   🏆 スコア: {bot_result.total_score}点")
 
-        # Phase 65/65.2: 設定検証（簡易モード）
+        # 設定検証（簡易モード）
         if bot_result.config_checks:
             ng = bot_result.config_check_failed
             total = bot_result.config_check_passed + ng
             status = "全合格" if ng == 0 else f"{ng}件NG"
             print(f"\n🔧 設定検証: {status} ({bot_result.config_check_passed}/{total})")
 
-        # Phase 62.9-62.10: Maker戦略サマリー（簡易モード）
+        # Maker戦略サマリー（簡易モード）
         entry_total = bot_result.entry_maker_success_count + bot_result.entry_maker_fallback_count
         tp_total = bot_result.tp_maker_success_count + bot_result.tp_maker_fallback_count
         if entry_total > 0 or tp_total > 0:
@@ -2258,6 +2356,30 @@ async def main():
             if tp_total > 0:
                 tp_rate = bot_result.tp_maker_success_count / tp_total * 100
                 print(f"   TP決済: {tp_rate:.0f}%成功")
+
+        # エントリー実行フロー（簡易モード）
+        total_polling = bot_result.fill_polling_success + bot_result.fill_polling_unfilled
+        if total_polling > 0 or bot_result.fixed_size_count > 0:
+            print("\n🎯 エントリー実行フロー:")
+            print(
+                f"   約定ポーリング: {bot_result.fill_polling_success}成功 / "
+                f"{bot_result.fill_polling_unfilled}未約定"
+            )
+            print(f"   固定サイズ: {bot_result.fixed_size_count}回")
+            if bot_result.stale_vp_cleanup_count > 0:
+                print(f"   消失VPクリーンアップ: {bot_result.stale_vp_cleanup_count}回")
+
+        # TP/SL管理（簡易モード）
+        total_breach = (
+            bot_result.sl_breach_precheck
+            + bot_result.sl_breach_postcheck
+            + bot_result.emergency_market_close
+        )
+        if total_breach > 0:
+            print("\n🛡️ TP/SL管理:")
+            print(f"   SL超過事前検出: {bot_result.sl_breach_precheck}回")
+            print(f"   SL超過事後検出: {bot_result.sl_breach_postcheck}回")
+            print(f"   緊急成行決済: {bot_result.emergency_market_close}回")
 
         exit_code = determine_exit_code(infra_result, bot_result)
         status_map = {
@@ -2376,21 +2498,45 @@ async def main():
             estimated = maker_success * 1000000 * fee_reduction
             print(f"   推定手数料削減: ¥{estimated:,.0f}")
 
-    # Phase 65/65.2: 設定検証
+    # 設定検証
     if bot_result.config_checks:
-        print("\n🔧 Phase 65/65.2: 設定検証:")
+        print("\n🔧 設定検証:")
         for name, check in bot_result.config_checks.items():
             mark = "✅" if check["ok"] else "❌"
             print(f"   {mark} {name}: {check['actual']} (期待: {check['expected']})")
 
     # Phase 65.2: TP/SLフルカバー動作
     if bot_result.phase65_2_log_count > 0:
-        print("\n📋 Phase 65.2: TP/SLフルカバー:")
+        print("\n📋 TP/SLフルカバー:")
         print(f"   部分キャンセル: {bot_result.partial_cancel_count}回")
         print(f"   固定TP復旧: {bot_result.fixed_tp_recovery_count}回")
         print(f"   統合TP配置: {bot_result.unified_tp_placement_count}回")
 
-    # Phase 62.18: SLパターン分析サマリー
+    # エントリー実行フロー（フルモード）
+    total_polling = bot_result.fill_polling_success + bot_result.fill_polling_unfilled
+    if total_polling > 0 or bot_result.fixed_size_count > 0:
+        print("\n🎯 エントリー実行フロー:")
+        print(
+            f"   約定ポーリング: {bot_result.fill_polling_success}成功 / "
+            f"{bot_result.fill_polling_unfilled}未約定"
+        )
+        print(f"   固定サイズ: {bot_result.fixed_size_count}回")
+        if bot_result.stale_vp_cleanup_count > 0:
+            print(f"   消失VPクリーンアップ: {bot_result.stale_vp_cleanup_count}回")
+
+    # TP/SL管理（フルモード）
+    total_breach = (
+        bot_result.sl_breach_precheck
+        + bot_result.sl_breach_postcheck
+        + bot_result.emergency_market_close
+    )
+    if total_breach > 0:
+        print("\n🛡️ TP/SL管理:")
+        print(f"   SL超過事前検出: {bot_result.sl_breach_precheck}回")
+        print(f"   SL超過事後検出: {bot_result.sl_breach_postcheck}回")
+        print(f"   緊急成行決済: {bot_result.emergency_market_close}回")
+
+    # SLパターン分析サマリー
     if result.sl_pattern_total_executions > 0:
         total = result.sl_pattern_total_executions
         tp_rate = result.sl_pattern_tp_count / total * 100 if total > 0 else 0
@@ -2535,29 +2681,50 @@ def _generate_diagnostic_markdown(
             ]
         )
 
-    # Phase 62.13: ATRフォールバック統計
-    atr_total = bot_result.atr_success_count + bot_result.atr_fallback_count
-    if atr_total > 0:
-        atr_success_rate = bot_result.atr_success_count / atr_total * 100
-        atr_status = "✅" if atr_success_rate == 100 else ("⚠️" if atr_success_rate >= 80 else "❌")
+    # Phase 67.4/67.5: エントリー実行フロー
+    total_polling = bot_result.fill_polling_success + bot_result.fill_polling_unfilled
+    if total_polling > 0 or bot_result.fixed_size_count > 0:
         lines.extend(
             [
                 "",
-                "### Phase 62.13: ATR取得状況",
+                "### エントリー実行フロー（Phase 67.4/67.5）",
                 "",
-                f"| 項目 | 回数 | 状態 |",
-                f"|------|------|------|",
-                f"| ATR取得成功 | {bot_result.atr_success_count}回 | {atr_status} ({atr_success_rate:.0f}%) |",
-                f"| フォールバック使用 | {bot_result.atr_fallback_count}回 | - |",
+                "| 項目 | 成功 | 未約定 | 固定サイズ |",
+                "|------|------|--------|-----------|",
+                f"| 約定ポーリング | {bot_result.fill_polling_success}回 | "
+                f"{bot_result.fill_polling_unfilled}回 | "
+                f"{bot_result.fixed_size_count}回 |",
+            ]
+        )
+        if bot_result.stale_vp_cleanup_count > 0:
+            lines.append(f"\n**消失VPクリーンアップ**: {bot_result.stale_vp_cleanup_count}回")
+
+    # Phase 67.4/67.5/64.12: TP/SL管理
+    total_breach = (
+        bot_result.sl_breach_precheck
+        + bot_result.sl_breach_postcheck
+        + bot_result.emergency_market_close
+    )
+    if total_breach > 0:
+        lines.extend(
+            [
+                "",
+                "### TP/SL管理（Phase 64.12/67.4/67.5）",
+                "",
+                "| 項目 | 回数 | 備考 |",
+                "|------|------|------|",
+                f"| SL超過事前検出 | {bot_result.sl_breach_precheck}回 | キャンセル前チェック |",
+                f"| SL超過事後検出 | {bot_result.sl_breach_postcheck}回 | キャンセル後セーフティネット |",
+                f"| 緊急成行決済 | {bot_result.emergency_market_close}回 | Phase 64.12最終防御 |",
             ]
         )
 
-    # Phase 65/65.2: 設定検証
+    # 設定検証
     if bot_result.config_checks:
         lines.extend(
             [
                 "",
-                "### Phase 65/65.2: 設定検証",
+                "### 設定検証",
                 "",
                 "| 設定項目 | 期待値 | 実際の値 | 状態 |",
                 "|---------|--------|---------|------|",

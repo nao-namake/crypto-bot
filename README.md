@@ -4,7 +4,7 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-75%25%2B-green)](tests/)
-[![Phase](https://img.shields.io/badge/Phase%2065-Complete-blue)](docs/開発履歴/Phase_65.md)
+[![Phase](https://img.shields.io/badge/Phase%2068-Complete-blue)](docs/開発履歴/Phase_68.md)
 
 ---
 
@@ -74,9 +74,9 @@ gcloud logging read "resource.type=cloud_run_revision" --limit=10
 | 戦略 | 重み |
 |------|------|
 | BBReversal | 0.15 |
-| StochasticReversal | 0.30 |
-| ATRBased | 0.30 |
-| DonchianChannel | 0.25 |
+| StochasticReversal | 0.10 |
+| ATRBased | 0.45 |
+| DonchianChannel | 0.30 |
 | トレンド型 | 0.0 |
 
 ---
@@ -136,8 +136,8 @@ models/production/  # MLモデル（週次更新）
 - **[CLAUDE.md](CLAUDE.md)**: 開発ガイド・品質基準・設定詳細
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・タスク管理
 - **[統合運用ガイド](docs/運用ガイド/統合運用ガイド.md)**: デプロイ・監視・トラブル対応
-- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-65総括
-- **[Phase 65](docs/開発履歴/Phase_65.md)**: 最新Phase詳細
+- **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-68総括
+- **[Phase 68](docs/開発履歴/Phase_68.md)**: 最新Phase詳細
 
 ---
 
@@ -147,4 +147,4 @@ models/production/  # MLモデル（週次更新）
 
 ---
 
-**最終更新**: 2026年2月25日 - **Phase 65.16完了**
+**最終更新**: 2026年3月6日 - **Phase 68完了**

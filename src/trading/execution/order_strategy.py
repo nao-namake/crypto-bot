@@ -475,7 +475,10 @@ class OrderStrategy:
 
     def _calculate_maker_price(self, side: str, best_bid: float, best_ask: float) -> float:
         """
-        Phase 62.9 + Phase 65.16: Maker価格計算（板の内側に配置）
+        Phase 68: Maker価格計算（best_bid/ask直接配置）
+
+        スプレッド内への配置をやめ、best_bid(buy)/best_ask(sell)に直接配置。
+        post_only拒否を回避し、Maker約定を確実にする。
 
         Args:
             side: 売買方向（buy/sell）
@@ -485,28 +488,22 @@ class OrderStrategy:
         Returns:
             float: Maker価格（0の場合は計算失敗）
         """
-        tick = get_threshold("order_execution.maker_strategy.price_adjustment_tick", 1)
-
         if side.lower() == "buy":
-            price = best_bid + tick
-            if price >= best_ask:
-                # Phase 65.16: スプレッド≤1tickでinside配置不可 → best_bidに配置（Maker確定）
-                price = best_bid
-                self.logger.info(
-                    f"📡 Phase 65.16: スプレッド狭小({best_ask - best_bid:.0f}円) "
-                    f"→ best_bid={best_bid:.0f}円に配置"
-                )
+            # Phase 68: best_bidに直接配置（Maker確定）
+            price = best_bid
+            self.logger.info(
+                f"📡 Phase 68: Maker価格 best_bid={best_bid:.0f}円 "
+                f"(スプレッド={best_ask - best_bid:.0f}円)"
+            )
             return round(price)
 
         elif side.lower() == "sell":
-            price = best_ask - tick
-            if price <= best_bid:
-                # Phase 65.16: スプレッド≤1tickでinside配置不可 → best_askに配置（Maker確定）
-                price = best_ask
-                self.logger.info(
-                    f"📡 Phase 65.16: スプレッド狭小({best_ask - best_bid:.0f}円) "
-                    f"→ best_ask={best_ask:.0f}円に配置"
-                )
+            # Phase 68: best_askに直接配置（Maker確定）
+            price = best_ask
+            self.logger.info(
+                f"📡 Phase 68: Maker価格 best_ask={best_ask:.0f}円 "
+                f"(スプレッド={best_ask - best_bid:.0f}円)"
+            )
             return round(price)
 
         else:
@@ -649,19 +646,19 @@ class OrderStrategy:
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 62.9: Maker注文エラー: {e}")
 
-            # 価格調整（不利側へ1tick）
+            # Phase 68: 価格調整（板の奥へ — Maker確定を維持）
             if side.lower() == "buy":
-                current_price += tick  # 買いは高く
-                if current_price > initial_price * (1 + max_adj):
+                current_price -= tick  # 買いは安く（板の奥へ）
+                if current_price < initial_price * (1 - max_adj):
                     self.logger.warning(
-                        f"⚠️ Phase 62.9: 価格調整上限到達 {current_price:.0f} > {initial_price * (1 + max_adj):.0f}"
+                        f"⚠️ Phase 68: 価格調整下限到達 {current_price:.0f} < {initial_price * (1 - max_adj):.0f}"
                     )
                     return None
             else:
-                current_price -= tick  # 売りは安く
-                if current_price < initial_price * (1 - max_adj):
+                current_price += tick  # 売りは高く（板の奥へ）
+                if current_price > initial_price * (1 + max_adj):
                     self.logger.warning(
-                        f"⚠️ Phase 62.9: 価格調整下限到達 {current_price:.0f} < {initial_price * (1 - max_adj):.0f}"
+                        f"⚠️ Phase 68: 価格調整上限到達 {current_price:.0f} > {initial_price * (1 + max_adj):.0f}"
                     )
                     return None
 
