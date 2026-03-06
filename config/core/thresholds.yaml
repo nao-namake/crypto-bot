@@ -446,6 +446,7 @@ trading:
     taker_rate: 0.001
     entry_taker_rate: 0.001
     exit_taker_rate: 0.001
+    exit_maker_rate: 0.0
     backtest_entry_rate: 0.0
     backtest_tp_exit_rate: 0.0
     backtest_sl_exit_rate: 0.001

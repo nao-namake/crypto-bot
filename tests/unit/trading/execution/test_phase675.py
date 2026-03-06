@@ -423,10 +423,10 @@ class TestPhase675RaceConditionFix:
         return client
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
-    async def test_sl_breached_before_cancel_triggers_market_close(
+    async def test_sl_breached_after_cancel_triggers_market_close(
         self, mock_threshold, tp_sl_manager, mock_bitbank_client
     ):
-        """SL超過がキャンセル前に検出→成行決済→_cancel_partial_exit_orders未呼出"""
+        """Phase 68.2: キャンセル後にSL超過検出→成行決済"""
         # SL超過状態: long position, current price (13800000) < SL (13900000)
         mock_bitbank_client.fetch_ticker = MagicMock(return_value={"last": 13800000.0})
 
@@ -456,8 +456,8 @@ class TestPhase675RaceConditionFix:
         assert call_kwargs["order_type"] == "market"
         assert call_kwargs["side"] == "sell"
 
-        # _cancel_partial_exit_ordersはSL超過でreturnするため呼ばれない
-        tp_sl_manager._cancel_partial_exit_orders.assert_not_called()
+        # Phase 68.2: キャンセル後のPre-Checkで検出するため、キャンセルは実行される
+        tp_sl_manager._cancel_partial_exit_orders.assert_called_once()
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_no_sl_breach_proceeds_to_normal_flow(

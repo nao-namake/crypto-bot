@@ -849,45 +849,6 @@ class TPSLManager:
                 avg_price=avg_price,
             )
 
-        # ── Phase 67.5: SL超過事前チェック（キャンセル前＝既存SL保護中に実行） ──
-        # 既存SLがまだ有効な状態でチェック → 超過なら既存SLに任せてreturn
-        try:
-            ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, symbol)
-            current_price = float(ticker.get("last", 0)) if ticker else 0
-            if current_price > 0:
-                sl_breached = False
-                if position_side == "long" and current_price <= sl_price:
-                    sl_breached = True
-                elif position_side == "short" and current_price >= sl_price:
-                    sl_breached = True
-
-                if sl_breached:
-                    self.logger.warning(
-                        f"🚨 Phase 67.5: SL既超過（キャンセル前検出） - "
-                        f"現在={current_price:.0f}円, SL={sl_price:.0f}円 "
-                        f"→ 成行決済"
-                    )
-                    try:
-                        close_side = "sell" if position_side == "long" else "buy"
-                        await asyncio.to_thread(
-                            bitbank_client.create_order,
-                            symbol=symbol,
-                            order_type="market",
-                            side=close_side,
-                            amount=amount,
-                            is_closing_order=True,
-                            entry_position_side=position_side,
-                        )
-                        self.logger.info(
-                            f"✅ Phase 67.5: SL超過による成行決済完了 - "
-                            f"{position_side} {amount:.4f} BTC"
-                        )
-                    except Exception as e:
-                        self.logger.error(f"❌ Phase 67.5: SL超過成行決済失敗: {e}")
-                    return
-        except Exception as e:
-            self.logger.warning(f"⚠️ Phase 67.5: SL超過事前チェック失敗（継続）: {e}")
-
         # ── Step 0: 既存部分TP/SL注文キャンセル（ここからSL不在期間開始） ──
         # bitbankはTP+SLの合計数量がポジション数量を超えると50062エラー
         try:

@@ -4,11 +4,11 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 68（TP/SL手数料修正 + Maker改善） |
-| **直前の作業** | Phase 68: TP/SLエントリー手数料修正 + Maker価格戦略改善 + SL検出拡充 |
+| **現在Phase** | 68.2（SL超過50062修正 + PnL手数料分離） |
+| **直前の作業** | Phase 68.2: SL超過成行決済50062修正 + PnL手数料TP/SL分離 |
 | **次の予定** | ライブデプロイ → GCPログ検証 |
-| **最新成果** | Phase 68: 実効RR 0.47:1→0.71:1修正、Maker best_bid/ask直接配置 |
-| **最終更新** | 2026年3月6日 |
+| **最新成果** | Phase 68.2: Pre-Check #1削除でSL保護永続化、TP PnL Maker 0%適用 |
+| **最終更新** | 2026年3月7日 |
 
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-68）、`docs/開発履歴/Phase_68.md`（最新）
 
@@ -331,6 +331,7 @@ git status && git add . && git commit -m "..." && git push origin main
 |--------|------|
 | `'BitbankClient' has no attribute 'get_active_orders'` | `fetch_active_orders`を使用 |
 | Container exit(1) | GCP制約対策確認（n_jobs=1, signal.alarm無効化） |
+| bitbank 50062「保有建玉数量超過」 | 既存TP/SL注文キャンセル後に成行決済（Phase 68.2で修正済み） |
 
 ### デバッグコマンド
 

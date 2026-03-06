@@ -1,7 +1,7 @@
 # Phase 68: TP/SL手数料バグ修正 + Maker改善 + SL検出修正
 
-**期間**: 2026年3月6日
-**状態**: 実装完了・デプロイ待ち
+**期間**: 2026年3月6日〜7日
+**状態**: Phase 68.2まで完了・デプロイ待ち
 
 | 変更 | 内容 | 状態 |
 |------|------|------|
@@ -10,6 +10,7 @@
 | **修正3** | Entry Maker戦略改善（best_bid/ask直接配置 + 板の奥リトライ） | ✅ 完了 |
 | **修正4** | SL検出パターン拡充（Phase 63/64.12/65.13対応） | ✅ 完了 |
 | **修正5** | 分析ツール設定検証の更新 | ✅ 完了 |
+| **Phase 68.2** | SL超過成行決済50062修正 + PnL手数料TP/SL分離 | ✅ 完了 |
 
 ---
 
@@ -173,3 +174,75 @@ TP/SL計算は**最悪ケース**を想定すべき。Makerで約定すれば手
 ### Makerを無効化せずに改善した理由
 
 Maker約定時は手数料0%。エントリー手数料115円が不要になるため、TP純利益が500→615円に改善する。成功率0%の根本原因（スプレッド内配置 + 市場側リトライ）を修正し、best_bid/ask直接配置 + 板の奥リトライで確実なMaker注文を実現。タイムアウト後はTakerフォールバックで約定保証。
+
+---
+
+## Phase 68.2: SL超過成行決済50062修正 + PnL手数料修正
+
+**日付**: 2026年3月7日
+
+### 背景
+
+ライブ分析で2つの問題を発見:
+
+1. **SL超過成行決済が50062エラーで失敗**: `_place_missing_tp_sl()`のPre-Check #1が既存TP/SL注文キャンセル前に成行決済を試行 → bitbankが「保有建玉数量超過」で拒否 → `return`で全フロー中断 → SL未配置のまま放置 → 5,000円損失発生
+2. **PnL検出がTP決済にTaker手数料を適用**: `_calc_pnl()`が常にTaker 0.1%で計算。TP決済はMaker 0%のため、表示PnLが実際より~115円少ない
+
+### 修正内容
+
+#### 修正1: Pre-Check #1削除（50062修正）
+
+**ファイル**: `src/trading/execution/tp_sl_manager.py`
+
+キャンセル前のSL超過チェック（Pre-Check #1、38行）を完全削除。キャンセル後のPre-Check #2が同じ保護を提供する。
+
+| フロー | Before | After |
+|--------|--------|-------|
+| SL超過検出 | Pre-Check #1（キャンセル前）→ 50062エラー → return | キャンセル後のPre-Check #2 → 成行決済成功 |
+| 安全性 | キャンセル前は既存SL注文が保護 | キャンセル後に即座にチェック |
+
+#### 修正2: PnL手数料率をTP/SLで分離
+
+**ファイル**: `src/trading/execution/stop_manager.py` + `tp_sl_config.py` + `thresholds.yaml`
+
+`_calc_pnl()`に`execution_type`引数を追加し、TP決済とSL決済で異なる手数料率を適用:
+
+```python
+def _calc_pnl(self, entry_price, exit_price, amount, side, execution_type="stop_loss"):
+    entry_fee_rate = get_threshold(TPSLConfig.ENTRY_TAKER_RATE, 0.001)  # 常にTaker 0.1%
+    if execution_type == "take_profit":
+        exit_fee_rate = get_threshold(TPSLConfig.EXIT_MAKER_RATE, 0.0)  # Maker 0%
+    else:
+        exit_fee_rate = get_threshold(TPSLConfig.EXIT_TAKER_RATE, 0.001)  # Taker 0.1%
+```
+
+| 決済タイプ | exit_fee_rate | PnL影響 |
+|-----------|---------------|---------|
+| take_profit | 0%（Maker） | +~115円（正確に） |
+| stop_loss | 0.1%（Taker） | 変更なし |
+| emergency | 0.1%（Taker） | 変更なし |
+
+### 変更ファイル一覧
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `src/trading/execution/tp_sl_config.py` | `EXIT_MAKER_RATE`定数追加 |
+| 2 | `config/core/thresholds.yaml` | `exit_maker_rate: 0.0`追加 |
+| 3 | `src/trading/execution/tp_sl_manager.py` | Pre-Check #1（38行）削除 |
+| 4 | `src/trading/execution/stop_manager.py` | `_calc_pnl()`にexecution_type追加 + コール元2箇所更新 |
+| 5 | `tests/unit/trading/execution/test_stop_manager.py` | PnL手数料テスト4件追加 + 既存TP期待値4件更新 |
+| 6 | `tests/unit/trading/execution/test_phase675.py` | Pre-Check #1削除に伴うテスト更新 |
+
+### テスト結果
+
+```
+1949 passed, 1 skipped, 75%+ coverage
+flake8/black/isort: all PASS
+```
+
+#### 新規テスト
+
+- `TestPhase682PnlFeeCalculation::test_tp_exit_uses_maker_rate` — TP=Maker 0%確認
+- `TestPhase682PnlFeeCalculation::test_sl_exit_uses_taker_rate` — SL=Taker 0.1%確認
+- `TestPhase682PnlFeeCalculation::test_emergency_exit_uses_taker_rate` — 緊急=Taker確認
+- `TestPhase682PnlFeeCalculation::test_default_execution_type_is_stop_loss` — 後方互換性確認

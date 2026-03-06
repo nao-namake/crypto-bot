@@ -243,7 +243,7 @@ class StopManager:
             return None
 
         # 損益計算
-        pnl = self._calc_pnl(entry_price, exit_price, amount, side)
+        pnl = self._calc_pnl(entry_price, exit_price, amount, side, execution_type)
 
         return {
             "execution_type": execution_type,
@@ -267,25 +267,22 @@ class StopManager:
         exit_price: float,
         amount: float,
         side: str,
+        execution_type: str = "stop_loss",
     ) -> float:
         """
-        Phase 62.19: 手数料考慮した実現損益計算
+        Phase 62.19/68.2: 手数料考慮した実現損益計算
 
         bitbank手数料（2026年2月2日改定）:
-          - エントリー/TP決済: Maker 0%（post_only約定時）
-          - SL決済: Taker 0.1%（post_only非対応）
-
-        計算式:
-          粗利益 = (決済価格 - エントリー価格) × 数量  ※ロングの場合
-          エントリー手数料 = エントリー約定金額 × Taker手数料率
-          決済手数料 = 決済約定金額 × Taker手数料率
-          実現損益 = 粗利益 - エントリー手数料 - 決済手数料
+          - エントリー: Taker 0.1%（TP/SL計算時の想定）
+          - TP決済: Maker 0%（post_only約定）
+          - SL決済/緊急決済: Taker 0.1%
 
         Args:
             entry_price: エントリー価格
             exit_price: 決済価格
             amount: 数量
             side: エントリーサイド（buy/sell）
+            execution_type: 決済タイプ（"take_profit"/"stop_loss"/"emergency"）
 
         Returns:
             実現損益（円）※手数料差引後
@@ -301,9 +298,12 @@ class StopManager:
             # ショート: 価格下落で利益
             gross_pnl = (entry_price - exit_price) * amount
 
-        # Phase 62.19: 手数料計算（SL約定はTaker扱い）
+        # Phase 68.2: TP=Maker 0%, SL/emergency=Taker 0.1%
         entry_fee_rate = get_threshold(TPSLConfig.ENTRY_TAKER_RATE, 0.001)
-        exit_fee_rate = get_threshold(TPSLConfig.EXIT_TAKER_RATE, 0.001)
+        if execution_type == "take_profit":
+            exit_fee_rate = get_threshold(TPSLConfig.EXIT_MAKER_RATE, 0.0)
+        else:
+            exit_fee_rate = get_threshold(TPSLConfig.EXIT_TAKER_RATE, 0.001)
 
         entry_notional = entry_price * amount  # エントリー約定金額
         exit_notional = exit_price * amount  # 決済約定金額
@@ -1088,8 +1088,8 @@ class StopManager:
             # 決済注文は反対売買
             exit_side = "sell" if entry_side.lower() == "buy" else "buy"
 
-            # Phase 65.5: 手数料考慮PnL計算に統合
-            pnl = self._calc_pnl(entry_price, current_price, amount, entry_side)
+            # Phase 65.5/68.2: 手数料考慮PnL計算に統合（TP=Maker, SL=Taker）
+            pnl = self._calc_pnl(entry_price, current_price, amount, entry_side, exit_reason)
 
             # Phase 49.6: ポジション決済時にTP/SL注文クリーンアップ
             if bitbank_client and mode == "live":

@@ -109,6 +109,7 @@ class TPSLConfig:
     FALLBACK_ATR = "risk.fallback_atr"
     ENTRY_TAKER_RATE = "trading.fees.entry_taker_rate"
     EXIT_TAKER_RATE = "trading.fees.exit_taker_rate"
+    EXIT_MAKER_RATE = "trading.fees.exit_maker_rate"
     EMERGENCY_SL = "position_management.emergency_stop_loss"
     MAKER_STRATEGY = "order_execution.maker_strategy"
     MIN_TRADE_SIZE = "position_management.min_trade_size"

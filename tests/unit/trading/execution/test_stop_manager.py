@@ -6,6 +6,7 @@ Phase 31.1: 柔軟クールダウン
 Phase 37.4: エラーコード検出（30101, 50061, 50062）
 Phase 37.5.3: 残注文クリーンアップ
 Phase 38: リファクタリング対応
+Phase 68.2: PnL手数料TP/SL分離テスト
 
 テスト範囲:
 - check_stop_conditions(): ポジションなし・TP/SL到達判定
@@ -383,8 +384,8 @@ class TestExecutePositionExit:
         assert result.side == "sell"
         assert result.amount == 0.001
         assert result.price == 14300000.0
-        # Phase 65.5: _calc_pnl統合により手数料考慮（粗利300 - entry手数料14.0 - exit手数料14.3 = 271.7）
-        assert abs(result.paper_pnl - 271.7) < 0.1
+        # Phase 68.2: TP=Maker 0%（粗利300 - entry手数料14.0 - exit手数料0 = 286.0）
+        assert abs(result.paper_pnl - 286.0) < 0.1
         assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
@@ -417,8 +418,8 @@ class TestExecutePositionExit:
         assert result.side == "buy"
         assert result.amount == 0.001
         assert result.price == 13700000.0
-        # Phase 65.5: _calc_pnl統合により手数料考慮（粗利300 - entry手数料14.0 - exit手数料13.7 = 272.3）
-        assert abs(result.paper_pnl - 272.3) < 0.1
+        # Phase 68.2: TP=Maker 0%（粗利300 - entry手数料14.0 - exit手数料0 = 286.0）
+        assert abs(result.paper_pnl - 286.0) < 0.1
         assert result.status == OrderStatus.FILLED
 
     @pytest.mark.asyncio
@@ -775,7 +776,7 @@ class TestPhase619AutoExecutionDetection:
     ):
         """Phase 61.9: TP自動執行検知テスト"""
 
-        # Phase 62.6: 手数料設定も含めてモック
+        # Phase 68.2: 手数料設定（TP=Maker 0%）
         def threshold_side_effect(key, default=None):
             if key == "tp_sl_auto_detection":
                 return {"enabled": True, "log_level": "info"}
@@ -783,6 +784,8 @@ class TestPhase619AutoExecutionDetection:
                 return 0.001
             elif key == "trading.fees.exit_taker_rate":
                 return 0.001
+            elif key == "trading.fees.exit_maker_rate":
+                return 0.0
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -828,12 +831,8 @@ class TestPhase619AutoExecutionDetection:
         assert result[0]["execution_type"] == "take_profit"
         assert result[0]["order_id"] == "entry_001"
         assert result[0]["exit_price"] == 14300000.0
-        # Phase 62.19: 手数料考慮後の損益（Taker 0.1%）
-        # 粗利益: (14300000 - 14000000) * 0.001 = 300円
-        # エントリー手数料: 14000000 * 0.001 * 0.001 = 14円
-        # 決済手数料: 14300000 * 0.001 * 0.001 = 14.3円
-        # 実現損益: 300 - 14 - 14.3 = 271.7円
-        expected_pnl = 300.0 - 14.0 - 14.3
+        # Phase 68.2: TP=Maker 0%（粗利300 - entry手数料14.0 - exit手数料0 = 286.0）
+        expected_pnl = 300.0 - 14.0 - 0.0
         assert abs(result[0]["pnl"] - expected_pnl) < 0.1
 
         # 残SL注文がキャンセルされる
@@ -1012,7 +1011,7 @@ class TestPhase619AutoExecutionDetection:
     ):
         """Phase 61.9: 売りポジションのTP自動執行検知"""
 
-        # Phase 62.6: 手数料設定も含めてモック
+        # Phase 68.2: 手数料設定（TP=Maker 0%）
         def threshold_side_effect(key, default=None):
             if key == "tp_sl_auto_detection":
                 return {"enabled": True, "log_level": "info"}
@@ -1020,6 +1019,8 @@ class TestPhase619AutoExecutionDetection:
                 return 0.001
             elif key == "trading.fees.exit_taker_rate":
                 return 0.001
+            elif key == "trading.fees.exit_maker_rate":
+                return 0.0
             return default
 
         mock_threshold.side_effect = threshold_side_effect
@@ -1055,12 +1056,8 @@ class TestPhase619AutoExecutionDetection:
         # TP自動執行が検知される
         assert len(result) == 1
         assert result[0]["execution_type"] == "take_profit"
-        # Phase 62.19: 手数料考慮後の損益（Taker 0.1%）
-        # 粗利益: (14000000 - 13700000) * 0.001 = 300円（ショート利益）
-        # エントリー手数料: 14000000 * 0.001 * 0.001 = 14円
-        # 決済手数料: 13700000 * 0.001 * 0.001 = 13.7円
-        # 実現損益: 300 - 14 - 13.7 = 272.3円
-        expected_pnl = 300.0 - 14.0 - 13.7
+        # Phase 68.2: TP=Maker 0%（粗利300 - entry手数料14.0 - exit手数料0 = 286.0）
+        expected_pnl = 300.0 - 14.0 - 0.0
         assert abs(result[0]["pnl"] - expected_pnl) < 0.1
 
     @patch("src.trading.execution.stop_manager.get_threshold")
@@ -3033,3 +3030,78 @@ class TestPhase6412SLSafetyNet:
         assert result is None
         assert position["sl_order_id"] is None  # クリアはされる
         assert position["sl_placed_at"] is None
+
+
+# ========================================
+# Phase 68.2: PnL手数料TP/SL分離テスト
+# ========================================
+
+
+class TestPhase682PnlFeeCalculation:
+    """Phase 68.2: TP決済はMaker 0%、SL決済はTaker 0.1%を使用"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        return StopManager()
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_tp_exit_uses_maker_rate(self, mock_threshold, stop_manager):
+        """TP決済はMaker 0%を使用 → 決済手数料=0"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.fees.entry_taker_rate": 0.001,
+            "trading.fees.exit_maker_rate": 0.0,
+            "trading.fees.exit_taker_rate": 0.001,
+        }.get(key, default)
+
+        # ロング: entry=10,000,000 exit=10,050,000 amount=0.01
+        # 粗利益 = 50,000 * 0.01 = 500
+        # entry_fee = 10,000,000 * 0.01 * 0.001 = 100
+        # exit_fee = 10,050,000 * 0.01 * 0.0 = 0 (Maker)
+        # net = 500 - 100 - 0 = 400
+        pnl = stop_manager._calc_pnl(10_000_000, 10_050_000, 0.01, "buy", "take_profit")
+        assert pnl == pytest.approx(400.0, abs=1.0)
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_sl_exit_uses_taker_rate(self, mock_threshold, stop_manager):
+        """SL決済はTaker 0.1%を使用（既存動作）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.fees.entry_taker_rate": 0.001,
+            "trading.fees.exit_maker_rate": 0.0,
+            "trading.fees.exit_taker_rate": 0.001,
+        }.get(key, default)
+
+        # ロング: entry=10,000,000 exit=9,950,000 amount=0.01
+        # 粗利益 = -50,000 * 0.01 = -500
+        # entry_fee = 10,000,000 * 0.01 * 0.001 = 100
+        # exit_fee = 9,950,000 * 0.01 * 0.001 = 99.5 (Taker)
+        # net = -500 - 100 - 99.5 = -699.5
+        pnl = stop_manager._calc_pnl(10_000_000, 9_950_000, 0.01, "buy", "stop_loss")
+        assert pnl == pytest.approx(-699.5, abs=1.0)
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_emergency_exit_uses_taker_rate(self, mock_threshold, stop_manager):
+        """緊急決済はTaker 0.1%を使用"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.fees.entry_taker_rate": 0.001,
+            "trading.fees.exit_maker_rate": 0.0,
+            "trading.fees.exit_taker_rate": 0.001,
+        }.get(key, default)
+
+        # emergency → Taker率使用（stop_lossと同じ）
+        pnl_emergency = stop_manager._calc_pnl(10_000_000, 9_950_000, 0.01, "buy", "emergency")
+        pnl_sl = stop_manager._calc_pnl(10_000_000, 9_950_000, 0.01, "buy", "stop_loss")
+        assert pnl_emergency == pnl_sl
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    def test_default_execution_type_is_stop_loss(self, mock_threshold, stop_manager):
+        """デフォルトはstop_loss（後方互換性）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading.fees.entry_taker_rate": 0.001,
+            "trading.fees.exit_maker_rate": 0.0,
+            "trading.fees.exit_taker_rate": 0.001,
+        }.get(key, default)
+
+        # 引数なし → Taker率使用（stop_lossと同じ）
+        pnl_default = stop_manager._calc_pnl(10_000_000, 9_950_000, 0.01, "buy")
+        pnl_sl = stop_manager._calc_pnl(10_000_000, 9_950_000, 0.01, "buy", "stop_loss")
+        assert pnl_default == pnl_sl
