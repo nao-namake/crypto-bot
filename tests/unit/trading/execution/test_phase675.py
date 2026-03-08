@@ -581,3 +581,159 @@ class TestPhase675RaceConditionFix:
         tp_sl_manager._cancel_partial_exit_orders.assert_called_once()
         # SL配置も実行されること
         tp_sl_manager.place_sl_or_market_close.assert_called_once()
+
+
+@pytest.mark.asyncio
+class TestPhase683SLProtection:
+    """Phase 68.3: SL永続保護テスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        manager = TPSLManager.__new__(TPSLManager)
+        manager.logger = MagicMock()
+        manager.position_tracker = MagicMock()
+        return manager
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        client = MagicMock()
+        client.fetch_active_orders = MagicMock(return_value=[])
+        client.fetch_ticker = MagicMock(return_value={"last": 14100000.0})
+        client.cancel_order = MagicMock()
+        client.create_stop_limit_order = MagicMock(
+            return_value={"id": "sl_123", "trigger_price": 13900000.0}
+        )
+        client.create_take_profit_order = MagicMock(return_value={"id": "tp_123"})
+        return client
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_sl_preserved_when_tp_only_update(
+        self, mock_threshold, tp_sl_manager, mock_bitbank_client
+    ):
+        """has_sl=True時にSL注文がキャンセルされない"""
+        mock_bitbank_client.fetch_ticker = MagicMock(return_value={"last": 14100000.0})
+
+        mock_threshold.side_effect = lambda key, default=None: {
+            "currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        tp_sl_manager._is_fixed_amount_tp_enabled = MagicMock(return_value=False)
+        tp_sl_manager.calculate_recovery_tp_sl_prices = MagicMock(
+            return_value=(14500000.0, 13900000.0)
+        )
+        tp_sl_manager._cancel_partial_exit_orders = AsyncMock(return_value=1)
+        tp_sl_manager.place_sl_or_market_close = AsyncMock()
+        tp_sl_manager.place_take_profit = AsyncMock(return_value={"order_id": "tp_new"})
+
+        virtual_positions = []
+        existing_sl_info = {"sl_order_id": "sl_existing_123", "sl_placed_at": "2026-03-09"}
+
+        await tp_sl_manager._place_missing_tp_sl(
+            position_side="long",
+            amount=0.01,
+            avg_price=14000000.0,
+            has_tp=False,
+            has_sl=True,  # SL exists
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_bitbank_client,
+            existing_sl_info=existing_sl_info,
+        )
+
+        # cancel_sl=False で呼ばれること（SL保護）
+        tp_sl_manager._cancel_partial_exit_orders.assert_called_once()
+        call_kwargs = tp_sl_manager._cancel_partial_exit_orders.call_args
+        assert call_kwargs[1]["cancel_sl"] is False
+
+        # SL配置は呼ばれないこと（has_sl=True）
+        tp_sl_manager.place_sl_or_market_close.assert_not_called()
+
+        # TP配置は呼ばれること
+        tp_sl_manager.place_take_profit.assert_called_once()
+
+        # VPに既存SL情報が引き継がれること
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["sl_order_id"] == "sl_existing_123"
+        assert virtual_positions[0]["sl_placed_at"] == "2026-03-09"
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_sl_placed_when_missing(self, mock_threshold, tp_sl_manager, mock_bitbank_client):
+        """has_sl=False時にSLが正しく配置される"""
+        mock_bitbank_client.fetch_ticker = MagicMock(return_value={"last": 14100000.0})
+
+        mock_threshold.side_effect = lambda key, default=None: {
+            "currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        tp_sl_manager._is_fixed_amount_tp_enabled = MagicMock(return_value=False)
+        tp_sl_manager.calculate_recovery_tp_sl_prices = MagicMock(
+            return_value=(14500000.0, 13900000.0)
+        )
+        tp_sl_manager._cancel_partial_exit_orders = AsyncMock(return_value=1)
+        tp_sl_manager.place_sl_or_market_close = AsyncMock(return_value={"order_id": "sl_new_456"})
+        tp_sl_manager.place_take_profit = AsyncMock(return_value={"order_id": "tp_new"})
+
+        virtual_positions = []
+        await tp_sl_manager._place_missing_tp_sl(
+            position_side="long",
+            amount=0.01,
+            avg_price=14000000.0,
+            has_tp=False,
+            has_sl=False,  # SL missing
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_bitbank_client,
+        )
+
+        # cancel_sl=True で呼ばれること（SL未配置のためキャンセル対象）
+        tp_sl_manager._cancel_partial_exit_orders.assert_called_once()
+        call_kwargs = tp_sl_manager._cancel_partial_exit_orders.call_args
+        assert call_kwargs[1]["cancel_sl"] is True
+
+        # SL配置が呼ばれること
+        tp_sl_manager.place_sl_or_market_close.assert_called_once()
+        # TP配置も呼ばれること
+        tp_sl_manager.place_take_profit.assert_called_once()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_phase675_skipped_when_sl_exists(
+        self, mock_threshold, tp_sl_manager, mock_bitbank_client
+    ):
+        """SL存在時にPhase 67.5 SL超過チェックがスキップされる"""
+        # SL超過状態だが、has_sl=Trueなのでチェック自体がスキップされるべき
+        mock_bitbank_client.fetch_ticker = MagicMock(return_value={"last": 13800000.0})
+
+        mock_threshold.side_effect = lambda key, default=None: {
+            "currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        tp_sl_manager._is_fixed_amount_tp_enabled = MagicMock(return_value=False)
+        tp_sl_manager.calculate_recovery_tp_sl_prices = MagicMock(
+            return_value=(14500000.0, 13900000.0)
+        )
+        tp_sl_manager._cancel_partial_exit_orders = AsyncMock(return_value=1)
+        tp_sl_manager.place_take_profit = AsyncMock(return_value={"order_id": "tp_new"})
+
+        virtual_positions = []
+        existing_sl_info = {"sl_order_id": "sl_existing", "sl_placed_at": "2026-03-09"}
+
+        await tp_sl_manager._place_missing_tp_sl(
+            position_side="long",
+            amount=0.01,
+            avg_price=14000000.0,
+            has_tp=False,
+            has_sl=True,  # SL exists → Phase 67.5 skipped
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_bitbank_client,
+            existing_sl_info=existing_sl_info,
+        )
+
+        # fetch_tickerは呼ばれないこと（Phase 67.5スキップ + place_sl_or_market_close未呼出）
+        mock_bitbank_client.fetch_ticker.assert_not_called()
+
+        # 成行決済は呼ばれないこと（SL超過状態だが取引所側SLが保護）
+        mock_bitbank_client.create_order.assert_not_called()
+
+        # TP配置は正常に呼ばれること
+        tp_sl_manager.place_take_profit.assert_called_once()
+
+        # VPが追加されること
+        assert len(virtual_positions) == 1

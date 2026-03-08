@@ -4,7 +4,7 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 [![Tests](https://img.shields.io/badge/tests-passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-75%25%2B-green)](tests/)
-[![Phase](https://img.shields.io/badge/Phase%2068.2-Complete-blue)](docs/開発履歴/Phase_68.md)
+[![Phase](https://img.shields.io/badge/Phase%2068.3-Complete-blue)](docs/開発履歴/Phase_68.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # Phase 68: TP/SL手数料バグ修正 + Maker改善 + SL検出修正
 
 **期間**: 2026年3月6日〜7日
-**状態**: Phase 68.2まで完了・デプロイ待ち
+**状態**: Phase 68.3まで完了・デプロイ待ち
 
 | 変更 | 内容 | 状態 |
 |------|------|------|
@@ -246,3 +246,49 @@ flake8/black/isort: all PASS
 - `TestPhase682PnlFeeCalculation::test_sl_exit_uses_taker_rate` — SL=Taker 0.1%確認
 - `TestPhase682PnlFeeCalculation::test_emergency_exit_uses_taker_rate` — 緊急=Taker確認
 - `TestPhase682PnlFeeCalculation::test_default_execution_type_is_stop_loss` — 後方互換性確認
+
+---
+
+## Phase 68.3: SL永続保護（キャンセル禁止）
+
+**日付**: 2026年3月9日
+
+### 背景
+
+SL注文が定期チェック(`_place_missing_tp_sl`)時にキャンセル→再配置される設計のため、キャンセル中のSL不在期間に価格が急変し、目標700円の損切りが2000円超の損失になる問題が繰り返し発生。
+
+根本原因: `_cancel_partial_exit_orders()`がTP/SL両方を無差別にキャンセルしていた。
+
+### 修正内容
+
+#### 修正1: SL保護パラメータ追加
+
+`_cancel_partial_exit_orders()`に`cancel_sl`パラメータ追加。SL存在時は`cancel_sl=False`で呼び出し、TP注文のみキャンセル。
+
+#### 修正2: Phase 67.5 SL超過チェックをSL不在時のみ実行
+
+SL存在時は取引所側SLが保護中のため、SL超過チェック（fetch_ticker + 成行決済）をスキップ。
+
+#### 修正3: VP再構築時の既存SL情報引き継ぎ
+
+VP削除前に既存SL order IDを保存し、VP再作成時に引き継ぎ。
+
+### 変更ファイル一覧
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `src/trading/execution/tp_sl_manager.py` | cancel_sl保護 + Phase 67.5条件分岐 + existing_sl_info引き継ぎ |
+| 2 | `tests/unit/trading/execution/test_phase675.py` | Phase 68.3テスト3件追加 |
+
+### テスト結果
+
+```
+1952 passed, 1 skipped, 75.22% coverage
+flake8/black/isort: all PASS
+```
+
+#### 新規テスト
+
+- `test_sl_preserved_when_tp_only_update` — has_sl=True時にcancel_sl=Falseで呼ばれること
+- `test_sl_placed_when_missing` — has_sl=False時にcancel_sl=Trueで呼ばれること
+- `test_phase675_skipped_when_sl_exists` — SL存在時にPhase 67.5がスキップされること
