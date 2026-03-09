@@ -17,6 +17,7 @@ from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ...data.bitbank_client import BitbankClient
 from ..core import ExecutionMode, ExecutionResult, OrderStatus
+from .sl_state_persistence import SLStatePersistence
 from .tp_sl_config import TPSLConfig
 
 
@@ -30,6 +31,7 @@ class StopManager:
     def __init__(self):
         """StopManager初期化"""
         self.logger = get_logger()
+        self.sl_persistence = SLStatePersistence()
 
     # ========================================
     # Phase 61.9: TP/SL自動執行検知機能
@@ -86,6 +88,11 @@ class StopManager:
 
                 if execution_info:
                     detected_executions.append(execution_info)
+
+                    # Phase 68.4: SL永続化クリア（ポジション決済時）
+                    vp_side = vpos.get("side", "")
+                    if vp_side:
+                        self.sl_persistence.clear(vp_side)
 
                     # ログ出力
                     self._log_auto_execution(execution_info, config)

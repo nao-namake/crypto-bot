@@ -1517,6 +1517,43 @@ class LiveAnalyzer:
                         abs(sl_price - self.current_price) / self.current_price * 100
                     )
 
+            # Phase 68.4: SL未検出時、永続化ファイルからINACTIVE SL検証
+            if not sl_orders and self.result.open_position_count > 0:
+                try:
+                    from src.trading.execution.sl_state_persistence import SLStatePersistence
+
+                    sl_persist = SLStatePersistence()
+                    sl_state = sl_persist.load()
+                    for side_key in ["buy", "sell"]:
+                        sl_info = sl_state.get(side_key)
+                        if sl_info and sl_info.get("sl_order_id"):
+                            verified_id = sl_persist.verify_with_api(side_key, self.bitbank_client)
+                            if verified_id:
+                                sl_price_val = sl_info.get("sl_price", 0)
+                                self.logger.info(
+                                    f"Phase 68.4: INACTIVE SL検出（永続化）- "
+                                    f"{side_key} ID={verified_id}, price={sl_price_val}"
+                                )
+                                # INACTIVE SLをsl_ordersに追加（表示用）
+                                sl_orders.append(
+                                    {
+                                        "id": verified_id,
+                                        "type": "stop_limit",
+                                        "side": "sell" if side_key == "buy" else "buy",
+                                        "stopPrice": sl_price_val,
+                                        "amount": sl_info.get("amount"),
+                                        "_inactive": True,
+                                    }
+                                )
+                                if sl_price_val and self.current_price > 0:
+                                    self.result.sl_distance_pct = (
+                                        abs(float(sl_price_val) - self.current_price)
+                                        / self.current_price
+                                        * 100
+                                    )
+                except Exception as e:
+                    self.logger.debug(f"Phase 68.4: INACTIVE SL検証エラー: {e}")
+
             # ポジションがあるのにTP/SLがない場合
             if self.result.open_position_count > 0:
                 if not tp_orders or not sl_orders:

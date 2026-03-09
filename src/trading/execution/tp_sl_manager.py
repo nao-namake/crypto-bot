@@ -21,6 +21,7 @@ from ...core.exceptions import CryptoBotError, TradingError
 from ...core.logger import get_logger
 from ...data.bitbank_client import BitbankClient
 from ..core import ExecutionResult, TradeEvaluation
+from .sl_state_persistence import SLStatePersistence
 from .tp_sl_config import TPSLConfig
 
 
@@ -31,6 +32,7 @@ class TPSLManager:
         self.logger = get_logger()
         self._pending_verifications: List[Dict[str, Any]] = []
         self._last_tp_sl_check_time: Optional[datetime] = None
+        self.sl_persistence = SLStatePersistence()
 
     # ========================================
     # Phase 64: 個別TP/SL配置メソッド（stop_manager.pyから移動）
@@ -336,6 +338,9 @@ class TPSLManager:
             },
         )
 
+        # Phase 68.4: SL永続化保存（INACTIVE SL対策）
+        self.sl_persistence.save(side, str(order_id), stop_loss_price, amount)
+
         return {
             "order_id": order_id,
             "price": stop_loss_price,
@@ -588,6 +593,45 @@ class TPSLManager:
                 elif vp_side == "sell":  # short position → buy SL
                     sl_buy_total += vp_amount
 
+            # Phase 68.4: 永続化ファイルからINACTIVE SL検証
+            # VPにもactive_ordersにもSLがない場合、永続化ファイルから検証
+            if long_total > 0 and sl_sell_total < long_total * 0.95:
+                try:
+                    verified_sl_id = self.sl_persistence.verify_with_api(
+                        "buy", bitbank_client, "BTC/JPY"
+                    )
+                    if verified_sl_id:
+                        sl_sell_total += long_total  # INACTIVE SL存在確認
+                        self.logger.info(
+                            f"Phase 68.4: INACTIVE SL検出（永続化） - "
+                            f"long {long_total:.4f} BTC, ID={verified_sl_id}"
+                        )
+                        # VPにもsl_order_idを復元
+                        for vp in virtual_positions:
+                            if vp.get("side") == "buy" and not vp.get("sl_order_id"):
+                                vp["sl_order_id"] = verified_sl_id
+                                break
+                except Exception as e:
+                    self.logger.debug(f"Phase 68.4: 永続化SL検証エラー（long）: {e}")
+
+            if short_total > 0 and sl_buy_total < short_total * 0.95:
+                try:
+                    verified_sl_id = self.sl_persistence.verify_with_api(
+                        "sell", bitbank_client, "BTC/JPY"
+                    )
+                    if verified_sl_id:
+                        sl_buy_total += short_total  # INACTIVE SL存在確認
+                        self.logger.info(
+                            f"Phase 68.4: INACTIVE SL検出（永続化） - "
+                            f"short {short_total:.4f} BTC, ID={verified_sl_id}"
+                        )
+                        for vp in virtual_positions:
+                            if vp.get("side") == "sell" and not vp.get("sl_order_id"):
+                                vp["sl_order_id"] = verified_sl_id
+                                break
+                except Exception as e:
+                    self.logger.debug(f"Phase 68.4: 永続化SL検証エラー（short）: {e}")
+
             # 95%カバレッジで判定（端数誤差許容）
             long_tp_ok = long_total <= 0 or tp_sell_total >= long_total * 0.95
             long_sl_ok = long_total <= 0 or sl_sell_total >= long_total * 0.95
@@ -797,6 +841,13 @@ class TPSLManager:
                     )
                 return sl_order
             except Exception as e:
+                # Phase 68.4: 50062フォールバック（place_sl_or_market_close経由）
+                if "50062" in str(e):
+                    self.logger.info(
+                        f"Phase 68.4: 50062検出（place_sl_or_market_close）→ "
+                        f"既存INACTIVE SL存在 ({position_side})"
+                    )
+                    return {"order_id": "inactive_sl_preserved", "price": sl_price}
                 self.logger.error(f"❌ Phase 64.4: SL配置失敗: {e}")
                 return None
 
@@ -868,31 +919,67 @@ class TPSLManager:
             )
 
         # ── Step 0: 既存部分注文キャンセル ──
-        # Phase 68.3: SL存在時はSLをキャンセルしない（SL保護）
-        # bitbankはTP+SLの合計数量がポジション数量を超えると50062エラー
+        # Phase 68.4: SLは常にキャンセルしない（INACTIVE SL保護）
+        # has_sl=Falseでも、INACTIVE SLが存在する可能性がある
+        # SL配置を先に試行し、50062で既存SL検出を行う（Layer 2）
         try:
             cancelled = await self._cancel_partial_exit_orders(
                 position_side,
                 symbol,
                 bitbank_client,
-                cancel_sl=(not has_sl),  # SL存在時はキャンセルしない
+                cancel_sl=False,  # Phase 68.4: SLは常にキャンセルしない
             )
             if cancelled > 0:
-                if has_sl:
-                    self.logger.info(
-                        f"🔄 Phase 68.3: TP注文 {cancelled}件キャンセル → 再配置（SL保護維持）"
-                    )
-                else:
-                    self.logger.info(f"🔄 Phase 68.3: TP/SL {cancelled}件キャンセル → 統合再配置")
+                self.logger.info(
+                    f"🔄 Phase 68.4: TP注文 {cancelled}件キャンセル → 再配置（SL保護維持）"
+                )
                 # TPはキャンセルしたので再配置が必要
                 has_tp = False
-                # has_slはSL保護時はTrue維持（キャンセルしていないため）
         except Exception as e:
-            self.logger.warning(f"⚠️ Phase 65.2: 部分TP/SLキャンセル失敗（継続）: {e}")
+            self.logger.warning(f"⚠️ Phase 65.2: 部分TPキャンセル失敗（継続）: {e}")
 
-        # ── Phase 67.5: SL超過再チェック（SL不在時のみ） ──
-        # Phase 68.3: SL存在時は取引所側SLが保護するため不要
+        tp_order = None
+        sl_order = None
+
+        # Phase 68.4: SL不在時、先にSL配置を試行（キャンセルなし）
+        # 50062エラー → 既存INACTIVE SLが存在する証拠 → has_sl=Trueに修正
         if not has_sl:
+            try:
+                sl_order = await self.place_sl_or_market_close(
+                    entry_side=entry_side,
+                    position_side=position_side,
+                    amount=amount,
+                    avg_price=avg_price,
+                    sl_price=sl_price,
+                    symbol=symbol,
+                    bitbank_client=bitbank_client,
+                )
+            except Exception as e:
+                # Phase 68.4: 50062フォールバック（Layer 2）
+                # 50062（保有建玉数量超過）= 既存INACTIVE SLが存在する証拠
+                if "50062" in str(e):
+                    has_sl = True
+                    sl_order = None
+                    self.logger.info(
+                        f"Phase 68.4: 50062検出 → 既存INACTIVE SL保護 "
+                        f"({position_side} {amount:.4f} BTC)"
+                    )
+                    # 永続化ファイルからSL IDを復元試行
+                    try:
+                        verified_id = self.sl_persistence.verify_with_api(
+                            entry_side, bitbank_client, symbol
+                        )
+                        if verified_id:
+                            existing_sl_info = existing_sl_info or {}
+                            existing_sl_info["sl_order_id"] = verified_id
+                    except Exception:
+                        pass
+                else:
+                    self.logger.error(f"❌ Phase 68.4: SL配置失敗: {e}")
+
+        # ── Phase 67.5: SL超過再チェック（SL不在のまま配置失敗時） ──
+        # Phase 68.4: SL配置もINACTIVE SL検出も失敗した場合のみ
+        if not has_sl and not sl_order:
             try:
                 ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, symbol)
                 current_price = float(ticker.get("last", 0)) if ticker else 0
@@ -905,7 +992,7 @@ class TPSLManager:
 
                     if sl_breached:
                         self.logger.warning(
-                            f"🚨 Phase 67.5: SL超過（キャンセル後検出） - "
+                            f"🚨 Phase 67.5: SL超過検出 - "
                             f"現在={current_price:.0f}円, SL={sl_price:.0f}円 "
                             f"→ 成行決済"
                         )
@@ -929,22 +1016,6 @@ class TPSLManager:
                         return
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 67.5: SL超過再チェック失敗（継続）: {e}")
-
-        tp_order = None
-        sl_order = None
-
-        # Phase 67.4: SLを先に配置（レースコンディション対策）
-        # SL不在期間を最小化するため、TP→SLの順序をSL→TPに変更
-        if not has_sl:
-            sl_order = await self.place_sl_or_market_close(
-                entry_side=entry_side,
-                position_side=position_side,
-                amount=amount,
-                avg_price=avg_price,
-                sl_price=sl_price,
-                symbol=symbol,
-                bitbank_client=bitbank_client,
-            )
 
         # TP配置（全量カバー）
         if not has_tp:

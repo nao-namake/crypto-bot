@@ -1,7 +1,7 @@
 # Phase 68: TP/SL手数料バグ修正 + Maker改善 + SL検出修正
 
-**期間**: 2026年3月6日〜7日
-**状態**: Phase 68.3まで完了・デプロイ待ち
+**期間**: 2026年3月6日〜10日
+**状態**: Phase 68.4まで完了・デプロイ待ち
 
 | 変更 | 内容 | 状態 |
 |------|------|------|
@@ -11,6 +11,8 @@
 | **修正4** | SL検出パターン拡充（Phase 63/64.12/65.13対応） | ✅ 完了 |
 | **修正5** | 分析ツール設定検証の更新 | ✅ 完了 |
 | **Phase 68.2** | SL超過成行決済50062修正 + PnL手数料TP/SL分離 | ✅ 完了 |
+| **Phase 68.3** | SL永続保護（キャンセル禁止） | ✅ 完了 |
+| **Phase 68.4** | INACTIVE SL検出問題の根本解決（2層防御） | ✅ 完了 |
 
 ---
 
@@ -290,5 +292,172 @@ flake8/black/isort: all PASS
 #### 新規テスト
 
 - `test_sl_preserved_when_tp_only_update` — has_sl=True時にcancel_sl=Falseで呼ばれること
-- `test_sl_placed_when_missing` — has_sl=False時にcancel_sl=Trueで呼ばれること
+- `test_sl_placed_when_missing` — has_sl=False時にcancel_sl=Falseで呼ばれること（Phase 68.4で変更）
 - `test_phase675_skipped_when_sl_exists` — SL存在時にPhase 67.5がスキップされること
+
+---
+
+## Phase 68.4: INACTIVE SL検出問題の根本解決（2層防御）
+
+**日付**: 2026年3月10日
+
+### 背景
+
+Phase 63〜68.3で多数のSL保護修正を重ねてきたが、ライブ分析で依然「SL未設定」警告が出る。bitbank管理画面でも実際にSL注文が存在しないことを確認済み。
+
+#### 根本原因
+
+bitbankの`stop_limit`注文はトリガー価格到達前に**INACTIVE状態**となり、`fetch_active_orders`（ccxt `fetch_open_orders`）に返されない。BotがINACTIVE SLを「存在しない」と誤判定し、キャンセル→再配置を試みて失敗する連鎖障害。
+
+```
+Container再起動時の連鎖障害:
+  1. VP（インメモリ）消失 → sl_order_id喪失
+  2. position_restorer: fetch_active_ordersでSLマッチング → INACTIVE未検出
+  3. ensure_tp_sl: has_sl=False → cancel_sl=True（Phase 68.3保護が無効化）
+  4. 既存INACTIVE SLがキャンセルされる → 再配置失敗時SL永久消失
+```
+
+Phase 68.3の`cancel_sl=False`保護は`has_sl=True`時のみ有効だったため、has_sl判定自体が失敗するこのケースでは無効化されていた。
+
+### 解決方針: 2層防御
+
+| Layer | 対象シナリオ | メカニズム |
+|-------|------------|-----------|
+| **Layer 1** | 通常起動（コンテナ存続中） | `data/sl_state.json`にSL注文IDを永続化 → `fetch_order(id)`で個別検証 |
+| **Layer 2** | コンテナ再構築（ファイル消失） | SLキャンセルせず配置試行 → 50062エラー = 既存INACTIVE SL存在の証拠 |
+
+**核心の修正**: `cancel_sl=False`を**常に**適用（`has_sl`の値に関係なく）。これによりINACTIVE SLが絶対にキャンセルされなくなった。
+
+### 修正内容
+
+#### 新規: SL注文ID永続化クラス
+
+**ファイル**: `src/trading/execution/sl_state_persistence.py`
+
+```python
+class SLStatePersistence:
+    """SL注文IDのローカルファイル永続化（INACTIVE SL対策）"""
+
+    def save(side, sl_order_id, sl_price, amount)   # SL配置成功時
+    def load() -> Dict                                # 起動時読み込み
+    def clear(side)                                   # ポジション決済時
+    def verify_with_api(side, bitbank_client) -> str  # fetch_order検証
+```
+
+`drawdown.py`の`_save_state`/`_load_state`パターンを参考に、`data/sl_state.json`にJSON永続化。`verify_with_api`は`fetch_order(id)`でINACTIVE含むステータスを個別取得して検証。
+
+#### 修正1: SLキャンセル常時禁止 + 50062フォールバック
+
+**ファイル**: `src/trading/execution/tp_sl_manager.py`
+
+`_place_missing_tp_sl()`のフロー変更:
+
+| ステップ | Before (Phase 68.3) | After (Phase 68.4) |
+|---------|---------------------|---------------------|
+| Step 0 キャンセル | `cancel_sl=(not has_sl)` | `cancel_sl=False`（常時） |
+| SL配置 | キャンセル後にSL配置 | **SLキャンセルせず先に配置試行** |
+| 50062対応 | なし | **50062 = 既存INACTIVE SL → has_sl=True** |
+| Phase 67.5 | キャンセル後のSL超過チェック | SL配置もINACTIVE検出も失敗した場合のみ |
+
+`ensure_tp_sl_for_existing_positions()`のINACTIVE SL検出:
+- VP + active_ordersでSL未検出 → 永続化ファイルから`verify_with_api()`で検証
+- 検証成功 → SLカバレッジに加算 + VPにsl_order_id復元
+
+SL配置成功時の永続化フック:
+- `place_stop_loss()`成功後に`sl_persistence.save()`呼び出し
+
+#### 修正2: ポジション復元時のINACTIVE SL復元
+
+**ファイル**: `src/trading/execution/position_restorer.py`
+
+`restore_positions_from_api()`で、active_ordersからSL未検出時に永続化ファイルから復元:
+
+```python
+if not sl_order_id:
+    verified_id = sl_persistence.verify_with_api(entry_side, bitbank_client)
+    if verified_id:
+        sl_order_id = verified_id  # INACTIVE SL復元
+```
+
+#### 修正3: TP/SL約定時のクリア
+
+**ファイル**: `src/trading/execution/stop_manager.py`
+
+`detect_auto_executed_orders()`でTP/SL約定検知時に`sl_persistence.clear()`呼び出し。
+
+#### 修正4: 分析スクリプトのINACTIVE SL表示
+
+**ファイル**: `scripts/live/standard_analysis.py`
+
+`_check_tp_sl_placement()`でSL未検出時に永続化ファイルからINACTIVE SLを検証・表示。
+
+### 動作フロー
+
+#### 通常起動（コンテナ存続中、Layer 1）
+
+```
+SL配置成功 → sl_state.json保存
+    ↓
+5分後 ensure_tp_sl → active_ordersにSLなし（INACTIVE）
+    ↓
+Layer 1: sl_state.json → verify_with_api → INACTIVE確認 → has_sl=True
+    ↓
+TP再配置のみ（SL保護維持）
+```
+
+#### コンテナ再構築（Layer 2）
+
+```
+コンテナ再構築 → sl_state.json消失 + VP消失
+    ↓
+position_restorer → active_ordersにSLなし + ファイルなし → SLなしVP
+    ↓
+ensure_tp_sl → has_sl=False
+    ↓
+_place_missing_tp_sl → cancel_sl=False（INACTIVE SL保護）
+    ↓
+SL配置試行 → 50062エラー（既存INACTIVE SLが存在）
+    ↓
+Layer 2: has_sl=True → INACTIVE SL保護
+```
+
+### 変更ファイル一覧
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `src/trading/execution/sl_state_persistence.py` | **新規** SL注文ID永続化クラス |
+| 2 | `src/trading/execution/tp_sl_manager.py` | cancel_sl常時False + 50062フォールバック + 永続化フック + INACTIVE SL検出 |
+| 3 | `src/trading/execution/position_restorer.py` | 永続化SL復元ロジック追加 |
+| 4 | `src/trading/execution/stop_manager.py` | 約定時sl_persistence.clear()追加 |
+| 5 | `scripts/live/standard_analysis.py` | INACTIVE SL検証・表示追加 |
+| 6 | `tests/unit/trading/execution/test_sl_state_persistence.py` | **新規** 19テスト（save/load/clear/verify全パターン） |
+| 7 | `tests/unit/trading/execution/test_phase675.py` | Phase 68.4に伴うテスト更新（cancel_sl=False等） |
+
+### テスト結果
+
+```
+1971 passed, 1 skipped, 75%+ coverage
+flake8/black/isort: all PASS
+```
+
+#### 新規テスト（19件）
+
+- `TestSLStatePersistence::test_save_and_load` — save→loadで正しく復元
+- `TestSLStatePersistence::test_save_both_sides` — buy/sell両方保存
+- `TestSLStatePersistence::test_save_overwrites_same_side` — 同サイド上書き
+- `TestSLStatePersistence::test_clear` — 指定サイドのみ削除
+- `TestSLStatePersistence::test_clear_nonexistent` — 存在しないサイドのclear
+- `TestSLStatePersistence::test_load_empty` — ファイル未存在時
+- `TestSLStatePersistence::test_load_corrupted_file` — 壊れたJSON
+- `TestSLStatePersistence::test_save_error_handling` — 保存エラー
+- `TestSLStatePersistence::test_clear_error_handling` — クリアエラー
+- `TestSLStatePersistence::test_verify_with_no_order_id_in_state` — order_idなし
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_valid_inactive_sl` — INACTIVE=valid
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_valid_open_sl` — open=valid
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_canceled_sl` — canceled=無効→クリア
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_closed_sl` — closed=無効→クリア
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_order_not_found` — 注文消失→クリア
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_no_saved_state` — 保存データなし
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_api_returns_none` — API Null
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_api_error_non_not_found` — 一時エラー（クリアしない）
+- `TestSLStatePersistenceVerifyWithAPI::test_verify_unfilled_status` — unfilled=valid

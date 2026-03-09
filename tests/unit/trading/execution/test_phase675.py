@@ -503,15 +503,10 @@ class TestPhase675RaceConditionFix:
     async def test_sl_breach_after_cancel_triggers_market_close(
         self, mock_threshold, tp_sl_manager, mock_bitbank_client
     ):
-        """キャンセル後のSL超過再チェックで検出→成行決済"""
-        # 1回目のfetch_ticker: SL未超過
-        # 2回目のfetch_ticker: SL超過（キャンセル中に価格変動）
-        mock_bitbank_client.fetch_ticker = MagicMock(
-            side_effect=[
-                {"last": 14100000.0},  # 事前チェック: 未超過
-                {"last": 13800000.0},  # キャンセル後チェック: 超過
-            ]
-        )
+        """Phase 68.4: SL配置試行時にSL超過検出→成行決済"""
+        # SL超過状態: long position, current price (13800000) < SL (13900000)
+        # place_sl_or_market_close内のfetch_tickerで検出
+        mock_bitbank_client.fetch_ticker = MagicMock(return_value={"last": 13800000.0})
 
         mock_threshold.side_effect = lambda key, default=None: {
             "currency_pair": "BTC/JPY",
@@ -533,11 +528,11 @@ class TestPhase675RaceConditionFix:
             bitbank_client=mock_bitbank_client,
         )
 
-        # fetch_tickerが2回呼ばれること（事前+キャンセル後）
-        assert mock_bitbank_client.fetch_ticker.call_count == 2
+        # Phase 68.4: fetch_tickerはplace_sl_or_market_close内で1回呼ばれる
+        assert mock_bitbank_client.fetch_ticker.call_count == 1
         # キャンセルが実行されること
         tp_sl_manager._cancel_partial_exit_orders.assert_called_once()
-        # 成行決済が実行されること（キャンセル後のSL超過で）
+        # 成行決済が実行されること（place_sl_or_market_close内のSL超過で）
         mock_bitbank_client.create_order.assert_called_once()
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
@@ -589,9 +584,7 @@ class TestPhase683SLProtection:
 
     @pytest.fixture
     def tp_sl_manager(self):
-        manager = TPSLManager.__new__(TPSLManager)
-        manager.logger = MagicMock()
-        manager.position_tracker = MagicMock()
+        manager = TPSLManager()
         return manager
 
     @pytest.fixture
@@ -683,10 +676,10 @@ class TestPhase683SLProtection:
             bitbank_client=mock_bitbank_client,
         )
 
-        # cancel_sl=True で呼ばれること（SL未配置のためキャンセル対象）
+        # Phase 68.4: cancel_sl=False で呼ばれること（INACTIVE SL保護）
         tp_sl_manager._cancel_partial_exit_orders.assert_called_once()
         call_kwargs = tp_sl_manager._cancel_partial_exit_orders.call_args
-        assert call_kwargs[1]["cancel_sl"] is True
+        assert call_kwargs[1]["cancel_sl"] is False
 
         # SL配置が呼ばれること
         tp_sl_manager.place_sl_or_market_close.assert_called_once()

@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ...data.bitbank_client import BitbankClient
+from .sl_state_persistence import SLStatePersistence
 from .tp_sl_config import TPSLConfig
 
 
@@ -26,6 +27,7 @@ class PositionRestorer:
     def __init__(self):
         self.logger = get_logger()
         self._last_orphan_scan_time: Optional[datetime] = None
+        self.sl_persistence = SLStatePersistence()
 
     # ========================================
     # Phase 65.5: 共通ヘルパー
@@ -203,6 +205,24 @@ class PositionRestorer:
                             sl_placed_at = (
                                 order_dt if order_dt else datetime.now(timezone.utc).isoformat()
                             )
+
+                # Phase 68.4: active_ordersでSL未検出時、永続化ファイルから復元
+                if not sl_order_id:
+                    try:
+                        verified_id = self.sl_persistence.verify_with_api(
+                            entry_side, bitbank_client, "BTC/JPY"
+                        )
+                        if verified_id:
+                            sl_order_id = verified_id
+                            sl_state = self.sl_persistence.load().get(entry_side, {})
+                            sl_price = sl_state.get("sl_price")
+                            sl_placed_at = sl_state.get("saved_at")
+                            self.logger.info(
+                                f"Phase 68.4: INACTIVE SL復元（永続化）- "
+                                f"{pos_side} ID={verified_id}"
+                            )
+                    except Exception as e:
+                        self.logger.debug(f"Phase 68.4: 永続化SL復元エラー: {e}")
 
                 virtual_positions.append(
                     {
