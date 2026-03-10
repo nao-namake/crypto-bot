@@ -972,8 +972,8 @@ class TPSLManager:
                         if verified_id:
                             existing_sl_info = existing_sl_info or {}
                             existing_sl_info["sl_order_id"] = verified_id
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self.logger.debug(f"Phase 68.4: SL永続化ファイル復元失敗（無視）: {e}")
                 else:
                     self.logger.error(f"❌ Phase 68.4: SL配置失敗: {e}")
 

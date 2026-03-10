@@ -74,8 +74,6 @@ class ATRBasedStrategy(StrategyBase):
             ),
             # ストップロス設定
             "sl_atr_multiplier": get_threshold("strategies.atr_based.sl_atr_multiplier", 1.5),
-            # リスク管理（共通設定から取得）
-            "stop_loss_atr_multiplier": get_threshold("sl_atr_normal_vol", 2.0),
             "take_profit_ratio": get_threshold(
                 "position_management.take_profit.default_ratio", 1.29
             ),

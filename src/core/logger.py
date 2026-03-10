@@ -75,7 +75,7 @@ class ColorFormatter(logging.Formatter):
         reset = self.COLORS["RESET"]
 
         # タイムスタンプ
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
 
         # レベル（色付き）
         level = f"{color}[{record.levelname:8}]{reset}"
