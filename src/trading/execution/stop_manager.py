@@ -1,10 +1,11 @@
 """
-ストップ条件管理サービス - Phase 62.17: stop_limit未約定バグ修正
+ストップ条件管理サービス - Phase 68.6: SL消失問題の根本解決
 Phase 28: TP/SL機能、Phase 31.1: 柔軟クールダウン、Phase 37.5.3: 残注文クリーンアップ
 Phase 46: 個別TP/SL配置、Phase 49.6: ポジション決済時クリーンアップ
 Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
 Phase 61.3: 決済注文の約定確認・リトライ機能
 Phase 62.17: stop_limit未約定バグ修正（Bot側SL監視スキップ・タイムアウトフォールバック）
+Phase 68.6: reason文字列マッチ修正・SL再配置フォールバック追加
 
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
@@ -117,6 +118,12 @@ class StopManager:
                                 entry_time = entry_time.replace(tzinfo=timezone.utc)
                             elapsed = (now - entry_time).total_seconds()
                             if elapsed > 3600:  # 1時間以上経過
+                                # Phase 68.7: SL永続化クリア（消失ポジション強制削除時）
+                                try:
+                                    if vpos.get("side"):
+                                        self.sl_persistence.clear(vpos["side"])
+                                except Exception:
+                                    pass
                                 if vpos in virtual_positions:
                                     virtual_positions.remove(vpos)
                                     self.logger.warning(
@@ -1058,11 +1065,13 @@ class StopManager:
             position, current_price, "stop_loss_timeout", mode, bitbank_client
         )
 
-        # Phase 62.21: 決済失敗時は警告ログ出力（10分後のTP/SL検証で再構築される）
+        # Phase 68.6: 決済失敗時はSLを再配置して保護を維持
         if not result.success:
-            self.logger.warning(
-                f"⚠️ Phase 62.21: タイムアウト決済失敗 - " f"10分後のTP/SL検証でSL再設置される予定"
-            )
+            self.logger.warning(f"⚠️ Phase 68.6: タイムアウト決済失敗 - SL再配置試行")
+            try:
+                await self._replace_sl_order(position, stop_loss, bitbank_client)
+            except Exception as e:
+                self.logger.error(f"❌ Phase 68.6: SL再配置も失敗: {e}")
 
         return result
 
@@ -1121,6 +1130,12 @@ class StopManager:
                     except Exception as e:
                         # Phase 59.6: クリーンアップエラーは処理継続（孤児SLは別途記録済み）
                         self.logger.warning(f"⚠️ Phase 59.6: クリーンアップエラー（処理継続）: {e}")
+
+                # Phase 68.7: SL永続化クリア（全決済経路共通）
+                try:
+                    self.sl_persistence.clear(entry_side.lower())
+                except Exception:
+                    pass  # clear失敗は決済をブロックしない
 
                 # Phase 58.1: 実際の決済注文をbitbankに発行
                 # Phase 60: 指値化（手数料削減 0.12%→0.02%）
@@ -1463,6 +1478,64 @@ class StopManager:
                 status=OrderStatus.FAILED,
             )
 
+    async def _replace_sl_order(
+        self,
+        position: dict,
+        stop_loss: Optional[float],
+        bitbank_client: BitbankClient,
+    ) -> None:
+        """
+        Phase 68.6: 成行決済失敗時のSL再配置
+
+        タイムアウト成行決済が失敗した場合に、SLを再配置してポジションを保護する。
+        """
+        if not stop_loss or not bitbank_client:
+            return
+
+        entry_side = position.get("side", "")
+        amount = float(position.get("amount", 0))
+        sl_price = float(stop_loss)
+        symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
+
+        sl_config = get_threshold(TPSLConfig.SL_CONFIG, {})
+        sl_order_type = sl_config.get("order_type", "stop")
+        slippage_buffer = sl_config.get("slippage_buffer", 0.001)
+
+        # stop_limit時の指値価格計算
+        # NOTE: tp_sl_manager.py place_stop_loss()と同一ロジック。
+        # StopManagerからTPSLManagerへの参照がないため重複を許容。
+        limit_price = None
+        if sl_order_type == "stop_limit":
+            if entry_side.lower() == "buy":
+                limit_price = sl_price * (1 - slippage_buffer)
+            else:
+                limit_price = sl_price * (1 + slippage_buffer)
+
+        sl_order = await asyncio.to_thread(
+            bitbank_client.create_stop_loss_order,
+            entry_side=entry_side,
+            amount=amount,
+            stop_loss_price=sl_price,
+            symbol=symbol,
+            order_type=sl_order_type,
+            limit_price=limit_price,
+        )
+
+        order_id = sl_order.get("id")
+        if order_id:
+            self.logger.info(
+                f"✅ Phase 68.6: SL再配置成功 - " f"ID: {order_id}, SL: {sl_price:.0f}円"
+            )
+            # SL永続化
+            self.sl_persistence.save(
+                side=entry_side,
+                sl_order_id=str(order_id),
+                sl_price=sl_price,
+                amount=amount,
+            )
+        else:
+            self.logger.error(f"❌ Phase 68.6: SL再配置で注文IDが空: {sl_order}")
+
     # Phase 51.6: _cleanup_orphaned_orders()/_cancel_orphaned_tp_sl_orders()削除（約160行）
     # 理由: Phase 50.5で無効化済み・Phase 49.6でcleanup_position_orders()に置き換え済み
 
@@ -1533,7 +1606,10 @@ class StopManager:
             return False
 
         # TP注文キャンセル（SL到達時・手動決済時）
-        if tp_order_id and reason in ["stop_loss", "manual", "position_exit"]:
+        # Phase 68.6: stop_loss_timeoutもTPキャンセル対象に含める
+        if tp_order_id and (
+            reason.startswith("stop_loss") or reason in ["manual", "position_exit"]
+        ):
             if await _cancel_with_retry(tp_order_id, "TP"):
                 cancelled_count += 1
             else:
@@ -1541,7 +1617,10 @@ class StopManager:
 
         # SL注文キャンセル（TP到達時・手動決済時）
         # Phase 59.6: 失敗時は例外を発生させず、孤児SL候補として記録（決済処理は続行）
-        if sl_order_id and reason in ["take_profit", "manual", "position_exit"]:
+        # Phase 68.6: take_profit_*もSLキャンセル対象に含める
+        if sl_order_id and (
+            reason.startswith("take_profit") or reason in ["manual", "position_exit"]
+        ):
             if await _cancel_with_retry(sl_order_id, "SL"):
                 cancelled_count += 1
             else:

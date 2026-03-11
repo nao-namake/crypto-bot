@@ -67,6 +67,7 @@ class TPSLConfig:
     # Phase 66.6: 固定金額SL設定パス
     SL_FIXED_AMOUNT_ENABLED = "position_management.stop_loss.fixed_amount.enabled"
     SL_FIXED_AMOUNT_TARGET = "position_management.stop_loss.fixed_amount.target_max_loss"
+    SL_FIXED_AMOUNT_ENTRY_FEE = "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate"
     SL_FIXED_AMOUNT_EXIT_FEE = "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate"
 
     # === TP/SLトップレベル設定パス ===

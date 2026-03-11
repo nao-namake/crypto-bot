@@ -351,3 +351,14 @@ class TestProductionEnsembleEdgeCases:
 
         assert len(predictions) == 1000
         assert probabilities.shape == (1000, 2)
+
+    def test_n_features_fallback(self):
+        """_n_features属性フォールバック（n_features_in_がない場合）"""
+        mock_model = MagicMock(spec=[])
+        mock_model._n_features = 55
+        mock_model.predict = MagicMock(return_value=np.array([1, 0]))
+        mock_model.predict_proba = MagicMock(return_value=np.array([[0.3, 0.7], [0.8, 0.2]]))
+        del mock_model.n_features_in_
+
+        ensemble = ProductionEnsemble({"fallback": mock_model})
+        assert ensemble.n_features_ == 55

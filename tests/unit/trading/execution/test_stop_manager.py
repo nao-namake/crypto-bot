@@ -20,7 +20,7 @@ Phase 68.2: PnL手数料TP/SL分離テスト
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import pytest
@@ -1621,6 +1621,66 @@ class TestCleanupPositionOrders:
 
 
 # ========================================
+# Phase 68.6: reason文字列マッチ修正テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestPhase686ReasonStringMatch:
+    """Phase 68.6: stop_loss_timeout/take_profit_*でもTP/SLがキャンセルされる"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        return StopManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        client = MagicMock()
+        client.cancel_order = MagicMock(return_value={"success": True})
+        return client
+
+    async def test_stop_loss_timeout_cancels_tp(self, stop_manager, mock_bitbank_client):
+        """Phase 68.6: stop_loss_timeout理由でTPがキャンセルされる"""
+        result = await stop_manager.cleanup_position_orders(
+            tp_order_id="tp_123",
+            sl_order_id=None,
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+            reason="stop_loss_timeout",
+        )
+
+        assert result["cancelled_count"] == 1
+        assert result["success"] is True
+        mock_bitbank_client.cancel_order.assert_called_once_with("tp_123", "BTC/JPY")
+
+    async def test_stop_loss_prefix_cancels_tp(self, stop_manager, mock_bitbank_client):
+        """Phase 68.6: stop_loss_で始まる理由でTPがキャンセルされる"""
+        result = await stop_manager.cleanup_position_orders(
+            tp_order_id="tp_123",
+            sl_order_id=None,
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+            reason="stop_loss_emergency",
+        )
+
+        assert result["cancelled_count"] == 1
+        mock_bitbank_client.cancel_order.assert_called_once_with("tp_123", "BTC/JPY")
+
+    async def test_unrelated_reason_skips_tp(self, stop_manager, mock_bitbank_client):
+        """Phase 68.6: 無関係なreasonではTPキャンセルされない"""
+        result = await stop_manager.cleanup_position_orders(
+            tp_order_id="tp_123",
+            sl_order_id=None,
+            symbol="BTC/JPY",
+            bitbank_client=mock_bitbank_client,
+            reason="cooldown",
+        )
+
+        assert result["cancelled_count"] == 0
+        mock_bitbank_client.cancel_order.assert_not_called()
+
+
+# ========================================
 # Phase 46: place_take_profit() テスト
 # ========================================
 
@@ -1634,6 +1694,105 @@ class TestCleanupPositionOrders:
 
 # Phase 64: TestCleanupOldUnfilledOrdersDetailed は PositionRestorer に移動
 # テストは test_position_restorer.py を参照
+
+
+# ========================================
+# Phase 68.6: _replace_sl_order() テスト
+# ========================================
+
+
+@pytest.mark.asyncio
+class TestPhase686ReplaceSLOrder:
+    """Phase 68.6: 成行決済失敗時のSL再配置テスト"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        return StopManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        client = MagicMock()
+        client.create_stop_loss_order = MagicMock(return_value={"id": "new_sl_123"})
+        return client
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_replace_sl_order_success(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 68.6: SL再配置成功"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss": {
+                "enabled": True,
+                "order_type": "stop_limit",
+                "slippage_buffer": 0.002,
+            },
+        }.get(key, default)
+
+        position = {"side": "buy", "amount": "0.001"}
+
+        with patch.object(stop_manager.sl_persistence, "save"):
+            await stop_manager._replace_sl_order(position, 13900000.0, mock_bitbank_client)
+
+        mock_bitbank_client.create_stop_loss_order.assert_called_once()
+        call_kwargs = mock_bitbank_client.create_stop_loss_order.call_args
+        assert call_kwargs.kwargs["entry_side"] == "buy"
+        assert call_kwargs.kwargs["stop_loss_price"] == 13900000.0
+
+    async def test_replace_sl_order_no_stop_loss(self, stop_manager, mock_bitbank_client):
+        """Phase 68.6: SL価格なしの場合は何もしない"""
+        position = {"side": "buy", "amount": "0.001"}
+        await stop_manager._replace_sl_order(position, None, mock_bitbank_client)
+        mock_bitbank_client.create_stop_loss_order.assert_not_called()
+
+    async def test_replace_sl_order_no_client(self, stop_manager):
+        """Phase 68.6: bitbank_clientなしの場合は何もしない"""
+        position = {"side": "buy", "amount": "0.001"}
+        await stop_manager._replace_sl_order(position, 13900000.0, None)
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_replace_sl_order_empty_order_id(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 68.6: SL注文のIDが空の場合はエラーログ"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss": {
+                "enabled": True,
+                "order_type": "stop",
+                "slippage_buffer": 0.001,
+            },
+        }.get(key, default)
+
+        mock_bitbank_client.create_stop_loss_order = MagicMock(return_value={})
+        position = {"side": "sell", "amount": "0.002"}
+
+        await stop_manager._replace_sl_order(position, 14100000.0, mock_bitbank_client)
+        mock_bitbank_client.create_stop_loss_order.assert_called_once()
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_replace_sl_order_sell_side_stop_limit(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 68.6: ショートポジションのSL再配置（stop_limit）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss": {
+                "enabled": True,
+                "order_type": "stop_limit",
+                "slippage_buffer": 0.002,
+            },
+        }.get(key, default)
+
+        position = {"side": "sell", "amount": "0.001"}
+
+        with patch.object(stop_manager.sl_persistence, "save"):
+            await stop_manager._replace_sl_order(position, 14100000.0, mock_bitbank_client)
+
+        call_kwargs = mock_bitbank_client.create_stop_loss_order.call_args
+        assert call_kwargs.kwargs["entry_side"] == "sell"
+        # ショート: SL価格 * (1 + slippage_buffer)
+        assert call_kwargs.kwargs["limit_price"] == 14100000.0 * 1.002
 
 
 # ========================================
@@ -3105,3 +3264,160 @@ class TestPhase682PnlFeeCalculation:
         pnl_default = stop_manager._calc_pnl(10_000_000, 9_950_000, 0.01, "buy")
         pnl_sl = stop_manager._calc_pnl(10_000_000, 9_950_000, 0.01, "buy", "stop_loss")
         assert pnl_default == pnl_sl
+
+
+# ========================================
+# Phase 68.7: SL永続化クリア包括テスト
+# ========================================
+
+
+class TestPhase687SLPersistenceClear:
+    """Phase 68.7: _execute_position_exit()およびdetect_auto_executed_ordersでclear()が呼ばれるテスト"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        """StopManagerインスタンス"""
+        return StopManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        """BitbankClientのモック"""
+        client = MagicMock()
+        client.create_order = MagicMock(return_value={"id": "close_order_123"})
+        client.cancel_order = MagicMock(return_value={"success": True})
+        return client
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_disappeared_position_force_cleanup_clears_persistence(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 68.7: 消失ポジション1時間超過強制削除時にclear()が呼ばれる"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "tp_sl_auto_detection": {"enabled": True, "log_level": "info"},
+            "trading.fees.entry_taker_rate": 0.001,
+            "trading.fees.exit_taker_rate": 0.001,
+            "trading.fees.exit_maker_rate": 0.0,
+        }.get(key, default)
+
+        # 2時間前のタイムスタンプ
+        old_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+
+        virtual_positions = [
+            {
+                "order_id": "entry_old",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_old",
+                "sl_order_id": "sl_old",
+                "timestamp": old_time,
+            }
+        ]
+        actual_positions = []
+
+        # _check_tp_sl_execution がNoneを返す（注文確認失敗）
+        mock_bitbank_client.fetch_order = MagicMock(side_effect=Exception("API error"))
+
+        with patch.object(stop_manager.sl_persistence, "clear") as mock_clear:
+            await stop_manager.detect_auto_executed_orders(
+                virtual_positions=virtual_positions,
+                actual_positions=actual_positions,
+                bitbank_client=mock_bitbank_client,
+                symbol="BTC/JPY",
+            )
+            mock_clear.assert_called_with("buy")
+
+        # ポジションが除去された
+        assert len(virtual_positions) == 0
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_execute_position_exit_clears_sl_persistence_buy(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 68.7: buy決済時にsl_persistence.clear('buy')が呼ばれる"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        position = {
+            "order_id": "order_123",
+            "side": "buy",
+            "price": 14000000.0,
+            "amount": 0.001,
+            "tp_order_id": None,
+            "sl_order_id": None,
+        }
+
+        with patch.object(stop_manager.sl_persistence, "clear") as mock_clear:
+            await stop_manager._execute_position_exit(
+                position=position,
+                current_price=14300000.0,
+                exit_reason="take_profit",
+                mode="live",
+                bitbank_client=mock_bitbank_client,
+            )
+            mock_clear.assert_called_once_with("buy")
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_execute_position_exit_clears_sl_persistence_sell(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 68.7: sell決済時にsl_persistence.clear('sell')が呼ばれる"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        position = {
+            "order_id": "order_456",
+            "side": "sell",
+            "price": 14000000.0,
+            "amount": 0.001,
+            "tp_order_id": None,
+            "sl_order_id": None,
+        }
+
+        with patch.object(stop_manager.sl_persistence, "clear") as mock_clear:
+            await stop_manager._execute_position_exit(
+                position=position,
+                current_price=13700000.0,
+                exit_reason="stop_loss",
+                mode="live",
+                bitbank_client=mock_bitbank_client,
+            )
+            mock_clear.assert_called_once_with("sell")
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_execute_position_exit_clear_failure_does_not_block(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 68.7: clear()失敗は決済をブロックしない"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        position = {
+            "order_id": "order_789",
+            "side": "buy",
+            "price": 14000000.0,
+            "amount": 0.001,
+            "tp_order_id": None,
+            "sl_order_id": None,
+        }
+
+        with patch.object(stop_manager.sl_persistence, "clear", side_effect=Exception("IO error")):
+            result = await stop_manager._execute_position_exit(
+                position=position,
+                current_price=14300000.0,
+                exit_reason="take_profit",
+                mode="live",
+                bitbank_client=mock_bitbank_client,
+            )
+            # clear()失敗でも決済は成功
+            assert result.success is True

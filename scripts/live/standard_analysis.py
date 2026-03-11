@@ -674,7 +674,7 @@ class BotFunctionChecker:
 
         # Phase 62.9: エントリーMaker戦略
         self.result.entry_maker_success_count = self._count_logs(
-            'textPayload:"Phase 62.9: Maker注文配置成功"', 20
+            'textPayload:"Phase 62.9: Maker約定成功"', 20
         )
         self.result.entry_maker_fallback_count = self._count_logs(
             'textPayload:"Phase 62.9: Maker失敗" OR textPayload:"Phase 62.9: Takerフォールバック"',
@@ -1175,6 +1175,16 @@ class LiveAnalyzer:
     async def _fetch_trade_history(self):
         """取引履歴分析（12指標）"""
         try:
+            # Phase 68.6: GCPログからexit記録をローカルDBに同期
+            try:
+                from scripts.live.sync_exit_records import sync_exit_records_from_gcp
+
+                synced = sync_exit_records_from_gcp(hours=self.period_hours)
+                if synced > 0:
+                    self.logger.info(f"Phase 68.6: GCPログから{synced}件のexit記録を同期")
+            except Exception as e:
+                self.logger.debug(f"Phase 68.6: exit記録同期スキップ: {e}")
+
             # SQLiteから取引履歴取得
             db_path = Path("tax/trade_history.db")
             if not db_path.exists():

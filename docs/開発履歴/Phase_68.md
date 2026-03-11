@@ -1,7 +1,7 @@
 # Phase 68: TP/SL手数料バグ修正 + Maker改善 + SL検出修正
 
-**期間**: 2026年3月6日〜10日
-**状態**: Phase 68.4まで完了・デプロイ待ち
+**期間**: 2026年3月6日〜12日
+**状態**: Phase 68.7まで完了・デプロイ待ち
 
 | 変更 | 内容 | 状態 |
 |------|------|------|
@@ -13,6 +13,9 @@
 | **Phase 68.2** | SL超過成行決済50062修正 + PnL手数料TP/SL分離 | ✅ 完了 |
 | **Phase 68.3** | SL永続保護（キャンセル禁止） | ✅ 完了 |
 | **Phase 68.4** | INACTIVE SL検出問題の根本解決（2層防御） | ✅ 完了 |
+| **Phase 68.5** | コードレビュー指摘3件修正（SLログ・Logger JST・未使用設定削除） | ✅ 完了 |
+| **Phase 68.6** | SL消失問題の根本解決（3バグ修正） | ✅ 完了 |
+| **Phase 68.7** | SL永続化クリア包括追加 + SL金額500円変更 | ✅ 完了 |
 
 ---
 
@@ -461,3 +464,156 @@ flake8/black/isort: all PASS
 - `TestSLStatePersistenceVerifyWithAPI::test_verify_api_returns_none` — API Null
 - `TestSLStatePersistenceVerifyWithAPI::test_verify_api_error_non_not_found` — 一時エラー（クリアしない）
 - `TestSLStatePersistenceVerifyWithAPI::test_verify_unfilled_status` — unfilled=valid
+
+---
+
+## Phase 68.5: コードレビュー指摘3件修正
+
+**日付**: 2026年3月11日
+
+### 修正内容
+
+| # | 指摘 | 修正内容 |
+|---|------|---------|
+| 1 | SLキャンセル時のログ不足 | SLキャンセル時に詳細ログ追加 |
+| 2 | Logger JST時刻の不統一 | Logger全体でJST統一 |
+| 3 | 未使用設定の残存 | 不要な設定項目を削除 |
+
+### テスト結果
+
+```
+1990 passed, 1 skipped, 75%+ coverage
+flake8/black/isort: all PASS
+```
+
+---
+
+## Phase 68.6: SL消失問題の根本解決（3バグ修正）
+
+**日付**: 2026年3月12日
+
+### 背景
+
+Phase 68〜68.5でSL永続保護を実装したが、ライブ運用でSLが依然として消失する問題が継続。徹底調査の結果、SLが消える**3つの根本原因バグ**を特定。
+
+Phase 68.3-68.4の修正（cancel_sl=False、sl_state.json永続化、50062検出）は「SLを守る防御層」だったが、**SLを消す攻撃側のバグ**が残っていたため効果が不十分だった。
+
+### 因果関係
+
+```
+新規エントリー → cleanup_old_tp_sl_before_entry → Bug 3: SLもキャンセル → SLなし
+
+SLタイムアウト → cleanup_position_orders(reason="stop_loss_timeout")
+  → Bug 1: TPキャンセルされない → 成行決済で50062
+  → Bug 2: SL再配置なし → SLなし
+```
+
+### Bug 1: stop_loss_timeout時にTPがキャンセルされない → 50062 → SL消失
+
+**ファイル**: `src/trading/execution/stop_manager.py`
+
+**問題**: `cleanup_position_orders(reason="stop_loss_timeout")`が呼ばれた時、TP注文キャンセル条件が`reason in ["stop_loss", "manual", "position_exit"]`で、`"stop_loss_timeout"`は部分一致せず**TPがキャンセルされない**。
+
+**結果の連鎖**:
+1. SLタイムアウト → 成行決済試行（TPが残ったまま）
+2. TP注文 + 成行決済 = 保有建玉数量超過 → **50062エラー**
+3. 成行決済失敗 → SLも既にキャンセル済み → **SLなし状態が確定**
+
+**修正**: `reason in [...]`を`reason.startswith("stop_loss")`に変更。同様にSL側も`reason.startswith("take_profit")`に変更。
+
+### Bug 2: SLタイムアウト成行決済失敗後にSL再配置なし
+
+**ファイル**: `src/trading/execution/stop_manager.py`
+
+**問題**: stop_limitタイムアウト処理で、成行決済が50062で失敗した場合、警告ログのみで**SLの再配置を一切行わない**。
+
+**修正**: `_replace_sl_order()`メソッドを新規追加。成行決済失敗時にbitbank APIでstop_limit SL注文を直接再配置し、`sl_state.json`にも永続化。
+
+### Bug 3: 新規エントリー時にSL注文が巻き添えキャンセルされる
+
+**ファイル**: `src/trading/execution/tp_sl_manager.py`
+
+**問題**: `cleanup_old_tp_sl_before_entry()`が新規エントリー前に呼ばれ、**既存ポジションのSL注文まで含めてキャンセル**してしまう。
+
+具体的な2箇所:
+1. VP追跡ループで`("tp_order_id", "sl_order_id")`の両方をキャンセル → `("tp_order_id",)`のみに変更
+2. active_ordersループで`stop`/`stop_limit`型もSLとして判定しキャンセル → `is_sl = False`に変更
+
+### 変更ファイル一覧
+
+| # | ファイル | Bug | 変更内容 |
+|---|---------|-----|---------|
+| 1 | `src/trading/execution/stop_manager.py` | Bug 1 | reason文字列マッチをstartswith()に変更 |
+| 2 | `src/trading/execution/stop_manager.py` | Bug 2 | `_replace_sl_order()`新規追加 + 成行決済失敗時フォールバック |
+| 3 | `src/trading/execution/tp_sl_manager.py` | Bug 3 | cleanup_old_tp_sl_before_entryからSLキャンセルを除外 |
+| 4 | `tests/unit/trading/execution/test_stop_manager.py` | Bug 1,2 | reason文字列テスト3件 + SL再配置テスト5件追加 |
+| 5 | `tests/unit/trading/execution/test_tp_sl_manager.py` | Bug 3 | SL保護テスト更新3件 |
+| 6 | `tests/unit/trading/execution/test_executor.py` | Bug 3 | cleanup_old_tp_sl_before_entryテスト更新3件 |
+
+### テスト結果
+
+```
+1995 passed, 1 skipped, 75.02% coverage
+flake8/black/isort: all PASS
+```
+
+#### 新規テスト
+
+- `TestPhase686ReasonStringMatch::test_stop_loss_timeout_cancels_tp` — stop_loss_timeoutでTPキャンセル
+- `TestPhase686ReasonStringMatch::test_stop_loss_prefix_cancels_tp` — stop_loss_プレフィックスでTPキャンセル
+- `TestPhase686ReasonStringMatch::test_unrelated_reason_skips_tp` — 無関係reasonではスキップ
+- `TestPhase686ReplaceSLOrder::test_replace_sl_order_success` — SL再配置成功
+- `TestPhase686ReplaceSLOrder::test_replace_sl_order_no_stop_loss` — SL価格なし
+- `TestPhase686ReplaceSLOrder::test_replace_sl_order_no_client` — クライアントなし
+- `TestPhase686ReplaceSLOrder::test_replace_sl_order_empty_order_id` — 注文ID空
+- `TestPhase686ReplaceSLOrder::test_replace_sl_order_sell_side_stop_limit` — ショートSL再配置
+
+---
+
+## Phase 68.7: SL永続化クリア包括追加 + SL金額500円変更
+
+**日付**: 2026年3月12日
+
+### 背景
+
+Phase 68.4で導入した`sl_persistence.clear()`が`detect_auto_executed_orders()`の1箇所のみで、他の決済経路で欠落していた。これにより、古いSL IDが`sl_state.json`に残存し、次回のSL配置時に不整合が発生するリスクがあった。
+
+### 修正内容
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `config/core/thresholds.yaml` | `target_max_loss` 700→500 |
+| 2 | `src/trading/execution/stop_manager.py` | `_execute_position_exit()`: clear()追加（全決済共通合流点） |
+| 3 | `src/trading/execution/stop_manager.py` | 消失ポジション強制削除: clear()追加 |
+| 4 | `src/trading/execution/tp_sl_manager.py` | `place_sl_or_market_close()`: SL超過成行決済時にclear()追加 |
+| 5 | `src/trading/execution/stop_manager.py` | `_replace_sl_order()`: 重複コードコメント追加 |
+
+### SL金額変更
+
+| 設定 | Before | After |
+|------|--------|-------|
+| `target_max_loss` | 700円 | 500円 |
+
+### sl_persistence.clear() 追加箇所
+
+| # | 経路 | メソッド | 説明 |
+|---|------|---------|------|
+| 1 | 既存 | `detect_auto_executed_orders()` | Phase 68.4で追加済み |
+| 2 | **新規** | `_execute_position_exit()` | 全決済の共通合流点（TP約定・SLタイムアウト・手動決済） |
+| 3 | **新規** | 消失ポジション強制削除 | APIにポジションなし→VP削除時 |
+| 4 | **新規** | `place_sl_or_market_close()` | SL超過成行決済成功時 |
+
+### テスト結果
+
+```
+2000 passed, 1 skipped, 75%+ coverage
+flake8/black/isort: all PASS
+```
+
+#### 新規テスト（5件）
+
+- `test_vanished_position_clears_sl_persistence` — 消失ポジション削除時にclear()呼び出し
+- `test_execute_position_exit_clears_sl_persistence_buy` — BUY決済時にclear("buy")
+- `test_execute_position_exit_clears_sl_persistence_sell` — SELL決済時にclear("sell")
+- `test_execute_position_exit_sl_persistence_clear_failure` — clear()失敗でも決済継続
+- `test_sl_exceeded_market_close_clears_sl_persistence` — SL超過成行決済時にclear()呼び出し

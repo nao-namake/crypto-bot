@@ -805,6 +805,12 @@ class TPSLManager:
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 64.12: 注文一括キャンセルエラー: {e}")
 
+            # Phase 68.7: SL永続化クリア（SL超過成行決済時）
+            try:
+                self.sl_persistence.clear(entry_side)
+            except Exception:
+                pass
+
             # キャンセル後に成行決済
             try:
                 exit_side = "sell" if entry_side == "buy" else "buy"
@@ -1020,6 +1026,29 @@ class TPSLManager:
         # TP配置（全量カバー）
         if not has_tp:
             try:
+                # Phase 68.6: TP配置前に既存TP limit注文を明示キャンセル（50062防止）
+                try:
+                    exit_side = "sell" if position_side == "long" else "buy"
+                    active_orders = await asyncio.to_thread(
+                        bitbank_client.fetch_active_orders, symbol, TPSLConfig.API_ORDER_LIMIT
+                    )
+                    tp_cancelled = 0
+                    for order in active_orders or []:
+                        if order.get("side") == exit_side and order.get("type") in (
+                            "limit",
+                            "take_profit",
+                        ):
+                            oid = str(order.get("id", ""))
+                            if oid:
+                                await asyncio.to_thread(bitbank_client.cancel_order, oid, symbol)
+                                tp_cancelled += 1
+                    if tp_cancelled > 0:
+                        self.logger.info(
+                            f"🗑️ Phase 68.6: TP配置前に既存TP {tp_cancelled}件キャンセル"
+                        )
+                except Exception as e:
+                    self.logger.warning(f"⚠️ Phase 68.6: TP事前キャンセル失敗（継続）: {e}")
+
                 tp_order = await self.place_take_profit(
                     side=entry_side,
                     amount=amount,
@@ -1198,13 +1227,14 @@ class TPSLManager:
         Returns:
             float: SL価格
         """
-        target = get_threshold("position_management.stop_loss.fixed_amount.target_max_loss", 500)
+        target = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_TARGET, 500)
+        # Phase 68.6: エントリー手数料考慮（Taker 0.1%）
+        entry_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_ENTRY_FEE, 0.001)
+        entry_fee = avg_price * amount * entry_fee_rate
         # SL決済手数料考慮（Taker 0.1%）
-        exit_fee_rate = get_threshold(
-            "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate", 0.001
-        )
+        exit_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_EXIT_FEE, 0.001)
         exit_fee = avg_price * amount * exit_fee_rate
-        gross_needed = target - exit_fee
+        gross_needed = target - entry_fee - exit_fee
         if gross_needed <= 0:
             gross_needed = target
         sl_offset = gross_needed / amount
@@ -1267,7 +1297,8 @@ class TPSLManager:
             for vp in virtual_positions:
                 if vp.get("side") != side:
                     continue
-                for id_key in ("tp_order_id", "sl_order_id"):
+                # Phase 68.6: SLは保護、TPのみキャンセル（SL巻き添えキャンセル防止）
+                for id_key in ("tp_order_id",):
                     order_id = vp.get(id_key)
                     if not order_id:
                         continue
@@ -1304,8 +1335,8 @@ class TPSLManager:
 
                 # Phase 65.15: take_profit型TP注文も判定対象に追加
                 is_tp = order_type in ("limit", "take_profit") and order_side == target_tp_side
-                # Phase 65.14: stop_limit型もSLとして判定
-                is_sl = order_type in ("stop", "stop_limit") and order_side == target_sl_side
+                # Phase 68.6: SL保護 - エントリー前クリーンアップでSLをキャンセルしない
+                is_sl = False
 
                 if is_tp or is_sl:
                     orders_to_cancel.append(

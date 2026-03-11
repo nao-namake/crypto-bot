@@ -1332,14 +1332,14 @@ class TestPhase516AtomicEntry:
     # ========================================
 
     async def test_cleanup_old_tp_sl_before_entry_success(self, mock_bitbank_client):
-        """Phase 51.10-A: エントリー前クリーンアップ - 古いTP/SL削除成功"""
+        """Phase 68.6: エントリー前クリーンアップ - TPのみ削除、SLは保護"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
         # Phase 53.7: fetch_active_ordersに変更（リスト形式・idキー）
         mock_bitbank_client.fetch_active_orders.return_value = [
             # 削除対象: 古いBUY側のTP（SELL limit注文）
             {"id": "old_tp_1", "side": "sell", "type": "limit", "price": 15600000},
-            # 削除対象: 古いBUY側のSL（SELL stop注文）
+            # Phase 68.6: SL保護 - キャンセルされない（SELL stop注文）
             {"id": "old_sl_1", "side": "sell", "type": "stop", "price": 15400000},
             # 保護対象: 他のエントリー注文（BUY limit）
             {"id": "other_entry", "side": "buy", "type": "limit", "price": 15500000},
@@ -1354,27 +1354,25 @@ class TestPhase516AtomicEntry:
             bitbank_client=mock_bitbank_client,
         )
 
-        # 2件の古いTP/SL注文が削除される
-        assert mock_bitbank_client.cancel_order.call_count == 2
+        # Phase 68.6: TP注文のみ削除、SLは保護
+        assert mock_bitbank_client.cancel_order.call_count == 1
         mock_bitbank_client.cancel_order.assert_any_call("old_tp_1", "BTC/JPY")
-        mock_bitbank_client.cancel_order.assert_any_call("old_sl_1", "BTC/JPY")
 
     async def test_cleanup_old_tp_sl_before_entry_with_protected_orders(self, mock_bitbank_client):
-        """Phase 65.14: エントリー前クリーンアップ - 同一sideのVP注文もキャンセル
+        """Phase 68.6: エントリー前クリーンアップ - VP追跡TPのみキャンセル、SLは保護
 
-        Phase 65.14変更: bitbankはポジションを統合管理するため、
-        同一sideの古いVP注文はINACTIVE含め全キャンセル。
-        新エントリー後に全量カバーするTP/SLが再配置される。
+        Phase 68.6変更: SL消失防止のため、エントリー前クリーンアップでは
+        TPのみキャンセルし、SLは保護する。
         """
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
         # Phase 53.7: fetch_active_ordersに変更（リスト形式・idキー）
         mock_bitbank_client.fetch_active_orders.return_value = [
-            # VP追跡のTP（protected_order_idsで保護されるがVPキャンセルで先にNullされる）
+            # VP追跡のTP（キャンセル対象）
             {"id": "active_tp", "side": "sell", "type": "limit", "price": 15600000},
-            # VP追跡のSL（同上）
+            # VP追跡のSL（Phase 68.6: 保護）
             {"id": "active_sl", "side": "sell", "type": "stop", "price": 15400000},
-            # 古いTP（VP未追跡）
+            # 古いTP（VP未追跡、キャンセル対象）
             {"id": "old_tp", "side": "sell", "type": "limit", "price": 15550000},
         ]
 
@@ -1397,15 +1395,15 @@ class TestPhase516AtomicEntry:
             bitbank_client=mock_bitbank_client,
         )
 
-        # Phase 65.14: VP追跡注文2件 + active_orders由来の古いTP 1件 = 3件キャンセル
-        assert mock_bitbank_client.cancel_order.call_count == 3
+        # Phase 68.6: VP追跡TP 1件 + active_orders由来の古いTP 1件 = 2件キャンセル（SLは保護）
+        assert mock_bitbank_client.cancel_order.call_count == 2
         cancel_ids = [call.args[0] for call in mock_bitbank_client.cancel_order.call_args_list]
         assert "active_tp" in cancel_ids
-        assert "active_sl" in cancel_ids
         assert "old_tp" in cancel_ids
-        # VPの注文IDがクリアされていること
+        assert "active_sl" not in cancel_ids
+        # VPのTP注文IDのみクリア、SLは維持
         assert virtual_positions[0]["tp_order_id"] is None
-        assert virtual_positions[0]["sl_order_id"] is None
+        assert virtual_positions[0]["sl_order_id"] == "active_sl"
 
     async def test_cleanup_old_tp_sl_before_entry_no_orders(self, mock_bitbank_client):
         """Phase 51.10-A: エントリー前クリーンアップ - アクティブ注文なし"""
@@ -1449,14 +1447,14 @@ class TestPhase516AtomicEntry:
             pytest.fail("Cleanup should not raise exception on error")
 
     async def test_cleanup_old_tp_sl_before_entry_sell_side(self, mock_bitbank_client):
-        """Phase 51.10-A: エントリー前クリーンアップ - SELLエントリー側"""
+        """Phase 68.6: エントリー前クリーンアップ - SELLエントリー側、TPのみ削除"""
         service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
 
         # アクティブ注文モック（SELLエントリー想定）- Phase 53.7: fetch_active_ordersに変更、リスト形式
         mock_bitbank_client.fetch_active_orders.return_value = [
             # 削除対象: 古いSELL側のTP（BUY limit注文）
             {"id": "old_tp_sell", "side": "buy", "type": "limit", "price": 15400000},
-            # 削除対象: 古いSELL側のSL（BUY stop注文）
+            # Phase 68.6: SL保護 - キャンセルされない（BUY stop注文）
             {"id": "old_sl_sell", "side": "buy", "type": "stop", "price": 15600000},
             # 非対象: BUY側のTP（SELL limit）
             {"id": "buy_tp", "side": "sell", "type": "limit", "price": 15700000},
@@ -1471,10 +1469,9 @@ class TestPhase516AtomicEntry:
             bitbank_client=mock_bitbank_client,
         )
 
-        # SELL側の古いTP/SL注文（BUY側）のみ削除
-        assert mock_bitbank_client.cancel_order.call_count == 2
+        # Phase 68.6: TP注文のみ削除、SLは保護
+        assert mock_bitbank_client.cancel_order.call_count == 1
         mock_bitbank_client.cancel_order.assert_any_call("old_tp_sell", "BTC/JPY")
-        mock_bitbank_client.cancel_order.assert_any_call("old_sl_sell", "BTC/JPY")
 
 
 # ========================================

@@ -950,7 +950,7 @@ class TestPhase6514InactiveSLCancel:
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_vp_tracked_orders_cancelled_before_entry(self, mock_threshold, tp_sl_manager):
-        """Phase 65.14: VP追跡の古いTP/SL注文がキャンセルされる"""
+        """Phase 68.6: VP追跡の古いTP注文のみキャンセル（SLは保護）"""
         mock_threshold.side_effect = lambda key, default=None: default
 
         mock_client = MagicMock()
@@ -975,15 +975,15 @@ class TestPhase6514InactiveSLCancel:
             bitbank_client=mock_client,
         )
 
-        # VP追跡の注文がキャンセルされた
-        assert mock_client.cancel_order.call_count == 2
+        # Phase 68.6: TPのみキャンセル、SLは保護
+        assert mock_client.cancel_order.call_count == 1
         cancel_ids = [call.args[0] for call in mock_client.cancel_order.call_args_list]
         assert "old_tp_1" in cancel_ids
-        assert "old_sl_1" in cancel_ids
+        assert "old_sl_1" not in cancel_ids
 
-        # VPの注文IDがクリアされている
+        # TPのみクリア、SLは維持
         assert virtual_positions[0]["tp_order_id"] is None
-        assert virtual_positions[0]["sl_order_id"] is None
+        assert virtual_positions[0]["sl_order_id"] == "old_sl_1"
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_vp_tracked_orders_opposite_side_not_cancelled(
@@ -1021,7 +1021,7 @@ class TestPhase6514InactiveSLCancel:
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_vp_cancel_failure_ignored(self, mock_threshold, tp_sl_manager):
-        """Phase 65.14: VP注文キャンセル失敗は無視して続行"""
+        """Phase 65.14: VP TP注文キャンセル失敗は無視して続行"""
         mock_threshold.side_effect = lambda key, default=None: default
 
         mock_client = MagicMock()
@@ -1038,7 +1038,7 @@ class TestPhase6514InactiveSLCancel:
             },
         ]
 
-        # 例外が伝播しないこと
+        # 例外が伝播しないこと（Phase 68.6: TPのみキャンセル対象）
         await tp_sl_manager.cleanup_old_tp_sl_before_entry(
             side="buy",
             symbol="BTC/JPY",
@@ -1048,8 +1048,8 @@ class TestPhase6514InactiveSLCancel:
         )
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
-    async def test_stop_limit_detected_as_sl_in_cleanup(self, mock_threshold, tp_sl_manager):
-        """Phase 65.14: stop_limit型もSLとして検出・キャンセルされる"""
+    async def test_stop_limit_sl_preserved_in_cleanup(self, mock_threshold, tp_sl_manager):
+        """Phase 68.6: stop_limit型SLはエントリー前クリーンアップでキャンセルされない"""
         mock_threshold.side_effect = lambda key, default=None: default
 
         mock_client = MagicMock()
@@ -1073,8 +1073,8 @@ class TestPhase6514InactiveSLCancel:
             bitbank_client=mock_client,
         )
 
-        # stop_limit型の注文がSLとしてキャンセルされた
-        mock_client.cancel_order.assert_called_once_with("sl_stop_limit_1", "BTC/JPY")
+        # Phase 68.6: SL保護 - stop_limit型はキャンセルされない
+        mock_client.cancel_order.assert_not_called()
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_take_profit_type_detected_as_tp_in_cleanup(self, mock_threshold, tp_sl_manager):
@@ -1241,3 +1241,199 @@ class TestTPSLConfigPaths:
 
         path = TPSLConfig.sl_regime_config("trending")
         assert path == "position_management.stop_loss.regime_based.trending"
+
+    def test_sl_fixed_amount_constants(self):
+        """Phase 68.6: SL固定金額関連定数パス"""
+        from src.trading.execution.tp_sl_config import TPSLConfig
+
+        assert (
+            TPSLConfig.SL_FIXED_AMOUNT_ENABLED
+            == "position_management.stop_loss.fixed_amount.enabled"
+        )
+        assert (
+            TPSLConfig.SL_FIXED_AMOUNT_TARGET
+            == "position_management.stop_loss.fixed_amount.target_max_loss"
+        )
+        assert (
+            TPSLConfig.SL_FIXED_AMOUNT_ENTRY_FEE
+            == "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate"
+        )
+        assert (
+            TPSLConfig.SL_FIXED_AMOUNT_EXIT_FEE
+            == "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate"
+        )
+
+
+class TestPhase686FixedAmountSLEntryFee:
+    """Phase 68.6: 復元ポジション固定金額SLにエントリー手数料追加"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_sl_includes_entry_fee(self, mock_threshold, tp_sl_manager):
+        """SL計算がentry_fee + exit_feeの両方を考慮する"""
+
+        # target=700, entry_fee_rate=0.001, exit_fee_rate=0.001
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                "position_management.stop_loss.fixed_amount.target_max_loss": 700,
+                "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
+                "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        # 0.02BTC @ 10,800,000円
+        avg_price = 10_800_000
+        amount = 0.02
+        sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("long", amount, avg_price)
+
+        # entry_fee = 10,800,000 * 0.02 * 0.001 = 216
+        # exit_fee = 216
+        # gross_needed = 700 - 216 - 216 = 268
+        # sl_offset = 268 / 0.02 = 13,400
+        # sl_price = 10,800,000 - 13,400 = 10,786,600
+        expected_sl = avg_price - (700 - 216 - 216) / amount
+        assert abs(sl_price - expected_sl) < 1.0
+
+        # 実損検証: offset * amount + entry_fee + exit_fee = 700
+        sl_offset = avg_price - sl_price
+        actual_loss = sl_offset * amount + 216 + 216
+        assert abs(actual_loss - 700) < 1.0
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_sl_short_position(self, mock_threshold, tp_sl_manager):
+        """ショートポジションのSL計算"""
+
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                "position_management.stop_loss.fixed_amount.target_max_loss": 700,
+                "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
+                "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        avg_price = 10_800_000
+        amount = 0.02
+        sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("short", amount, avg_price)
+
+        # short: sl_price = avg_price + sl_offset
+        assert sl_price > avg_price
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_sl_gross_needed_floor(self, mock_threshold, tp_sl_manager):
+        """gross_needed <= 0 の場合はtargetにフォールバック"""
+
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                "position_management.stop_loss.fixed_amount.target_max_loss": 100,
+                "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.01,
+                "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.01,
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        # 手数料が目標を超える場合
+        avg_price = 10_000_000
+        amount = 0.1
+        # entry_fee = 10,000,000 * 0.1 * 0.01 = 10,000
+        # exit_fee = 10,000
+        # gross_needed = 100 - 10,000 - 10,000 = -19,900 → target(100)にフォールバック
+        sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("long", amount, avg_price)
+        # sl_offset = 100 / 0.1 = 1000
+        assert abs(sl_price - (avg_price - 1000)) < 1.0
+
+
+class TestPhase686FixedAmountTPForPosition:
+    """Phase 68.6: _calculate_fixed_amount_tp_for_position テスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_tp_long_position(self, mock_threshold, tp_sl_manager):
+        """ロングポジションのTP計算"""
+
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                "position_management.take_profit.fixed_amount.target_net_profit": 500,
+                "position_management.take_profit.fixed_amount.fallback_exit_fee_rate": 0.0,
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        avg_price = 10_800_000
+        amount = 0.01
+        tp_price = tp_sl_manager._calculate_fixed_amount_tp_for_position("long", amount, avg_price)
+        # tp_offset = 500 / 0.01 = 50,000
+        assert abs(tp_price - (avg_price + 50_000)) < 1.0
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_tp_short_position(self, mock_threshold, tp_sl_manager):
+        """ショートポジションのTP計算"""
+
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                "position_management.take_profit.fixed_amount.target_net_profit": 500,
+                "position_management.take_profit.fixed_amount.fallback_exit_fee_rate": 0.0,
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        avg_price = 10_800_000
+        amount = 0.01
+        tp_price = tp_sl_manager._calculate_fixed_amount_tp_for_position("short", amount, avg_price)
+        assert abs(tp_price - (avg_price - 50_000)) < 1.0
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_is_fixed_amount_tp_enabled(self, mock_threshold, tp_sl_manager):
+        """固定金額TPモード有効判定"""
+        mock_threshold.return_value = True
+        assert tp_sl_manager._is_fixed_amount_tp_enabled() is True
+        mock_threshold.return_value = False
+        assert tp_sl_manager._is_fixed_amount_tp_enabled() is False
+
+
+# ========================================
+# Phase 68.7: SL永続化クリアテスト
+# ========================================
+
+
+class TestPhase687SLPersistenceClear:
+    """Phase 68.7: place_sl_or_market_close()でSL超過時にclear()が呼ばれるテスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_sl_breach_clears_persistence(self, mock_threshold, tp_sl_manager):
+        """Phase 68.7: SL超過成行決済時にsl_persistence.clear()が呼ばれる"""
+        mock_threshold.side_effect = lambda key, default=None: default
+
+        mock_client = MagicMock()
+        mock_client.fetch_ticker = MagicMock(return_value={"last": 13500000.0})
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
+        mock_client.cancel_order = MagicMock()
+        mock_client.create_order = MagicMock(return_value={"id": "market_close_001"})
+
+        with patch.object(tp_sl_manager.sl_persistence, "clear") as mock_clear:
+            await tp_sl_manager.place_sl_or_market_close(
+                entry_side="buy",
+                position_side="long",
+                amount=0.01,
+                avg_price=14000000.0,
+                sl_price=13600000.0,  # 現在価格13,500,000 <= SL 13,600,000
+                symbol="BTC/JPY",
+                bitbank_client=mock_client,
+            )
+            mock_clear.assert_called_once_with("buy")

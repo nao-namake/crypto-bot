@@ -683,7 +683,7 @@ position_management:
     # Phase 67→68: 固定金額SL（エントリー手数料も予算から差し引き）
     fixed_amount:
       enabled: true
-      target_max_loss: 700
+      target_max_loss: 500
       include_entry_fee: true
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true
