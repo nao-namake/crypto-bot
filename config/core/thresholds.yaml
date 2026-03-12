@@ -634,6 +634,11 @@ position_management:
     fixed_amount:
       enabled: true
       target_net_profit: 500
+      confidence_based:
+        enabled: true
+        threshold: 0.40
+        low: 400
+        high: 500
       include_entry_fee: true
       include_exit_fee_rebate: true
       include_interest: true
@@ -684,6 +689,11 @@ position_management:
     fixed_amount:
       enabled: true
       target_max_loss: 500
+      confidence_based:
+        enabled: true
+        threshold: 0.40
+        low: 400
+        high: 500
       include_entry_fee: true
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true
@@ -693,18 +703,18 @@ position_management:
       tight_range:
         max_loss_ratio: 0.004
         weekend_ratio: 0.0025
-        fixed_amount_target: 700
+        fixed_amount_target: 500
       normal_range:
         max_loss_ratio: 0.007
         weekend_ratio: 0.0045
-        fixed_amount_target: 700
+        fixed_amount_target: 500
       trending:
         max_loss_ratio: 0.01
         weekend_ratio: 0.0065
-        fixed_amount_target: 700
+        fixed_amount_target: 500
       high_volatility:
         max_loss_ratio: 0.015
-        fixed_amount_target: 700
+        fixed_amount_target: 500
     adaptive_atr:
       enabled: true
       use_15m_timeframe: true

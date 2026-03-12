@@ -264,7 +264,7 @@ class RiskManager:
                 )
                 return None
 
-            # デバッグログ（Phase 62.19: 手数料改定対応）
+            # デバッグログ（Phase 62.19→68.8: 手数料改定対応 + 信頼度別）
             logger.info(
                 f"🎯 Phase 62.19: 固定金額TP計算 - "
                 f"目標純利益={target_net_profit:.0f}円, "
@@ -292,6 +292,7 @@ class RiskManager:
         current_time: Optional[datetime] = None,
         fee_data: Optional["PositionFeeData"] = None,
         position_amount: Optional[float] = None,
+        confidence: Optional[float] = None,
     ) -> Tuple[Optional[float], Optional[float]]:
         """
         Phase 49.16: TP/SL計算完全見直し - thresholds.yaml完全準拠
@@ -441,6 +442,18 @@ class RiskManager:
                 else:
                     sl_target = fixed_sl_config.get("target_max_loss", 500)
 
+                # Phase 68.8: 信頼度別SL金額
+                confidence_config = fixed_sl_config.get("confidence_based", {})
+                confidence_label = ""
+                if confidence is not None and confidence_config.get("enabled", False):
+                    threshold = confidence_config.get("threshold", 0.40)
+                    if confidence >= threshold:
+                        sl_target = confidence_config.get("high", 500)
+                        confidence_label = f"(高信頼度≥{threshold})"
+                    else:
+                        sl_target = confidence_config.get("low", 400)
+                        confidence_label = f"(低信頼度<{threshold})"
+
                 # SL決済手数料考慮（Taker 0.1%）
                 exit_fee_rate = fixed_sl_config.get("fallback_exit_fee_rate", 0.001)
                 exit_fee = current_price * position_amount * exit_fee_rate
@@ -459,7 +472,7 @@ class RiskManager:
                         stop_loss_distance = fixed_sl_distance
                         logger.info(
                             f"🛡️ Phase 68: 固定金額SL適用 - "
-                            f"目標最大損失={sl_target:.0f}円, "
+                            f"目標最大損失={sl_target:.0f}円{confidence_label}, "
                             f"エントリー手数料={entry_fee:.0f}円, "
                             f"決済手数料={exit_fee:.0f}円, "
                             f"SL距離={fixed_sl_distance:.0f}円"
@@ -491,6 +504,24 @@ class RiskManager:
                     fixed_amount_config = dict(fixed_amount_config)  # コピーして変更
                     fixed_amount_config["target_net_profit"] = regime_target
 
+                # Phase 68.8: 信頼度別TP金額
+                tp_confidence_config = fixed_amount_config.get("confidence_based", {})
+                tp_confidence_label = ""
+                if confidence is not None and tp_confidence_config.get("enabled", False):
+                    tp_threshold = tp_confidence_config.get("threshold", 0.40)
+                    if confidence >= tp_threshold:
+                        fixed_amount_config = dict(fixed_amount_config)
+                        fixed_amount_config["target_net_profit"] = tp_confidence_config.get(
+                            "high", 500
+                        )
+                        tp_confidence_label = f"(高信頼度≥{tp_threshold})"
+                    else:
+                        fixed_amount_config = dict(fixed_amount_config)
+                        fixed_amount_config["target_net_profit"] = tp_confidence_config.get(
+                            "low", 400
+                        )
+                        tp_confidence_label = f"(低信頼度<{tp_threshold})"
+
                 fixed_tp = RiskManager.calculate_fixed_amount_tp(
                     action=action,
                     entry_price=current_price,
@@ -503,7 +534,8 @@ class RiskManager:
                     take_profit = fixed_tp
                     logger.info(
                         f"🎯 Phase 61.7: 固定金額TP適用 - "
-                        f"目標純利益={fixed_amount_config.get('target_net_profit', 1000):.0f}円, "
+                        f"目標純利益={fixed_amount_config.get('target_net_profit', 1000):.0f}円"
+                        f"{tp_confidence_label}, "
                         f"TP={fixed_tp:.0f}円"
                     )
                 else:
@@ -748,6 +780,7 @@ class SignalBuilder:
                     except Exception:
                         signal_time = None
                 # Phase 61.8: position_amountを渡して固定金額TP計算を有効化（バックテスト対応）
+                # Phase 68.8: confidence伝播（信頼度別TP/SL用）
                 stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
                     action,
                     current_price,
@@ -758,6 +791,7 @@ class SignalBuilder:
                     current_time=signal_time,
                     fee_data=None,  # バックテスト時はNone（フォールバックレート使用）
                     position_amount=position_size,  # Phase 61.8: 固定金額TP用
+                    confidence=confidence,  # Phase 68.8: 信頼度別TP/SL
                 )
 
                 # リスク比率計算

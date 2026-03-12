@@ -437,6 +437,281 @@ class TestRiskManager(unittest.TestCase):
         self.assertGreater(take_profit, self.current_price)
 
 
+class TestConfidenceBasedTPSL(unittest.TestCase):
+    """Phase 68.8: 信頼度別TP/SLテスト"""
+
+    def setUp(self):
+        self.current_price = 10000000.0
+        self.current_atr = 500000.0
+        self.basic_config = {
+            "stop_loss_atr_multiplier": 2.0,
+            "take_profit_ratio": 1.29,
+            "position_size_base": 0.02,
+            "max_loss_ratio": 0.007,
+            "min_profit_ratio": 0.009,
+            "default_atr_multiplier": 2.0,
+        }
+
+    @patch("src.core.config.get_threshold")
+    def test_low_confidence_tp_sl_400(self, mock_get_threshold):
+        """信頼度<0.40でTP=400円, SL=400円になること"""
+
+        def threshold_side_effect(key, default=None):
+            thresholds = {
+                "position_management.take_profit.regime_based.enabled": False,
+                "position_management.weekend_adjustment.enabled": False,
+                "position_management.stop_loss.max_loss_ratio": 0.007,
+                "position_management.take_profit.min_profit_ratio": 0.009,
+                "position_management.take_profit.default_ratio": 1.29,
+                "position_management.stop_loss.fixed_amount": {
+                    "enabled": True,
+                    "target_max_loss": 500,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.001,
+                },
+                "position_management.take_profit.fixed_amount": {
+                    "enabled": True,
+                    "target_net_profit": 500,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "include_entry_fee": True,
+                    "include_exit_fee_rebate": True,
+                    "include_interest": True,
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.0,
+                },
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+            action=EntryAction.BUY,
+            current_price=self.current_price,
+            current_atr=self.current_atr,
+            config=self.basic_config.copy(),
+            position_amount=0.01,
+            confidence=0.35,  # 低信頼度
+        )
+
+        assert stop_loss is not None
+        assert take_profit is not None
+
+        # SL距離から目標損失を逆算: (price - sl) * amount + fees = target
+        sl_distance = self.current_price - stop_loss
+        sl_gross = sl_distance * 0.01
+        entry_fee = self.current_price * 0.01 * 0.001
+        exit_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + entry_fee + exit_fee
+        self.assertAlmostEqual(total_loss, 400, delta=1)
+
+        # TP距離から目標利益を逆算
+        tp_distance = take_profit - self.current_price
+        tp_gross = tp_distance * 0.01
+        tp_entry_fee = self.current_price * 0.01 * 0.001
+        tp_exit_fee = self.current_price * 0.01 * 0.0  # Maker 0%
+        net_profit = tp_gross - tp_entry_fee - tp_exit_fee
+        self.assertAlmostEqual(net_profit, 400, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_high_confidence_tp_sl_500(self, mock_get_threshold):
+        """信頼度>=0.40でTP=500円, SL=500円になること"""
+
+        def threshold_side_effect(key, default=None):
+            thresholds = {
+                "position_management.take_profit.regime_based.enabled": False,
+                "position_management.weekend_adjustment.enabled": False,
+                "position_management.stop_loss.max_loss_ratio": 0.007,
+                "position_management.take_profit.min_profit_ratio": 0.009,
+                "position_management.take_profit.default_ratio": 1.29,
+                "position_management.stop_loss.fixed_amount": {
+                    "enabled": True,
+                    "target_max_loss": 500,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.001,
+                },
+                "position_management.take_profit.fixed_amount": {
+                    "enabled": True,
+                    "target_net_profit": 500,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "include_entry_fee": True,
+                    "include_exit_fee_rebate": True,
+                    "include_interest": True,
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.0,
+                },
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+            action=EntryAction.BUY,
+            current_price=self.current_price,
+            current_atr=self.current_atr,
+            config=self.basic_config.copy(),
+            position_amount=0.01,
+            confidence=0.45,  # 高信頼度
+        )
+
+        assert stop_loss is not None
+        assert take_profit is not None
+
+        sl_distance = self.current_price - stop_loss
+        sl_gross = sl_distance * 0.01
+        entry_fee = self.current_price * 0.01 * 0.001
+        exit_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + entry_fee + exit_fee
+        self.assertAlmostEqual(total_loss, 500, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_confidence_none_fallback(self, mock_get_threshold):
+        """confidence=NoneでフォールバックTP=500円, SL=500円"""
+
+        def threshold_side_effect(key, default=None):
+            thresholds = {
+                "position_management.take_profit.regime_based.enabled": False,
+                "position_management.weekend_adjustment.enabled": False,
+                "position_management.stop_loss.max_loss_ratio": 0.007,
+                "position_management.take_profit.min_profit_ratio": 0.009,
+                "position_management.take_profit.default_ratio": 1.29,
+                "position_management.stop_loss.fixed_amount": {
+                    "enabled": True,
+                    "target_max_loss": 500,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.001,
+                },
+                "position_management.take_profit.fixed_amount": {
+                    "enabled": True,
+                    "target_net_profit": 500,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "include_entry_fee": True,
+                    "include_exit_fee_rebate": True,
+                    "include_interest": True,
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.0,
+                },
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+            action=EntryAction.BUY,
+            current_price=self.current_price,
+            current_atr=self.current_atr,
+            config=self.basic_config.copy(),
+            position_amount=0.01,
+            confidence=None,  # 信頼度不明
+        )
+
+        assert stop_loss is not None
+        assert take_profit is not None
+
+        # confidence=NoneではフォールバックのSL=500円が適用
+        sl_distance = self.current_price - stop_loss
+        sl_gross = sl_distance * 0.01
+        entry_fee = self.current_price * 0.01 * 0.001
+        exit_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + entry_fee + exit_fee
+        self.assertAlmostEqual(total_loss, 500, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_confidence_based_disabled(self, mock_get_threshold):
+        """confidence_based.enabled=Falseでフォールバック"""
+
+        def threshold_side_effect(key, default=None):
+            thresholds = {
+                "position_management.take_profit.regime_based.enabled": False,
+                "position_management.weekend_adjustment.enabled": False,
+                "position_management.stop_loss.max_loss_ratio": 0.007,
+                "position_management.take_profit.min_profit_ratio": 0.009,
+                "position_management.take_profit.default_ratio": 1.29,
+                "position_management.stop_loss.fixed_amount": {
+                    "enabled": True,
+                    "target_max_loss": 500,
+                    "confidence_based": {
+                        "enabled": False,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.001,
+                },
+                "position_management.take_profit.fixed_amount": {
+                    "enabled": True,
+                    "target_net_profit": 500,
+                    "confidence_based": {
+                        "enabled": False,
+                        "threshold": 0.40,
+                        "low": 400,
+                        "high": 500,
+                    },
+                    "include_entry_fee": True,
+                    "include_exit_fee_rebate": True,
+                    "include_interest": True,
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.0,
+                },
+            }
+            return thresholds.get(key, default)
+
+        mock_get_threshold.side_effect = threshold_side_effect
+
+        stop_loss, take_profit = RiskManager.calculate_stop_loss_take_profit(
+            action=EntryAction.BUY,
+            current_price=self.current_price,
+            current_atr=self.current_atr,
+            config=self.basic_config.copy(),
+            position_amount=0.01,
+            confidence=0.35,  # 低信頼度だがdisabled
+        )
+
+        assert stop_loss is not None
+        assert take_profit is not None
+
+        # disabled時はフォールバックの500円
+        sl_distance = self.current_price - stop_loss
+        sl_gross = sl_distance * 0.01
+        entry_fee = self.current_price * 0.01 * 0.001
+        exit_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + entry_fee + exit_fee
+        self.assertAlmostEqual(total_loss, 500, delta=1)
+
+
 def run_risk_manager_tests():
     """リスク管理テスト実行関数."""
     print("=" * 50)

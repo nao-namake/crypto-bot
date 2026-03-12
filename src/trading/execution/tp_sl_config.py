@@ -64,11 +64,31 @@ class TPSLConfig:
     )
     SL_MIN_DISTANCE_RATIO = "position_management.stop_loss.min_distance.ratio"
 
+    # Phase 68.8: 信頼度別TP設定パス
+    TP_CONFIDENCE_BASED_ENABLED = (
+        "position_management.take_profit.fixed_amount.confidence_based.enabled"
+    )
+    TP_CONFIDENCE_THRESHOLD = (
+        "position_management.take_profit.fixed_amount.confidence_based.threshold"
+    )
+    TP_CONFIDENCE_LOW = "position_management.take_profit.fixed_amount.confidence_based.low"
+    TP_CONFIDENCE_HIGH = "position_management.take_profit.fixed_amount.confidence_based.high"
+
     # Phase 66.6: 固定金額SL設定パス
     SL_FIXED_AMOUNT_ENABLED = "position_management.stop_loss.fixed_amount.enabled"
     SL_FIXED_AMOUNT_TARGET = "position_management.stop_loss.fixed_amount.target_max_loss"
     SL_FIXED_AMOUNT_ENTRY_FEE = "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate"
     SL_FIXED_AMOUNT_EXIT_FEE = "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate"
+
+    # Phase 68.8: 信頼度別SL設定パス
+    SL_CONFIDENCE_BASED_ENABLED = (
+        "position_management.stop_loss.fixed_amount.confidence_based.enabled"
+    )
+    SL_CONFIDENCE_THRESHOLD = (
+        "position_management.stop_loss.fixed_amount.confidence_based.threshold"
+    )
+    SL_CONFIDENCE_LOW = "position_management.stop_loss.fixed_amount.confidence_based.low"
+    SL_CONFIDENCE_HIGH = "position_management.stop_loss.fixed_amount.confidence_based.high"
 
     # === TP/SLトップレベル設定パス ===
     TP_CONFIG = "position_management.take_profit"

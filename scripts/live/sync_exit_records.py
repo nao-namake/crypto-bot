@@ -85,10 +85,16 @@ def fetch_exit_logs(hours: int = 48) -> List[Dict[str, Any]]:
 
 
 def parse_exit_records(logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """ログからexit記録をパース"""
-    records = []
-    seen = set()  # 重複防止: (timestamp, trade_type)
+    """ログからexit記録をパース
 
+    Phase 68.8: 2パス方式で二重計上を防止
+    - 1パス目: Phase 61.9形式（詳細・side付き）のみ処理
+    - 2パス目: Phase 62.18形式（フォールバック）は同分に既にレコードがあればスキップ
+    """
+    records = []
+    seen = set()  # 重複防止: (timestamp_minute, trade_type)
+
+    # === 1パス目: Phase 61.9形式（詳細）のみ処理 ===
     for log_entry in logs:
         text = log_entry.get("textPayload", "")
         timestamp = log_entry.get("timestamp", "")
@@ -102,7 +108,7 @@ def parse_exit_records(logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             pnl = float(match.group(4))
             strategy = match.group(5)
 
-            key = (timestamp[:19], "tp")
+            key = (timestamp[:16], "tp")  # 分単位で重複チェック
             if key not in seen:
                 seen.add(key)
                 records.append(
@@ -127,7 +133,7 @@ def parse_exit_records(logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             pnl = float(match.group(4))
             strategy = match.group(5)
 
-            key = (timestamp[:19], "sl")
+            key = (timestamp[:16], "sl")  # 分単位で重複チェック
             if key not in seen:
                 seen.add(key)
                 records.append(
@@ -143,14 +149,19 @@ def parse_exit_records(logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 )
             continue
 
-        # Phase 62.18: exit記録追加（TP/SL検知ログがない場合のフォールバック）
+    # === 2パス目: Phase 62.18形式（フォールバック） ===
+    # 同分に既にPhase 61.9レコードがある場合はスキップ
+    for log_entry in logs:
+        text = log_entry.get("textPayload", "")
+        timestamp = log_entry.get("timestamp", "")
+
         match = EXIT_RECORD_PATTERN.search(text)
         if match:
             trade_type = match.group(1)
             pnl = float(match.group(2))
             strategy = match.group(3)
 
-            key = (timestamp[:19], trade_type)
+            key = (timestamp[:16], trade_type)  # 分単位で重複チェック
             if key not in seen:
                 seen.add(key)
                 records.append(
@@ -207,8 +218,8 @@ def sync_to_local_db(
 
     inserted = 0
     for record in records:
-        # 重複チェック: 同じタイムスタンプ（秒単位）+ trade_typeが既にある場合はスキップ
-        ts_prefix = record["timestamp"][:19]
+        # Phase 68.8: 重複チェック（分単位 + trade_type）
+        ts_prefix = record["timestamp"][:16]
         cursor.execute(
             "SELECT COUNT(*) FROM trades WHERE timestamp LIKE ? AND trade_type = ?",
             (f"{ts_prefix}%", record["trade_type"]),
@@ -250,8 +261,49 @@ def sync_to_local_db(
     return inserted
 
 
+def cleanup_duplicates(db_path: str = "tax/trade_history.db") -> int:
+    """Phase 68.8: 既存DBの二重計上レコードを削除
+
+    side=unknownで、同分・同trade_type・同pnlのside!=unknownレコードが存在する場合、
+    unknown側を削除する。
+    """
+    db_file = Path(db_path)
+    if not db_file.exists():
+        return 0
+
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    # side=unknownの重複候補を検出
+    cursor.execute(
+        """
+        SELECT u.id
+        FROM trades u
+        INNER JOIN trades d
+            ON substr(u.timestamp, 1, 16) = substr(d.timestamp, 1, 16)
+            AND u.trade_type = d.trade_type
+            AND u.pnl = d.pnl
+        WHERE u.side = 'unknown' AND d.side != 'unknown'
+    """
+    )
+    dup_ids = [row[0] for row in cursor.fetchall()]
+
+    if dup_ids:
+        placeholders = ",".join("?" for _ in dup_ids)
+        cursor.execute(f"DELETE FROM trades WHERE id IN ({placeholders})", dup_ids)
+        conn.commit()
+        logger.info(f"Phase 68.8: DB重複クリーンアップ - {len(dup_ids)}件のunknownレコード削除")
+
+    conn.close()
+    return len(dup_ids)
+
+
 def sync_exit_records_from_gcp(hours: int = 48, dry_run: bool = False) -> int:
     """GCPログからexit記録を取得してローカルDBに同期（standard_analysis.pyから呼び出し可能）"""
+    # Phase 68.8: 既存DBの二重計上レコードをクリーンアップ
+    if not dry_run:
+        cleanup_duplicates()
+
     logs = fetch_exit_logs(hours)
     if not logs:
         return 0

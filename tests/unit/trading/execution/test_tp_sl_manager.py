@@ -1275,10 +1275,10 @@ class TestPhase686FixedAmountSLEntryFee:
     def test_sl_includes_entry_fee(self, mock_threshold, tp_sl_manager):
         """SL計算がentry_fee + exit_feeの両方を考慮する"""
 
-        # target=700, entry_fee_rate=0.001, exit_fee_rate=0.001
+        # target=500, entry_fee_rate=0.001, exit_fee_rate=0.001
         def threshold_side_effect(key, default=None):
             mapping = {
-                "position_management.stop_loss.fixed_amount.target_max_loss": 700,
+                "position_management.stop_loss.fixed_amount.target_max_loss": 500,
                 "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
             }
@@ -1293,16 +1293,16 @@ class TestPhase686FixedAmountSLEntryFee:
 
         # entry_fee = 10,800,000 * 0.02 * 0.001 = 216
         # exit_fee = 216
-        # gross_needed = 700 - 216 - 216 = 268
-        # sl_offset = 268 / 0.02 = 13,400
-        # sl_price = 10,800,000 - 13,400 = 10,786,600
-        expected_sl = avg_price - (700 - 216 - 216) / amount
+        # gross_needed = 500 - 216 - 216 = 68
+        # sl_offset = 68 / 0.02 = 3,400
+        # sl_price = 10,800,000 - 3,400 = 10,796,600
+        expected_sl = avg_price - (500 - 216 - 216) / amount
         assert abs(sl_price - expected_sl) < 1.0
 
-        # 実損検証: offset * amount + entry_fee + exit_fee = 700
+        # 実損検証: offset * amount + entry_fee + exit_fee = 500
         sl_offset = avg_price - sl_price
         actual_loss = sl_offset * amount + 216 + 216
-        assert abs(actual_loss - 700) < 1.0
+        assert abs(actual_loss - 500) < 1.0
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     def test_sl_short_position(self, mock_threshold, tp_sl_manager):
@@ -1310,7 +1310,7 @@ class TestPhase686FixedAmountSLEntryFee:
 
         def threshold_side_effect(key, default=None):
             mapping = {
-                "position_management.stop_loss.fixed_amount.target_max_loss": 700,
+                "position_management.stop_loss.fixed_amount.target_max_loss": 500,
                 "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
             }

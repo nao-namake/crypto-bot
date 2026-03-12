@@ -1,7 +1,7 @@
 # Phase 68: TP/SL手数料バグ修正 + Maker改善 + SL検出修正
 
-**期間**: 2026年3月6日〜12日
-**状態**: Phase 68.7まで完了・デプロイ待ち
+**期間**: 2026年3月6日〜13日
+**状態**: Phase 68.8まで完了・デプロイ待ち
 
 | 変更 | 内容 | 状態 |
 |------|------|------|
@@ -16,6 +16,7 @@
 | **Phase 68.5** | コードレビュー指摘3件修正（SLログ・Logger JST・未使用設定削除） | ✅ 完了 |
 | **Phase 68.6** | SL消失問題の根本解決（3バグ修正） | ✅ 完了 |
 | **Phase 68.7** | SL永続化クリア包括追加 + SL金額500円変更 | ✅ 完了 |
+| **Phase 68.8** | PnL二重計上修正 + 信頼度別TP/SL（2段階） | ✅ 完了 |
 
 ---
 
@@ -617,3 +618,110 @@ flake8/black/isort: all PASS
 - `test_execute_position_exit_clears_sl_persistence_sell` — SELL決済時にclear("sell")
 - `test_execute_position_exit_sl_persistence_clear_failure` — clear()失敗でも決済継続
 - `test_sl_exceeded_market_close_clears_sl_persistence` — SL超過成行決済時にclear()呼び出し
+
+---
+
+## Phase 68.8: PnL二重計上修正 + 信頼度別TP/SL（2段階）
+
+**日付**: 2026年3月13日
+
+### 背景
+
+ライブ分析で以下の問題を発見:
+
+1. **PnL二重計上**: `sync_exit_records.py`がGCPログの詳細行とフォールバック行の両方を記録 → 同一取引が2回計上 → PnL表示+15,665円（実際+6,914円）
+2. **信頼度が全て低い**: ライブ取引の信頼度が34-48%（閾値0.40未満が多数）→ 低信頼度取引でも高信頼度と同じ500円TP/SLは不適切
+3. **分析スクリプトSL期待値**: Phase 68.7でSL 700→500円に変更したが、`standard_analysis.py`のSL期待値が旧値700円のまま
+4. **テスト旧値残存**: `test_tp_sl_manager.py`のSL目標値が700円のまま
+
+### 修正内容
+
+#### 修正1: PnL二重計上修正（2パス方式 + DBクリーンアップ）
+
+**ファイル**: `scripts/live/sync_exit_records.py`
+
+`parse_exit_records()`を2パス方式に変更:
+1. **1パス目**: 詳細行（タイムスタンプ・side・PnL含む）を優先収集
+2. **2パス目**: フォールバック行は、同一分のタイムスタンプに詳細行がない場合のみ採用
+3. **分単位重複チェック**: 同一分（HH:MM）に複数の記録がある場合、詳細行を優先
+
+`cleanup_duplicates()`関数を新規追加:
+- 既存DBの`unknown`エントリーと同一日付の詳細エントリーの重複を検出・削除
+- `sync_to_local_db()`にDB内重複除去ロジック追加
+
+#### 修正2: 信頼度別TP/SL（<0.40→400円, ≥0.40→500円）
+
+**ファイル**: `src/strategies/utils/strategy_utils.py` + `config/core/thresholds.yaml` + `src/trading/execution/tp_sl_config.py`
+
+`RiskManager.calculate_stop_loss_take_profit()`に`confidence`引数を追加。信頼度に応じてTP/SL目標金額を切り替え:
+
+| 信頼度 | TP金額 | SL金額 |
+|--------|--------|--------|
+| <0.40 | 400円 | 400円 |
+| ≥0.40 | 500円 | 500円 |
+| None（フォールバック） | 500円 | 500円 |
+
+設定パス（`tp_sl_config.py`に定数化）:
+- `position_management.take_profit.fixed_amount.confidence_based.enabled`
+- `position_management.take_profit.fixed_amount.confidence_based.threshold` (0.40)
+- `position_management.take_profit.fixed_amount.confidence_based.low` (400)
+- `position_management.take_profit.fixed_amount.confidence_based.high` (500)
+- SL側も同様の構成
+
+呼び出し元（`tp_sl_manager.py`）で`evaluation.confidence`を取得して渡す。
+
+#### 修正3: 分析スクリプトSL期待値更新
+
+**ファイル**: `scripts/live/standard_analysis.py`
+
+SL期待値を700→500円に更新。信頼度別TP/SL対応（400/500円の範囲表示）。
+
+#### 修正4: テスト旧値700→500修正
+
+**ファイル**: `tests/unit/trading/execution/test_tp_sl_manager.py`
+
+`TestPhase686FixedAmountSLEntryFee`の2テストでSL目標値を700→500に修正。
+
+### 復旧経路のconfidence対応（対応不要判断）
+
+以下3つの復旧パスにconfidence未伝播を確認:
+1. `_calculate_fixed_amount_tp_for_position()` — 統合TP復旧
+2. `_calculate_fixed_amount_sl_for_position()` — 統合SL復旧
+3. `calculate_recovery_tp_sl_prices()` — 復旧TP/SL(%ベース)
+
+**対応不要の理由**: 復旧経路はコンテナ再起動・孤児ポジション検出時に実行される安全メカニズム。エントリー時のconfidenceは消失済み（VPに未保存）。フォールバック500円（高信頼度相当）は安全側の判断として妥当。confidenceのVP永続化はSL永続化・復旧ロジック全体に波及し複雑性が大幅に増す。
+
+### 変更ファイル一覧（10ファイル）
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `config/core/thresholds.yaml` | 信頼度別TP/SL設定追加 |
+| 2 | `src/strategies/utils/strategy_utils.py` | confidence引数追加 + 信頼度別TP/SL切り替えロジック |
+| 3 | `src/trading/execution/tp_sl_config.py` | 信頼度別TP/SL設定パス定数追加（8定数） |
+| 4 | `src/trading/execution/tp_sl_manager.py` | evaluation.confidenceの伝播（3行） |
+| 5 | `scripts/live/standard_analysis.py` | SL期待値700→500更新 + 信頼度別表示対応 |
+| 6 | `scripts/live/sync_exit_records.py` | 2パス方式 + 分単位重複チェック + DBクリーンアップ |
+| 7 | `tests/unit/strategies/utils/test_risk_manager.py` | 信頼度別TP/SLテスト4件追加 |
+| 8 | `tests/unit/scripts/test_sync_exit_records.py` | PnL二重計上修正テスト6件追加 |
+| 9 | `tests/unit/trading/execution/test_tp_sl_manager.py` | SL目標値700→500修正（2テスト） |
+| 10 | `CLAUDE.md` | Phase 68.8しおり更新 |
+
+### テスト結果
+
+```
+2000+ passed, 1 skipped, 75%+ coverage
+flake8/black/isort: all PASS
+```
+
+#### 新規テスト（10件）
+
+- `TestConfidenceBasedTPSL::test_low_confidence_tp_sl_400` — 信頼度<0.40でTP/SL=400円
+- `TestConfidenceBasedTPSL::test_high_confidence_tp_sl_500` — 信頼度≥0.40でTP/SL=500円
+- `TestConfidenceBasedTPSL::test_confidence_none_fallback` — 信頼度不明時フォールバック500円
+- `TestConfidenceBasedTPSL::test_confidence_based_disabled` — 機能無効時はデフォルト値使用
+- `TestParseExitRecords::test_phase688_duplicate_elimination` — 詳細行優先で重複排除
+- `TestParseExitRecords::test_phase688_fallback_only_when_no_detail` — フォールバック行の条件付き採用
+- `TestParseExitRecords::test_phase688_minute_level_dedup` — 分単位重複チェック
+- `TestCleanupDuplicates::test_cleanup_removes_unknown_duplicates` — DB内unknown重複削除
+- `TestCleanupDuplicates::test_cleanup_keeps_unique_unknown` — ユニークunknownは保持
+- `TestCleanupDuplicates::test_cleanup_nonexistent_db` — DB不存在時のエラーハンドリング

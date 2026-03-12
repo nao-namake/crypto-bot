@@ -1709,6 +1709,8 @@ class TPSLManager:
                 # Phase 52.0: レジーム情報を含めてTP/SL計算
                 # Phase 58.6: 土日判定用にcurrent_time追加
                 # Phase 61.7: 固定金額TP用にfee_data, position_amount追加
+                # Phase 68.8: 信頼度別TP/SL用にconfidence追加
+                eval_confidence = getattr(evaluation, "confidence", None)
                 recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
                     side,
                     actual_filled_price,
@@ -1719,6 +1721,7 @@ class TPSLManager:
                     current_time=current_time,
                     fee_data=fee_data,
                     position_amount=amount,
+                    confidence=eval_confidence,
                 )
 
                 # 再計算成功時、ログ出力

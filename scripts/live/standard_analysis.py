@@ -782,7 +782,7 @@ class BotFunctionChecker:
             },
             "固定金額SL目標": {
                 "path": "position_management.stop_loss.fixed_amount.target_max_loss",
-                "expected": 700,
+                "expected": 500,
                 "default": 500,
             },
             "ポジションサイズモード": {
@@ -1216,13 +1216,28 @@ class LiveAnalyzer:
             live_rows = [r for r in all_rows if "Paper trade" not in (r.get("notes") or "")]
             # 同一order_idの重複レコードを排除（最新のみ残す）
             seen_order_ids = set()
-            trades = []
+            deduped_rows = []
             for r in live_rows:
                 oid = r.get("order_id")
                 if oid and oid in seen_order_ids:
                     continue
                 if oid:
                     seen_order_ids.add(oid)
+                deduped_rows.append(r)
+
+            # Phase 68.8: side=unknown重複排除
+            # 同分・同trade_type・同pnlでside!=unknownがある場合、unknownを除外
+            known_keys = set()
+            for r in deduped_rows:
+                if r.get("side") != "unknown":
+                    ts_min = (r.get("timestamp") or "")[:16]
+                    known_keys.add((ts_min, r.get("trade_type"), r.get("pnl")))
+            trades = []
+            for r in deduped_rows:
+                if r.get("side") == "unknown":
+                    ts_min = (r.get("timestamp") or "")[:16]
+                    if (ts_min, r.get("trade_type"), r.get("pnl")) in known_keys:
+                        continue
                 trades.append(r)
 
             self.result.trades_count = len(trades)
