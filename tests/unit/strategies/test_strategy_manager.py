@@ -483,6 +483,162 @@ class TestStrategyManager(unittest.TestCase):
         )
 
 
+class TestPhase69TrendFilter(unittest.TestCase):
+    """Phase 69: EMAトレンド方向フィルタテスト"""
+
+    def setUp(self):
+        self.manager = StrategyManager()
+        # EMA上昇トレンドのデータ（2期間変化率 > 0.3%が必要）
+        dates = pd.date_range(start="2025-08-01", periods=50, freq="1h")
+        prices = np.linspace(10000000, 10500000, 50)
+        # 急な上昇EMA: 末尾の2期間で0.5%以上変化
+        ema_up = np.full(50, 10000000.0)
+        ema_up[-3] = 10000000.0
+        ema_up[-2] = 10025000.0
+        ema_up[-1] = 10050000.0  # 2期間で+0.5%
+        self.uptrend_df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": prices,
+                "volume": np.random.uniform(100, 200, 50),
+                "ema_20": ema_up,
+            }
+        )
+
+        # EMA下降トレンドのデータ（2期間で-0.5%）
+        ema_down = np.full(50, 10000000.0)
+        ema_down[-3] = 10000000.0
+        ema_down[-2] = 9975000.0
+        ema_down[-1] = 9950000.0  # 2期間で-0.5%
+        self.downtrend_df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": prices,
+                "volume": np.random.uniform(100, 200, 50),
+                "ema_20": ema_down,
+            }
+        )
+
+        # EMAフラットデータ
+        ema_flat = np.full(50, 10250000.0)
+        self.flat_df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "close": prices,
+                "volume": np.random.uniform(100, 200, 50),
+                "ema_20": ema_flat,
+            }
+        )
+
+    @patch("src.strategies.base.strategy_manager.get_threshold")
+    def test_uptrend_penalizes_sell(self, mock_threshold):
+        """上昇トレンド中のSELLシグナルの信頼度が削減される"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "dynamic_strategy_selection.trend_filter":
+                return {
+                    "enabled": True,
+                    "ema_slope_threshold": 0.003,
+                    "counter_trend_penalty": 0.5,
+                }
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        sell_signal = StrategySignal(
+            strategy_name="TestSell",
+            timestamp=datetime.now(),
+            action="sell",
+            confidence=0.6,
+            strength=0.5,
+            current_price=10500000,
+        )
+        signals = {"TestSell": sell_signal}
+
+        filtered = self.manager._apply_trend_filter(signals, self.uptrend_df)
+        self.assertAlmostEqual(filtered["TestSell"].confidence, 0.3, places=2)
+
+    @patch("src.strategies.base.strategy_manager.get_threshold")
+    def test_downtrend_penalizes_buy(self, mock_threshold):
+        """下降トレンド中のBUYシグナルの信頼度が削減される"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "dynamic_strategy_selection.trend_filter":
+                return {
+                    "enabled": True,
+                    "ema_slope_threshold": 0.003,
+                    "counter_trend_penalty": 0.5,
+                }
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        buy_signal = StrategySignal(
+            strategy_name="TestBuy",
+            timestamp=datetime.now(),
+            action="buy",
+            confidence=0.6,
+            strength=0.5,
+            current_price=10500000,
+        )
+        signals = {"TestBuy": buy_signal}
+
+        filtered = self.manager._apply_trend_filter(signals, self.downtrend_df)
+        self.assertAlmostEqual(filtered["TestBuy"].confidence, 0.3, places=2)
+
+    @patch("src.strategies.base.strategy_manager.get_threshold")
+    def test_flat_market_no_penalty(self, mock_threshold):
+        """フラットな市場ではペナルティなし"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "dynamic_strategy_selection.trend_filter":
+                return {
+                    "enabled": True,
+                    "ema_slope_threshold": 0.003,
+                    "counter_trend_penalty": 0.5,
+                }
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        sell_signal = StrategySignal(
+            strategy_name="TestSell",
+            timestamp=datetime.now(),
+            action="sell",
+            confidence=0.6,
+            strength=0.5,
+            current_price=10500000,
+        )
+        signals = {"TestSell": sell_signal}
+
+        filtered = self.manager._apply_trend_filter(signals, self.flat_df)
+        self.assertAlmostEqual(filtered["TestSell"].confidence, 0.6, places=2)
+
+    @patch("src.strategies.base.strategy_manager.get_threshold")
+    def test_filter_disabled(self, mock_threshold):
+        """フィルタ無効時はペナルティなし"""
+
+        def threshold_side_effect(key, default=None):
+            if key == "dynamic_strategy_selection.trend_filter":
+                return {"enabled": False}
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        sell_signal = StrategySignal(
+            strategy_name="TestSell",
+            timestamp=datetime.now(),
+            action="sell",
+            confidence=0.6,
+            strength=0.5,
+            current_price=10500000,
+        )
+        signals = {"TestSell": sell_signal}
+
+        filtered = self.manager._apply_trend_filter(signals, self.uptrend_df)
+        self.assertAlmostEqual(filtered["TestSell"].confidence, 0.6, places=2)
+
+
 def run_strategy_manager_tests():
     """戦略マネージャーテスト実行関数."""
     print("=" * 50)

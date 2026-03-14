@@ -164,6 +164,9 @@ class StrategyManager:
         if not signals:
             return self._create_hold_signal(df)
 
+        # Phase 69: EMAトレンド方向フィルタ適用
+        signals = self._apply_trend_filter(signals, df)
+
         # シグナルタイプ別グループ化
         signal_groups = self._group_signals_by_action(signals)
 
@@ -180,6 +183,92 @@ class StrategyManager:
             self._output_hold_diagnosis(df)
 
         return result
+
+    def _apply_trend_filter(
+        self, signals: Dict[str, StrategySignal], df: pd.DataFrame
+    ) -> Dict[str, StrategySignal]:
+        """
+        Phase 69: EMAトレンド方向フィルタ
+
+        EMA傾き > threshold（上昇）の時にSELLシグナルの信頼度を削減。
+        EMA傾き < -threshold（下降）の時にBUYシグナルの信頼度を削減。
+        """
+        trend_filter_config = get_threshold("dynamic_strategy_selection.trend_filter", {})
+        if not trend_filter_config.get("enabled", False):
+            return signals
+
+        ema_slope_threshold = trend_filter_config.get("ema_slope_threshold", 0.003)
+        penalty = trend_filter_config.get("counter_trend_penalty", 0.5)
+
+        # EMA傾き計算（EMA20の2期間変化率）
+        try:
+            if "ema_20" not in df.columns or len(df) < 3:
+                return signals
+
+            ema_values = df["ema_20"].dropna()
+            if len(ema_values) < 3:
+                return signals
+
+            ema_slope = (ema_values.iloc[-1] - ema_values.iloc[-3]) / ema_values.iloc[-3]
+        except Exception:
+            return signals
+
+        if abs(ema_slope) < ema_slope_threshold:
+            return signals
+
+        # 逆トレンドシグナルにペナルティ適用
+        filtered_signals = {}
+        for name, signal in signals.items():
+            if ema_slope > ema_slope_threshold and signal.action == "sell":
+                # 上昇トレンド中のSELL → 信頼度削減
+                new_confidence = signal.confidence * penalty
+                filtered_signals[name] = StrategySignal(
+                    strategy_name=signal.strategy_name,
+                    timestamp=signal.timestamp,
+                    action=signal.action,
+                    confidence=new_confidence,
+                    strength=signal.strength,
+                    current_price=signal.current_price,
+                    entry_price=signal.entry_price,
+                    stop_loss=signal.stop_loss,
+                    take_profit=signal.take_profit,
+                    position_size=signal.position_size,
+                    risk_ratio=signal.risk_ratio,
+                    reason=signal.reason,
+                    metadata=signal.metadata,
+                )
+                self.logger.info(
+                    f"Phase 69: EMAトレンドフィルタ - [{name}] SELL信頼度削減 "
+                    f"{signal.confidence:.3f}→{new_confidence:.3f} "
+                    f"(EMA傾き={ema_slope:.4f})"
+                )
+            elif ema_slope < -ema_slope_threshold and signal.action == "buy":
+                # 下降トレンド中のBUY → 信頼度削減
+                new_confidence = signal.confidence * penalty
+                filtered_signals[name] = StrategySignal(
+                    strategy_name=signal.strategy_name,
+                    timestamp=signal.timestamp,
+                    action=signal.action,
+                    confidence=new_confidence,
+                    strength=signal.strength,
+                    current_price=signal.current_price,
+                    entry_price=signal.entry_price,
+                    stop_loss=signal.stop_loss,
+                    take_profit=signal.take_profit,
+                    position_size=signal.position_size,
+                    risk_ratio=signal.risk_ratio,
+                    reason=signal.reason,
+                    metadata=signal.metadata,
+                )
+                self.logger.info(
+                    f"Phase 69: EMAトレンドフィルタ - [{name}] BUY信頼度削減 "
+                    f"{signal.confidence:.3f}→{new_confidence:.3f} "
+                    f"(EMA傾き={ema_slope:.4f})"
+                )
+            else:
+                filtered_signals[name] = signal
+
+        return filtered_signals
 
     def _group_signals_by_action(
         self, signals: Dict[str, StrategySignal]

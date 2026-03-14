@@ -258,6 +258,11 @@ performance:
   default_latency_ms: 100.0
 dynamic_strategy_selection:
   enabled: true
+  # Phase 69: EMAトレンド方向フィルタ（逆張りショート対策）
+  trend_filter:
+    enabled: true
+    ema_slope_threshold: 0.003
+    counter_trend_penalty: 0.5
   regime_strategy_mapping:
     tight_range:
       BBReversal: 0.15
@@ -267,12 +272,12 @@ dynamic_strategy_selection:
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
     normal_range:
-      ATRBased: 0.60
+      ATRBased: 0.45
       StochasticReversal: 0.10
-      DonchianChannel: 0.30
+      DonchianChannel: 0.20
       BBReversal: 0.0
-      ADXTrendStrength: 0.0
-      MACDEMACrossover: 0.0
+      ADXTrendStrength: 0.15
+      MACDEMACrossover: 0.10
     trending:
       ADXTrendStrength: 0.5
       MACDEMACrossover: 0.3
@@ -685,7 +690,7 @@ position_management:
       enabled: true
       max_retries: 3
       slippage_increase_per_retry: 0.001
-    # Phase 67→68: 固定金額SL（エントリー手数料も予算から差し引き）
+    # Phase 69: 固定金額SL（entry_feeはサンクコスト → 除外）
     fixed_amount:
       enabled: true
       target_max_loss: 500
@@ -694,7 +699,7 @@ position_management:
         threshold: 0.40
         low: 400
         high: 500
-      include_entry_fee: true
+      include_entry_fee: false
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true
       fallback_exit_fee_rate: 0.001

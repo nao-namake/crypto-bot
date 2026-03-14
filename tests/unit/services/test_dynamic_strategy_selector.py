@@ -64,13 +64,13 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 59.1: BBReversal無効化（normal_rangeで0%勝率）
+        # Phase 69: トレンド型戦略に25%の重みを付与
         assert weights["ATRBased"] > 0
         assert weights["BBReversal"] == 0.0  # Phase 59.1: normal_rangeで無効化
         assert weights["DonchianChannel"] > 0
         assert weights["StochasticReversal"] > 0
-        assert weights["ADXTrendStrength"] == 0.0  # トレンド型→無効化
-        assert weights["MACDEMACrossover"] == 0.0  # トレンド型→無効化
+        assert weights["ADXTrendStrength"] > 0  # Phase 69: トレンド型有効化
+        assert weights["MACDEMACrossover"] > 0  # Phase 69: トレンド型有効化
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)

@@ -458,12 +458,9 @@ class RiskManager:
                 exit_fee_rate = fixed_sl_config.get("fallback_exit_fee_rate", 0.001)
                 exit_fee = current_price * position_amount * exit_fee_rate
 
-                # Phase 68: エントリー手数料もSL予算から差し引く
-                entry_fee_rate = fixed_sl_config.get("fallback_entry_fee_rate", 0.001)
-                entry_fee = current_price * position_amount * entry_fee_rate
-
-                # 手数料込みSL距離（損失+手数料が目標内に収まるよう距離を狭める）
-                gross_loss = sl_target - exit_fee - entry_fee
+                # Phase 69: entry_feeはサンクコスト（エントリー時に支払済み）
+                # SL予算から差し引くとSL距離が極端に狭くなるバグを修正
+                gross_loss = sl_target - exit_fee
                 if gross_loss > 0:
                     fixed_sl_distance = gross_loss / position_amount
 
@@ -471,9 +468,8 @@ class RiskManager:
                     if fixed_sl_distance <= current_price * 0.10:
                         stop_loss_distance = fixed_sl_distance
                         logger.info(
-                            f"🛡️ Phase 68: 固定金額SL適用 - "
+                            f"🛡️ Phase 69: 固定金額SL適用 - "
                             f"目標最大損失={sl_target:.0f}円{confidence_label}, "
-                            f"エントリー手数料={entry_fee:.0f}円, "
                             f"決済手数料={exit_fee:.0f}円, "
                             f"SL距離={fixed_sl_distance:.0f}円"
                             f"({fixed_sl_distance / current_price * 100:.2f}%)"
