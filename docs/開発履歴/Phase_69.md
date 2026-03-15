@@ -1,7 +1,7 @@
-# Phase 69: SL超過修正 + 逆張りショート対策
+# Phase 69: SL超過修正 + 逆張りショート対策 + 孤児SL修正
 
-**期間**: 2026年3月14日
-**状態**: ✅ 完了・デプロイ待ち
+**期間**: 2026年3月14日-16日
+**状態**: ✅ 完了
 
 | 変更 | 内容 | 状態 |
 |------|------|------|
@@ -200,3 +200,42 @@ TP計算の目的は「純利益として500円を確保する」こと。純利
 ### EMAフィルタの閾値を0.3%にした理由
 
 trending判定のEMA傾き閾値は0.7%（`market_regime.trending.ema_slope_threshold: 0.003`の2期間計算で実効~0.6-0.7%）。フィルタ閾値を0.3%に設定することで、trending判定より早くトレンド方向を検出し、逆張りシグナルを抑制する。
+
+---
+
+## Phase 69.2: 孤児TP/SL注文修正（2026年3月16日）
+
+### 問題
+
+複数回エントリーで複数VP（仮想ポジション）が存在する場合、1つのVP決済時に他のVPのTP/SL注文がbitbank上に孤児として残留する。
+
+**発生メカニズム**:
+1. 3回のsellエントリー → 3 VP × 3 SL注文（各VPに`sl_order_id`）
+2. VP1のSLタイムアウト → `_execute_position_exit`でVP1のSLのみキャンセル
+3. VP2, VP3のSL注文がbitbank上に孤児として残留
+
+**根本原因**: `_execute_position_exit`（line 1112-1113）が`position.get("sl_order_id")`で1つのVPのIDしか取得しない。
+
+### 修正内容
+
+`_execute_position_exit`に`virtual_positions`パラメータを追加。決済成功後、同サイドの全VPのTP/SL注文を`_cleanup_sibling_vp_orders()`で一括キャンセル。
+
+### 変更ファイル
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `src/trading/execution/stop_manager.py` | `_cleanup_sibling_vp_orders()`追加、`_execute_position_exit`/`_evaluate_position_exit`/`_check_stop_limit_timeout`にvirtual_positions伝搬、`detect_auto_executed_orders`にも兄弟クリーンアップ追加 |
+| 2 | `tests/unit/trading/execution/test_stop_manager.py` | `TestPhase692SiblingVPCleanup`テスト5件追加 |
+
+### テスト
+
+```
+2019 passed, 1 skipped, 75.22% coverage
+flake8/black/isort: all PASS
+```
+
+- `test_sibling_vp_sl_cancelled_on_exit` — 兄弟VPのSL/TPがキャンセルされる
+- `test_sibling_cleanup_skips_opposite_side` — 反対サイドのVPは対象外
+- `test_sibling_cleanup_clears_order_ids` — クリーンアップ後、IDがクリアされる
+- `test_no_sibling_cleanup_without_virtual_positions` — 後方互換性テスト
+- `test_sibling_cleanup_error_does_not_block` — エラー時も決済は成功

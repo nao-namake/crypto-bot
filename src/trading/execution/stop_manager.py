@@ -1,11 +1,12 @@
 """
-ストップ条件管理サービス - Phase 68.6: SL消失問題の根本解決
+ストップ条件管理サービス - Phase 69.2: 孤児SL注文修正
 Phase 28: TP/SL機能、Phase 31.1: 柔軟クールダウン、Phase 37.5.3: 残注文クリーンアップ
 Phase 46: 個別TP/SL配置、Phase 49.6: ポジション決済時クリーンアップ
 Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
 Phase 61.3: 決済注文の約定確認・リトライ機能
 Phase 62.17: stop_limit未約定バグ修正（Bot側SL監視スキップ・タイムアウトフォールバック）
 Phase 68.6: reason文字列マッチ修正・SL再配置フォールバック追加
+Phase 69.2: 複数VP決済時の孤児TP/SL注文防止（同サイド全VP一括クリーンアップ）
 
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
@@ -100,6 +101,12 @@ class StopManager:
 
                     # 残注文キャンセル
                     await self._cancel_remaining_order(execution_info, bitbank_client, symbol)
+
+                    # Phase 69.2: 同サイドの兄弟VPのTP/SL注文も一括キャンセル
+                    if vp_side:
+                        await self._cleanup_sibling_vp_orders(
+                            vpos, vp_side, virtual_positions, bitbank_client
+                        )
                 else:
                     # Phase 67.4: 一定時間経過した消失ポジションは強制クリーンアップ
                     # 注文ステータス確認に失敗し続けるとvirtual_positionsに残り続け
@@ -692,7 +699,13 @@ class StopManager:
 
             for position in list(virtual_positions):  # コピーでイテレート（削除安全）
                 exit_result = await self._evaluate_position_exit(
-                    position, current_price, tp_config, sl_config, mode, bitbank_client
+                    position,
+                    current_price,
+                    tp_config,
+                    sl_config,
+                    mode,
+                    bitbank_client,
+                    virtual_positions,
                 )
                 if exit_result:
                     positions_to_remove.append(position)
@@ -725,6 +738,7 @@ class StopManager:
         sl_config: dict,
         mode: str,
         bitbank_client: Optional[BitbankClient] = None,
+        virtual_positions: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[ExecutionResult]:
         """
         個別ポジションの決済判定
@@ -738,6 +752,7 @@ class StopManager:
             tp_config: テイクプロフィット設定
             sl_config: ストップロス設定
             mode: 実行モード
+            virtual_positions: Phase 69.2: 全VPリスト（兄弟VPクリーンアップ用）
 
         Returns:
             ExecutionResult: 決済結果（決済しない場合はNone）
@@ -776,8 +791,14 @@ class StopManager:
                         f"🎯 テイクプロフィット到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (TP:{take_profit:.0f}円)"
                     )
                     # Phase 49.6: bitbank_clientを渡してクリーンアップ実行
+                    # Phase 69.2: virtual_positionsを渡して兄弟VPクリーンアップ
                     return await self._execute_position_exit(
-                        position, current_price, "take_profit", mode, bitbank_client
+                        position,
+                        current_price,
+                        "take_profit",
+                        mode,
+                        bitbank_client,
+                        virtual_positions,
                     )
 
             # ========================================
@@ -792,8 +813,14 @@ class StopManager:
 
                 if skip_bot_sl_monitoring:
                     # タイムアウトチェック（stop_limitが長時間未約定の場合のフォールバック）
+                    # Phase 69.2: virtual_positionsを渡して兄弟VPクリーンアップ
                     timeout_result = await self._check_stop_limit_timeout(
-                        position, current_price, sl_config, mode, bitbank_client
+                        position,
+                        current_price,
+                        sl_config,
+                        mode,
+                        bitbank_client,
+                        virtual_positions,
                     )
                     if timeout_result:
                         return timeout_result
@@ -819,8 +846,14 @@ class StopManager:
                         f"🛑 ストップロス到達! {entry_side} {amount} BTC @ {current_price:.0f}円 (SL:{stop_loss:.0f}円)"
                     )
                     # Phase 49.6: bitbank_clientを渡してクリーンアップ実行
+                    # Phase 69.2: virtual_positionsを渡して兄弟VPクリーンアップ
                     return await self._execute_position_exit(
-                        position, current_price, "stop_loss", mode, bitbank_client
+                        position,
+                        current_price,
+                        "stop_loss",
+                        mode,
+                        bitbank_client,
+                        virtual_positions,
                     )
 
             return None
@@ -896,6 +929,7 @@ class StopManager:
         sl_config: dict,
         mode: str,
         bitbank_client: Optional[BitbankClient] = None,
+        virtual_positions: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[ExecutionResult]:
         """
         Phase 62.17: stop_limitタイムアウトチェック
@@ -909,6 +943,7 @@ class StopManager:
             sl_config: SL設定
             mode: 実行モード
             bitbank_client: BitbankClientインスタンス
+            virtual_positions: Phase 69.2: 全VPリスト（兄弟VPクリーンアップ用）
 
         Returns:
             ExecutionResult: タイムアウト時の決済結果（タイムアウトしていない場合はNone）
@@ -1061,8 +1096,14 @@ class StopManager:
         )
 
         # 成行でフォールバック決済
+        # Phase 69.2: virtual_positionsを渡して兄弟VPクリーンアップ
         result = await self._execute_position_exit(
-            position, current_price, "stop_loss_timeout", mode, bitbank_client
+            position,
+            current_price,
+            "stop_loss_timeout",
+            mode,
+            bitbank_client,
+            virtual_positions,
         )
 
         # Phase 68.6: 決済失敗時はSLを再配置して保護を維持
@@ -1082,6 +1123,7 @@ class StopManager:
         exit_reason: str,
         mode: str,
         bitbank_client: Optional[BitbankClient] = None,
+        virtual_positions: Optional[List[Dict[str, Any]]] = None,
     ) -> ExecutionResult:
         """
         ポジション決済実行
@@ -1092,6 +1134,7 @@ class StopManager:
             exit_reason: 決済理由 ("take_profit", "stop_loss", "emergency")
             mode: 実行モード
             bitbank_client: BitbankClientインスタンス（Phase 49.6: クリーンアップ用）
+            virtual_positions: Phase 69.2: 全VPリスト（同サイド兄弟VPのTP/SLクリーンアップ用）
 
         Returns:
             ExecutionResult: 決済実行結果
@@ -1130,6 +1173,14 @@ class StopManager:
                     except Exception as e:
                         # Phase 59.6: クリーンアップエラーは処理継続（孤児SLは別途記録済み）
                         self.logger.warning(f"⚠️ Phase 59.6: クリーンアップエラー（処理継続）: {e}")
+
+                # Phase 69.2: 同サイドの兄弟VPのTP/SL注文も一括キャンセル
+                # 複数エントリーで複数VPが存在する場合、1つのVP決済時に
+                # 他のVPのTP/SL注文が孤児として残る問題を防止
+                if virtual_positions:
+                    await self._cleanup_sibling_vp_orders(
+                        position, entry_side, virtual_positions, bitbank_client
+                    )
 
                 # Phase 68.7: SL永続化クリア（全決済経路共通）
                 try:
@@ -1535,6 +1586,68 @@ class StopManager:
             )
         else:
             self.logger.error(f"❌ Phase 68.6: SL再配置で注文IDが空: {sl_order}")
+
+    async def _cleanup_sibling_vp_orders(
+        self,
+        exiting_position: dict,
+        entry_side: str,
+        virtual_positions: List[Dict[str, Any]],
+        bitbank_client: BitbankClient,
+    ) -> None:
+        """
+        Phase 69.2: 同サイドの兄弟VPのTP/SL注文を一括キャンセル
+
+        複数エントリーで複数VPが存在する場合、1つのVP決済時に
+        他のVPのTP/SL注文が孤児として残る問題を防止する。
+
+        Args:
+            exiting_position: 決済中のVP
+            entry_side: エントリー方向 ("buy" or "sell")
+            virtual_positions: 全VPリスト
+            bitbank_client: BitbankClientインスタンス
+        """
+        exiting_order_id = exiting_position.get("order_id")
+        symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
+        sibling_cancelled = 0
+
+        for vp in list(virtual_positions):
+            # 自分自身はスキップ（既にクリーンアップ済み）
+            if vp.get("order_id") == exiting_order_id:
+                continue
+            # 同サイドのVPのみ対象
+            if vp.get("side", "").lower() != entry_side.lower():
+                continue
+
+            vp_tp = vp.get("tp_order_id")
+            vp_sl = vp.get("sl_order_id")
+
+            if not vp_tp and not vp_sl:
+                continue
+
+            try:
+                cleanup_result = await self.cleanup_position_orders(
+                    tp_order_id=vp_tp,
+                    sl_order_id=vp_sl,
+                    symbol=symbol,
+                    bitbank_client=bitbank_client,
+                    reason="position_exit",
+                )
+                sibling_cancelled += cleanup_result.get("cancelled_count", 0)
+
+                # クリーンアップ済みのIDをクリア（再キャンセル防止）
+                if vp_tp:
+                    vp["tp_order_id"] = None
+                if vp_sl:
+                    vp["sl_order_id"] = None
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 69.2: 兄弟VPクリーンアップエラー（処理継続）: {e}")
+
+        if sibling_cancelled > 0:
+            self.logger.info(
+                f"🧹 Phase 69.2: 兄弟VP TP/SLクリーンアップ完了 - "
+                f"{sibling_cancelled}件キャンセル"
+            )
 
     # Phase 51.6: _cleanup_orphaned_orders()/_cancel_orphaned_tp_sl_orders()削除（約160行）
     # 理由: Phase 50.5で無効化済み・Phase 49.6でcleanup_position_orders()に置き換え済み

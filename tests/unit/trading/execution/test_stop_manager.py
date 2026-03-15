@@ -3421,3 +3421,259 @@ class TestPhase687SLPersistenceClear:
             )
             # clear()失敗でも決済は成功
             assert result.success is True
+
+
+# ========================================
+# Phase 69.2: 兄弟VP TP/SLクリーンアップテスト
+# ========================================
+
+
+class TestPhase692SiblingVPCleanup:
+    """Phase 69.2: 複数VP決済時の孤児TP/SL注文防止テスト"""
+
+    @pytest.fixture
+    def stop_manager(self):
+        return StopManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        client = AsyncMock()
+        client.cancel_order = AsyncMock()
+        client.create_order = Mock(return_value={"id": "close_order_1"})
+        return client
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sibling_vp_sl_cancelled_on_exit(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """VP決済時に同サイドの兄弟VPのSL注文もキャンセルされる"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        # 3つのsell VP（各自SL注文付き）
+        vp1 = {
+            "order_id": "vp1",
+            "side": "sell",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp1",
+            "sl_order_id": "sl1",
+        }
+        vp2 = {
+            "order_id": "vp2",
+            "side": "sell",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp2",
+            "sl_order_id": "sl2",
+        }
+        vp3 = {
+            "order_id": "vp3",
+            "side": "sell",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp3",
+            "sl_order_id": "sl3",
+        }
+        virtual_positions = [vp1, vp2, vp3]
+
+        result = await stop_manager._execute_position_exit(
+            position=vp1,
+            current_price=14100000.0,
+            exit_reason="stop_loss_timeout",
+            mode="live",
+            bitbank_client=mock_bitbank_client,
+            virtual_positions=virtual_positions,
+        )
+
+        assert result.success is True
+
+        # vp1自身のTP/SLキャンセル + vp2, vp3のTP/SLキャンセル
+        cancel_calls = mock_bitbank_client.cancel_order.call_args_list
+        cancelled_ids = {c.args[0] for c in cancel_calls}
+
+        # vp2, vp3のSLがキャンセルされていること
+        assert "sl2" in cancelled_ids
+        assert "sl3" in cancelled_ids
+        # vp2, vp3のTPもキャンセルされていること
+        assert "tp2" in cancelled_ids
+        assert "tp3" in cancelled_ids
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sibling_cleanup_skips_opposite_side(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """反対サイドのVPはクリーンアップ対象外"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        vp_sell = {
+            "order_id": "vp_sell",
+            "side": "sell",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp_sell",
+            "sl_order_id": "sl_sell",
+        }
+        vp_buy = {
+            "order_id": "vp_buy",
+            "side": "buy",
+            "price": 13900000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp_buy",
+            "sl_order_id": "sl_buy",
+        }
+        virtual_positions = [vp_sell, vp_buy]
+
+        result = await stop_manager._execute_position_exit(
+            position=vp_sell,
+            current_price=14100000.0,
+            exit_reason="stop_loss_timeout",
+            mode="live",
+            bitbank_client=mock_bitbank_client,
+            virtual_positions=virtual_positions,
+        )
+
+        assert result.success is True
+
+        cancel_calls = mock_bitbank_client.cancel_order.call_args_list
+        cancelled_ids = {c.args[0] for c in cancel_calls}
+
+        # buy側のTP/SLはキャンセルされていないこと
+        assert "tp_buy" not in cancelled_ids
+        assert "sl_buy" not in cancelled_ids
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sibling_cleanup_clears_order_ids(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """クリーンアップ後、兄弟VPのTP/SL注文IDがクリアされる"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        vp1 = {
+            "order_id": "vp1",
+            "side": "buy",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp1",
+            "sl_order_id": "sl1",
+        }
+        vp2 = {
+            "order_id": "vp2",
+            "side": "buy",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp2",
+            "sl_order_id": "sl2",
+        }
+        virtual_positions = [vp1, vp2]
+
+        await stop_manager._execute_position_exit(
+            position=vp1,
+            current_price=13800000.0,
+            exit_reason="stop_loss",
+            mode="live",
+            bitbank_client=mock_bitbank_client,
+            virtual_positions=virtual_positions,
+        )
+
+        # vp2のTP/SL IDがクリアされていること（再キャンセル防止）
+        assert vp2["tp_order_id"] is None
+        assert vp2["sl_order_id"] is None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_no_sibling_cleanup_without_virtual_positions(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """virtual_positions未渡し時は兄弟クリーンアップなし（後方互換）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        vp1 = {
+            "order_id": "vp1",
+            "side": "sell",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp1",
+            "sl_order_id": "sl1",
+        }
+
+        # virtual_positionsを渡さない（後方互換性テスト）
+        result = await stop_manager._execute_position_exit(
+            position=vp1,
+            current_price=14100000.0,
+            exit_reason="stop_loss_timeout",
+            mode="live",
+            bitbank_client=mock_bitbank_client,
+        )
+
+        assert result.success is True
+        # vp1自身のTPキャンセルのみ（SLタイムアウト時はTPをキャンセル）
+        cancel_calls = mock_bitbank_client.cancel_order.call_args_list
+        cancelled_ids = {c.args[0] for c in cancel_calls}
+        assert "tp1" in cancelled_ids
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sibling_cleanup_error_does_not_block(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """兄弟クリーンアップエラー時も決済は成功する"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "trading_constraints.currency_pair": "BTC/JPY",
+            "position_management.stop_loss.fill_confirmation": {"enabled": False},
+        }.get(key, default)
+
+        vp1 = {
+            "order_id": "vp1",
+            "side": "buy",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp1",
+            "sl_order_id": "sl1",
+        }
+        vp2 = {
+            "order_id": "vp2",
+            "side": "buy",
+            "price": 14000000.0,
+            "amount": 0.01,
+            "tp_order_id": "tp2",
+            "sl_order_id": "sl2",
+        }
+        virtual_positions = [vp1, vp2]
+
+        # vp2のキャンセルが失敗するケース
+        call_count = 0
+
+        async def cancel_side_effect(order_id, symbol):
+            nonlocal call_count
+            call_count += 1
+            if order_id in ("tp2", "sl2"):
+                raise Exception("API Error")
+
+        mock_bitbank_client.cancel_order = AsyncMock(side_effect=cancel_side_effect)
+
+        result = await stop_manager._execute_position_exit(
+            position=vp1,
+            current_price=13800000.0,
+            exit_reason="stop_loss",
+            mode="live",
+            bitbank_client=mock_bitbank_client,
+            virtual_positions=virtual_positions,
+        )
+
+        # エラーがあっても決済自体は成功
+        assert result.success is True
