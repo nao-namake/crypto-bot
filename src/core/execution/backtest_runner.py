@@ -649,7 +649,11 @@ class BacktestRunner(BaseRunner):
                                         if main_tf in self.precomputed_features:
                                             features_df = self.precomputed_features[main_tf]
                                             if i < len(features_df):
-                                                current_features = features_df.iloc[i]
+                                                # Phase 69.5: DataFrameスライスで渡す（Seriesだとcolumnsエラー）
+                                                start_idx = max(0, i - 49)
+                                                current_features = features_df.iloc[
+                                                    start_idx : i + 1
+                                                ]
                                                 # 現在時点のデータで regime分類
                                                 regime = self.regime_classifier.classify(
                                                     current_features

@@ -4,9 +4,9 @@
 市場状況を4段階に分類し、動的戦略選択とML統合最適化を実現する。
 
 判定ロジック（thresholds.yamlから読み込み）:
-- tight_range: BB幅 < 2.5% AND 価格変動 < 1.5%
-- normal_range: BB幅 < 5% AND ADX < 20
-- trending: ADX > 20 AND EMA傾き > 0.7%
+- tight_range: BB幅 < 2.0% AND 価格変動 < 1.2%
+- normal_range: BB幅 < 5% AND ADX < 22
+- trending: ADX > 22 AND |EMA傾き| > 0.1%
 - high_volatility: ATR比 > 1.8%
 """
 
@@ -99,14 +99,14 @@ class MarketRegimeClassifier:
 
             # 閾値を設定ファイルから取得（ログ表示用）
             hv_threshold = get_threshold("market_regime.high_volatility.atr_ratio_threshold", 0.018)
-            tr_bb_threshold = get_threshold("market_regime.tight_range.bb_width_threshold", 0.025)
+            tr_bb_threshold = get_threshold("market_regime.tight_range.bb_width_threshold", 0.02)
             tr_price_threshold = get_threshold(
-                "market_regime.tight_range.price_range_threshold", 0.015
+                "market_regime.tight_range.price_range_threshold", 0.012
             )
-            trend_adx_threshold = get_threshold("market_regime.trending.adx_threshold", 20)
-            trend_ema_threshold = get_threshold("market_regime.trending.ema_slope_threshold", 0.007)
+            trend_adx_threshold = get_threshold("market_regime.trending.adx_threshold", 22)
+            trend_ema_threshold = get_threshold("market_regime.trending.ema_slope_threshold", 0.001)
             nr_bb_threshold = get_threshold("market_regime.normal_range.bb_width_threshold", 0.05)
-            nr_adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 20)
+            nr_adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 22)
 
             # 分類ロジック（優先順位順）
             # 1. 高ボラティリティ判定（最優先）
@@ -282,8 +282,8 @@ class MarketRegimeClassifier:
         Returns:
             bool: 狭いレンジの場合True
         """
-        bb_threshold = get_threshold("market_regime.tight_range.bb_width_threshold", 0.025)
-        price_threshold = get_threshold("market_regime.tight_range.price_range_threshold", 0.015)
+        bb_threshold = get_threshold("market_regime.tight_range.bb_width_threshold", 0.02)
+        price_threshold = get_threshold("market_regime.tight_range.price_range_threshold", 0.012)
         return bb_width < bb_threshold and price_range < price_threshold
 
     def _is_normal_range(self, bb_width: float, adx: float) -> bool:
@@ -301,7 +301,7 @@ class MarketRegimeClassifier:
             bool: 通常レンジの場合True
         """
         bb_threshold = get_threshold("market_regime.normal_range.bb_width_threshold", 0.05)
-        adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 20)
+        adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 22)
         return bb_width < bb_threshold and adx < adx_threshold
 
     def _is_trending(self, adx: float, ema_slope: float) -> bool:
@@ -318,8 +318,8 @@ class MarketRegimeClassifier:
         Returns:
             bool: トレンド相場の場合True
         """
-        adx_threshold = get_threshold("market_regime.trending.adx_threshold", 20)
-        ema_threshold = get_threshold("market_regime.trending.ema_slope_threshold", 0.007)
+        adx_threshold = get_threshold("market_regime.trending.adx_threshold", 22)
+        ema_threshold = get_threshold("market_regime.trending.ema_slope_threshold", 0.001)
         return adx > adx_threshold and abs(ema_slope) > ema_threshold
 
     def _is_high_volatility(self, atr_ratio: float) -> bool:

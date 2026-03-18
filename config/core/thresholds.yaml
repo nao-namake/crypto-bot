@@ -82,7 +82,6 @@ position_integrator:
   kelly_weight: 0.0
   dynamic_weight: 1.0
   risk_manager_weight: 0.0
-# Phase 67.4: 固定ポジションサイズテーブル（動的計算を廃止）
 position_sizing:
   mode: fixed
   fixed_table:
@@ -90,7 +89,7 @@ position_sizing:
     medium: 0.015
     high: 0.02
   confidence_thresholds:
-    medium_min: 0.50
+    medium_min: 0.5
     high_min: 0.65
 backtest:
   log_level: WARNING
@@ -104,14 +103,14 @@ backtest:
   inner_loop_count: 1
 market_regime:
   tight_range:
-    bb_width_threshold: 0.03
-    price_range_threshold: 0.02
+    bb_width_threshold: 0.02
+    price_range_threshold: 0.012
   trending:
-    adx_threshold: 25
-    ema_slope_threshold: 0.003
+    adx_threshold: 22
+    ema_slope_threshold: 0.001
   normal_range:
     bb_width_threshold: 0.05
-    adx_threshold: 20
+    adx_threshold: 22
   high_volatility:
     atr_ratio_threshold: 0.018
 ml:
@@ -258,26 +257,25 @@ performance:
   default_latency_ms: 100.0
 dynamic_strategy_selection:
   enabled: true
-  # Phase 69: EMAトレンド方向フィルタ（逆張りショート対策）
   trend_filter:
     enabled: true
-    ema_slope_threshold: 0.003
+    ema_slope_threshold: 0.001
     counter_trend_penalty: 0.5
   regime_strategy_mapping:
     tight_range:
       BBReversal: 0.15
-      StochasticReversal: 0.10
+      StochasticReversal: 0.1
       ATRBased: 0.45
-      DonchianChannel: 0.30
+      DonchianChannel: 0.3
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
     normal_range:
       ATRBased: 0.45
-      StochasticReversal: 0.10
-      DonchianChannel: 0.20
+      StochasticReversal: 0.1
+      DonchianChannel: 0.2
       BBReversal: 0.0
       ADXTrendStrength: 0.15
-      MACDEMACrossover: 0.10
+      MACDEMACrossover: 0.1
     trending:
       ADXTrendStrength: 0.5
       MACDEMACrossover: 0.3
@@ -641,7 +639,7 @@ position_management:
       target_net_profit: 500
       confidence_based:
         enabled: true
-        threshold: 0.40
+        threshold: 0.4
         low: 400
         high: 500
       include_entry_fee: true
@@ -674,7 +672,7 @@ position_management:
     enabled: true
     order_type: stop_limit
     slippage_buffer: 0.005
-    stop_limit_timeout: 300
+    stop_limit_timeout: 900
     skip_bot_monitoring: true
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007
@@ -690,13 +688,12 @@ position_management:
       enabled: true
       max_retries: 3
       slippage_increase_per_retry: 0.001
-    # Phase 69: 固定金額SL（entry_feeはサンクコスト → 除外）
     fixed_amount:
       enabled: true
       target_max_loss: 500
       confidence_based:
         enabled: true
-        threshold: 0.40
+        threshold: 0.4
         low: 400
         high: 500
       include_entry_fee: false
@@ -771,7 +768,6 @@ order_execution:
     fallback_to_market: true
     max_price_deviation: 0.05
     check_interval_seconds: 60
-  # Phase 68: Maker改善（best_bid/ask直接配置 + 板の奥リトライ + 待機時間延長）
   maker_strategy:
     enabled: true
     max_retries: 3
