@@ -6,9 +6,9 @@
 |------|-----|
 | **現在Phase** | 69.3-69.5（SLタイムアウト・レジーム閾値修正） |
 | **直前の作業** | Phase 69.3: SLタイムアウト300→900秒 / Phase 69.5: レジーム閾値調整（tight_range偏重修正） |
-| **次の予定** | バックテスト検証 → デプロイ |
+| **次の予定** | デプロイ → GCPログ検証 → ML再学習検討 |
 | **最新成果** | Phase 69.3: SLタイムアウト延長 / Phase 69.5: tight_range BB<2%,price<1.2%, trending ADX>22,EMA>0.1% |
-| **最終更新** | 2026年3月18日 |
+| **最終更新** | 2026年3月19日 |
 
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-69）、`docs/開発履歴/Phase_69.md`（最新）
 
@@ -268,9 +268,9 @@ SL距離: `(目標最大損失 - 決済手数料) / ポジションサイズ`（
 | 設定 | 値 |
 |------|-----|
 | 注文タイプ | `stop_limit`（指値） |
-| slippage_buffer | 0.2% |
+| slippage_buffer | 0.5% |
 | skip_bot_monitoring | true |
-| stop_limit_timeout | 300秒 |
+| stop_limit_timeout | 900秒（Phase 69.3: 300→900秒） |
 | 固定金額SL | 400-500円（Phase 68.8 信頼度別） |
 
 ---

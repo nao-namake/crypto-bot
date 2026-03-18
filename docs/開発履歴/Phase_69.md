@@ -1,6 +1,6 @@
-# Phase 69: SL超過修正 + 逆張りショート対策 + 孤児SL修正
+# Phase 69: SL超過修正 + 逆張りショート対策 + 孤児SL修正 + SLタイムアウト延長 + レジーム閾値調整
 
-**期間**: 2026年3月14日-16日
+**期間**: 2026年3月14日-19日
 **状態**: ✅ 完了
 
 | 変更 | 内容 | 状態 |
@@ -8,6 +8,10 @@
 | **修正1** | SL計算からentry_fee除去（バグ修正） | ✅ 完了 |
 | **修正2** | normal_rangeにトレンド型戦略の重みを付与（設定変更） | ✅ 完了 |
 | **修正3** | EMAトレンド方向フィルタ追加（逆張りペナルティ） | ✅ 完了 |
+| **Phase 69.2** | 孤児TP/SL注文修正（複数VP決済時の兄弟VP一括クリーンアップ） | ✅ 完了 |
+| **Phase 69.3** | SLタイムアウト延長（300→900秒） | ✅ 完了 |
+| **Phase 69.4** | ML信頼度固定問題調査（モデル再学習が必要） | 🔍 調査完了 |
+| **Phase 69.5** | レジーム閾値調整（tight_range偏重修正） | ✅ 完了 |
 
 ---
 
@@ -239,3 +243,103 @@ flake8/black/isort: all PASS
 - `test_sibling_cleanup_clears_order_ids` — クリーンアップ後、IDがクリアされる
 - `test_no_sibling_cleanup_without_virtual_positions` — 後方互換性テスト
 - `test_sibling_cleanup_error_does_not_block` — エラー時も決済は成功
+
+---
+
+## Phase 69.3: SLタイムアウト延長（2026年3月19日）
+
+### 問題
+
+stop_limit注文がINACTIVE状態のまま300秒（5分）タイムアウト → 成行フォールバック → スリッページで目標SL大幅超過。
+
+| 取引 | タイムアウト経過 | 目標SL | 実損 | 超過率 |
+|------|---------------|--------|------|--------|
+| 3/15 19:31 | 4484秒 | 500円 | 853円 | 71% |
+| 3/16 08:07 | — | 500円 | 887円 | 77% |
+| 3/16 13:53 | 461秒 | 500円 | 819円 | 64% |
+| 3/17 19:10 | 449秒 | 500円 | 682円 | 36% |
+
+### 修正内容
+
+`stop_limit_timeout`を300秒→**900秒**（15分）に延長。Bot実行間隔（5分）の3回分を確保し、stop_limit指値の約定確率を向上。
+
+### 変更ファイル
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `config/core/thresholds.yaml` | `stop_limit_timeout: 300` → `900` |
+
+---
+
+## Phase 69.4: ML信頼度固定問題調査（2026年3月19日）
+
+### 問題
+
+ML信頼度が0.437-0.440でほぼ固定。MLが入力変化に対して無反応。
+
+### 調査結果
+
+- **根本原因**: モデル精度46-47%（ランダム水準）、全予測がHOLDで信頼度~0.4545固定
+- LightGBM: 46.9%, XGBoost: 46.1%, RandomForest: 47.4%
+- HOLDクラスが支配的（予測の100%がHOLD）
+- 信頼度 = max(P(SELL)=0.24, **P(HOLD)=0.4545**, P(BUY)=0.30)
+
+### 結論
+
+コード修正では解決不可。**モデル再学習**が必要。
+
+---
+
+## Phase 69.5: レジーム閾値調整（2026年3月19日）
+
+### 問題
+
+レジーム分類がほぼ常にtight_range（推定90%+） → normal_range/trending用のPhase 69修正（トレンド型戦略重み・EMAフィルタ）が機能しない。
+
+### 原因
+
+| レジーム | 判定条件 | 問題 |
+|---------|---------|------|
+| tight_range | BB幅<3%, 価格変動<2% | 閾値が広すぎ（通常相場が全てマッチ） |
+| trending | ADX>25, EMA傾き>0.3% | EMA傾き閾値が厳しすぎ（実現は月1-2回） |
+| normal_range | BB幅<5%, ADX<20 | tight_rangeで先に引っかかり機能しない |
+
+### 修正内容
+
+| パラメータ | 修正前 | 修正後 |
+|-----------|--------|--------|
+| tight_range BB幅 | 3.0% | **2.0%** |
+| tight_range 価格変動 | 2.0% | **1.2%** |
+| trending ADX | 25 | **22** |
+| trending EMA傾き | 0.3% | **0.1%** |
+| normal_range ADX | 20 | **22** |
+| trend_filter EMA傾き | 0.3% | **0.1%** |
+
+### バックテスト結果（レジーム分布改善）
+
+| レジーム | 修正前(推定) | 修正後 |
+|---------|------------|--------|
+| tight_range | ~90% | **60%** (5,171) |
+| trending | ~0% | **30%** (2,608) |
+| normal_range | ~5% | **10%** (856) |
+| high_volatility | <1% | <1% (8) |
+
+### 追加修正: バックテストSeriesエラー
+
+`backtest_runner.py`で`features_df.iloc[i]`（Series）を`classify()`に渡していたバグを修正。`iloc[start:i+1]`（DataFrame、直近50行スライス）に変更し、BB幅・価格変動率の正しい計算を保証。
+
+### 変更ファイル
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `config/core/thresholds.yaml` | レジーム閾値6箇所更新 + trend_filter EMA閾値整合 |
+| 2 | `src/core/services/market_regime_classifier.py` | デフォルト値・docstring更新 |
+| 3 | `src/core/execution/backtest_runner.py` | Seriesエラー修正（iloc[i]→iloc[start:i+1]） |
+| 4 | `tests/unit/services/test_market_regime_classifier.py` | テスト閾値・アサーション値更新 |
+
+### テスト結果
+
+```
+2019 passed, 1 skipped, 75.22% coverage
+flake8/black/isort: all PASS
+```
