@@ -69,6 +69,8 @@ class NewSystemMLModelCreator:
         optimize: bool = False,
         n_trials: int = 20,
         models_to_train: list = None,
+        lookahead_periods: int = 1,
+        adaptive_threshold: bool = False,
     ):
         """
         初期化
@@ -82,6 +84,8 @@ class NewSystemMLModelCreator:
             optimize: Optunaハイパーパラメータ最適化
             n_trials: Optuna試行回数
             models_to_train: 訓練するモデルリスト ["full", "basic"]
+            lookahead_periods: ターゲット生成の先読み期間（デフォルト1=15分後）
+            adaptive_threshold: ボラティリティ適応型閾値を使用（--adaptive-thresholdフラグで有効化）
         """
         self.config_path = config_path
         self.models_to_train = models_to_train or ["full", "basic"]
@@ -92,6 +96,9 @@ class NewSystemMLModelCreator:
         self.use_smote = use_smote
         self.optimize = optimize
         self.n_trials = n_trials
+        # Phase 69.6: lookahead/adaptive_thresholdはCLIフラグでのみ有効化
+        self.lookahead_periods = lookahead_periods
+        self.adaptive_threshold = adaptive_threshold
 
         # ログ設定
         self.logger = get_logger()
@@ -520,11 +527,11 @@ class NewSystemMLModelCreator:
         n_classes: int = 3,  # Phase 55.6: デフォルト3クラス
     ) -> pd.Series:
         """
-        ターゲット生成（Phase 39.2: 閾値最適化・3クラス分類対応）
+        ターゲット生成（Phase 69.6: デフォルトlookahead=1復元、adaptive_thresholdはフラグ制御）
 
         Args:
             df: 価格データ
-            threshold: BUY閾値（デフォルト0.5%）
+            threshold: BUY閾値（デフォルト0.05%）
             n_classes: クラス数（2または3）
 
         Returns:
@@ -532,31 +539,53 @@ class NewSystemMLModelCreator:
                 2クラス: 0=HOLD/SELL, 1=BUY
                 3クラス: 0=SELL, 1=HOLD, 2=BUY
         """
-        # 1時間後の価格変動率（4時間足なので4時間後）
-        price_change = df["close"].pct_change(periods=1).shift(-1)
+        lookahead = self.lookahead_periods
+        price_change = df["close"].pct_change(periods=lookahead).shift(-lookahead)
+
+        self.logger.info(
+            f"📊 Phase 69.6: ターゲット生成 - lookahead={lookahead}"
+            f"（{lookahead * 15}分後予測）, adaptive_threshold={self.adaptive_threshold}"
+        )
 
         if n_classes == 2:
-            # Phase 39.2: 閾値0.3%→0.5%に変更（ノイズ削減）
-            target = (price_change > threshold).astype(int)
+            if self.adaptive_threshold:
+                adaptive_thresh = self._compute_adaptive_threshold(df, lookahead)
+                target = (price_change > adaptive_thresh).astype(int)
+            else:
+                target = (price_change > threshold).astype(int)
 
             buy_ratio = target.mean()
             self.logger.info(
-                f"📊 Phase 39.2 ターゲット分布（閾値{threshold:.1%}）: "
-                f"BUY {buy_ratio:.1%}, OTHER {1 - buy_ratio:.1%}"
+                f"📊 Phase 69.6 ターゲット分布: " f"BUY {buy_ratio:.1%}, OTHER {1 - buy_ratio:.1%}"
             )
 
         elif n_classes == 3:
-            # Phase 39.2: 3クラス分類（BUY/HOLD/SELL）
-            sell_threshold = -threshold
+            if self.adaptive_threshold:
+                # Phase 69.4: ボラティリティ適応型閾値
+                adaptive_thresh = self._compute_adaptive_threshold(df, lookahead)
 
-            # 0: SELL, 1: HOLD, 2: BUY
-            target = pd.Series(1, index=df.index, dtype=int)  # デフォルトHOLD
-            target[price_change > threshold] = 2  # BUY
-            target[price_change < sell_threshold] = 0  # SELL
+                # 0: SELL, 1: HOLD, 2: BUY
+                target = pd.Series(1, index=df.index, dtype=int)
+                target[price_change > adaptive_thresh] = 2  # BUY
+                target[price_change < -adaptive_thresh] = 0  # SELL
+
+                self.logger.info(
+                    f"📊 Phase 69.4: 適応型閾値統計 - "
+                    f"mean={adaptive_thresh.mean():.4%}, "
+                    f"min={adaptive_thresh.min():.4%}, "
+                    f"max={adaptive_thresh.max():.4%}"
+                )
+            else:
+                sell_threshold = -threshold
+
+                # 0: SELL, 1: HOLD, 2: BUY
+                target = pd.Series(1, index=df.index, dtype=int)
+                target[price_change > threshold] = 2  # BUY
+                target[price_change < sell_threshold] = 0  # SELL
 
             distribution = target.value_counts(normalize=True).sort_index()
             self.logger.info(
-                f"📊 Phase 39.2 3クラス分布（閾値±{threshold:.1%}）: "
+                f"📊 Phase 69.6 3クラス分布: "
                 f"SELL {distribution.get(0, 0):.1%}, "
                 f"HOLD {distribution.get(1, 0):.1%}, "
                 f"BUY {distribution.get(2, 0):.1%}"
@@ -573,6 +602,25 @@ class NewSystemMLModelCreator:
             raise ValueError(f"Unsupported n_classes: {n_classes} (must be 2 or 3)")
 
         return target
+
+    def _compute_adaptive_threshold(self, df: pd.DataFrame, lookahead: int) -> pd.Series:
+        """
+        Phase 69.4: ボラティリティ適応型閾値を計算
+
+        直近24時間（15分足×96本）のローリングstdに基づき動的に閾値設定。
+        目標クラス分布: BUY ~30%, HOLD ~40%, SELL ~30%
+
+        Args:
+            df: 価格データ
+            lookahead: 先読み期間
+
+        Returns:
+            pd.Series: 各時点の適応型閾値
+        """
+        rolling_vol = df["close"].pct_change(periods=lookahead).rolling(96).std()
+        adaptive_threshold = rolling_vol.fillna(rolling_vol.median()) * 0.8
+        adaptive_threshold = adaptive_threshold.clip(lower=0.003, upper=0.015)
+        return adaptive_threshold
 
     def _clean_data(
         self, features_df: pd.DataFrame, target: pd.Series
@@ -679,7 +727,7 @@ class NewSystemMLModelCreator:
     ) -> float:
         """Phase 39.5: RandomForest最適化objective関数"""
         params = {
-            "n_estimators": trial.suggest_int("n_estimators", 50, 300),
+            "n_estimators": trial.suggest_int("n_estimators", 100, 300),
             "max_depth": trial.suggest_int("max_depth", 5, 20),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
             "random_state": 42,
@@ -768,9 +816,9 @@ class NewSystemMLModelCreator:
                 self.logger.error(f"❌ {model_name} 最適化エラー: {e}")
                 optimization_results["models"][model_name] = {"error": str(e)}
 
-        # 結果保存
+        # 結果保存（モデルタイプ別）
         try:
-            results_file = self.optuna_dir / "phase39_5_results.json"
+            results_file = self.optuna_dir / f"phase39_5_results_{self.current_model_type}.json"
             with open(results_file, "w", encoding="utf-8") as f:
                 json.dump(optimization_results, f, indent=2, ensure_ascii=False)
             self.logger.info(f"💾 最適化結果保存: {results_file}")
@@ -792,7 +840,7 @@ class NewSystemMLModelCreator:
         results = {}
         trained_models = {}
 
-        # Phase 39.3: Train/Val/Test split (70/15/15)
+        # Phase 69.6: Train/Val/Test split (70/15/15) - Calibration廃止
         n_samples = len(features)
         train_size = int(n_samples * 0.70)
         val_size = int(n_samples * 0.15)
@@ -805,7 +853,7 @@ class NewSystemMLModelCreator:
         y_test = target.iloc[train_size + val_size :]
 
         self.logger.info(
-            f"📊 Phase 39.3: Train/Val/Test split - "
+            f"📊 Phase 69.6: Train/Val/Test split - "
             f"Train: {len(X_train)} ({len(X_train) / n_samples:.1%}), "
             f"Val: {len(X_val)} ({len(X_val) / n_samples:.1%}), "
             f"Test: {len(X_test)} ({len(X_test) / n_samples:.1%})"
@@ -855,7 +903,6 @@ class NewSystemMLModelCreator:
                     # Phase 39.4: SMOTE Oversampling (CV fold) - Phase 54.8: 3クラス対応
                     if self.use_smote:
                         try:
-                            # Phase 54.8: sampling_strategy='auto'で全クラスをmajorityクラス数に揃える
                             smote = SMOTE(sampling_strategy="auto", k_neighbors=5, random_state=42)
                             X_cv_train_resampled, y_cv_train_resampled = smote.fit_resample(
                                 X_cv_train, y_cv_train
@@ -1009,6 +1056,21 @@ class NewSystemMLModelCreator:
                     "cv_f1_mean": np.mean(cv_scores),
                     "cv_f1_std": np.std(cv_scores),
                 }
+
+                # Phase 69.4: 信頼度分布の統計を記録
+                if hasattr(model, "predict_proba"):
+                    test_proba = model.predict_proba(X_test)
+                    max_proba = test_proba.max(axis=1)
+                    test_metrics["confidence_mean"] = float(np.mean(max_proba))
+                    test_metrics["confidence_std"] = float(np.std(max_proba))
+                    test_metrics["confidence_min"] = float(np.min(max_proba))
+                    test_metrics["confidence_max"] = float(np.max(max_proba))
+                    self.logger.info(
+                        f"📊 {model_name} 信頼度分布 - "
+                        f"mean={np.mean(max_proba):.4f}, "
+                        f"std={np.std(max_proba):.4f}, "
+                        f"range=[{np.min(max_proba):.4f}, {np.max(max_proba):.4f}]"
+                    )
 
                 results[model_name] = test_metrics
                 trained_models[model_name] = model
@@ -1438,6 +1500,19 @@ def main():
         default=0.0005,
         help="Phase 55.8: ターゲット閾値（デフォルト: 0.05%%・HOLD率適正化）",
     )
+    # Phase 69.4: ターゲット生成改善オプション
+    parser.add_argument(
+        "--lookahead-periods",
+        type=int,
+        default=1,
+        help="Phase 69.6: 先読み期間（15分足の本数、デフォルト: 1=15分後予測）",
+    )
+    parser.add_argument(
+        "--adaptive-threshold",
+        action="store_true",
+        help="Phase 69.4: ボラティリティ適応型閾値を有効化",
+    )
+
     # Phase 55.6: デフォルトを3クラスに変更（2クラスは非推奨）
     parser.add_argument(
         "--n-classes",
@@ -1506,6 +1581,8 @@ def main():
         use_smote=use_smote,
         optimize=args.optimize,
         n_trials=args.n_trials,
+        lookahead_periods=args.lookahead_periods,
+        adaptive_threshold=args.adaptive_threshold,
     )
 
     success = creator.run(dry_run=args.dry_run, days=args.days)

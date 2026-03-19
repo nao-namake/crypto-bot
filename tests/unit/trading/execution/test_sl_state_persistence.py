@@ -222,3 +222,34 @@ class TestSLStatePersistenceVerifyWithAPI:
 
         result = persistence.verify_with_api("sell", mock_client)
         assert result == "99999"
+
+
+class TestSLStatePersistencePlacedAt:
+    """Phase 69.6: sl_placed_at永続化テスト"""
+
+    def test_save_with_sl_placed_at(self, persistence):
+        """sl_placed_atが保存される"""
+        placed_at = "2026-03-20T12:00:00+00:00"
+        persistence.save("buy", "12345", 10000000.0, 0.001, sl_placed_at=placed_at)
+
+        state = persistence.load()
+        assert state["buy"]["sl_placed_at"] == placed_at
+
+    def test_save_without_sl_placed_at_uses_default(self, persistence):
+        """sl_placed_at未指定時は現在時刻が使われる"""
+        persistence.save("buy", "12345", 10000000.0, 0.001)
+
+        state = persistence.load()
+        assert "sl_placed_at" in state["buy"]
+        # saved_atと同じタイミング
+        assert state["buy"]["sl_placed_at"] == state["buy"]["saved_at"]
+
+    def test_sl_placed_at_survives_reload(self, persistence):
+        """sl_placed_atがリロード後も正しく復元される"""
+        placed_at = "2026-03-20T12:00:00+00:00"
+        persistence.save("sell", "67890", 11000000.0, 0.002, sl_placed_at=placed_at)
+
+        # 新しいインスタンスで読み込み
+        new_persistence = SLStatePersistence(state_path=persistence.state_path)
+        state = new_persistence.load()
+        assert state["sell"]["sl_placed_at"] == placed_at

@@ -27,7 +27,14 @@ class SLStatePersistence:
         self.state_path = state_path or self.DEFAULT_STATE_PATH
         self.logger = get_logger()
 
-    def save(self, side: str, sl_order_id: str, sl_price: float, amount: float) -> None:
+    def save(
+        self,
+        side: str,
+        sl_order_id: str,
+        sl_price: float,
+        amount: float,
+        sl_placed_at: str = None,
+    ) -> None:
         """SL配置成功時に保存
 
         Args:
@@ -35,14 +42,17 @@ class SLStatePersistence:
             sl_order_id: SL注文ID
             sl_price: SLトリガー価格
             amount: ポジション数量
+            sl_placed_at: SL配置時刻ISO文字列（Phase 69.6: タイムアウト計算用）
         """
         try:
             state = self._load_raw()
+            now_iso = datetime.now(timezone.utc).isoformat()
             state[side] = {
                 "sl_order_id": str(sl_order_id),
                 "sl_price": sl_price,
                 "amount": amount,
-                "saved_at": datetime.now(timezone.utc).isoformat(),
+                "sl_placed_at": sl_placed_at or now_iso,
+                "saved_at": now_iso,
             }
             self._write(state)
             self.logger.info(

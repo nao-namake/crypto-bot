@@ -948,8 +948,18 @@ class StopManager:
         Returns:
             ExecutionResult: タイムアウト時の決済結果（タイムアウトしていない場合はNone）
         """
-        # SL配置時刻を取得
+        # SL配置時刻を取得（Phase 69.6: 永続化データからの復元対応）
         sl_placed_at = position.get("sl_placed_at")
+        if not sl_placed_at:
+            # Phase 69.6: 永続化ファイルからsl_placed_atを復元（Cloud Run再起動対策）
+            entry_side = position.get("side", "").lower()
+            if entry_side:
+                sl_state = self.sl_persistence.load()
+                sl_info = sl_state.get(entry_side, {})
+                sl_placed_at = sl_info.get("sl_placed_at")
+                if sl_placed_at:
+                    position["sl_placed_at"] = sl_placed_at
+                    self.logger.info(f"📊 Phase 69.6: sl_placed_at永続化から復元 - {sl_placed_at}")
         if not sl_placed_at:
             # 配置時刻が記録されていない場合はタイムアウトチェックスキップ
             return None
@@ -990,22 +1000,42 @@ class StopManager:
                     )
                     return None
                 elif order_status in ("canceled", "cancelled"):
-                    # Phase 65.13: canceledはSL消失 → sl_order_idクリア + 即時超過チェック
+                    # Phase 69.6: canceledはSL消失 → SL再配置試行 → 失敗時のみフォールバック
                     self.logger.warning(
-                        f"⚠️ Phase 65.13: SL注文 {sl_order_id} はキャンセル済み - SL不在!"
+                        f"⚠️ Phase 69.6: SL注文 {sl_order_id} はキャンセル済み - SL再配置試行"
                     )
                     position["sl_order_id"] = None
                     position["sl_placed_at"] = None
-                    # Phase 65.13: SL超過チェック - 超過していれば即座にフォールバック決済へ
-                    if self._is_sl_price_breached(position, current_price):
+
+                    # Phase 69.6: SL価格未超過ならSL再配置を試行
+                    if not self._is_sl_price_breached(position, current_price):
+                        try:
+                            stop_loss = position.get("stop_loss")
+                            if stop_loss and bitbank_client:
+                                new_sl_order_id = await self._replace_sl_order(
+                                    position, stop_loss, bitbank_client
+                                )
+                                if new_sl_order_id:
+                                    # 再配置成功: sl_placed_at/sl_order_idを直接更新
+                                    position["sl_placed_at"] = datetime.now(
+                                        timezone.utc
+                                    ).isoformat()
+                                    position["sl_order_id"] = new_sl_order_id
+                                self.logger.info(
+                                    f"✅ Phase 69.6: SL再配置成功 - " f"bitbankトリガー待機継続"
+                                )
+                                return None
+                        except Exception as e:
+                            self.logger.warning(f"⚠️ Phase 69.6: SL再配置失敗: {e}")
+                        # 再配置失敗でもSL未超過なら待機継続
+                        return None
+                    else:
                         self.logger.critical(
-                            f"🚨 Phase 65.13: SLキャンセル且つSL超過検出 - 即時成行決済へ "
+                            f"🚨 Phase 69.6: SLキャンセル且つSL超過検出 - 即時成行決済へ "
                             f"(SL={position.get('stop_loss', 'N/A')}, "
                             f"現在={current_price:.0f})"
                         )
                         # return Noneせず、下のフォールバック決済コードへフォールスルー
-                    else:
-                        return None
                 elif order_status in ("open", "INACTIVE"):
                     # Phase 65.4: INACTIVEはbitbankのstop_limit正常状態（トリガー価格待ち）
                     # Phase 64.12: open時はSL超過チェック
@@ -1534,14 +1564,17 @@ class StopManager:
         position: dict,
         stop_loss: Optional[float],
         bitbank_client: BitbankClient,
-    ) -> None:
+    ) -> Optional[str]:
         """
         Phase 68.6: 成行決済失敗時のSL再配置
 
         タイムアウト成行決済が失敗した場合に、SLを再配置してポジションを保護する。
+
+        Returns:
+            Optional[str]: 新しいSL注文ID（成功時）またはNone
         """
         if not stop_loss or not bitbank_client:
-            return
+            return None
 
         entry_side = position.get("side", "")
         amount = float(position.get("amount", 0))
@@ -1574,18 +1607,22 @@ class StopManager:
 
         order_id = sl_order.get("id")
         if order_id:
+            sl_placed_at = datetime.now(timezone.utc).isoformat()
             self.logger.info(
                 f"✅ Phase 68.6: SL再配置成功 - " f"ID: {order_id}, SL: {sl_price:.0f}円"
             )
-            # SL永続化
+            # SL永続化（Phase 69.6: sl_placed_at含む）
             self.sl_persistence.save(
                 side=entry_side,
                 sl_order_id=str(order_id),
                 sl_price=sl_price,
                 amount=amount,
+                sl_placed_at=sl_placed_at,
             )
+            return str(order_id)
         else:
             self.logger.error(f"❌ Phase 68.6: SL再配置で注文IDが空: {sl_order}")
+            return None
 
     async def _cleanup_sibling_vp_orders(
         self,

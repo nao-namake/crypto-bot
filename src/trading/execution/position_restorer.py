@@ -216,7 +216,7 @@ class PositionRestorer:
                             sl_order_id = verified_id
                             sl_state = self.sl_persistence.load().get(entry_side, {})
                             sl_price = sl_state.get("sl_price")
-                            sl_placed_at = sl_state.get("saved_at")
+                            sl_placed_at = sl_state.get("sl_placed_at") or sl_state.get("saved_at")
                             self.logger.info(
                                 f"Phase 68.4: INACTIVE SL復元（永続化）- "
                                 f"{pos_side} ID={verified_id}"

@@ -4,11 +4,11 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 69.3-69.5（SLタイムアウト・レジーム閾値修正） |
-| **直前の作業** | Phase 69.3: SLタイムアウト300→900秒 / Phase 69.5: レジーム閾値調整（tight_range偏重修正） |
-| **次の予定** | デプロイ → GCPログ検証 → ML再学習検討 |
-| **最新成果** | Phase 69.3: SLタイムアウト延長 / Phase 69.5: tight_range BB<2%,price<1.2%, trending ADX>22,EMA>0.1% |
-| **最終更新** | 2026年3月19日 |
+| **現在Phase** | 69.7（SL監査バグ修正 + ML再学習完了 + PnL計算修正） |
+| **直前の作業** | Phase 69.7: SL監査P0バグ2件修正 / ML再学習（信頼度正常化） / standard_analysis PnL計算をbitbank API直接取得に修正 |
+| **次の予定** | GCPデプロイ → ライブ検証 |
+| **最新成果** | SL sl_placed_at復元修正・_replace_sl_order戻り値追加 / ML信頼度std 0→0.105 / PnL -2,796円（DB +1,000円は誤り） |
+| **最終更新** | 2026年3月20日 |
 
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-69）、`docs/開発履歴/Phase_69.md`（最新）
 
@@ -268,7 +268,7 @@ SL距離: `(目標最大損失 - 決済手数料) / ポジションサイズ`（
 | 設定 | 値 |
 |------|-----|
 | 注文タイプ | `stop_limit`（指値） |
-| slippage_buffer | 0.5% |
+| slippage_buffer | 0.8%（Phase 69.6: 0.5%→0.8%） |
 | skip_bot_monitoring | true |
 | stop_limit_timeout | 900秒（Phase 69.3: 300→900秒） |
 | 固定金額SL | 400-500円（Phase 68.8 信頼度別） |

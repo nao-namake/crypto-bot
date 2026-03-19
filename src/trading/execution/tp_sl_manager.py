@@ -339,7 +339,10 @@ class TPSLManager:
         )
 
         # Phase 68.4: SL永続化保存（INACTIVE SL対策）
-        self.sl_persistence.save(side, str(order_id), stop_loss_price, amount)
+        # Phase 69.6: sl_placed_atも永続化（Cloud Run再起動後のタイムアウト計算用）
+        self.sl_persistence.save(
+            side, str(order_id), stop_loss_price, amount, sl_placed_at=sl_placed_at
+        )
 
         return {
             "order_id": order_id,

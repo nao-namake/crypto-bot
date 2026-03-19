@@ -53,7 +53,7 @@ import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -914,10 +914,11 @@ class LiveAnalysisResult:
     order_breakdown: Dict[str, int] = field(default_factory=dict)
     losscut_price: Optional[float] = None
 
-    # 取引履歴分析（12指標）
+    # 取引履歴分析（13指標）
     trades_count: int = 0
     win_rate: float = 0.0
     total_pnl: float = 0.0
+    total_fee: float = 0.0  # Phase 69.7: bitbank API手数料合計
     avg_pnl: float = 0.0
     max_profit: float = 0.0
     max_loss: float = 0.0
@@ -1172,9 +1173,105 @@ class LiveAnalyzer:
         except Exception as e:
             self.logger.error(f"ポジション状態取得失敗: {e}")
 
+    async def _fetch_pnl_from_bitbank_api(self) -> Optional[Dict[str, Any]]:
+        """
+        Phase 69.7: bitbank APIから直接PnLを取得
+
+        bitbank約定履歴のprofit_lossフィールドが最も信頼できるPnLソース。
+        DBやGCPログ同期ではSLタイムアウト決済が漏れる問題を根本解決。
+
+        Returns:
+            Dict with total_pnl, total_fee, entry_count, exit_count,
+            win_count, loss_count, max_profit, max_loss or None
+        """
+        if not self.bitbank_client:
+            return None
+
+        try:
+            trades = await asyncio.to_thread(
+                self.bitbank_client.exchange.fetch_my_trades,
+                "BTC/JPY",
+                limit=100,
+            )
+
+            if not trades:
+                return None
+
+            # 対象期間でフィルタ
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=self.period_hours)
+            period_trades = []
+            for t in trades:
+                dt_str = t.get("datetime", "")
+                if dt_str:
+                    try:
+                        trade_dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+                        if trade_dt.tzinfo is None:
+                            trade_dt = trade_dt.replace(tzinfo=timezone.utc)
+                        if trade_dt >= cutoff:
+                            period_trades.append(t)
+                    except (ValueError, TypeError):
+                        pass
+
+            if not period_trades:
+                return None
+
+            # order_id別に集約（部分約定を1注文にまとめる）
+            from collections import defaultdict
+
+            orders = defaultdict(list)
+            for t in period_trades:
+                orders[t.get("order", "")].append(t)
+
+            total_pnl = 0.0
+            total_fee = 0.0
+            entry_count = 0
+            exit_count = 0
+            win_count = 0
+            loss_count = 0
+            exit_pnls = []
+
+            for order_id, fills in orders.items():
+                # 注文単位でPnL・手数料を合算
+                order_pnl = sum(float(f.get("info", {}).get("profit_loss", 0) or 0) for f in fills)
+                order_fee = sum(
+                    float(f.get("info", {}).get("fee_occurred_amount_quote", 0) or 0) for f in fills
+                )
+                total_fee += order_fee
+
+                # profit_loss != 0 の注文は決済（exit）
+                if abs(order_pnl) > 0.01:
+                    total_pnl += order_pnl
+                    exit_count += 1
+                    exit_pnls.append(order_pnl)
+                    if order_pnl > 0:
+                        win_count += 1
+                    else:
+                        loss_count += 1
+                else:
+                    entry_count += 1
+
+            return {
+                "total_pnl": round(total_pnl, 0),
+                "total_fee": round(total_fee, 0),
+                "entry_count": entry_count,
+                "exit_count": exit_count,
+                "win_count": win_count,
+                "loss_count": loss_count,
+                "max_profit": round(max(exit_pnls), 0) if exit_pnls else 0,
+                "max_loss": round(min(exit_pnls), 0) if exit_pnls else 0,
+            }
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 69.7: bitbank API PnL取得失敗: {e}")
+            return None
+
     async def _fetch_trade_history(self):
         """取引履歴分析（12指標）"""
         try:
+            # Phase 69.7: bitbank APIから直接PnLを取得（最も信頼できるソース）
+            # DBやGCPログ同期ではSLタイムアウト決済が漏れる問題を根本解決
+            api_pnl = await self._fetch_pnl_from_bitbank_api()
+
             # Phase 68.6: GCPログからexit記録をローカルDBに同期
             try:
                 from scripts.live.sync_exit_records import sync_exit_records_from_gcp
@@ -1261,7 +1358,28 @@ class LiveAnalyzer:
             self.result.tp_triggered_count = tp_from_logs
             self.result.sl_triggered_count = sl_from_logs
 
-            if trades:
+            # Phase 69.7: bitbank APIのPnLを優先使用（DB PnLはSLタイムアウト漏れあり）
+            if api_pnl is not None:
+                self.result.total_pnl = api_pnl["total_pnl"]
+                self.result.total_fee = api_pnl["total_fee"]
+                exit_count = api_pnl["exit_count"]
+                win_count = api_pnl["win_count"]
+                loss_count = api_pnl["loss_count"]
+                if exit_count > 0:
+                    self.result.win_rate = win_count / exit_count * 100
+                self.result.avg_pnl = self.result.total_pnl / exit_count if exit_count > 0 else 0.0
+                self.result.max_profit = api_pnl["max_profit"]
+                self.result.max_loss = api_pnl["max_loss"]
+                self.result.trades_count = api_pnl["entry_count"] + exit_count
+                self.logger.info(
+                    f"📊 Phase 69.7: bitbank API PnL使用 - "
+                    f"エントリー{api_pnl['entry_count']}件, "
+                    f"決済{exit_count}件 (TP:{win_count} SL:{loss_count}), "
+                    f"損益: ¥{self.result.total_pnl:,.0f}, "
+                    f"手数料: ¥{self.result.total_fee:,.0f}"
+                )
+            elif trades:
+                # フォールバック: DB PnL（API取得失敗時のみ）
                 # Phase 61.11: pnlがすべてNULLかどうか確認
                 pnls_with_value = [t.get("pnl") for t in trades if t.get("pnl") is not None]
                 has_pnl_data = len(pnls_with_value) > 0
@@ -2610,8 +2728,10 @@ async def main():
         if result.sl_pattern_sl_count > 0:
             print(f"   SL合計損益: ¥{result.sl_pattern_sl_pnl_total:+,.0f}")
             print(f"   SL平均損益: ¥{result.sl_pattern_sl_pnl_avg:+,.0f}")
-        total_pnl = result.sl_pattern_tp_pnl_total + result.sl_pattern_sl_pnl_total
-        print(f"   総損益: ¥{total_pnl:+,.0f}")
+        sl_pattern_pnl = result.sl_pattern_tp_pnl_total + result.sl_pattern_sl_pnl_total
+        print(f"   総損益(GCPログ): ¥{sl_pattern_pnl:+,.0f}")
+        if result.total_pnl != 0:
+            print(f"   総損益(bitbank API): ¥{result.total_pnl:+,.0f}")
 
         # 高SL率戦略の警告
         high_sl_strategies = [

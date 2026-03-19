@@ -671,7 +671,7 @@ position_management:
   stop_loss:
     enabled: true
     order_type: stop_limit
-    slippage_buffer: 0.005
+    slippage_buffer: 0.008
     stop_limit_timeout: 900
     skip_bot_monitoring: true
     default_atr_multiplier: 2.0

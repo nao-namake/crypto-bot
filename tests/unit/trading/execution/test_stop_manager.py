@@ -3022,8 +3022,8 @@ class TestPhase6412SLSafetyNet:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_timeout_canceled_clears_order_id(self, mock_threshold, stop_manager):
-        """Phase 64.12: canceled時にsl_order_idがクリアされる"""
+    async def test_sl_timeout_canceled_replaces_sl(self, mock_threshold, stop_manager):
+        """Phase 69.6: canceled時にSL再配置を試行（SL未超過）"""
         mock_threshold.side_effect = lambda key, default=None: {
             "trading.currency_pair": "BTC/JPY",
         }.get(key, default)
@@ -3039,19 +3039,24 @@ class TestPhase6412SLSafetyNet:
 
         mock_client = MagicMock()
         mock_client.fetch_order = MagicMock(return_value={"status": "canceled", "id": "sl_123"})
+        mock_client.create_stop_loss_order = MagicMock(return_value={"id": "sl_new_456"})
 
         result = await stop_manager._check_stop_limit_timeout(
             position=position,
-            current_price=10050000.0,
-            sl_config={"stop_limit_timeout": 0},  # 即タイムアウト
+            current_price=10050000.0,  # SL未超過
+            sl_config={
+                "stop_limit_timeout": 0,
+                "order_type": "stop_limit",
+                "slippage_buffer": 0.008,
+            },
             mode="live",
             bitbank_client=mock_client,
         )
 
-        # canceledではフォールバック不要だがsl_order_idはクリア
+        # SL再配置成功 → フォールバック不要
         assert result is None
-        assert position["sl_order_id"] is None
-        assert position["sl_placed_at"] is None
+        # SL再配置が呼ばれた
+        mock_client.create_stop_loss_order.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
@@ -3159,8 +3164,8 @@ class TestPhase6412SLSafetyNet:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_sl_canceled_not_breached_returns_none(self, mock_threshold, stop_manager):
-        """Phase 65.13: canceled + SL未超過 → return None（次サイクルでSL再配置）"""
+    async def test_sl_canceled_not_breached_replaces_sl(self, mock_threshold, stop_manager):
+        """Phase 69.6: canceled + SL未超過 → SL再配置試行 → return None"""
         mock_threshold.side_effect = lambda key, default=None: {
             "trading.currency_pair": "BTC/JPY",
         }.get(key, default)
@@ -3176,19 +3181,26 @@ class TestPhase6412SLSafetyNet:
 
         mock_client = MagicMock()
         mock_client.fetch_order = MagicMock(return_value={"status": "canceled", "id": "sl_789"})
+        mock_client.create_stop_loss_order = MagicMock(return_value={"id": "sl_new_999"})
 
         result = await stop_manager._check_stop_limit_timeout(
             position=position,
             current_price=9950000.0,  # SL(9,900,000)より上 → 未超過
-            sl_config={"stop_limit_timeout": 0},
+            sl_config={
+                "stop_limit_timeout": 0,
+                "order_type": "stop_limit",
+                "slippage_buffer": 0.008,
+            },
             mode="live",
             bitbank_client=mock_client,
         )
 
-        # SL未超過 → return None
+        # SL再配置成功 → return None
         assert result is None
-        assert position["sl_order_id"] is None  # クリアはされる
-        assert position["sl_placed_at"] is None
+        # SL再配置が呼ばれた
+        mock_client.create_stop_loss_order.assert_called_once()
+        # sl_placed_atが更新されている
+        assert position["sl_placed_at"] is not None
 
 
 # ========================================
@@ -3677,3 +3689,180 @@ class TestPhase692SiblingVPCleanup:
 
         # エラーがあっても決済自体は成功
         assert result.success is True
+
+
+class TestSLCancelReplace:
+    """Phase 69.6: SLキャンセル検出時のSL再配置テスト"""
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_canceled_replaces_when_not_breached(
+        self, mock_get_threshold, stop_manager, mock_bitbank_client
+    ):
+        """SLキャンセル検出 + SL未超過 → SL再配置を試行"""
+        mock_get_threshold.side_effect = lambda key, default=None: {
+            "position_management.stop_loss": {
+                "enabled": True,
+                "order_type": "stop_limit",
+                "skip_bot_monitoring": True,
+                "stop_limit_timeout": 900,
+                "slippage_buffer": 0.008,
+            },
+            "trading.currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        position = {
+            "order_id": "order_1",
+            "side": "buy",
+            "amount": 0.001,
+            "price": 14000000.0,
+            "stop_loss": 13700000.0,
+            "take_profit": 14300000.0,
+            "sl_order_id": "sl_old_123",
+            "sl_placed_at": (datetime.now(timezone.utc) - timedelta(seconds=1000)).isoformat(),
+        }
+
+        # SL注文はキャンセル済み
+        mock_bitbank_client.fetch_order = Mock(
+            return_value={"status": "canceled", "id": "sl_old_123"}
+        )
+        # SL再配置成功
+        mock_bitbank_client.create_stop_loss_order = Mock(return_value={"id": "sl_new_456"})
+
+        # 現在価格はSL未超過（14000000 > 13700000）
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=14000000.0,
+            sl_config={
+                "enabled": True,
+                "order_type": "stop_limit",
+                "skip_bot_monitoring": True,
+                "stop_limit_timeout": 900,
+                "slippage_buffer": 0.008,
+            },
+            mode="live",
+            bitbank_client=mock_bitbank_client,
+        )
+
+        # SL再配置成功なのでNone（フォールバック決済なし）
+        assert result is None
+        # SL再配置が呼ばれたことを確認
+        mock_bitbank_client.create_stop_loss_order.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_canceled_fallback_when_breached(
+        self, mock_get_threshold, stop_manager, mock_bitbank_client
+    ):
+        """SLキャンセル検出 + SL超過 → 成行フォールバック"""
+        mock_get_threshold.side_effect = lambda key, default=None: {
+            "position_management.stop_loss": {
+                "enabled": True,
+                "order_type": "stop_limit",
+                "skip_bot_monitoring": True,
+                "stop_limit_timeout": 900,
+                "slippage_buffer": 0.008,
+            },
+            "trading.currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        position = {
+            "order_id": "order_1",
+            "side": "buy",
+            "amount": 0.001,
+            "price": 14000000.0,
+            "stop_loss": 13700000.0,
+            "take_profit": 14300000.0,
+            "sl_order_id": "sl_old_123",
+            "sl_placed_at": (datetime.now(timezone.utc) - timedelta(seconds=1000)).isoformat(),
+        }
+
+        # SL注文はキャンセル済み
+        mock_bitbank_client.fetch_order = Mock(
+            return_value={"status": "canceled", "id": "sl_old_123"}
+        )
+        # 決済注文成功
+        mock_bitbank_client.create_order = Mock(return_value={"id": "close_789"})
+
+        # 現在価格はSL超過（13600000 < 13700000）→ 成行フォールバック
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=13600000.0,
+            sl_config={
+                "enabled": True,
+                "order_type": "stop_limit",
+                "skip_bot_monitoring": True,
+                "stop_limit_timeout": 900,
+                "slippage_buffer": 0.008,
+            },
+            mode="live",
+            bitbank_client=mock_bitbank_client,
+        )
+
+        # フォールバック決済実行
+        assert result is not None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_sl_placed_at_restored_from_persistence(
+        self, mock_get_threshold, stop_manager, tmp_path
+    ):
+        """Phase 69.6: sl_placed_atが永続化データから復元される"""
+        # 一時ファイルで永続化を初期化
+        from src.trading.execution.sl_state_persistence import SLStatePersistence
+
+        stop_manager.sl_persistence = SLStatePersistence(state_path=str(tmp_path / "sl_state.json"))
+        mock_get_threshold.side_effect = lambda key, default=None: {
+            "position_management.stop_loss": {
+                "enabled": True,
+                "order_type": "stop_limit",
+                "skip_bot_monitoring": True,
+                "stop_limit_timeout": 900,
+            },
+            "trading.currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        placed_at = (datetime.now(timezone.utc) - timedelta(seconds=100)).isoformat()
+
+        # sl_placed_atがpositionにないが永続化にある
+        position = {
+            "order_id": "order_1",
+            "side": "buy",
+            "amount": 0.001,
+            "price": 14000000.0,
+            "stop_loss": 13700000.0,
+            "sl_order_id": "sl_123",
+        }
+
+        # 永続化にsl_placed_atがある
+        stop_manager.sl_persistence._write(
+            {
+                "buy": {
+                    "sl_order_id": "sl_123",
+                    "sl_price": 13700000.0,
+                    "amount": 0.001,
+                    "sl_placed_at": placed_at,
+                    "saved_at": placed_at,
+                }
+            }
+        )
+
+        # タイムアウト未到達なのでNone返却（だがsl_placed_atは復元される）
+        mock_bitbank = AsyncMock()
+        mock_bitbank.fetch_order = Mock(return_value={"status": "INACTIVE", "id": "sl_123"})
+
+        result = await stop_manager._check_stop_limit_timeout(
+            position=position,
+            current_price=14000000.0,
+            sl_config={
+                "enabled": True,
+                "order_type": "stop_limit",
+                "stop_limit_timeout": 900,
+            },
+            mode="live",
+            bitbank_client=mock_bitbank,
+        )
+
+        assert result is None
+        # sl_placed_atがpositionに復元されている
+        assert position.get("sl_placed_at") == placed_at
