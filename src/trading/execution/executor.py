@@ -100,6 +100,15 @@ class ExecutionService:
         self.tp_sl_manager = TPSLManager()
         self.position_restorer = PositionRestorer()
 
+        # Phase 69.7: 取引判断の事後分析記録
+        self.trade_analysis_recorder = None
+        try:
+            from ..analysis.trade_analysis_recorder import TradeAnalysisRecorder
+
+            self.trade_analysis_recorder = TradeAnalysisRecorder()
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 69.7: TradeAnalysisRecorder初期化失敗: {e}")
+
         self.logger.info(f"✅ ExecutionService初期化完了 - モード: {mode}")
 
     @property
@@ -678,6 +687,28 @@ class ExecutionService:
                     live_position["sl_order_id"] = sl_order_id
                     # Phase 62.17: SL配置時刻を保存（タイムアウトチェック用）
                     live_position["sl_placed_at"] = sl_placed_at
+
+                    # Phase 69.7: 取引判断の事後分析記録
+                    if self.trade_analysis_recorder and self.mode == "live":
+                        try:
+                            regime_val = evaluation.market_conditions.get("regime_value", None)
+                            self.trade_analysis_recorder.record_entry(
+                                order_id=result.order_id,
+                                price=actual_filled_price,
+                                side=side,
+                                amount=actual_amount,
+                                strategy_name=getattr(evaluation, "strategy_name", None),
+                                ml_prediction=getattr(evaluation, "ml_prediction", None),
+                                ml_confidence=getattr(evaluation, "ml_confidence", None),
+                                adjusted_confidence=getattr(
+                                    evaluation, "adjusted_confidence", None
+                                ),
+                                regime=regime_val,
+                                take_profit=final_tp,
+                                stop_loss=final_sl,
+                            )
+                        except Exception as e:
+                            self.logger.debug(f"Phase 69.7: 分析記録失敗（継続）: {e}")
 
                     # Phase 62.20: TP/SL欠損自動復旧 - 10分後検証をスケジュール
                     # Phase 63.3: Bug 2修正 - actual_amount使用

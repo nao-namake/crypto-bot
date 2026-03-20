@@ -945,6 +945,9 @@ class LiveAnalysisResult:
     sl_coverage_ratio: Optional[float] = None
     tp_sl_full_coverage: bool = True
 
+    # Phase 69.7: 取引判断の事後分析
+    trade_analyses: List[Dict[str, Any]] = field(default_factory=list)
+
     # Phase 58.8: 孤児注文検出（2指標）
     orphan_sl_detected: bool = False
     orphan_order_count: int = 0
@@ -1033,6 +1036,8 @@ class LiveAnalyzer:
             await self._check_ml_model_status()
             # Phase 62.18: SLパターン分析
             await self._analyze_sl_patterns()
+            # Phase 69.7: 取引判断の事後分析（事後価格追跡+表示）
+            await self._analyze_post_exit_prices()
 
         except Exception as e:
             self.logger.error(f"分析中にエラー発生: {e}")
@@ -1908,6 +1913,81 @@ class LiveAnalyzer:
             self.logger.error(f"MLモデル状態確認失敗: {e}")
             self.result.ml_model_type = "error"
 
+    async def _analyze_post_exit_prices(self):
+        """Phase 69.7: 取引判断の事後分析（事後価格追跡）"""
+        try:
+            from src.trading.analysis.trade_analysis_recorder import (
+                TradeAnalysisRecorder,
+            )
+
+            recorder = TradeAnalysisRecorder()
+
+            # 事後価格未取得のレコードを埋める
+            pending = recorder.get_pending_price_checks()
+            if pending and self.bitbank_client:
+                now = datetime.now(timezone.utc)
+                for record in pending:
+                    exit_ts_str = record.get("exit_timestamp")
+                    if not exit_ts_str:
+                        continue
+                    try:
+                        exit_dt = datetime.fromisoformat(exit_ts_str.replace("Z", "+00:00"))
+                        if exit_dt.tzinfo is None:
+                            exit_dt = exit_dt.replace(tzinfo=timezone.utc)
+                    except (ValueError, TypeError):
+                        continue
+
+                    elapsed_min = (now - exit_dt).total_seconds() / 60
+                    p15 = record.get("price_15min_after")
+                    p1h = record.get("price_1h_after")
+                    p4h = record.get("price_4h_after")
+
+                    # 必要な時間が経過したらOHLCVから価格取得
+                    updates = {}
+                    if p15 is None and elapsed_min >= 15:
+                        updates["price_15min"] = await self._get_price_at_offset(exit_dt, 15)
+                    if p1h is None and elapsed_min >= 60:
+                        updates["price_1h"] = await self._get_price_at_offset(exit_dt, 60)
+                    if p4h is None and elapsed_min >= 240:
+                        updates["price_4h"] = await self._get_price_at_offset(exit_dt, 240)
+
+                    if updates:
+                        recorder.update_post_exit_prices(record["entry_order_id"], **updates)
+
+            # 直近の分析レコードを取得して結果格納
+            analyses = recorder.get_recent_analyses(limit=15)
+            self.result.trade_analyses = analyses
+
+            completed = [a for a in analyses if a.get("price_1h_after") is not None]
+            if completed:
+                good = sum(
+                    1 for a in completed if TradeAnalysisRecorder.evaluate_decision(a) == "good"
+                )
+                self.logger.info(
+                    f"📊 Phase 69.7: 取引判断分析 - "
+                    f"{len(completed)}件完了, 判断正解率={good}/{len(completed)}"
+                )
+
+        except Exception as e:
+            self.logger.debug(f"Phase 69.7: 事後分析スキップ: {e}")
+
+    async def _get_price_at_offset(self, base_dt: datetime, offset_minutes: int) -> Optional[float]:
+        """指定時刻+offset分後の価格をOHLCVから取得"""
+        try:
+            target_ts = int((base_dt.timestamp() + offset_minutes * 60) * 1000)
+            ohlcv = await asyncio.to_thread(
+                self.bitbank_client.exchange.fetch_ohlcv,
+                "BTC/JPY",
+                "15m",
+                since=target_ts - 15 * 60 * 1000,
+                limit=2,
+            )
+            if ohlcv and len(ohlcv) > 0:
+                return float(ohlcv[0][4])  # close price
+        except Exception:
+            pass
+        return None
+
     async def _analyze_sl_patterns(self):
         """Phase 62.18: SLパターン分析（GCPログベース）"""
         import re
@@ -2742,6 +2822,44 @@ async def main():
         if high_sl_strategies:
             for strategy, data in high_sl_strategies:
                 print(f"   ⚠️ {strategy}: SL率{data['sl_rate']:.1f}%")
+
+    # Phase 69.7: 取引判断の事後分析
+    if result.trade_analyses:
+        from src.trading.analysis.trade_analysis_recorder import TradeAnalysisRecorder
+
+        print("\n📊 Phase 69.7: 取引判断の事後分析:")
+        print(
+            f"   {'時刻':>12} {'方向':>4} {'戦略':>16} {'レジーム':>13} "
+            f"{'ML信頼度':>8} {'結果':>8} {'PnL':>8} {'1h後':>8} {'判定':>4}"
+        )
+        for a in result.trade_analyses[:10]:
+            ts = (a.get("entry_timestamp") or "")[:16]
+            side = a.get("entry_side", "?")
+            strat = (a.get("strategy_name") or "?")[:16]
+            regime = (a.get("regime") or "?")[:13]
+            conf = a.get("ml_confidence")
+            conf_str = f"{conf:.3f}" if conf else "N/A"
+            etype = (a.get("exit_type") or "?")[:8]
+            pnl = a.get("pnl")
+            pnl_str = f"{pnl:+.0f}" if pnl is not None else "N/A"
+            p1h = a.get("price_1h_after")
+            ep = a.get("exit_price") or 0
+            if p1h and ep > 0:
+                diff = p1h - ep
+                p1h_str = f"{diff:+.0f}"
+            else:
+                p1h_str = "待機中"
+            verdict = TradeAnalysisRecorder.evaluate_decision(a) or "-"
+            verdict_icon = {"good": "○", "bad": "×", "neutral": "△"}.get(verdict, "-")
+            print(
+                f"   {ts:>12} {side:>4} {strat:>16} {regime:>13} "
+                f"{conf_str:>8} {etype:>8} {pnl_str:>8} {p1h_str:>8} {verdict_icon:>4}"
+            )
+
+        completed = [a for a in result.trade_analyses if a.get("price_1h_after") is not None]
+        if completed:
+            good = sum(1 for a in completed if TradeAnalysisRecorder.evaluate_decision(a) == "good")
+            print(f"   判断正解率: {good}/{len(completed)} ({good / len(completed) * 100:.0f}%)")
 
     exit_code = determine_exit_code(infra_result, bot_result)
     status_map = {

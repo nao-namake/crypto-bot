@@ -35,6 +35,15 @@ class StopManager:
         self.logger = get_logger()
         self.sl_persistence = SLStatePersistence()
 
+        # Phase 69.7: 取引判断の事後分析記録
+        self.trade_analysis_recorder = None
+        try:
+            from ..analysis.trade_analysis_recorder import TradeAnalysisRecorder
+
+            self.trade_analysis_recorder = TradeAnalysisRecorder()
+        except Exception:
+            pass
+
     # ========================================
     # Phase 61.9: TP/SL自動執行検知機能
     # ========================================
@@ -90,6 +99,18 @@ class StopManager:
 
                 if execution_info:
                     detected_executions.append(execution_info)
+
+                    # Phase 69.7: 決済分析記録
+                    if self.trade_analysis_recorder:
+                        try:
+                            self.trade_analysis_recorder.record_exit(
+                                entry_order_id=vpos.get("order_id", ""),
+                                exit_price=execution_info.get("exit_price", 0),
+                                exit_type=execution_info.get("execution_type", ""),
+                                pnl=execution_info.get("pnl", 0),
+                            )
+                        except Exception:
+                            pass
 
                     # Phase 68.4: SL永続化クリア（ポジション決済時）
                     vp_side = vpos.get("side", "")
@@ -1179,6 +1200,18 @@ class StopManager:
 
             # Phase 65.5/68.2: 手数料考慮PnL計算に統合（TP=Maker, SL=Taker）
             pnl = self._calc_pnl(entry_price, current_price, amount, entry_side, exit_reason)
+
+            # Phase 69.7: 決済分析記録
+            if self.trade_analysis_recorder and mode == "live":
+                try:
+                    self.trade_analysis_recorder.record_exit(
+                        entry_order_id=position.get("order_id", ""),
+                        exit_price=current_price,
+                        exit_type=exit_reason,
+                        pnl=pnl,
+                    )
+                except Exception:
+                    pass
 
             # Phase 49.6: ポジション決済時にTP/SL注文クリーンアップ
             if bitbank_client and mode == "live":
