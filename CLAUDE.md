@@ -271,7 +271,10 @@ SL距離: `(目標最大損失 - 決済手数料) / ポジションサイズ`（
 | slippage_buffer | 0.8%（Phase 69.6: 0.5%→0.8%） |
 | skip_bot_monitoring | true |
 | stop_limit_timeout | 900秒（Phase 69.3: 300→900秒） |
-| 固定金額SL | 400-500円（Phase 68.8 信頼度別） |
+| 固定金額SL | 400-500円（Phase 70 信頼度別） |
+| 日次損失上限 | 2,500円（0.5%） |
+| 週次損失上限 | 10,000円（2%） |
+| 連敗サイズ縮小 | 5回:50% / 6回:40% / 7回:25% / 8回:停止 |
 
 ---
 
@@ -345,6 +348,6 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 | **運用** | [システムリファレンス.md](docs/運用ガイド/システムリファレンス.md) | 仕様+実装の統合リファレンス |
 | **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
-| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-69） |
-| **履歴** | [Phase_69.md](docs/開発履歴/Phase_69.md) | 最新Phase詳細 |
+| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-70） |
+| **履歴** | [Phase_70.md](docs/開発履歴/Phase_70.md) | 最新Phase詳細 |
 | **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |
