@@ -772,7 +772,7 @@ class BotFunctionChecker:
             },
             "固定金額TP目標": {
                 "path": "position_management.take_profit.fixed_amount.target_net_profit",
-                "expected": 500,
+                "expected": 750,
                 "default": 1000,
             },
             "固定金額SL有効": {

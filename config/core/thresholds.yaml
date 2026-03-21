@@ -148,21 +148,21 @@ ml:
   regime_ml_integration:
     enabled: true
     tight_range:
-      min_ml_confidence: 0.40
+      min_ml_confidence: 0.38
       high_confidence_threshold: 0.55
       ml_weight: 0.15
       strategy_weight: 0.85
       agreement_bonus: 1.25
       disagreement_penalty: 0.7
     normal_range:
-      min_ml_confidence: 0.38
+      min_ml_confidence: 0.35
       high_confidence_threshold: 0.55
       ml_weight: 0.2
       strategy_weight: 0.8
       agreement_bonus: 1.25
       disagreement_penalty: 0.7
     trending:
-      min_ml_confidence: 0.40
+      min_ml_confidence: 0.38
       high_confidence_threshold: 0.55
       ml_weight: 0.35
       strategy_weight: 0.65
@@ -551,8 +551,8 @@ risk:
   stop_loss_atr_multiplier: 1.2
   consecutive_loss_limit: 5
   take_profit_ratio: 2.0
-  daily_loss_limit: 0.05
-  weekly_loss_limit: 0.1
+  daily_loss_limit: 0.005
+  weekly_loss_limit: 0.02
   emergency_stop_enabled: true
   drawdown_manager:
     max_drawdown_ratio: 0.2
