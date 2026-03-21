@@ -76,6 +76,11 @@ class PositionLimits:
             if not position_count_check["allowed"]:
                 return position_count_check
 
+            # 1.5. Phase 69.8: 同方向ポジション制限チェック
+            same_dir_check = self._check_same_direction_positions(evaluation, virtual_positions)
+            if not same_dir_check["allowed"]:
+                return same_dir_check
+
             # 2. 残高利用率チェック（Phase 65.6: mode伝搬）
             capital_usage_check = self._check_capital_usage(current_balance, mode)
             if not capital_usage_check["allowed"]:
@@ -228,6 +233,48 @@ class PositionLimits:
             }
 
         return {"allowed": True, "reason": "ポジション数OK"}
+
+    def _check_same_direction_positions(
+        self,
+        evaluation: TradeEvaluation,
+        virtual_positions: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Phase 69.8: 同方向ポジション制限チェック
+
+        同方向に複数エントリーすると合算SLが倍増するリスクを抑制。
+
+        Args:
+            evaluation: 取引評価結果（sideを参照）
+            virtual_positions: 現在のポジションリスト
+
+        Returns:
+            Dict: {"allowed": bool, "reason": str}
+        """
+        max_same_dir = get_threshold("position_management.max_same_direction_positions", 0)
+
+        # 設定が0以下の場合は制限無効
+        if max_same_dir <= 0:
+            return {"allowed": True, "reason": "同方向制限無効"}
+
+        side = getattr(evaluation, "side", None)
+        if not side:
+            return {"allowed": True, "reason": "side情報なし（スキップ）"}
+
+        same_dir_count = sum(
+            1 for pos in virtual_positions if pos.get("side", "").lower() == side.lower()
+        )
+
+        if same_dir_count >= max_same_dir:
+            self.logger.info(
+                f"🚫 同方向ポジション制限: {side}方向={same_dir_count}件 >= 上限{max_same_dir}件"
+            )
+            return {
+                "allowed": False,
+                "reason": f"同方向ポジション制限({side}: {max_same_dir}個)に達しています。現在: {same_dir_count}個",
+            }
+
+        return {"allowed": True, "reason": f"同方向ポジション数OK({side})"}
 
     def _check_capital_usage(
         self, current_balance: float, mode: Optional[str] = None

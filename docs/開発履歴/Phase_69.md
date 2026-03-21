@@ -1,6 +1,6 @@
-# Phase 69: SL超過修正 + 逆張りショート対策 + 孤児SL修正 + SLタイムアウト延長 + レジーム閾値調整 + SL監査・ML再学習
+# Phase 69: SL超過修正 + 逆張りショート対策 + 孤児SL修正 + SLタイムアウト延長 + レジーム閾値調整 + SL監査・ML再学習 + SL成行化・同方向制限
 
-**期間**: 2026年3月14日-20日
+**期間**: 2026年3月14日-21日
 **状態**: ✅ 完了
 
 | 変更 | 内容 | 状態 |
@@ -13,6 +13,7 @@
 | **Phase 69.4** | ML信頼度固定問題調査（モデル再学習が必要） | 🔍 調査完了 |
 | **Phase 69.5** | レジーム閾値調整（tight_range偏重修正） | ✅ 完了 |
 | **Phase 69.6** | MLコード修正（lookahead=1復元・Cal廃止）+ SL監査バグ修正 + ML再学習 | ✅ 完了 |
+| **Phase 69.8** | SL注文を成行化（stop_limit→stop） + 同方向ポジション制限（1個上限） | ✅ 完了 |
 
 ---
 
@@ -473,3 +474,104 @@ for t in trades:
 181 passed（SL関連テスト）
 全テスト通過確認済み
 ```
+
+---
+
+## Phase 69.8: SL成行化 + 同方向ポジション制限（2026年3月21日）
+
+### 背景
+
+72時間の実績で**-5,805円**。根本問題:
+
+1. **SL損失が目標500円を平均71%超過**（平均-856円）→ stop_limitの約定失敗→成行フォールバック時のスリッページ
+2. **同方向に複数エントリー**して合算SLが倍増（0.02BTC以上のSL 6件、追加損失2,177円）
+3. 勝率37.5%に対し必要勝率65.1%（RR比1:1.87のため）
+
+### 修正1: SL注文をstop_limit → stop（成行）に変更
+
+**根拠**:
+- 現行のstop_limitは0.8%のslippage_bufferを設定 → SL発動時に実質0.8%の余分な損失余地
+- さらにタイムアウト（900秒）後の成行フォールバックでさらにスリッページ
+- 成行SLなら即時約定。手数料0.1%（Taker）は発生するが、現行のスリッページ平均356円（超過分）より遥かに安い
+- BTC/JPYは流動性が高く、成行SLのスリッページは軽微
+
+**変更内容**: 設定変更のみ（コード変更不要）
+
+```yaml
+# config/core/thresholds.yaml
+stop_loss:
+  order_type: stop  # 旧: stop_limit
+```
+
+既存コードの`tp_sl_manager.py`と`stop_manager.py`は`order_type`設定で分岐済み。`stop`の場合はlimit_price計算をスキップする。
+
+**期待効果**:
+- SL平均損失: -856円 → -500〜-550円に改善（手数料0.1%のみ追加）
+- タイムアウトフォールバック: 不要になる（即時約定）
+- 月間損失削減: 約3,000〜4,000円
+
+### 修正2: 同方向の重複エントリーを制限
+
+**方針**: 同方向1ポジション上限をデフォルト設定。反対方向（ヘッジ）は許可。
+
+**問題の実例**:
+- buy × 2ポジション → 両方SL発動 → 損失1,000円（本来500円）
+- 0.02BTC以上のSL 6件で追加損失2,177円
+
+**変更内容**:
+
+```yaml
+# config/core/thresholds.yaml
+position_management:
+  max_same_direction_positions: 1  # 新設定
+```
+
+`PositionLimits._check_same_direction_positions()`メソッドを追加:
+- `virtual_positions`内の同じ`side`のポジション数をカウント
+- 上限超過時は`{"allowed": False, "reason": "同方向ポジション制限"}`を返す
+- `check_limits()`フローの最大ポジション数チェック直後に実行（追加フィルタ）
+- 設定値0で制限無効化可能
+
+### 変更ファイル
+
+| # | ファイル | 変更内容 |
+|---|---------|---------|
+| 1 | `config/core/thresholds.yaml` | `order_type: stop` + `max_same_direction_positions: 1` |
+| 2 | `src/trading/position/limits.py` | `_check_same_direction_positions()`追加 + `check_limits()`に組み込み |
+| 3 | `tests/unit/trading/position/test_limits.py` | 同方向制限テスト7件追加 |
+| 4 | `CLAUDE.md` | Phase 69.8しおり更新 + SL注文タイプ更新 |
+
+### テスト結果
+
+```
+2050 passed, 1 skipped, 75.41% coverage
+flake8/black/isort: all PASS
+```
+
+### 新規テスト（7件）
+
+- `test_same_direction_blocked` — 同方向ポジションが上限に達している場合ブロック
+- `test_opposite_direction_allowed` — 反対方向のポジションは制限しない
+- `test_no_existing_positions_allowed` — 既存ポジションなしの場合は許可
+- `test_limit_disabled_when_zero` — 設定値0で制限無効
+- `test_limit_two_allows_second` — 上限2の場合、1件目は許可
+- `test_no_side_info_skips` — side情報がない場合はスキップ
+- `test_mixed_positions_counts_correctly` — buy/sell混在でも正しくカウント
+
+### 設計判断
+
+#### SLを成行にする理由
+
+| 比較項目 | stop_limit（旧） | stop（新） |
+|---------|----------------|-----------|
+| 約定確実性 | gap throughリスクあり | **100%**（即時約定） |
+| 価格制御 | slippage_buffer 0.8%以内 | なし（市場価格） |
+| タイムアウト対応 | 900秒→成行フォールバック | **不要** |
+| 実績SL損失 | 平均-856円（71%超過） | 推定-500〜550円 |
+| 手数料 | 0.1%（Taker） | 0.1%（Taker） |
+
+BTC/JPYは24時間取引で流動性が高く、成行SLのスリッページは通常1-2ティック（数百円/BTC）程度。stop_limitの約定失敗リスクと比較して、成行の方が損失の予測可能性が遥かに高い。
+
+#### 同方向制限を完全禁止ではなく設定で制御する理由
+
+将来的に勝率が改善した場合、同方向2ポジション（ピラミッディング）が有効になる可能性がある。`max_same_direction_positions`を設定で管理することで、将来の戦略変更に柔軟に対応できる。現時点では各エントリーが独立したTP/SLを持つ設計のため、同方向2ポジションが同時にSLに引っかかると損失が倍増するリスクがある。

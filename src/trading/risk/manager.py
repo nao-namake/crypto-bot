@@ -189,6 +189,14 @@ class IntegratedRiskManager:
                 drawdown_stats = self.drawdown_manager.get_drawdown_statistics()
                 denial_reasons.append(f"ドローダウン制限: {drawdown_stats['trading_status']}")
 
+            # 1.5 Phase 70: 日次/週次損失上限チェック
+            if trading_allowed:
+                daily_loss_check = self.drawdown_manager.check_daily_loss_limit(reference_timestamp)
+                if not daily_loss_check["allowed"]:
+                    trading_allowed = False
+                    denial_reasons.append(daily_loss_check["reason"])
+                    self.logger.warning(f"🚫 Phase 70: {daily_loss_check['reason']}")
+
             # 2. 異常検知
             anomaly_alerts = self.anomaly_detector.comprehensive_anomaly_check(
                 bid=bid,
@@ -290,6 +298,17 @@ class IntegratedRiskManager:
                         btc_price=last_price,
                         reference_timestamp=reference_timestamp,
                     )
+
+                    # Phase 70: 連敗時ポジションサイズ縮小
+                    size_multiplier = self.drawdown_manager.get_position_size_multiplier()
+                    if size_multiplier < 1.0 and position_size > 0:
+                        original_size = position_size
+                        position_size = position_size * size_multiplier
+                        self.logger.warning(
+                            f"⚠️ Phase 70: 連敗{self.drawdown_manager.consecutive_losses}回 - "
+                            f"ポジションサイズ縮小 {original_size:.6f}→{position_size:.6f} "
+                            f"(×{size_multiplier:.0%})"
+                        )
 
                     # Kelly推奨値取得（Phase 54.9: タイムスタンプ渡し）
                     kelly_result = self.kelly.calculate_from_history(

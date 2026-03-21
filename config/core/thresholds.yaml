@@ -148,21 +148,21 @@ ml:
   regime_ml_integration:
     enabled: true
     tight_range:
-      min_ml_confidence: 0.33
+      min_ml_confidence: 0.40
       high_confidence_threshold: 0.55
       ml_weight: 0.15
       strategy_weight: 0.85
       agreement_bonus: 1.25
       disagreement_penalty: 0.7
     normal_range:
-      min_ml_confidence: 0.3
+      min_ml_confidence: 0.38
       high_confidence_threshold: 0.55
       ml_weight: 0.2
       strategy_weight: 0.8
       agreement_bonus: 1.25
       disagreement_penalty: 0.7
     trending:
-      min_ml_confidence: 0.35
+      min_ml_confidence: 0.40
       high_confidence_threshold: 0.55
       ml_weight: 0.35
       strategy_weight: 0.65
@@ -586,6 +586,7 @@ position_management:
   min_account_balance: 10000
   max_open_positions: 3
   max_daily_trades: 50
+  max_same_direction_positions: 1
   cooldown_minutes: 15
   min_trade_size: 0.0001
   max_position_ratio_per_trade:
@@ -636,12 +637,12 @@ position_management:
       fallback_to_native: true
     fixed_amount:
       enabled: true
-      target_net_profit: 500
+      target_net_profit: 750
       confidence_based:
         enabled: true
         threshold: 0.4
-        low: 400
-        high: 500
+        low: 600
+        high: 750
       include_entry_fee: true
       include_exit_fee_rebate: true
       include_interest: true
@@ -653,24 +654,24 @@ position_management:
         min_profit_ratio: 0.004
         weekend_ratio: 0.0025
         default_ratio: 1.33
-        fixed_amount_target: 500
+        fixed_amount_target: 750
       normal_range:
         min_profit_ratio: 0.01
         weekend_ratio: 0.0065
         default_ratio: 1.43
-        fixed_amount_target: 500
+        fixed_amount_target: 750
       trending:
         min_profit_ratio: 0.015
         weekend_ratio: 0.01
         default_ratio: 1.5
-        fixed_amount_target: 500
+        fixed_amount_target: 750
       high_volatility:
         min_profit_ratio: 0.02
         default_ratio: 1.33
-        fixed_amount_target: 500
+        fixed_amount_target: 750
   stop_loss:
     enabled: true
-    order_type: stop_limit
+    order_type: stop
     slippage_buffer: 0.008
     stop_limit_timeout: 900
     skip_bot_monitoring: true

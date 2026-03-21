@@ -289,6 +289,103 @@ class TestCheckMaxPositions:
         assert "ポジション数OK" in result["reason"]
 
 
+class TestCheckSameDirectionPositions:
+    """Phase 69.8: _check_same_direction_positions() テスト"""
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_same_direction_blocked(self, mock_threshold, limits, sample_evaluation):
+        """同方向ポジションが上限に達している場合ブロック"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = "buy"
+        virtual_positions = [{"order_id": "1", "side": "buy"}]
+
+        result = limits._check_same_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is False
+        assert "同方向ポジション制限" in result["reason"]
+        assert "buy" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_opposite_direction_allowed(self, mock_threshold, limits, sample_evaluation):
+        """反対方向のポジションは制限しない"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = "sell"
+        virtual_positions = [{"order_id": "1", "side": "buy"}]
+
+        result = limits._check_same_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is True
+        assert "同方向ポジション数OK" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_no_existing_positions_allowed(self, mock_threshold, limits, sample_evaluation):
+        """既存ポジションなしの場合は許可"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = "buy"
+
+        result = limits._check_same_direction_positions(sample_evaluation, [])
+
+        assert result["allowed"] is True
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_limit_disabled_when_zero(self, mock_threshold, limits, sample_evaluation):
+        """設定値0で制限無効"""
+        mock_threshold.return_value = 0
+
+        sample_evaluation.side = "buy"
+        virtual_positions = [{"order_id": "1", "side": "buy"}]
+
+        result = limits._check_same_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is True
+        assert "同方向制限無効" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_limit_two_allows_second(self, mock_threshold, limits, sample_evaluation):
+        """上限2の場合、1件目は許可"""
+        mock_threshold.return_value = 2
+
+        sample_evaluation.side = "buy"
+        virtual_positions = [{"order_id": "1", "side": "buy"}]
+
+        result = limits._check_same_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is True
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_no_side_info_skips(self, mock_threshold, limits, sample_evaluation):
+        """side情報がない場合はスキップ"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = None
+        virtual_positions = [{"order_id": "1", "side": "buy"}]
+
+        result = limits._check_same_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is True
+        assert "side情報なし" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_mixed_positions_counts_correctly(self, mock_threshold, limits, sample_evaluation):
+        """buy/sell混在でも正しくカウント"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = "buy"
+        virtual_positions = [
+            {"order_id": "1", "side": "sell"},
+            {"order_id": "2", "side": "sell"},
+            {"order_id": "3", "side": "buy"},
+        ]
+
+        result = limits._check_same_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is False
+        assert "同方向ポジション制限" in result["reason"]
+
+
 class TestCheckCapitalUsage:
     """_check_capital_usage() テスト"""
 

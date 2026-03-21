@@ -39,6 +39,11 @@ class TradingCycleManager:
         # 市場データキャッシュ
         self.market_data_cache = None
 
+        # Phase 70: シグナル一貫性チェック用バッファ
+        # 過去N回のシグナル方向を記録し、連続同方向の場合のみエントリー許可
+        self._signal_history: list[str] = []  # ["buy", "sell", "hold", ...]
+        self._signal_consistency_required = 2  # 必要連続回数
+
         # Phase 51.3: Dynamic Strategy Selection初期化
         self.dynamic_strategy_selector = None
         self.market_regime_classifier = None
@@ -115,6 +120,9 @@ class TradingCycleManager:
                 trading_info,
                 individual_strategy_signals=strategy_signals,
             )
+
+            # Phase 70: シグナル一貫性チェック
+            trade_evaluation = self._apply_signal_consistency_check(trade_evaluation)
 
             # Phase 8: 注文実行
             await self._execute_approved_trades(trade_evaluation, cycle_id)
@@ -1105,6 +1113,77 @@ class TradingCycleManager:
         self.logger.critical(f"❌ 予期しない取引サイクルエラー - ID: {cycle_id}: {e}")
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         raise CryptoBotError(f"取引サイクルで予期しないエラー - ID: {cycle_id}: {e}")
+
+    def _apply_signal_consistency_check(self, trade_evaluation):
+        """
+        Phase 70: シグナル一貫性チェック
+
+        過去N回のシグナルと同方向の場合のみエントリーを許可する。
+        異なる方向のシグナルが来た場合はHOLDに変換し、ノイズシグナルを削減。
+
+        Args:
+            trade_evaluation: リスク評価結果
+
+        Returns:
+            TradeEvaluation: 一貫性チェック適用後の評価結果
+        """
+        try:
+            from ...trading.core import RiskDecision
+
+            decision_value = getattr(trade_evaluation, "decision", None)
+            is_approved = decision_value == RiskDecision.APPROVED or (
+                hasattr(decision_value, "value") and decision_value.value == "approved"
+            )
+
+            side = getattr(trade_evaluation, "side", "none")
+
+            # シグナル方向をバッファに記録（承認/拒否に関わらず）
+            if side and side.lower() not in ("none", "hold", ""):
+                self._signal_history.append(side.lower())
+            else:
+                self._signal_history.append("hold")
+
+            # バッファサイズ制限（直近5回分）
+            if len(self._signal_history) > 5:
+                self._signal_history = self._signal_history[-5:]
+
+            # 承認済みトレードのみチェック
+            if not is_approved or side.lower() in ("none", "hold", ""):
+                return trade_evaluation
+
+            # 一貫性チェック: 直近N回が同方向かどうか
+            required = self._signal_consistency_required
+            if len(self._signal_history) < required:
+                # 履歴不足 → 拒否（初回サイクルは様子見）
+                self.logger.info(
+                    f"📊 Phase 70: シグナル履歴不足 "
+                    f"({len(self._signal_history)}/{required}回) → エントリー保留"
+                )
+                trade_evaluation.decision = RiskDecision.DENIED
+                trade_evaluation.denial_reasons.append(
+                    f"Phase 70: シグナル履歴不足（{len(self._signal_history)}/{required}回）"
+                )
+                return trade_evaluation
+
+            recent = self._signal_history[-required:]
+            if not all(s == side.lower() for s in recent):
+                self.logger.info(
+                    f"📊 Phase 70: シグナル不一致 → エントリー保留 " f"(履歴={recent}, 現在={side})"
+                )
+                trade_evaluation.decision = RiskDecision.DENIED
+                trade_evaluation.denial_reasons.append(
+                    f"Phase 70: シグナル一貫性不足（直近{required}回不一致: {recent}）"
+                )
+                return trade_evaluation
+
+            self.logger.info(
+                f"✅ Phase 70: シグナル一貫性確認 ({required}回連続{side}) → エントリー許可"
+            )
+            return trade_evaluation
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 70: シグナル一貫性チェックエラー（継続）: {e}")
+            return trade_evaluation
 
     async def _pre_execution_verification(self, trade_evaluation, cycle_id) -> dict:
         """

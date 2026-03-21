@@ -78,6 +78,10 @@ class DrawdownManager:
         self.mode = mode
         self.config = config or {}
 
+        # 日次/週次損失制限（Phase 70）
+        self.daily_loss_limit = get_threshold("risk.daily_loss_limit", 0.05)
+        self.weekly_loss_limit = get_threshold("risk.weekly_loss_limit", 0.1)
+
         # 状態変数
         self.initial_balance = 10000.0
         self.peak_balance = 10000.0
@@ -232,8 +236,110 @@ class DrawdownManager:
         # 状態保存
         self._save_state()
 
+    def get_daily_pnl(self, current_time: Optional[datetime] = None) -> float:
+        """
+        Phase 70: 日次PnL計算
+
+        Args:
+            current_time: 基準時刻（None時はdatetime.now()）
+
+        Returns:
+            float: 本日の累計損益
+        """
+        now = current_time if current_time is not None else datetime.now()
+        today = now.date()
+        daily_pnl = sum(t.profit_loss for t in self.trade_history if t.timestamp.date() == today)
+        return daily_pnl
+
+    def get_weekly_pnl(self, current_time: Optional[datetime] = None) -> float:
+        """
+        Phase 70: 週次PnL計算
+
+        Args:
+            current_time: 基準時刻（None時はdatetime.now()）
+
+        Returns:
+            float: 今週の累計損益
+        """
+        now = current_time if current_time is not None else datetime.now()
+        week_start = now - timedelta(days=now.weekday())
+        week_start_date = week_start.date()
+        weekly_pnl = sum(
+            t.profit_loss for t in self.trade_history if t.timestamp.date() >= week_start_date
+        )
+        return weekly_pnl
+
+    def check_daily_loss_limit(self, current_time: Optional[datetime] = None) -> Dict[str, Any]:
+        """
+        Phase 70: 日次/週次損失上限チェック
+
+        Args:
+            current_time: 基準時刻
+
+        Returns:
+            Dict: {"allowed": bool, "reason": str, "daily_pnl": float, ...}
+        """
+        daily_pnl = self.get_daily_pnl(current_time)
+        weekly_pnl = self.get_weekly_pnl(current_time)
+
+        # 日次損失上限チェック（初期残高ベース）
+        daily_loss_abs = self.initial_balance * self.daily_loss_limit
+        if daily_pnl <= -daily_loss_abs:
+            return {
+                "allowed": False,
+                "reason": (
+                    f"日次損失上限到達: {daily_pnl:.0f}円 <= -{daily_loss_abs:.0f}円 "
+                    f"({self.daily_loss_limit * 100:.0f}%)"
+                ),
+                "daily_pnl": daily_pnl,
+                "weekly_pnl": weekly_pnl,
+            }
+
+        # 週次損失上限チェック
+        weekly_loss_abs = self.initial_balance * self.weekly_loss_limit
+        if weekly_pnl <= -weekly_loss_abs:
+            return {
+                "allowed": False,
+                "reason": (
+                    f"週次損失上限到達: {weekly_pnl:.0f}円 <= -{weekly_loss_abs:.0f}円 "
+                    f"({self.weekly_loss_limit * 100:.0f}%)"
+                ),
+                "daily_pnl": daily_pnl,
+                "weekly_pnl": weekly_pnl,
+            }
+
+        return {
+            "allowed": True,
+            "reason": "日次/週次損失上限内",
+            "daily_pnl": daily_pnl,
+            "weekly_pnl": weekly_pnl,
+        }
+
+    def get_position_size_multiplier(self) -> float:
+        """
+        Phase 70: 連敗に応じたポジションサイズ縮小倍率
+
+        - 連敗5回: 50%
+        - 連敗6回: 40%
+        - 連敗7回: 25%
+        - 連敗8回以上: 0%（完全停止はcheck_trading_allowedで処理）
+
+        Returns:
+            float: ポジションサイズ倍率（0.0-1.0）
+        """
+        if self.consecutive_losses >= 8:
+            return 0.0
+        elif self.consecutive_losses >= 7:
+            return 0.25
+        elif self.consecutive_losses >= 6:
+            return 0.4
+        elif self.consecutive_losses >= 5:
+            return 0.5
+        return 1.0
+
     def get_drawdown_statistics(self) -> Dict[str, Any]:
         """ドローダウン統計取得"""
+        daily_loss_check = self.check_daily_loss_limit()
         return {
             "initial_balance": self.initial_balance,
             "peak_balance": self.peak_balance,
@@ -245,6 +351,9 @@ class DrawdownManager:
             "trading_status": self.trading_status.value,
             "trading_allowed": self.check_trading_allowed(),
             "cooldown_until": (self.cooldown_until.isoformat() if self.cooldown_until else None),
+            "daily_pnl": daily_loss_check.get("daily_pnl", 0.0),
+            "weekly_pnl": daily_loss_check.get("weekly_pnl", 0.0),
+            "position_size_multiplier": self.get_position_size_multiplier(),
         }
 
     def _save_state(self) -> None:
