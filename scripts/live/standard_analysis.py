@@ -89,14 +89,9 @@ class InfrastructureCheckResult:
     service_account: str = ""
     bitbank_key_ok: bool = False
     bitbank_secret_ok: bool = False
-    discord_ok: bool = False
-
     # Container安定性
     container_exit_count: int = 0
     runtime_warning_count: int = 0
-
-    # Discord通知
-    discord_error_count: int = 0
 
     # API残高取得
     api_balance_count: int = 0
@@ -232,7 +227,6 @@ class InfrastructureChecker:
         self._check_cloud_run()
         self._check_secret_manager()
         self._check_container_stability()
-        self._check_discord()
         self._check_api_balance()
         self._check_position_restore()
         self._check_trade_blocking_errors()
@@ -322,7 +316,6 @@ class InfrastructureChecker:
                 for secret, attr in [
                     ("bitbank-api-key", "bitbank_key_ok"),
                     ("bitbank-api-secret", "bitbank_secret_ok"),
-                    ("discord-webhook-url", "discord_ok"),
                 ]:
                     check = subprocess.run(
                         [
@@ -339,11 +332,7 @@ class InfrastructureChecker:
                     if check.returncode == 0 and self.result.service_account in check.stdout:
                         setattr(self.result, attr, True)
 
-                if (
-                    self.result.bitbank_key_ok
-                    and self.result.bitbank_secret_ok
-                    and self.result.discord_ok
-                ):
+                if self.result.bitbank_key_ok and self.result.bitbank_secret_ok:
                     self.result.normal_checks += 1
                 else:
                     self.result.critical_issues += 2
@@ -364,17 +353,6 @@ class InfrastructureChecker:
             self.result.normal_checks += 1
         elif self.result.container_exit_count < 10 and self.result.runtime_warning_count < 5:
             self.result.warning_issues += 1
-        else:
-            self.result.critical_issues += 1
-
-    def _check_discord(self):
-        """Discord通知確認"""
-        self.logger.info("📨 Discord 通知確認")
-        self.result.discord_error_count = self._count_gcp_logs(
-            'textPayload:"code: 50027" OR textPayload:"Invalid Webhook Token"', 5
-        )
-        if self.result.discord_error_count == 0:
-            self.result.normal_checks += 1
         else:
             self.result.critical_issues += 1
 
@@ -2889,10 +2867,9 @@ def _generate_diagnostic_markdown(
         "| 項目 | 結果 |",
         "|------|------|",
         f"| Cloud Run状態 | {infra_result.cloud_run_status} |",
-        f"| Secret Manager権限 | {'✅ 全正常' if infra_result.bitbank_key_ok and infra_result.bitbank_secret_ok and infra_result.discord_ok else '❌ 欠如あり'} |",
+        f"| Secret Manager権限 | {'✅ 全正常' if infra_result.bitbank_key_ok and infra_result.bitbank_secret_ok else '❌ 欠如あり'} |",
         f"| Container exit(1) | {infra_result.container_exit_count}回 |",
         f"| RuntimeWarning | {infra_result.runtime_warning_count}回 |",
-        f"| Discordエラー | {infra_result.discord_error_count}回 |",
         f"| API残高取得 | {infra_result.api_balance_count}回 |",
         f"| フォールバック使用 | {infra_result.fallback_count}回 |",
         f"| NoneTypeエラー | {infra_result.nonetype_error_count}回 |",
