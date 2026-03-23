@@ -1231,11 +1231,12 @@ class TPSLManager:
             float: SL価格
         """
         target = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_TARGET, 500)
-        # Phase 69: entry_feeはサンクコスト → SL予算から除外
-        # SL決済手数料のみ考慮（Taker 0.1%）
+        # Phase 70.2: entry_feeをSL予算に再包含（bitbank PnLとの整合性確保）
+        entry_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_ENTRY_FEE, 0.001)
+        entry_fee = avg_price * amount * entry_fee_rate
         exit_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_EXIT_FEE, 0.001)
         exit_fee = avg_price * amount * exit_fee_rate
-        gross_needed = target - exit_fee
+        gross_needed = target - exit_fee - entry_fee
         if gross_needed <= 0:
             gross_needed = target
         sl_offset = gross_needed / amount

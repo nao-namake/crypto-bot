@@ -697,7 +697,7 @@ position_management:
         threshold: 0.4
         low: 400
         high: 500
-      include_entry_fee: false
+      include_entry_fee: true
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true
       fallback_exit_fee_rate: 0.001

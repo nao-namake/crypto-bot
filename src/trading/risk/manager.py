@@ -353,16 +353,21 @@ class IntegratedRiskManager:
                                     )
                                     take_profit = recalculated_tp
 
-                        # Phase 66.6: 固定金額SL再計算
+                        # Phase 66.6 + Phase 70.2: 固定金額SL再計算
                         if stop_loss:
                             fixed_sl_config = get_threshold(
                                 "position_management.stop_loss.fixed_amount", {}
                             )
                             if fixed_sl_config.get("enabled", False):
                                 sl_target = fixed_sl_config.get("target_max_loss", 500)
+                                # Phase 70.2: entry_fee再包含
+                                entry_fee_rate = fixed_sl_config.get(
+                                    "fallback_entry_fee_rate", 0.001
+                                )
+                                entry_fee = last_price * position_size * entry_fee_rate
                                 exit_fee_rate = fixed_sl_config.get("fallback_exit_fee_rate", 0.001)
                                 exit_fee = last_price * position_size * exit_fee_rate
-                                gross_loss = sl_target - exit_fee
+                                gross_loss = sl_target - exit_fee - entry_fee
                                 if gross_loss > 0:
                                     sl_distance = gross_loss / position_size
                                     if sl_distance <= last_price * 0.10:

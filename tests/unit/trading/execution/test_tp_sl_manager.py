@@ -1264,7 +1264,7 @@ class TestTPSLConfigPaths:
         )
 
 
-class TestPhase69FixedAmountSLNoEntryFee:
+class TestPhase70FixedAmountSLWithEntryFee:
     """Phase 69: 復元ポジション固定金額SL（entry_feeはサンクコスト→除外）"""
 
     @pytest.fixture
@@ -1272,8 +1272,8 @@ class TestPhase69FixedAmountSLNoEntryFee:
         return TPSLManager()
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
-    def test_sl_excludes_entry_fee(self, mock_threshold, tp_sl_manager):
-        """Phase 69: SL計算がexit_feeのみ考慮（entry_fee除外）"""
+    def test_sl_includes_entry_fee(self, mock_threshold, tp_sl_manager):
+        """Phase 70.2: SL計算がentry_fee+exit_fee両方を考慮"""
 
         def threshold_side_effect(key, default=None):
             mapping = {
@@ -1290,17 +1290,19 @@ class TestPhase69FixedAmountSLNoEntryFee:
         amount = 0.02
         sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("long", amount, avg_price)
 
+        # entry_fee = 10,800,000 * 0.02 * 0.001 = 216
         # exit_fee = 10,800,000 * 0.02 * 0.001 = 216
-        # gross_needed = 500 - 216 = 284
-        # sl_offset = 284 / 0.02 = 14,200
-        # sl_price = 10,800,000 - 14,200 = 10,785,800
+        # gross_needed = 500 - 216 - 216 = 68
+        # sl_offset = 68 / 0.02 = 3,400
+        # sl_price = 10,800,000 - 3,400 = 10,796,600
+        entry_fee = avg_price * amount * 0.001  # 216
         exit_fee = avg_price * amount * 0.001  # 216
-        expected_sl = avg_price - (500 - exit_fee) / amount
+        expected_sl = avg_price - (500 - exit_fee - entry_fee) / amount
         assert abs(sl_price - expected_sl) < 1.0
 
-        # 実損検証: offset * amount + exit_fee = 500
+        # 実損検証: offset * amount + exit_fee + entry_fee = 500
         sl_offset = avg_price - sl_price
-        actual_loss = sl_offset * amount + exit_fee
+        actual_loss = sl_offset * amount + exit_fee + entry_fee
         assert abs(actual_loss - 500) < 1.0
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")

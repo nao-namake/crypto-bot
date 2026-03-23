@@ -458,9 +458,19 @@ class RiskManager:
                 exit_fee_rate = fixed_sl_config.get("fallback_exit_fee_rate", 0.001)
                 exit_fee = current_price * position_amount * exit_fee_rate
 
-                # Phase 69: entry_feeはサンクコスト（エントリー時に支払済み）
-                # SL予算から差し引くとSL距離が極端に狭くなるバグを修正
-                gross_loss = sl_target - exit_fee
+                # Phase 70.2: entry_feeをSL予算に再包含
+                # Phase 69で「サンクコスト」として除外したが、bitbank PnLには
+                # entry_feeが含まれるため、実損がSL目標を常に超過していた。
+                # Phase 69の根本原因は二重計上バグ（修正済み）であり、
+                # entry_fee自体の包含は正しい。
+                include_entry_fee = fixed_sl_config.get("include_entry_fee", True)
+                if include_entry_fee:
+                    entry_fee_rate = fixed_sl_config.get("fallback_entry_fee_rate", 0.001)
+                    entry_fee = current_price * position_amount * entry_fee_rate
+                else:
+                    entry_fee = 0
+
+                gross_loss = sl_target - exit_fee - entry_fee
                 if gross_loss > 0:
                     fixed_sl_distance = gross_loss / position_amount
 
@@ -468,8 +478,9 @@ class RiskManager:
                     if fixed_sl_distance <= current_price * 0.10:
                         stop_loss_distance = fixed_sl_distance
                         logger.info(
-                            f"🛡️ Phase 69: 固定金額SL適用 - "
+                            f"🛡️ Phase 70.2: 固定金額SL適用 - "
                             f"目標最大損失={sl_target:.0f}円{confidence_label}, "
+                            f"エントリー手数料={entry_fee:.0f}円, "
                             f"決済手数料={exit_fee:.0f}円, "
                             f"SL距離={fixed_sl_distance:.0f}円"
                             f"({fixed_sl_distance / current_price * 100:.2f}%)"

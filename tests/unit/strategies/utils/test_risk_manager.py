@@ -507,11 +507,12 @@ class TestConfidenceBasedTPSL(unittest.TestCase):
         assert stop_loss is not None
         assert take_profit is not None
 
-        # Phase 69: SL距離から目標損失を逆算（entry_feeはサンクコスト→除外）
+        # Phase 70.2: entry_fee再包含
         sl_distance = self.current_price - stop_loss
         sl_gross = sl_distance * 0.01
         exit_fee = self.current_price * 0.01 * 0.001
-        total_loss = sl_gross + exit_fee
+        entry_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + exit_fee + entry_fee
         self.assertAlmostEqual(total_loss, 400, delta=1)
 
         # TP距離から目標利益を逆算
@@ -577,11 +578,12 @@ class TestConfidenceBasedTPSL(unittest.TestCase):
         assert stop_loss is not None
         assert take_profit is not None
 
-        # Phase 69: entry_feeはサンクコスト→除外
+        # Phase 70.2: entry_fee再包含（SL目標 = 価格差損 + exit_fee + entry_fee）
         sl_distance = self.current_price - stop_loss
         sl_gross = sl_distance * 0.01
         exit_fee = self.current_price * 0.01 * 0.001
-        total_loss = sl_gross + exit_fee
+        entry_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + exit_fee + entry_fee
         self.assertAlmostEqual(total_loss, 500, delta=1)
 
     @patch("src.core.config.get_threshold")
@@ -639,11 +641,12 @@ class TestConfidenceBasedTPSL(unittest.TestCase):
         assert stop_loss is not None
         assert take_profit is not None
 
-        # Phase 69: confidence=NoneではフォールバックのSL=500円（entry_fee除外）
+        # Phase 70.2: entry_fee再包含
         sl_distance = self.current_price - stop_loss
         sl_gross = sl_distance * 0.01
         exit_fee = self.current_price * 0.01 * 0.001
-        total_loss = sl_gross + exit_fee
+        entry_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + exit_fee + entry_fee
         self.assertAlmostEqual(total_loss, 500, delta=1)
 
     @patch("src.core.config.get_threshold")
@@ -701,11 +704,12 @@ class TestConfidenceBasedTPSL(unittest.TestCase):
         assert stop_loss is not None
         assert take_profit is not None
 
-        # Phase 69: disabled時はフォールバックの500円（entry_fee除外）
+        # Phase 70.2: entry_fee再包含
         sl_distance = self.current_price - stop_loss
         sl_gross = sl_distance * 0.01
         exit_fee = self.current_price * 0.01 * 0.001
-        total_loss = sl_gross + exit_fee
+        entry_fee = self.current_price * 0.01 * 0.001
+        total_loss = sl_gross + exit_fee + entry_fee
         self.assertAlmostEqual(total_loss, 500, delta=1)
 
 
