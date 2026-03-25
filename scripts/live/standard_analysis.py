@@ -457,6 +457,12 @@ class BotFunctionCheckResult:
     config_check_passed: int = 0
     config_check_failed: int = 0
 
+    # Phase 71: トレンドフィルタ・戦略エントリー統計
+    trend_block_count: int = 0
+    trend_penalty_count: int = 0
+    strategy_entry_counts: Dict[str, int] = field(default_factory=dict)
+    direction_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)
+
     # Phase 65.2: GCPログベース動作確認
     phase65_2_log_count: int = 0
     partial_cancel_count: int = 0
@@ -501,6 +507,7 @@ class BotFunctionChecker:
         self._check_atomic_entry()
         self._check_maker_strategy()  # Phase 62.9-62.10
         self._verify_config()  # 設定検証
+        self._check_phase71_stats()  # Phase 71: トレンドフィルタ・戦略エントリー統計
         self._check_phase65_2_logs()  # Phase 65.2: GCPログ動作確認
         self._check_entry_execution()  # Phase 67.4/67.5: エントリー実行フロー
         self._check_tp_sl_management()  # Phase 67.4/67.5/64.12: TP/SL管理
@@ -579,9 +586,10 @@ class BotFunctionChecker:
             if count > 0:
                 self.result.active_strategy_count += 1
 
-        if self.result.active_strategy_count == 6:
+        # Phase 71: DonchianChannel無効化対応（5戦略でも正常）
+        if self.result.active_strategy_count >= 5:
             self.result.normal_checks += 1
-        elif self.result.active_strategy_count >= 4:
+        elif self.result.active_strategy_count >= 3:
             self.result.warning_issues += 1
         else:
             self.result.critical_issues += 1
@@ -792,6 +800,52 @@ class BotFunctionChecker:
             self.result.warning_issues += 1
         else:
             self.result.critical_issues += 1
+
+    def _check_phase71_stats(self):
+        """Phase 71: トレンドフィルタ・戦略エントリー・方向別統計"""
+        self.logger.info("📊 Phase 71: トレンドフィルタ・戦略統計確認")
+
+        # トレンドフィルタ統計
+        self.result.trend_block_count = self._count_logs('textPayload:"強トレンドブロック"', 20)
+        self.result.trend_penalty_count = self._count_logs(
+            'textPayload:"トレンドフィルタ" AND textPayload:"信頼度削減"', 20
+        )
+
+        # 戦略別エントリー数（GCPログのエントリー分析記録から）
+        for strategy in self.STRATEGIES:
+            count = self._count_logs(
+                f'textPayload:"エントリー分析記録" AND textPayload:"戦略={strategy}"', 20
+            )
+            self.result.strategy_entry_counts[strategy] = count
+
+        # 方向別統計（エントリー分析記録から）
+        buy_entries = self._count_logs(
+            'textPayload:"エントリー分析記録" AND textPayload:"- buy"', 20
+        )
+        sell_entries = self._count_logs(
+            'textPayload:"エントリー分析記録" AND textPayload:"- sell"', 20
+        )
+        # 方向別SL/TP（決済分析記録 + ポジション決済完了から）
+        buy_sl = self._count_logs(
+            'textPayload:"ポジション決済完了: sell" AND textPayload:"SL到達"', 20
+        )
+        sell_sl = self._count_logs(
+            'textPayload:"ポジション決済完了: buy" AND textPayload:"SL到達"', 20
+        )
+        buy_tp = self._count_logs('textPayload:"決済分析記録 - take_profit"', 10)
+
+        self.result.direction_stats = {
+            "buy": {"entries": buy_entries, "sl": buy_sl},
+            "sell": {"entries": sell_entries, "sl": sell_sl},
+            "tp_total": buy_tp,
+        }
+
+        # レジーム分布ログ
+        total_entries = buy_entries + sell_entries
+        if total_entries > 0:
+            self.logger.info(
+                f"📊 Phase 71: エントリー統計 - buy:{buy_entries}件 sell:{sell_entries}件"
+            )
 
     def _check_phase65_2_logs(self):
         """Phase 65.2: GCPログベース動作確認"""
@@ -2742,6 +2796,49 @@ async def main():
         for name, check in bot_result.config_checks.items():
             mark = "✅" if check["ok"] else "❌"
             print(f"   {mark} {name}: {check['actual']} (期待: {check['expected']})")
+
+    # Phase 71: レジーム分布・戦略エントリー・方向別・トレンドフィルタ
+    regime_total = (
+        bot_result.tight_range_count + bot_result.normal_range_count + bot_result.trending_count
+    )
+    if regime_total > 0:
+        print("\n📊 Phase 71: レジーム分布:")
+        for regime_name, count in [
+            ("tight_range", bot_result.tight_range_count),
+            ("normal_range", bot_result.normal_range_count),
+            ("trending", bot_result.trending_count),
+        ]:
+            pct = count / regime_total * 100 if regime_total > 0 else 0
+            print(f"   {regime_name}: {count}回 ({pct:.0f}%)")
+
+    if bot_result.strategy_entry_counts:
+        active = {k: v for k, v in bot_result.strategy_entry_counts.items() if v > 0}
+        inactive = {k: v for k, v in bot_result.strategy_entry_counts.items() if v == 0}
+        print("\n📊 Phase 71: 戦略別エントリー:")
+        for name, count in sorted(active.items(), key=lambda x: -x[1]):
+            print(f"   {name}: {count}件")
+        if inactive:
+            print(f"   無効化: {', '.join(inactive.keys())}")
+
+    if bot_result.direction_stats:
+        ds = bot_result.direction_stats
+        buy_e = ds.get("buy", {}).get("entries", 0)
+        sell_e = ds.get("sell", {}).get("entries", 0)
+        buy_sl = ds.get("buy", {}).get("sl", 0)
+        sell_sl = ds.get("sell", {}).get("sl", 0)
+        if buy_e + sell_e > 0:
+            print("\n📊 Phase 71: 方向別統計:")
+            if buy_e > 0:
+                buy_sl_rate = buy_sl / buy_e * 100 if buy_e > 0 else 0
+                print(f"   buy:  エントリー{buy_e}件, SL{buy_sl}件 (SL率{buy_sl_rate:.0f}%)")
+            if sell_e > 0:
+                sell_sl_rate = sell_sl / sell_e * 100 if sell_e > 0 else 0
+                print(f"   sell: エントリー{sell_e}件, SL{sell_sl}件 (SL率{sell_sl_rate:.0f}%)")
+
+    if bot_result.trend_block_count > 0 or bot_result.trend_penalty_count > 0:
+        print("\n📊 Phase 71: トレンドフィルタ:")
+        print(f"   強トレンドブロック: {bot_result.trend_block_count}回")
+        print(f"   信頼度削減: {bot_result.trend_penalty_count}回")
 
     # Phase 65.2: TP/SLフルカバー動作
     if bot_result.phase65_2_log_count > 0:
