@@ -63,10 +63,10 @@ class MarketRegimeClassifier:
         """
         市場状況を4段階分類
 
-        優先順位:
+        優先順位（Phase 71: トレンドを先に判定）:
         1. 高ボラティリティ判定（最優先・リスク回避）
-        2. 狭いレンジ判定
-        3. トレンド判定
+        2. トレンド判定
+        3. 狭いレンジ判定（EMA傾き拒否条件付き）
         4. 通常レンジ判定
         5. デフォルト: 通常レンジ
 
@@ -108,10 +108,12 @@ class MarketRegimeClassifier:
             nr_bb_threshold = get_threshold("market_regime.normal_range.bb_width_threshold", 0.05)
             nr_adx_threshold = get_threshold("market_regime.normal_range.adx_threshold", 22)
 
-            # 分類ロジック（優先順位順）
+            # Phase 71: EMA傾き（長期）をtight_range拒否条件用に計算
+            ema_slope_long = self._calc_ema_slope(df, period=self.ema_period, lookback=10)
+
+            # 分類ロジック（Phase 71: 優先順位変更 — トレンドを先に判定）
             # 1. 高ボラティリティ判定（最優先）
             if self._is_high_volatility(atr_ratio):
-                # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(
                         f"⚠️ 高ボラティリティ検出: ATR比={atr_ratio:.4f} (> {hv_threshold})"
@@ -122,24 +124,8 @@ class MarketRegimeClassifier:
                     )
                 return RegimeType.HIGH_VOLATILITY
 
-            # 2. 狭いレンジ判定
-            if self._is_tight_range(bb_width, price_range):
-                # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
-                if os.environ.get("BACKTEST_MODE") == "true":
-                    self.logger.debug(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
-                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
-                    )
-                else:
-                    self.logger.warning(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
-                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
-                    )
-                return RegimeType.TIGHT_RANGE
-
-            # 3. トレンド判定
+            # 2. トレンド判定（Phase 71: tight_rangeより先に判定）
             if self._is_trending(adx, ema_slope):
-                # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
                 if os.environ.get("BACKTEST_MODE") == "true":
                     self.logger.debug(
                         f"📈 トレンド検出: ADX={adx:.2f} (> {trend_adx_threshold}), "
@@ -151,6 +137,21 @@ class MarketRegimeClassifier:
                         f"EMA傾き={ema_slope:.4f} (> {trend_ema_threshold})"
                     )
                 return RegimeType.TRENDING
+
+            # 3. 狭いレンジ判定（Phase 71: EMA傾き拒否条件付き）
+            max_ema_slope = get_threshold("market_regime.tight_range.max_ema_slope", 0.0008)
+            if self._is_tight_range(bb_width, price_range) and abs(ema_slope_long) <= max_ema_slope:
+                if os.environ.get("BACKTEST_MODE") == "true":
+                    self.logger.debug(
+                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
+                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
+                    )
+                else:
+                    self.logger.warning(
+                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
+                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
+                    )
+                return RegimeType.TIGHT_RANGE
 
             # 4. 通常レンジ判定
             if self._is_normal_range(bb_width, adx):

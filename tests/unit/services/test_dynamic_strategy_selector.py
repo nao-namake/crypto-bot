@@ -38,11 +38,11 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 67: StochasticReversal削減 + ATRBased集中
+        # Phase 71: DonchianChannel無効化 + ATRBased集中
         assert weights["BBReversal"] == 0.15  # 維持
-        assert weights["StochasticReversal"] == 0.10  # Phase 67: 0.30→0.10
-        assert weights["ATRBased"] == 0.45  # Phase 67: 0.30→0.45
-        assert weights["DonchianChannel"] == 0.30  # Phase 67: 0.25→0.30
+        assert weights["StochasticReversal"] == 0.10  # 維持
+        assert weights["ATRBased"] == 0.75  # Phase 71: 0.45→0.75
+        assert weights["DonchianChannel"] == 0.0  # Phase 71: 無効化
         assert weights["ADXTrendStrength"] == 0.0  # トレンド型→無効化
         assert weights["MACDEMACrossover"] == 0.0  # トレンド型→無効化
 
@@ -64,10 +64,10 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 69: トレンド型戦略に25%の重みを付与
+        # Phase 71: DonchianChannel無効化 + トレンド型戦略有効
         assert weights["ATRBased"] > 0
         assert weights["BBReversal"] == 0.0  # Phase 59.1: normal_rangeで無効化
-        assert weights["DonchianChannel"] > 0
+        assert weights["DonchianChannel"] == 0.0  # Phase 71: 無効化
         assert weights["StochasticReversal"] > 0
         assert weights["ADXTrendStrength"] > 0  # Phase 69: トレンド型有効化
         assert weights["MACDEMACrossover"] > 0  # Phase 69: トレンド型有効化
@@ -94,7 +94,7 @@ class TestDynamicStrategySelector:
         assert weights["ADXTrendStrength"] > 0
         assert weights["MACDEMACrossover"] > 0
         assert weights["ATRBased"] > 0
-        assert weights["DonchianChannel"] > 0
+        assert weights["DonchianChannel"] == 0.0  # Phase 71: 無効化
 
         # レンジ型戦略は0.0（無効化）
         assert weights["BBReversal"] == 0.0

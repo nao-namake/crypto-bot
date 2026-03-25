@@ -188,83 +188,125 @@ class StrategyManager:
         self, signals: Dict[str, StrategySignal], df: pd.DataFrame
     ) -> Dict[str, StrategySignal]:
         """
-        Phase 69: EMAトレンド方向フィルタ
+        Phase 71: EMAトレンド方向フィルタ（強化版）
 
-        EMA傾き > threshold（上昇）の時にSELLシグナルの信頼度を削減。
-        EMA傾き < -threshold（下降）の時にBUYシグナルの信頼度を削減。
+        Phase 69: 逆トレンド信頼度50%削減
+        Phase 71: 強トレンド時は逆方向を完全ブロック + DI spread確認
         """
         trend_filter_config = get_threshold("dynamic_strategy_selection.trend_filter", {})
         if not trend_filter_config.get("enabled", False):
             return signals
 
-        ema_slope_threshold = trend_filter_config.get("ema_slope_threshold", 0.003)
-        penalty = trend_filter_config.get("counter_trend_penalty", 0.5)
+        ema_slope_threshold = trend_filter_config.get("ema_slope_threshold", 0.001)
+        penalty = trend_filter_config.get("counter_trend_penalty", 0.3)
+        strong_multiplier = trend_filter_config.get("strong_trend_multiplier", 2.0)
+        strong_block = trend_filter_config.get("strong_trend_block", True)
+        di_enabled = trend_filter_config.get("di_confirmation_enabled", True)
+        di_threshold = trend_filter_config.get("di_spread_threshold", 5)
 
-        # EMA傾き計算（EMA20の2期間変化率）
+        # Phase 71: EMA傾き計算（5期間変化率に延長）
         try:
-            if "ema_20" not in df.columns or len(df) < 3:
+            if "ema_20" not in df.columns or len(df) < 6:
                 return signals
 
             ema_values = df["ema_20"].dropna()
-            if len(ema_values) < 3:
+            if len(ema_values) < 6:
                 return signals
 
-            ema_slope = (ema_values.iloc[-1] - ema_values.iloc[-3]) / ema_values.iloc[-3]
+            ema_slope = (ema_values.iloc[-1] - ema_values.iloc[-6]) / ema_values.iloc[-6]
         except Exception:
             return signals
 
         if abs(ema_slope) < ema_slope_threshold:
             return signals
 
-        # 逆トレンドシグナルにペナルティ適用
+        # Phase 71: DI spread確認（オプション）
+        di_confirms_up = False
+        di_confirms_down = False
+        if di_enabled and "plus_di_14" in df.columns and "minus_di_14" in df.columns:
+            try:
+                plus_di = float(df["plus_di_14"].iloc[-1])
+                minus_di = float(df["minus_di_14"].iloc[-1])
+                di_spread = plus_di - minus_di
+                di_confirms_up = di_spread > di_threshold
+                di_confirms_down = di_spread < -di_threshold
+            except Exception:
+                pass
+
+        # Phase 71: 強トレンド判定
+        strong_threshold = ema_slope_threshold * strong_multiplier
+        is_strong_trend = abs(ema_slope) > strong_threshold
+
+        # 逆トレンドシグナルにペナルティ or ブロック適用
         filtered_signals = {}
         for name, signal in signals.items():
+            is_counter_trend = False
+            trend_dir = ""
+
             if ema_slope > ema_slope_threshold and signal.action == "sell":
-                # 上昇トレンド中のSELL → 信頼度削減
-                new_confidence = signal.confidence * penalty
-                filtered_signals[name] = StrategySignal(
-                    strategy_name=signal.strategy_name,
-                    timestamp=signal.timestamp,
-                    action=signal.action,
-                    confidence=new_confidence,
-                    strength=signal.strength,
-                    current_price=signal.current_price,
-                    entry_price=signal.entry_price,
-                    stop_loss=signal.stop_loss,
-                    take_profit=signal.take_profit,
-                    position_size=signal.position_size,
-                    risk_ratio=signal.risk_ratio,
-                    reason=signal.reason,
-                    metadata=signal.metadata,
-                )
-                self.logger.info(
-                    f"Phase 69: EMAトレンドフィルタ - [{name}] SELL信頼度削減 "
-                    f"{signal.confidence:.3f}→{new_confidence:.3f} "
-                    f"(EMA傾き={ema_slope:.4f})"
-                )
+                is_counter_trend = True
+                trend_dir = "上昇"
+                # DI確認: DIも上昇を示している場合はより確実
+                if di_enabled and di_confirms_up:
+                    is_strong_trend = True
             elif ema_slope < -ema_slope_threshold and signal.action == "buy":
-                # 下降トレンド中のBUY → 信頼度削減
-                new_confidence = signal.confidence * penalty
-                filtered_signals[name] = StrategySignal(
-                    strategy_name=signal.strategy_name,
-                    timestamp=signal.timestamp,
-                    action=signal.action,
-                    confidence=new_confidence,
-                    strength=signal.strength,
-                    current_price=signal.current_price,
-                    entry_price=signal.entry_price,
-                    stop_loss=signal.stop_loss,
-                    take_profit=signal.take_profit,
-                    position_size=signal.position_size,
-                    risk_ratio=signal.risk_ratio,
-                    reason=signal.reason,
-                    metadata=signal.metadata,
-                )
-                self.logger.info(
-                    f"Phase 69: EMAトレンドフィルタ - [{name}] BUY信頼度削減 "
-                    f"{signal.confidence:.3f}→{new_confidence:.3f} "
-                    f"(EMA傾き={ema_slope:.4f})"
-                )
+                is_counter_trend = True
+                trend_dir = "下降"
+                if di_enabled and di_confirms_down:
+                    is_strong_trend = True
+
+            if is_counter_trend:
+                if is_strong_trend and strong_block:
+                    # Phase 71: 強トレンド → 完全ブロック（holdに変換）
+                    filtered_signals[name] = StrategySignal(
+                        strategy_name=signal.strategy_name,
+                        timestamp=signal.timestamp,
+                        action="hold",
+                        confidence=signal.confidence * penalty,
+                        strength=0.0,
+                        current_price=signal.current_price,
+                        entry_price=signal.entry_price,
+                        stop_loss=None,
+                        take_profit=None,
+                        position_size=signal.position_size,
+                        risk_ratio=signal.risk_ratio,
+                        reason=f"Phase 71: 強{trend_dir}トレンド中の逆張りブロック",
+                        metadata={
+                            **(signal.metadata or {}),
+                            "trend_blocked": True,
+                            "original_action": signal.action,
+                            "ema_slope": ema_slope,
+                        },
+                    )
+                    self.logger.warning(
+                        f"Phase 71: 強トレンドブロック - [{name}] "
+                        f"{signal.action.upper()}→HOLD "
+                        f"(EMA傾き={ema_slope:.4f}, 強閾値={strong_threshold:.4f})"
+                    )
+                else:
+                    # 中トレンド → 信頼度削減（Phase 71: 0.5→0.3に強化）
+                    new_confidence = signal.confidence * penalty
+                    filtered_signals[name] = StrategySignal(
+                        strategy_name=signal.strategy_name,
+                        timestamp=signal.timestamp,
+                        action=signal.action,
+                        confidence=new_confidence,
+                        strength=signal.strength,
+                        current_price=signal.current_price,
+                        entry_price=signal.entry_price,
+                        stop_loss=signal.stop_loss,
+                        take_profit=signal.take_profit,
+                        position_size=signal.position_size,
+                        risk_ratio=signal.risk_ratio,
+                        reason=signal.reason,
+                        metadata=signal.metadata,
+                    )
+                    self.logger.info(
+                        f"Phase 71: トレンドフィルタ - [{name}] "
+                        f"{signal.action.upper()}信頼度削減 "
+                        f"{signal.confidence:.3f}→{new_confidence:.3f} "
+                        f"(EMA傾き={ema_slope:.4f})"
+                    )
             else:
                 filtered_signals[name] = signal
 

@@ -105,9 +105,10 @@ market_regime:
   tight_range:
     bb_width_threshold: 0.02
     price_range_threshold: 0.012
+    max_ema_slope: 0.0008
   trending:
-    adx_threshold: 22
-    ema_slope_threshold: 0.001
+    adx_threshold: 20
+    ema_slope_threshold: 0.0007
   normal_range:
     bb_width_threshold: 0.05
     adx_threshold: 22
@@ -260,27 +261,31 @@ dynamic_strategy_selection:
   trend_filter:
     enabled: true
     ema_slope_threshold: 0.001
-    counter_trend_penalty: 0.5
+    counter_trend_penalty: 0.3
+    strong_trend_multiplier: 2.0
+    strong_trend_block: true
+    di_confirmation_enabled: true
+    di_spread_threshold: 5
   regime_strategy_mapping:
     tight_range:
       BBReversal: 0.15
       StochasticReversal: 0.1
-      ATRBased: 0.45
-      DonchianChannel: 0.3
+      ATRBased: 0.75
+      DonchianChannel: 0.0
       ADXTrendStrength: 0.0
       MACDEMACrossover: 0.0
     normal_range:
-      ATRBased: 0.45
+      ATRBased: 0.65
       StochasticReversal: 0.1
-      DonchianChannel: 0.2
+      DonchianChannel: 0.0
       BBReversal: 0.0
       ADXTrendStrength: 0.15
       MACDEMACrossover: 0.1
     trending:
       ADXTrendStrength: 0.5
       MACDEMACrossover: 0.3
-      ATRBased: 0.15
-      DonchianChannel: 0.05
+      ATRBased: 0.2
+      DonchianChannel: 0.0
       BBReversal: 0.0
       StochasticReversal: 0.0
     high_volatility:
@@ -840,7 +845,7 @@ feature_flags:
       ATRBased:
         enabled: true
       DonchianChannel:
-        enabled: true
+        enabled: false
       ADXTrendStrength:
         enabled: true
       MACDEMACrossover:
