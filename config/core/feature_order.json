@@ -1,9 +1,9 @@
 {
-  "feature_order_version": "v4.3.0",
-  "phase": "Phase 65.3",
+  "feature_order_version": "v5.0.0",
+  "phase": "Phase 72",
   "total_features": 55,
-  "last_updated": "2026-02-22T00:00:00Z",
-  "description": "55特徴量（49基本+6戦略信号・6戦略完全対応）",
+  "last_updated": "2026-03-27T00:00:00Z",
+  "description": "55特徴量（49基本+6戦略信号・Phase 72: CMF/CCI/Williams%R追加）",
 
   "feature_levels": {
     "full": {
@@ -69,10 +69,10 @@
     },
 
     "breakout": {
-      "description": "ブレイクアウト指標（3個）- Phase 51.7 Day 7",
+      "description": "チャネル・出来高フロー指標（3個）- Phase 72: CMF/CCI追加",
       "features": [
-        "donchian_high_20",
-        "donchian_low_20",
+        "cmf_20",
+        "cci_20",
         "channel_position"
       ]
     },
@@ -124,11 +124,11 @@
     },
 
     "time": {
-      "description": "時間ベース特徴量（Time-based Features・7個）- Phase 51.7削減",
+      "description": "時間・モメンタム補完特徴量（7個）- Phase 72: Williams%R追加",
       "features": [
         "hour",
         "day_of_week",
-        "is_market_open_hour",
+        "williams_r_14",
         "is_europe_session",
         "hour_cos",
         "day_sin",
@@ -272,21 +272,23 @@
       "importance": "medium",
       "phase": "Phase 51.7 Day 2"
     },
-    "donchian_high_20": {
-      "type": "breakout",
-      "description": "20期間最高値",
-      "range": "positive_float",
-      "importance": "low",
-      "feature_importance": 1,
-      "note": "Phase 51.7 Day 7復活: DonchianChannel戦略で必須",
-      "phase": "Phase 51.7 Day 7"
+    "cmf_20": {
+      "type": "volume_flow",
+      "description": "Chaikin Money Flow 20期間（-1〜+1、正=買い圧力）",
+      "range": "-1.0 to 1.0",
+      "importance": "high",
+      "feature_importance": 0,
+      "note": "Phase 72追加: donchian_high_20の代替。短期暗号資産で高予測力",
+      "phase": "Phase 72"
     },
-    "donchian_low_20": {
-      "type": "breakout",
-      "description": "20期間最安値",
-      "range": "positive_float",
-      "importance": "low",
-      "feature_importance": 1
+    "cci_20": {
+      "type": "momentum",
+      "description": "Commodity Channel Index 20期間（突発的値動きへの高感度）",
+      "range": "float",
+      "importance": "high",
+      "feature_importance": 0,
+      "note": "Phase 72追加: donchian_low_20の代替。RSIより短期crypto向き",
+      "phase": "Phase 72"
     },
     "channel_position": {
       "type": "breakout",
@@ -466,12 +468,14 @@
       "importance": "medium",
       "feature_importance": 3
     },
-    "is_market_open_hour": {
-      "type": "time",
-      "description": "市場時間フラグ（9-15時JST: 1, それ以外: 0）",
-      "range": "0-1",
-      "importance": "low",
-      "feature_importance": 1
+    "williams_r_14": {
+      "type": "momentum",
+      "description": "Williams %R 14期間（-100〜0、-100=売られすぎ、0=買われすぎ）",
+      "range": "-100 to 0",
+      "importance": "high",
+      "feature_importance": 0,
+      "note": "Phase 72追加: is_market_open_hourの代替。売られすぎ/買われすぎ検出",
+      "phase": "Phase 72"
     },
     "is_europe_session": {
       "type": "time",

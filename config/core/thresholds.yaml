@@ -362,6 +362,12 @@ strategies:
     bb_position_threshold: 0.2
     bb_as_main_condition: false
     sl_atr_multiplier: 1.5
+    volume_confirmation_enabled: true
+    cmf_buy_threshold: -0.1
+    cmf_sell_threshold: 0.1
+    cmf_mismatch_penalty: 0.15
+    low_volume_threshold: 0.5
+    low_volume_penalty: 0.10
   donchian_channel:
     enabled: true
     class_name: DonchianChannel

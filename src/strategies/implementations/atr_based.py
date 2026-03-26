@@ -224,6 +224,44 @@ class ATRBasedStrategy(StrategyBase):
         if rsi_bonus["confirms"]:
             confidence += self.config.get("rsi_confirmation_bonus", 0.05)
 
+        # Phase 72-C: CMF出来高確認（オプション）
+        if self.config.get("volume_confirmation_enabled", False):
+            try:
+                cmf_penalty = self.config.get("cmf_mismatch_penalty", 0.15)
+                low_vol_penalty = self.config.get("low_volume_penalty", 0.10)
+
+                # CMF方向確認
+                if "cmf_20" in df.columns:
+                    cmf_value = float(df["cmf_20"].iloc[-1])
+                    cmf_buy_threshold = self.config.get("cmf_buy_threshold", -0.1)
+                    cmf_sell_threshold = self.config.get("cmf_sell_threshold", 0.1)
+
+                    if action == EntryAction.BUY and cmf_value < cmf_buy_threshold:
+                        confidence -= cmf_penalty
+                        self.logger.info(
+                            f"[ATRレンジ] Phase 72: CMF不一致ペナルティ "
+                            f"(CMF={cmf_value:.3f} < {cmf_buy_threshold}, -{cmf_penalty})"
+                        )
+                    elif action == EntryAction.SELL and cmf_value > cmf_sell_threshold:
+                        confidence -= cmf_penalty
+                        self.logger.info(
+                            f"[ATRレンジ] Phase 72: CMF不一致ペナルティ "
+                            f"(CMF={cmf_value:.3f} > {cmf_sell_threshold}, -{cmf_penalty})"
+                        )
+
+                # 低出来高フィルタ
+                if "volume_ratio" in df.columns:
+                    vol_ratio = float(df["volume_ratio"].iloc[-1])
+                    low_vol_threshold = self.config.get("low_volume_threshold", 0.5)
+                    if vol_ratio < low_vol_threshold:
+                        confidence -= low_vol_penalty
+                        self.logger.info(
+                            f"[ATRレンジ] Phase 72: 低出来高ペナルティ "
+                            f"(volume_ratio={vol_ratio:.2f} < {low_vol_threshold}, -{low_vol_penalty})"
+                        )
+            except Exception as e:
+                self.logger.debug(f"[ATRレンジ] Phase 72: 出来高確認エラー（無視）: {e}")
+
         # 最小・最大制限
         confidence = max(self.config["min_confidence"], min(confidence, 0.75))
 

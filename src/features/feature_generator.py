@@ -35,7 +35,7 @@ class FeatureGenerator:
     - ラグ（9個）: Close/Volume/RSI/MACD lag
     - 移動統計量（5個）: MA, Std
     - 交互作用（5個）: RSI×ATR, MACD×Volume等
-    - 時間（7個）: hour, day_of_week, is_market_open_hour, is_europe_session, hour_cos, day_sin, day_cos
+    - 時間（6個）: hour, day_of_week, is_europe_session, hour_cos, day_sin, day_cos
     - 戦略シグナル（6個）: 6戦略の判断エンコード（設定駆動型・config/core/thresholds.yamlから動的取得）
     - NaN時は0埋め、strategy_signals=None時も6個を0.0で生成
     """
@@ -217,12 +217,20 @@ class FeatureGenerator:
         result_df["ema_50"] = result_df["close"].ewm(span=50, adjust=False).mean()
         self.computed_features.update(["ema_20", "ema_50"])
 
-        # Donchian Channel指標（3個）- Phase 51.7 Day 7: donchian_high_20復活（DonchianChannel必須）
+        # Donchian Channel指標（Phase 72: donchian_high/low → cmf_20/cci_20に入替）
         donchian_high, donchian_low, channel_position = self._calculate_donchian_channel(result_df)
-        result_df["donchian_high_20"] = donchian_high
-        result_df["donchian_low_20"] = donchian_low
+        # Phase 72: donchian_high_20/low_20はML特徴量から除外（CMF/CCIに入替）
+        # channel_positionはATRBased戦略で使用するため残す
         result_df["channel_position"] = channel_position
-        self.computed_features.update(["donchian_high_20", "donchian_low_20", "channel_position"])
+        self.computed_features.add("channel_position")
+
+        # Phase 72-A: CMF（Chaikin Money Flow）- donchian_high_20の代替
+        result_df["cmf_20"] = self._calculate_cmf(result_df)
+        self.computed_features.add("cmf_20")
+
+        # Phase 72-B: CCI（Commodity Channel Index）- donchian_low_20の代替
+        result_df["cci_20"] = self._calculate_cci(result_df)
+        self.computed_features.add("cci_20")
 
         # ADX指標（3個）
         adx, plus_di, minus_di = self._calculate_adx_indicators(result_df)
@@ -244,6 +252,10 @@ class FeatureGenerator:
         # ATR比率（ボラティリティ正規化）
         result_df["atr_ratio"] = self._calculate_atr_ratio(result_df)
         self.computed_features.add("atr_ratio")
+
+        # Phase 72-B: Williams %R - is_market_open_hourの代替
+        result_df["williams_r_14"] = self._calculate_williams_r(result_df)
+        self.computed_features.add("williams_r_14")
 
         self.logger.debug("テクニカル指標生成完了: 17個")
         return result_df
@@ -356,8 +368,7 @@ class FeatureGenerator:
             self.logger.warning("日時情報が見つかりません。時間特徴量をデフォルト値で生成します")
             result_df["hour"] = 0
             result_df["day_of_week"] = 0
-            result_df["is_market_open_hour"] = 0
-            # Phase 51.7: 欧州セッションのみ保持（is_asia/us削除: Importance=0）
+            # Phase 72: is_market_open_hour削除（williams_r_14に入替済み）
             result_df["is_europe_session"] = 0
             result_df["hour_cos"] = 1.0
             result_df["day_sin"] = 0.0
@@ -366,7 +377,6 @@ class FeatureGenerator:
                 [
                     "hour",
                     "day_of_week",
-                    "is_market_open_hour",
                     "is_europe_session",
                     "hour_cos",
                     "day_sin",
@@ -383,11 +393,7 @@ class FeatureGenerator:
         result_df["day_of_week"] = dt_index.dayofweek
         self.computed_features.add("day_of_week")
 
-        # Is market open hour (9-15時JST: 1, それ以外: 0)
-        result_df["is_market_open_hour"] = ((dt_index.hour >= 9) & (dt_index.hour <= 15)).astype(
-            int
-        )
-        self.computed_features.add("is_market_open_hour")
+        # Phase 72: is_market_open_hour削除（williams_r_14に入替済み）
 
         # 欧州市場セッション（JST 16:00-01:00）- 日をまたぐ処理
         result_df["is_europe_session"] = (
@@ -549,6 +555,68 @@ class FeatureGenerator:
     def _calculate_atr_ratio(self, df: pd.DataFrame) -> pd.Series:
         """ATR/Close比率計算（ボラティリティ正規化）"""
         return df["atr_14"] / (df["close"] + 1e-8)
+
+    def _calculate_cmf(self, df: pd.DataFrame, period: int = 20) -> pd.Series:
+        """
+        Phase 72: Chaikin Money Flow計算
+
+        CMF = Σ(MFV) / Σ(Volume) over period
+        MFV = ((close - low) - (high - close)) / (high - low) × volume
+        範囲: -1〜+1、正=買い圧力
+        """
+        try:
+            high = df["high"]
+            low = df["low"]
+            close = df["close"]
+            volume = df["volume"]
+
+            # Money Flow Multiplier: ((close-low) - (high-close)) / (high-low)
+            mf_multiplier = ((close - low) - (high - close)) / (high - low + 1e-8)
+            # Money Flow Volume
+            mfv = mf_multiplier * volume
+
+            cmf = mfv.rolling(window=period, min_periods=1).sum() / (
+                volume.rolling(window=period, min_periods=1).sum() + 1e-8
+            )
+            return cmf.fillna(0.0)
+        except Exception as e:
+            self.logger.error(f"CMF計算エラー: {e}")
+            return pd.Series(np.zeros(len(df)), index=df.index)
+
+    def _calculate_cci(self, df: pd.DataFrame, period: int = 20) -> pd.Series:
+        """
+        Phase 72: Commodity Channel Index計算
+
+        CCI = (TP - SMA(TP, period)) / (0.015 × Mean Deviation)
+        TP = (high + low + close) / 3
+        """
+        try:
+            tp = (df["high"] + df["low"] + df["close"]) / 3
+            sma_tp = tp.rolling(window=period, min_periods=1).mean()
+            mean_dev = tp.rolling(window=period, min_periods=1).apply(
+                lambda x: np.abs(x - x.mean()).mean(), raw=True
+            )
+            cci = (tp - sma_tp) / (0.015 * mean_dev + 1e-8)
+            return cci.fillna(0.0)
+        except Exception as e:
+            self.logger.error(f"CCI計算エラー: {e}")
+            return pd.Series(np.zeros(len(df)), index=df.index)
+
+    def _calculate_williams_r(self, df: pd.DataFrame, period: int = 14) -> pd.Series:
+        """
+        Phase 72: Williams %R計算
+
+        Williams %R = (Highest High - Close) / (Highest High - Lowest Low) × -100
+        範囲: -100〜0（-100=売られすぎ、0=買われすぎ）
+        """
+        try:
+            highest_high = df["high"].rolling(window=period, min_periods=1).max()
+            lowest_low = df["low"].rolling(window=period, min_periods=1).min()
+            williams_r = (highest_high - df["close"]) / (highest_high - lowest_low + 1e-8) * -100
+            return williams_r.fillna(-50.0)
+        except Exception as e:
+            self.logger.error(f"Williams %%R計算エラー: {e}")
+            return pd.Series(np.full(len(df), -50.0), index=df.index)
 
     def _calculate_volume_ratio(self, volume: pd.Series, period: Optional[int] = None) -> pd.Series:
         """出来高比率計算"""
@@ -718,7 +786,6 @@ class FeatureGenerator:
                         for f in [
                             "hour",
                             "day_of_week",
-                            "is_market_open_hour",
                             "is_europe_session",
                             "hour_cos",
                             "day_sin",

@@ -545,6 +545,78 @@ class TestFeatureGeneratorPrivateMethods:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
 
+class TestPhase72NewIndicators:
+    """Phase 72: CMF/CCI/Williams %R計算テスト"""
+
+    @pytest.fixture
+    def generator(self):
+        return FeatureGenerator(lookback_period=10)
+
+    @pytest.fixture
+    def sample_df(self):
+        np.random.seed(42)
+        n = 30
+        return pd.DataFrame(
+            {
+                "open": np.random.uniform(100, 110, n),
+                "high": np.random.uniform(110, 120, n),
+                "low": np.random.uniform(90, 100, n),
+                "close": np.random.uniform(100, 110, n),
+                "volume": np.random.uniform(1000, 2000, n),
+            }
+        )
+
+    def test_cmf_calculation(self, generator, sample_df):
+        """CMFが-1〜+1の範囲で計算されること"""
+        cmf = generator._calculate_cmf(sample_df)
+        assert len(cmf) == len(sample_df)
+        assert all(-1.1 <= v <= 1.1 for v in cmf)
+        assert not cmf.isna().any()
+
+    def test_cci_calculation(self, generator, sample_df):
+        """CCIが数値で計算されること"""
+        cci = generator._calculate_cci(sample_df)
+        assert len(cci) == len(sample_df)
+        assert not cci.isna().any()
+
+    def test_williams_r_calculation(self, generator, sample_df):
+        """Williams %Rが-100〜0の範囲で計算されること"""
+        wr = generator._calculate_williams_r(sample_df)
+        assert len(wr) == len(sample_df)
+        assert all(-101 <= v <= 1 for v in wr)
+        assert not wr.isna().any()
+
+    def test_cmf_error_handling(self, generator):
+        """CMF計算のエラーハンドリング"""
+        empty_df = pd.DataFrame({"close": [], "high": [], "low": [], "volume": []})
+        cmf = generator._calculate_cmf(empty_df)
+        assert len(cmf) == 0
+
+    def test_cci_error_handling(self, generator):
+        """CCI計算のエラーハンドリング"""
+        empty_df = pd.DataFrame({"close": [], "high": [], "low": []})
+        cci = generator._calculate_cci(empty_df)
+        assert len(cci) == 0
+
+    def test_williams_r_error_handling(self, generator):
+        """Williams %R計算のエラーハンドリング"""
+        empty_df = pd.DataFrame({"close": [], "high": [], "low": []})
+        wr = generator._calculate_williams_r(empty_df)
+        assert len(wr) == 0
+
+    def test_new_features_in_pipeline(self, generator, sample_df):
+        """新特徴量がパイプラインに統合されていること"""
+        result_df = generator._generate_technical_indicators(sample_df)
+        assert "cmf_20" in result_df.columns
+        assert "cci_20" in result_df.columns
+        assert "williams_r_14" in result_df.columns
+        # 旧特徴量が削除されていること
+        assert "donchian_high_20" not in result_df.columns
+        assert "donchian_low_20" not in result_df.columns
+        # channel_positionは残ること
+        assert "channel_position" in result_df.columns
+
+
 class TestFeatureGeneratorSyncMethod:
     """generate_features_sync メソッドのテスト（同期版特徴量生成）"""
 
@@ -664,7 +736,7 @@ class TestTimeFeatures:
         # 時間特徴量が生成されているかチェック
         assert "hour" in result_df.columns
         assert "day_of_week" in result_df.columns
-        assert "is_market_open_hour" in result_df.columns
+        # Phase 72: is_market_open_hour削除（williams_r_14に入替）
         assert "is_europe_session" in result_df.columns
         assert "hour_cos" in result_df.columns
         assert "day_sin" in result_df.columns
@@ -694,7 +766,7 @@ class TestTimeFeatures:
         # 時間特徴量が生成されているかチェック
         assert "hour" in result_df.columns
         assert "day_of_week" in result_df.columns
-        assert "is_market_open_hour" in result_df.columns
+        # Phase 72: is_market_open_hour削除（williams_r_14に入替）
         assert "is_europe_session" in result_df.columns
 
     def test_time_features_europe_session(self, generator):
@@ -718,27 +790,6 @@ class TestTimeFeatures:
         # 欧州セッション判定チェック（16:00-01:00がTrue）
         expected_europe = [0, 1, 1, 1, 1, 1, 0, 0, 0, 0]
         assert list(result_df["is_europe_session"]) == expected_europe
-
-    def test_time_features_market_open_hour(self, generator):
-        """市場オープン時間判定テスト（9-15時）"""
-        hours = [8, 9, 10, 14, 15, 16, 20]
-        dates = [pd.Timestamp(f"2025-01-01 {h:02d}:00") for h in hours]
-        df = pd.DataFrame(
-            {
-                "open": [100] * 7,
-                "high": [105] * 7,
-                "low": [95] * 7,
-                "close": [103] * 7,
-                "volume": [1000] * 7,
-            },
-            index=pd.DatetimeIndex(dates),
-        )
-
-        result_df = generator._generate_time_features(df)
-
-        # 市場オープン時間判定チェック（9-15時がTrue）
-        expected_market_open = [0, 1, 1, 1, 1, 0, 0]
-        assert list(result_df["is_market_open_hour"]) == expected_market_open
 
     def test_time_features_cyclic_encoding(self, generator):
         """周期性エンコーディングテスト"""
