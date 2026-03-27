@@ -219,7 +219,7 @@ class IntegratedRiskManager:
             ml_confidence = ml_prediction.get("confidence", 0.0)
             ml_prediction_class = ml_prediction.get(
                 "prediction", None
-            )  # Phase 57.12: 0=SELL, 1=HOLD, 2=BUY
+            )  # Phase 73-B: バイナリ(0=DOWN,1=UP) or 3クラス(0=SELL,1=HOLD,2=BUY)
             min_ml_confidence = get_threshold("trading.risk_thresholds.min_ml_confidence", 0.25)
 
             # 取引方向（side）の決定

@@ -117,9 +117,9 @@ market_regime:
 ml:
   ensemble_enabled: true
   ensemble_weights:
-    lightgbm: 0.5
+    lightgbm: 0.3
     xgboost: 0.3
-    random_forest: 0.2
+    random_forest: 0.4
   models:
   - lgbm
   - xgb

@@ -284,9 +284,9 @@ class MLModelValidator:
             self.warnings.append(f"⚠️  fullモデル <= basicモデル - 通常はfull > basic")
 
     def validate_n_classes(self) -> None:
-        """Phase 55.7: モデルが3クラス分類か検証"""
+        """Phase 73-B: モデルのクラス数検証（2クラスまたは3クラス）"""
         print("\n" + "=" * 60)
-        print("🔬 3クラス分類検証")
+        print("🔬 分類クラス数検証")
         print("=" * 60)
 
         n_classes = None
@@ -325,7 +325,7 @@ class MLModelValidator:
         if n_classes is None:
             self.warnings.append("⚠️  クラス数を特定できませんでした")
         elif n_classes == 2:
-            self.errors.append("❌ モデルが2クラス分類 - 3クラス分類（BUY/HOLD/SELL）が必要")
+            print(f"\n✅ 2クラス分類（DOWN/UP）確認（Phase 73-B: バイナリ分類）")
         elif n_classes == 3:
             print(f"\n✅ 3クラス分類（BUY/HOLD/SELL）確認")
         else:

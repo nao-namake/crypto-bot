@@ -440,13 +440,22 @@ class TradingCycleManager:
 
                     confidence = float(np.max(ml_probabilities[-1]))
 
+                    # Phase 73-B: クラス数に応じた動的ラベルマッピング
+                    n_classes = len(ml_probabilities[-1])
+                    if n_classes == 2:
+                        label_map = {0: "下降", 1: "上昇"}
+                    else:
+                        label_map = {0: "売り", 1: "保持", 2: "買い"}
+                    pred_label = label_map.get(prediction, "不明")
+
                     self.logger.info(
-                        f"✅ ML予測完了: prediction={['売り', '保持', '買い'][prediction]}, confidence={confidence:.3f}"
+                        f"✅ ML予測完了: prediction={pred_label}, confidence={confidence:.3f}"
                     )
 
                     return {
                         "prediction": prediction,
                         "confidence": confidence,
+                        "n_classes": n_classes,
                     }
                 else:
                     return {
@@ -791,9 +800,13 @@ class TradingCycleManager:
                 )
                 return strategy_signal
 
-            # 予測値とアクションの変換（Phase 51.9-6A: 3クラス分類対応）
+            # Phase 73-B: クラス数に応じた動的アクションマッピング
             ml_pred = ml_prediction.get("prediction", 0)
-            ml_action_map = {0: "sell", 1: "hold", 2: "buy"}  # 3クラス: 0=SELL, 1=HOLD, 2=BUY
+            n_classes = ml_prediction.get("n_classes", 3)
+            if n_classes == 2:
+                ml_action_map = {0: "sell", 1: "buy"}  # バイナリ: 0=DOWN, 1=UP
+            else:
+                ml_action_map = {0: "sell", 1: "hold", 2: "buy"}  # 3クラス: 0=SELL, 1=HOLD, 2=BUY
             ml_action = ml_action_map.get(ml_pred, "hold")
 
             # StrategySignalオブジェクトから属性を直接取得
