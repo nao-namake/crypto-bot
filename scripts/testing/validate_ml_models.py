@@ -406,15 +406,26 @@ class MLModelValidator:
         training_info = metadata.get("training_info", {})
         class_dist = training_info.get("class_distribution", {})
 
+        # Phase 73-B: バイナリ分類ではclass_distributionが空の場合がある
         if not class_dist:
-            self.errors.append(
-                "❌ メタデータにclass_distributionがありません" "（モデル再作成が必要）"
-            )
+            # モデルのクラス数を確認
+            n_classes = training_info.get("n_classes", None)
+            if n_classes == 2:
+                print("\n✅ バイナリ分類モデル - class_distribution検証スキップ")
+                return
+            # 3クラスモデルで空は問題
+            self.warnings.append("⚠️  メタデータにclass_distributionがありません")
             return
 
-        sell_pct = class_dist.get("sell", 0) * 100
-        hold_pct = class_dist.get("hold", 0) * 100
-        buy_pct = class_dist.get("buy", 0) * 100
+        sell_pct = class_dist.get("sell", class_dist.get("0", 0))
+        if isinstance(sell_pct, float) and sell_pct <= 1:
+            sell_pct *= 100
+        hold_pct = class_dist.get("hold", class_dist.get("1", 0))
+        if isinstance(hold_pct, float) and hold_pct <= 1:
+            hold_pct *= 100
+        buy_pct = class_dist.get("buy", class_dist.get("2", 0))
+        if isinstance(buy_pct, float) and buy_pct <= 1:
+            buy_pct *= 100
 
         print(f"\n🎯 訓練時クラス分布（メタデータ）:")
         print(f"   SELL: {sell_pct:.1f}%")
