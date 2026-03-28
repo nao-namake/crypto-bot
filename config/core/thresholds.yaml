@@ -115,6 +115,12 @@ market_regime:
   high_volatility:
     atr_ratio_threshold: 0.018
 ml:
+  mode: quality_filter
+  quality_filter:
+    enabled: true
+    accept_threshold: 0.60
+    reject_threshold: 0.40
+    uncertain_penalty: 0.5
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3
@@ -519,19 +525,19 @@ models:
     num_leaves: 31
     learning_rate: 0.05
     n_estimators: 100
-    feature_fraction: 0.9
-    bagging_fraction: 0.8
+    feature_fraction: 0.7
+    bagging_fraction: 0.7
     bagging_freq: 5
     max_depth: -1
     min_child_samples: 20
-    reg_alpha: 0.0
-    reg_lambda: 0.0
+    reg_alpha: 1.0
+    reg_lambda: 1.0
   min_training_samples: 10
   rf:
     n_estimators: 100
     max_depth: 10
     min_samples_split: 5
-    min_samples_leaf: 2
+    min_samples_leaf: 5
     max_features: sqrt
     bootstrap: true
     oob_score: true
@@ -541,10 +547,10 @@ models:
     learning_rate: 0.05
     n_estimators: 100
     min_child_weight: 1
-    subsample: 0.8
-    colsample_bytree: 0.8
-    alpha: 0
-    lambda: 1
+    subsample: 0.7
+    colsample_bytree: 0.7
+    alpha: 1
+    lambda: 2
     gamma: 0
 reporting:
   base_dir: logs/reports

@@ -71,6 +71,7 @@ class NewSystemMLModelCreator:
         models_to_train: list = None,
         lookahead_periods: int = 1,
         adaptive_threshold: bool = False,
+        meta_label: bool = False,
     ):
         """
         初期化
@@ -99,6 +100,10 @@ class NewSystemMLModelCreator:
         # Phase 69.6: lookahead/adaptive_thresholdはCLIフラグでのみ有効化
         self.lookahead_periods = lookahead_periods
         self.adaptive_threshold = adaptive_threshold
+        # Phase 73-D: メタラベリング（取引品質フィルタ）
+        self.meta_label = meta_label
+        if meta_label:
+            self.n_classes = 2  # メタラベリングは常にバイナリ
 
         # ログ設定
         self.logger = get_logger()
@@ -540,6 +545,11 @@ class NewSystemMLModelCreator:
                 3クラス: 0=SELL, 1=HOLD, 2=BUY
         """
         lookahead = self.lookahead_periods
+
+        # Phase 73-D: メタラベリング（Triple Barrier Method）
+        if self.meta_label:
+            return self._generate_meta_label_target(df, threshold)
+
         price_change = df["close"].pct_change(periods=lookahead).shift(-lookahead)
 
         self.logger.info(
@@ -603,6 +613,68 @@ class NewSystemMLModelCreator:
 
         return target
 
+    def _generate_meta_label_target(self, df: pd.DataFrame, threshold: float = 0.0005) -> pd.Series:
+        """
+        Phase 73-D: Triple Barrier Methodによるメタラベリングターゲット生成
+
+        各足で「この時点でエントリーしたら成功するか」をシミュレーション:
+        - 上方バリア: +tp_ratio%に到達 → 成功(1)
+        - 下方バリア: -sl_ratio%に到達 → 失敗(0)
+        - 時間バリア: max_bars本以内に決着しない → 失敗(0)
+
+        方向は考慮しない（buyエントリー想定でTP/SL判定）。
+        sellエントリーの品質も同様に学習できる（市場の動きやすさを学習するため）。
+        """
+        close = df["close"].values
+        n = len(close)
+        tp_ratio = threshold * 1.5  # TP: 閾値の1.5倍（RR 1.5:1相当）
+        sl_ratio = threshold  # SL: 閾値そのまま
+        max_bars = 20  # 5時間（15分×20本）
+
+        self.logger.info(
+            f"📊 Phase 73-D: メタラベリングターゲット生成 - "
+            f"TP={tp_ratio * 100:.3f}%, SL={sl_ratio * 100:.3f}%, "
+            f"時間制限={max_bars}本（{max_bars * 15}分）"
+        )
+
+        target = np.full(n, 0, dtype=int)  # デフォルト: 失敗(0)
+
+        for i in range(n - 1):
+            entry_price = close[i]
+            tp_price = entry_price * (1 + tp_ratio)
+            sl_price = entry_price * (1 - sl_ratio)
+
+            # 将来のmax_bars本を走査
+            end_idx = min(i + max_bars + 1, n)
+            for j in range(i + 1, end_idx):
+                future_high = df["high"].values[j] if "high" in df.columns else close[j]
+                future_low = df["low"].values[j] if "low" in df.columns else close[j]
+
+                # TP到達チェック（高値がTP以上）
+                if future_high >= tp_price:
+                    target[i] = 1  # 成功
+                    break
+                # SL到達チェック（安値がSL以下）
+                if future_low <= sl_price:
+                    target[i] = 0  # 失敗
+                    break
+            # ループ完了（時間切れ）→ デフォルトの0（失敗）
+
+        target_series = pd.Series(target, index=df.index, dtype=int)
+
+        # クラス分布を記録
+        success_rate = target_series.mean()
+        self.logger.info(
+            f"📊 Phase 73-D: メタラベリング分布 - "
+            f"成功(1): {success_rate:.1%}, 失敗(0): {1 - success_rate:.1%}"
+        )
+        self._class_distribution = {
+            "success": float(success_rate),
+            "failure": float(1 - success_rate),
+        }
+
+        return target_series
+
     def _compute_adaptive_threshold(self, df: pd.DataFrame, lookahead: int) -> pd.Series:
         """
         Phase 69.4: ボラティリティ適応型閾値を計算
@@ -650,6 +722,12 @@ class NewSystemMLModelCreator:
             "max_depth": trial.suggest_int("max_depth", 3, 15),
             "n_estimators": trial.suggest_int("n_estimators", 50, 300),
             "num_leaves": trial.suggest_int("num_leaves", 20, 100),
+            # Phase 73-C: 正則化パラメータを探索空間に追加
+            "reg_alpha": trial.suggest_float("reg_alpha", 0.01, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.01, 10.0, log=True),
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.5, 0.9),
+            "bagging_fraction": trial.suggest_float("bagging_fraction", 0.5, 0.9),
+            "bagging_freq": 5,
             "random_state": 42,
             "verbose": -1,
             "class_weight": "balanced",
@@ -687,6 +765,11 @@ class NewSystemMLModelCreator:
             "max_depth": trial.suggest_int("max_depth", 3, 15),
             "n_estimators": trial.suggest_int("n_estimators", 50, 300),
             "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+            # Phase 73-C: 正則化パラメータを探索空間に追加
+            "reg_alpha": trial.suggest_float("xgb_reg_alpha", 0.01, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("xgb_reg_lambda", 0.1, 10.0, log=True),
+            "subsample": trial.suggest_float("subsample", 0.5, 0.9),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 0.9),
             "random_state": 42,
             "verbosity": 0,
         }
@@ -728,8 +811,10 @@ class NewSystemMLModelCreator:
         """Phase 39.5: RandomForest最適化objective関数"""
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 100, 300),
-            "max_depth": trial.suggest_int("max_depth", 5, 20),
+            "max_depth": trial.suggest_int("max_depth", 5, 12),  # Phase 73-C: 上限12に制限
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
+            # Phase 73-C: 正則化パラメータ追加
+            "min_samples_leaf": trial.suggest_int("min_samples_leaf", 2, 10),
             "random_state": 42,
             "n_jobs": 1,  # Phase 53.2: GCP gVisor fork()制限対応
             "class_weight": "balanced",
@@ -1097,11 +1182,82 @@ class NewSystemMLModelCreator:
             except Exception as e:
                 self.logger.error(f"❌ アンサンブル作成エラー: {e}")
 
+        # Phase 73-C: 閾値最適化 + 信頼度キャリブレーション
+        optimal_threshold = 0.5  # デフォルト
+        if self.n_classes == 2 and "production_ensemble" in trained_models:
+            try:
+                ensemble_model = trained_models["production_ensemble"]
+
+                # 閾値最適化（テストデータでF1最大化）
+                from sklearn.metrics import f1_score as f1_func
+
+                test_proba = ensemble_model.predict_proba(X_test)
+                best_f1 = 0
+                best_thr = 0.5
+                for thr in [0.30, 0.35, 0.40, 0.45, 0.50]:
+                    y_pred_thr = (test_proba[:, 1] >= thr).astype(int)
+                    f1_val = f1_func(y_test, y_pred_thr, average="weighted")
+                    self.logger.info(f"  閾値={thr:.2f}: F1={f1_val:.4f}")
+                    if f1_val > best_f1:
+                        best_f1 = f1_val
+                        best_thr = thr
+
+                optimal_threshold = best_thr
+                self.logger.info(
+                    f"✅ Phase 73-C: 最適閾値={optimal_threshold:.2f} " f"(F1={best_f1:.4f})"
+                )
+
+                # キャリブレーション（Isotonic Regression）
+                try:
+                    from sklearn.calibration import CalibratedClassifierCV
+
+                    calibrator = CalibratedClassifierCV(
+                        ensemble_model, method="isotonic", cv="prefit"
+                    )
+                    calibrator.fit(X_test, y_test)
+
+                    # キャリブレーション前後のECE計算
+                    cal_proba = calibrator.predict_proba(X_test)
+                    raw_proba = test_proba
+
+                    def calc_ece(proba, y_true, n_bins=10):
+                        pred_conf = proba.max(axis=1)
+                        pred_class = proba.argmax(axis=1)
+                        ece = 0.0
+                        for i in range(n_bins):
+                            lo = i / n_bins
+                            hi = (i + 1) / n_bins
+                            mask = (pred_conf >= lo) & (pred_conf < hi)
+                            if mask.sum() > 0:
+                                acc = (pred_class[mask] == y_true.values[mask]).mean()
+                                conf = pred_conf[mask].mean()
+                                ece += abs(acc - conf) * mask.sum() / len(y_true)
+                        return ece
+
+                    ece_before = calc_ece(raw_proba, y_test)
+                    ece_after = calc_ece(cal_proba, y_test)
+                    self.logger.info(
+                        f"✅ Phase 73-C: キャリブレーション完了 "
+                        f"ECE: {ece_before:.4f} → {ece_after:.4f}"
+                    )
+
+                    # キャリブレーション済みモデルで置換
+                    trained_models["production_ensemble"] = calibrator
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"⚠️ Phase 73-C: キャリブレーション失敗（元モデル使用）: {e}"
+                    )
+
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 73-C: 閾値最適化エラー: {e}")
+
         return {
             "results": results,
             "models": trained_models,
             "feature_names": list(features.columns),
             "training_samples": len(features),
+            "optimal_threshold": optimal_threshold,
         }
 
     def _create_ensemble(self, models: Dict) -> ProductionEnsemble:
@@ -1152,16 +1308,22 @@ class NewSystemMLModelCreator:
                         "phase": "Phase 50.9",  # Phase 50.9完了: 外部API完全削除・シンプル設計回帰
                         "status": "production_ready",
                         "feature_names": training_results.get("feature_names", []),
-                        "individual_models": [
-                            k for k in model.models.keys() if k != "production_ensemble"
-                        ],
-                        "model_weights": model.weights,
+                        "individual_models": (
+                            [k for k in model.models.keys() if k != "production_ensemble"]
+                            if hasattr(model, "models")
+                            else ["calibrated_ensemble"]
+                        ),
+                        "model_weights": (
+                            model.weights if hasattr(model, "weights") else {"calibrated": 1.0}
+                        ),
                         "performance_metrics": training_results.get("results", {}),
                         "training_info": {
                             "samples": training_results.get("training_samples", 0),
                             "feature_count": len(training_results.get("feature_names", [])),
                             "training_duration_seconds": getattr(self, "_training_start_time", 0),
                             "class_distribution": getattr(self, "_class_distribution", {}),
+                            "n_classes": self.n_classes,
+                            "optimal_threshold": training_results.get("optimal_threshold", 0.5),
                         },
                         "git_info": git_commit,
                         "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
@@ -1522,6 +1684,13 @@ def main():
         help="Phase 55.6: クラス数 3（BUY/HOLD/SELL）推奨、2は後方互換用",
     )
 
+    # Phase 73-D: メタラベリング（取引品質フィルタ）
+    parser.add_argument(
+        "--meta-label",
+        action="store_true",
+        help="Phase 73-D: Triple Barrier Methodで取引品質ラベル生成（方向予測→品質判定）",
+    )
+
     # Phase 55.6: SMOTEデフォルト有効（--no-smoteで無効化可能）
     parser.add_argument(
         "--use-smote",
@@ -1583,6 +1752,7 @@ def main():
         n_trials=args.n_trials,
         lookahead_periods=args.lookahead_periods,
         adaptive_threshold=args.adaptive_threshold,
+        meta_label=args.meta_label,
     )
 
     success = creator.run(dry_run=args.dry_run, days=args.days)

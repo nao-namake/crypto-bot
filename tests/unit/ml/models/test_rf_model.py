@@ -71,7 +71,7 @@ class TestRFModel:
             n_estimators=50,
             max_depth=5,
             min_samples_split=5,
-            min_samples_leaf=2,
+            min_samples_leaf=5,
             max_features="sqrt",
             bootstrap=False,
         )
@@ -79,7 +79,7 @@ class TestRFModel:
         assert model.model_params["n_estimators"] == 50
         assert model.model_params["max_depth"] == 5
         assert model.model_params["min_samples_split"] == 5
-        assert model.model_params["min_samples_leaf"] == 2
+        assert model.model_params["min_samples_leaf"] == 5
         assert model.model_params["max_features"] == "sqrt"
         assert model.model_params["bootstrap"] is False
 
@@ -321,7 +321,7 @@ class TestRFModel:
             "max_depth": 3,
             "random_state": 42,
             "min_samples_split": 5,  # デフォルト値に合わせる
-            "min_samples_leaf": 2,  # デフォルト値に合わせる
+            "min_samples_leaf": 5,  # Phase 73-C: 正則化強化
             "max_features": "sqrt",
             "bootstrap": True,
         }

@@ -440,9 +440,12 @@ class TradingCycleManager:
 
                     confidence = float(np.max(ml_probabilities[-1]))
 
-                    # Phase 73-B: クラス数に応じた動的ラベルマッピング
+                    # Phase 73-D: クラス数に応じた動的ラベルマッピング
                     n_classes = len(ml_probabilities[-1])
-                    if n_classes == 2:
+                    ml_mode = get_threshold("ml.mode", "direction")
+                    if ml_mode == "quality_filter":
+                        label_map = {0: "低品質", 1: "高品質"}
+                    elif n_classes == 2:
                         label_map = {0: "下降", 1: "上昇"}
                     else:
                         label_map = {0: "売り", 1: "保持", 2: "買い"}
@@ -456,6 +459,7 @@ class TradingCycleManager:
                         "prediction": prediction,
                         "confidence": confidence,
                         "n_classes": n_classes,
+                        "ml_mode": ml_mode,
                     }
                 else:
                     return {
@@ -709,6 +713,11 @@ class TradingCycleManager:
             if not get_threshold("ml.strategy_integration.enabled", False):
                 self.logger.debug("ML統合無効 - 戦略シグナルをそのまま使用")
                 return strategy_signal
+
+            # Phase 73-D: 品質フィルタモード
+            ml_mode = ml_prediction.get("ml_mode", "direction")
+            if ml_mode == "quality_filter":
+                return self._apply_quality_filter(ml_prediction, strategy_signal)
 
             # Phase 61.5: 戦略信頼度の最低閾値チェック（異常低信頼度エントリー防止）
             min_strategy_confidence = get_threshold(
@@ -1126,6 +1135,107 @@ class TradingCycleManager:
         self.logger.critical(f"❌ 予期しない取引サイクルエラー - ID: {cycle_id}: {e}")
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         raise CryptoBotError(f"取引サイクルで予期しないエラー - ID: {cycle_id}: {e}")
+
+    def _apply_quality_filter(
+        self,
+        ml_prediction: dict,
+        strategy_signal: "StrategySignal",
+    ) -> "StrategySignal":
+        """
+        Phase 73-D: 品質フィルタモード（メタラベリング）
+
+        MLは方向を予測せず「この取引が成功するか」を判定。
+        戦略が方向を100%決定し、MLはGo/No-Go判定のみ。
+
+        - ML予測=1（高品質）+ 信頼度 >= accept_threshold → 戦略シグナルを通過
+        - ML予測=0（低品質）または信頼度 < reject_threshold → HOLDに変換
+        - 中間帯 → 信頼度を縮小
+        """
+        from ...strategies.base.strategy_base import StrategySignal
+
+        ml_confidence = ml_prediction.get("confidence", 0.0)
+        ml_pred = ml_prediction.get("prediction", 0)
+
+        accept_threshold = get_threshold("ml.quality_filter.accept_threshold", 0.60)
+        reject_threshold = get_threshold("ml.quality_filter.reject_threshold", 0.40)
+        uncertain_penalty = get_threshold("ml.quality_filter.uncertain_penalty", 0.5)
+
+        strategy_action = strategy_signal.action
+        strategy_confidence = strategy_signal.confidence
+
+        # holdシグナルはそのまま通過（品質判定不要）
+        if strategy_action in ("hold", "none", ""):
+            return strategy_signal
+
+        # 判定
+        if ml_pred == 1 and ml_confidence >= accept_threshold:
+            # 高品質 → 戦略シグナルをそのまま通過
+            self.logger.info(
+                f"✅ Phase 73-D: 品質フィルタ通過 - "
+                f"{strategy_action.upper()} 信頼度={ml_confidence:.3f} "
+                f"(>={accept_threshold})"
+            )
+            return strategy_signal
+
+        elif ml_pred == 0 or ml_confidence < reject_threshold:
+            # 低品質 → HOLDに変換（取引拒否）
+            self.logger.warning(
+                f"🚫 Phase 73-D: 品質フィルタ拒否 - "
+                f"{strategy_action.upper()}→HOLD "
+                f"(ML={ml_pred}, 信頼度={ml_confidence:.3f}, "
+                f"閾値={reject_threshold})"
+            )
+            return StrategySignal(
+                strategy_name=strategy_signal.strategy_name,
+                timestamp=strategy_signal.timestamp,
+                action="hold",
+                confidence=strategy_confidence * 0.1,
+                strength=0.0,
+                current_price=strategy_signal.current_price,
+                entry_price=strategy_signal.entry_price,
+                stop_loss=None,
+                take_profit=None,
+                position_size=strategy_signal.position_size,
+                risk_ratio=strategy_signal.risk_ratio,
+                indicators=strategy_signal.indicators,
+                reason=f"Phase 73-D: 品質フィルタ拒否 (ML={ml_pred}, conf={ml_confidence:.3f})",
+                metadata={
+                    **(strategy_signal.metadata or {}),
+                    "quality_filtered": True,
+                    "original_action": strategy_action,
+                    "ml_quality_score": ml_confidence,
+                },
+            )
+
+        else:
+            # 中間帯 → 信頼度を縮小して通過
+            adjusted_confidence = strategy_confidence * uncertain_penalty
+            self.logger.info(
+                f"📊 Phase 73-D: 品質フィルタ中間 - "
+                f"{strategy_action.upper()} 信頼度縮小 "
+                f"{strategy_confidence:.3f}→{adjusted_confidence:.3f} "
+                f"(ML={ml_pred}, conf={ml_confidence:.3f})"
+            )
+            return StrategySignal(
+                strategy_name=strategy_signal.strategy_name,
+                timestamp=strategy_signal.timestamp,
+                action=strategy_action,
+                confidence=adjusted_confidence,
+                strength=strategy_signal.strength,
+                current_price=strategy_signal.current_price,
+                entry_price=strategy_signal.entry_price,
+                stop_loss=strategy_signal.stop_loss,
+                take_profit=strategy_signal.take_profit,
+                position_size=strategy_signal.position_size,
+                risk_ratio=strategy_signal.risk_ratio,
+                indicators=strategy_signal.indicators,
+                reason=strategy_signal.reason,
+                metadata={
+                    **(strategy_signal.metadata or {}),
+                    "quality_uncertain": True,
+                    "ml_quality_score": ml_confidence,
+                },
+            )
 
     def _apply_signal_consistency_check(self, trade_evaluation):
         """
