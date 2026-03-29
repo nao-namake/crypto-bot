@@ -46,6 +46,7 @@ class StrategyType:
     BB_REVERSAL = "bb_reversal"  # Phase 51.7 Day 3: BB Reversal strategy
     STOCHASTIC_REVERSAL = "stochastic_reversal"  # Phase 51.7 Day 4: Stochastic Reversal strategy
     MACD_EMA_CROSSOVER = "macd_ema_crossover"  # Phase 51.7 Day 5: MACD+EMA Crossover strategy
+    CMF_REVERSAL = "cmf_reversal"  # Phase 74: DonchianChannel置換
 
 
 # 基本リスク管理パラメータ（戦略で上書き可能）

@@ -33,7 +33,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         """テスト前処理"""
         self.config = {
             "adx_period": 14,
-            "strong_trend_threshold": 25,
+            "strong_trend_threshold": 22,
             "weak_trend_threshold": 20,
             "di_crossover_threshold": 0.5,
             "min_confidence": 0.4,
@@ -90,7 +90,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
 
         # カスタム設定
         self.assertEqual(self.strategy.adx_period, 14)
-        self.assertEqual(self.strategy.strong_trend_threshold, 25)
+        self.assertEqual(self.strategy.strong_trend_threshold, 22)
 
     def test_required_features(self):
         """必要特徴量テスト"""
@@ -204,7 +204,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         # 中トレンド + +DI優勢条件設定
         latest_idx = df.index[-1]
 
-        df.loc[latest_idx, "adx_14"] = 22  # 中程度トレンド
+        df.loc[latest_idx, "adx_14"] = 20  # 中程度トレンド
         df.loc[latest_idx, "plus_di_14"] = 25
         df.loc[latest_idx, "minus_di_14"] = 20  # DI差: 5 (>= 2.0)
         df.loc[latest_idx, "volume_ratio"] = 1.2
@@ -222,7 +222,7 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
         # 中トレンド + -DI優勢条件設定
         latest_idx = df.index[-1]
 
-        df.loc[latest_idx, "adx_14"] = 22
+        df.loc[latest_idx, "adx_14"] = 20  # 中程度トレンド
         df.loc[latest_idx, "plus_di_14"] = 18
         df.loc[latest_idx, "minus_di_14"] = 25  # DI差: -7 (強度7 >= 2.0)
         df.loc[latest_idx, "volume_ratio"] = 1.2

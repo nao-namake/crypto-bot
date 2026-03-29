@@ -33,18 +33,18 @@ class TestDynamicStrategySelector:
         # Phase 54.10: 0ベース最適化 - PF > 1.0戦略のみ有効化
         assert "ATRBased" in weights
         assert "BBReversal" in weights
-        assert "DonchianChannel" in weights
+        assert "CMFReversal" in weights
         assert "StochasticReversal" in weights
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 71: DonchianChannel無効化 + ATRBased集中
-        assert weights["BBReversal"] == 0.15  # 維持
-        assert weights["StochasticReversal"] == 0.10  # 維持
-        assert weights["ATRBased"] == 0.75  # Phase 71: 0.45→0.75
-        assert weights["DonchianChannel"] == 0.0  # Phase 71: 無効化
-        assert weights["ADXTrendStrength"] == 0.0  # トレンド型→無効化
-        assert weights["MACDEMACrossover"] == 0.0  # トレンド型→無効化
+        # Phase 74: 全戦略に最低0.05重み
+        assert weights["ATRBased"] == 0.35
+        assert weights["CMFReversal"] == 0.20
+        assert weights["BBReversal"] == 0.20
+        assert weights["StochasticReversal"] == 0.10
+        assert weights["ADXTrendStrength"] == 0.10
+        assert weights["MACDEMACrossover"] == 0.05
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)
@@ -59,18 +59,18 @@ class TestDynamicStrategySelector:
         # normal_rangeは全6戦略を含む（BBReversal・トレンド型は0.0）
         assert "ATRBased" in weights
         assert "BBReversal" in weights
-        assert "DonchianChannel" in weights
+        assert "CMFReversal" in weights
         assert "StochasticReversal" in weights
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
 
-        # Phase 71: DonchianChannel無効化 + トレンド型戦略有効
+        # Phase 74: 全戦略に最低0.10重み
         assert weights["ATRBased"] > 0
-        assert weights["BBReversal"] == 0.0  # Phase 59.1: normal_rangeで無効化
-        assert weights["DonchianChannel"] == 0.0  # Phase 71: 無効化
+        assert weights["BBReversal"] > 0
+        assert weights["CMFReversal"] > 0
         assert weights["StochasticReversal"] > 0
-        assert weights["ADXTrendStrength"] > 0  # Phase 69: トレンド型有効化
-        assert weights["MACDEMACrossover"] > 0  # Phase 69: トレンド型有効化
+        assert weights["ADXTrendStrength"] > 0
+        assert weights["MACDEMACrossover"] > 0
 
         # 重み合計が1.0であることを確認
         assert selector.validate_weights(weights)
@@ -86,19 +86,17 @@ class TestDynamicStrategySelector:
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
         assert "ATRBased" in weights
-        assert "DonchianChannel" in weights
+        assert "CMFReversal" in weights
         assert "BBReversal" in weights
         assert "StochasticReversal" in weights
 
-        # トレンド型戦略は正の重み
+        # Phase 74: 全戦略に最低0.10重み
         assert weights["ADXTrendStrength"] > 0
         assert weights["MACDEMACrossover"] > 0
         assert weights["ATRBased"] > 0
-        assert weights["DonchianChannel"] == 0.0  # Phase 71: 無効化
-
-        # レンジ型戦略は0.0（無効化）
-        assert weights["BBReversal"] == 0.0
-        assert weights["StochasticReversal"] == 0.0
+        assert weights["CMFReversal"] > 0
+        assert weights["BBReversal"] > 0
+        assert weights["StochasticReversal"] > 0
 
         # ADXTrendStrengthが最も高い重みを持つことを確認
         assert weights["ADXTrendStrength"] > weights["MACDEMACrossover"]
@@ -131,7 +129,7 @@ class TestDynamicStrategySelector:
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
-            "DonchianChannel": 0.15,
+            "CMFReversal": 0.15,
             "StochasticReversal": 0.15,
             "ADXTrendStrength": 0.15,
             "MACDEMACrossover": 0.05,
@@ -143,7 +141,7 @@ class TestDynamicStrategySelector:
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
-            "DonchianChannel": 0.15,
+            "CMFReversal": 0.15,
             "StochasticReversal": 0.15,
             "ADXTrendStrength": 0.10,
             "MACDEMACrossover": 0.05,  # 合計0.95（1.0でない）
@@ -160,7 +158,7 @@ class TestDynamicStrategySelector:
         weights = {
             "ATRBased": 0.0,
             "BBReversal": 0.0,
-            "DonchianChannel": 0.0,
+            "CMFReversal": 0.0,
             "StochasticReversal": 0.0,
             "ADXTrendStrength": 0.0,
             "MACDEMACrossover": 0.0,
@@ -173,7 +171,7 @@ class TestDynamicStrategySelector:
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
-            "DonchianChannel": 0.15,
+            "CMFReversal": 0.15,
             "StochasticReversal": 0.15,
             "ADXTrendStrength": 0.15,
             "MACDEMACrossover": 0.045,  # 合計0.995
@@ -184,7 +182,7 @@ class TestDynamicStrategySelector:
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
-            "DonchianChannel": 0.15,
+            "CMFReversal": 0.15,
             "StochasticReversal": 0.15,
             "ADXTrendStrength": 0.15,
             "MACDEMACrossover": 0.055,  # 合計1.005
@@ -195,7 +193,7 @@ class TestDynamicStrategySelector:
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
-            "DonchianChannel": 0.15,
+            "CMFReversal": 0.15,
             "StochasticReversal": 0.15,
             "ADXTrendStrength": 0.13,
             "MACDEMACrossover": 0.05,  # 合計0.98
@@ -206,7 +204,7 @@ class TestDynamicStrategySelector:
         weights = {
             "ATRBased": 0.30,
             "BBReversal": 0.20,
-            "DonchianChannel": 0.15,
+            "CMFReversal": 0.15,
             "StochasticReversal": 0.15,
             "ADXTrendStrength": 0.17,
             "MACDEMACrossover": 0.05,  # 合計1.02

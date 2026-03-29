@@ -140,7 +140,7 @@
       "description": "戦略シグナル特徴量（Strategy Signals・6個・Phase 51.7 Day 6-7完了）",
       "features": [
         "strategy_signal_ATRBased",
-        "strategy_signal_DonchianChannel",
+        "strategy_signal_CMFReversal",
         "strategy_signal_ADXTrendStrength",
         "strategy_signal_BBReversal",
         "strategy_signal_StochasticReversal",
@@ -518,14 +518,15 @@
       "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
       "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
     },
-    "strategy_signal_DonchianChannel": {
+    "strategy_signal_CMFReversal": {
       "type": "strategy_signal",
-      "description": "Donchianチャネル戦略シグナル（0.0-1.0連続値）",
+      "description": "CMF Reversal戦略シグナル（Phase 74: DonchianChannel置換・0.0-1.0連続値）",
       "range": "0.0 to 1.0",
-      "importance": "low",
+      "importance": "medium",
       "feature_importance": 0,
       "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
+      "note": "Phase 74: CMF出来高フロー反転戦略。DonchianChannel(勝率14%)から入替",
+      "phase": "Phase 74"
     },
     "strategy_signal_ADXTrendStrength": {
       "type": "strategy_signal",

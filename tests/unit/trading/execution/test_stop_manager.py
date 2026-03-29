@@ -1859,7 +1859,7 @@ class TestLogAutoExecution:
             "amount": 0.001,
             "exit_price": 14100000.0,
             "pnl": 100.0,  # 利益（異常ケース）
-            "strategy_name": "DonchianChannel",
+            "strategy_name": "CMFReversal",
         }
         config = {"log_level": "info"}
 

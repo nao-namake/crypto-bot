@@ -413,7 +413,7 @@ class TestStrategyManager(unittest.TestCase):
             strategy_name="Hold2",
             timestamp=datetime.now(),
             action=EntryAction.HOLD,
-            confidence=0.453,  # DonchianChannel相当
+            confidence=0.453,  # CMFReversal相当
             strength=0.0,
             current_price=10250000,
             reason="Hold2",

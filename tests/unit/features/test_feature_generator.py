@@ -35,7 +35,7 @@ STRATEGY_SIGNAL_FEATURES = [
     "strategy_signal_ATRBased",
     "strategy_signal_BBReversal",
     "strategy_signal_StochasticDivergence",
-    "strategy_signal_DonchianChannel",
+    "strategy_signal_CMFReversal",
     "strategy_signal_ADXTrendStrength",
     "strategy_signal_MACDEMACrossover",
 ]
@@ -121,7 +121,7 @@ class TestFeatureGenerator:
         # strategy_signalsパラメータがNoneでも、戦略シグナル特徴量は0.0で生成される
         strategy_signal_features = [
             "strategy_signal_ATRBased",
-            "strategy_signal_DonchianChannel",
+            "strategy_signal_CMFReversal",
             "strategy_signal_ADXTrendStrength",
         ]
 
@@ -661,7 +661,7 @@ class TestFeatureGeneratorSyncMethod:
         """同期版特徴量生成 - 戦略シグナル付きテスト"""
         strategy_signals = {
             "ATRBased": {"action": "buy", "confidence": 0.7, "encoded": 0.7},
-            "DonchianChannel": {"action": "sell", "confidence": 0.6, "encoded": -0.6},
+            "CMFReversal": {"action": "sell", "confidence": 0.6, "encoded": -0.6},
             "BBReversal": {"action": "hold", "confidence": 0.5, "encoded": 0.0},
         }
 
@@ -672,7 +672,7 @@ class TestFeatureGeneratorSyncMethod:
 
         # 戦略シグナル特徴量が生成されているかチェック
         assert "strategy_signal_ATRBased" in result_df.columns
-        assert "strategy_signal_DonchianChannel" in result_df.columns
+        assert "strategy_signal_CMFReversal" in result_df.columns
 
     def test_generate_features_sync_error_handling(self, generator):
         """同期版特徴量生成エラーハンドリングテスト"""
@@ -838,7 +838,7 @@ class TestStrategySignalFeatures:
         """完全な戦略シグナルでの特徴量追加テスト"""
         strategy_signals = {
             "ATRBased": {"action": "buy", "confidence": 0.8, "encoded": 0.8},
-            "DonchianChannel": {"action": "sell", "confidence": 0.7, "encoded": -0.7},
+            "CMFReversal": {"action": "sell", "confidence": 0.7, "encoded": -0.7},
             "BBReversal": {"action": "hold", "confidence": 0.5, "encoded": 0.0},
             "StochasticReversal": {"action": "buy", "confidence": 0.65, "encoded": 0.65},
             "ADXTrendStrength": {"action": "sell", "confidence": 0.55, "encoded": -0.55},
@@ -851,8 +851,8 @@ class TestStrategySignalFeatures:
         assert "strategy_signal_ATRBased" in result_df.columns
         assert result_df["strategy_signal_ATRBased"].iloc[0] == 0.8
 
-        assert "strategy_signal_DonchianChannel" in result_df.columns
-        assert result_df["strategy_signal_DonchianChannel"].iloc[0] == -0.7
+        assert "strategy_signal_CMFReversal" in result_df.columns
+        assert result_df["strategy_signal_CMFReversal"].iloc[0] == -0.7
 
     def test_add_strategy_signal_features_partial_signals(self, generator, sample_df):
         """一部戦略シグナルのみの場合のテスト"""
