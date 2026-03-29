@@ -463,6 +463,11 @@ class BotFunctionCheckResult:
     strategy_entry_counts: Dict[str, int] = field(default_factory=dict)
     direction_stats: Dict[str, Dict[str, int]] = field(default_factory=dict)
 
+    # Phase 73-D: ML品質フィルタ統計
+    quality_filter_accept: int = 0
+    quality_filter_reject: int = 0
+    quality_filter_uncertain: int = 0
+
     # Phase 65.2: GCPログベース動作確認
     phase65_2_log_count: int = 0
     partial_cancel_count: int = 0
@@ -484,7 +489,7 @@ class BotFunctionChecker:
         "ATRBased",
         "BBReversal",
         "StochasticReversal",
-        "DonchianChannel",
+        "CMFReversal",
         "ADXTrendStrength",
         "MACDEMACrossover",
     ]
@@ -802,8 +807,8 @@ class BotFunctionChecker:
             self.result.critical_issues += 1
 
     def _check_phase71_stats(self):
-        """Phase 71: トレンドフィルタ・戦略エントリー・方向別統計"""
-        self.logger.info("📊 Phase 71: トレンドフィルタ・戦略統計確認")
+        """Phase 70-74: トレンドフィルタ・戦略エントリー・方向別・品質フィルタ統計"""
+        self.logger.info("📊 Phase 70-74: 改修効果統計確認")
 
         # トレンドフィルタ統計
         self.result.trend_block_count = self._count_logs('textPayload:"強トレンドブロック"', 20)
@@ -844,8 +849,15 @@ class BotFunctionChecker:
         total_entries = buy_entries + sell_entries
         if total_entries > 0:
             self.logger.info(
-                f"📊 Phase 71: エントリー統計 - buy:{buy_entries}件 sell:{sell_entries}件"
+                f"📊 Phase 70-74: エントリー統計 - buy:{buy_entries}件 sell:{sell_entries}件"
             )
+
+        # Phase 73-D: ML品質フィルタ統計
+        self.result.quality_filter_accept = self._count_logs('textPayload:"品質フィルタ通過"', 20)
+        self.result.quality_filter_reject = self._count_logs('textPayload:"品質フィルタ拒否"', 20)
+        self.result.quality_filter_uncertain = self._count_logs(
+            'textPayload:"品質フィルタ中間"', 20
+        )
 
     def _check_phase65_2_logs(self):
         """Phase 65.2: GCPログベース動作確認"""
@@ -2797,12 +2809,12 @@ async def main():
             mark = "✅" if check["ok"] else "❌"
             print(f"   {mark} {name}: {check['actual']} (期待: {check['expected']})")
 
-    # Phase 71: レジーム分布・戦略エントリー・方向別・トレンドフィルタ
+    # Phase 70-74: レジーム分布・戦略エントリー・方向別・トレンドフィルタ・品質フィルタ
     regime_total = (
         bot_result.tight_range_count + bot_result.normal_range_count + bot_result.trending_count
     )
     if regime_total > 0:
-        print("\n📊 Phase 71: レジーム分布:")
+        print("\n📊 Phase 70-74: レジーム分布:")
         for regime_name, count in [
             ("tight_range", bot_result.tight_range_count),
             ("normal_range", bot_result.normal_range_count),
@@ -2814,7 +2826,7 @@ async def main():
     if bot_result.strategy_entry_counts:
         active = {k: v for k, v in bot_result.strategy_entry_counts.items() if v > 0}
         inactive = {k: v for k, v in bot_result.strategy_entry_counts.items() if v == 0}
-        print("\n📊 Phase 71: 戦略別エントリー:")
+        print("\n📊 Phase 70-74: 戦略別エントリー:")
         for name, count in sorted(active.items(), key=lambda x: -x[1]):
             print(f"   {name}: {count}件")
         if inactive:
@@ -2827,7 +2839,7 @@ async def main():
         buy_sl = ds.get("buy", {}).get("sl", 0)
         sell_sl = ds.get("sell", {}).get("sl", 0)
         if buy_e + sell_e > 0:
-            print("\n📊 Phase 71: 方向別統計:")
+            print("\n📊 Phase 70-74: 方向別統計:")
             if buy_e > 0:
                 buy_sl_rate = buy_sl / buy_e * 100 if buy_e > 0 else 0
                 print(f"   buy:  エントリー{buy_e}件, SL{buy_sl}件 (SL率{buy_sl_rate:.0f}%)")
@@ -2836,9 +2848,28 @@ async def main():
                 print(f"   sell: エントリー{sell_e}件, SL{sell_sl}件 (SL率{sell_sl_rate:.0f}%)")
 
     if bot_result.trend_block_count > 0 or bot_result.trend_penalty_count > 0:
-        print("\n📊 Phase 71: トレンドフィルタ:")
+        print("\n📊 Phase 70-74: トレンドフィルタ:")
         print(f"   強トレンドブロック: {bot_result.trend_block_count}回")
         print(f"   信頼度削減: {bot_result.trend_penalty_count}回")
+
+    # Phase 73-D: ML品質フィルタ
+    qf_total = (
+        bot_result.quality_filter_accept
+        + bot_result.quality_filter_reject
+        + bot_result.quality_filter_uncertain
+    )
+    if qf_total > 0:
+        print("\n📊 Phase 73-D: ML品質フィルタ（メタラベリング）:")
+        print(f"   通過（Go）: {bot_result.quality_filter_accept}回")
+        print(f"   拒否（No-Go）: {bot_result.quality_filter_reject}回")
+        print(f"   中間（縮小）: {bot_result.quality_filter_uncertain}回")
+        if bot_result.quality_filter_accept + bot_result.quality_filter_reject > 0:
+            accept_rate = (
+                bot_result.quality_filter_accept
+                / (bot_result.quality_filter_accept + bot_result.quality_filter_reject)
+                * 100
+            )
+            print(f"   通過率: {accept_rate:.0f}%")
 
     # Phase 65.2: TP/SLフルカバー動作
     if bot_result.phase65_2_log_count > 0:
