@@ -163,3 +163,23 @@ Phase 70ライブ検証（3/22-3/26）で10取引中8敗（勝率20%、PnL -4,11
   ↓ リスク管理
   ↓ エントリー実行
 ```
+
+---
+
+## バグ修正（2026年3月30日）
+
+### BUG 1: MLモデルがダミーモデルにフォールバック（CRITICAL）
+
+**症状**: 3/28以降エントリーがゼロ。GCPログに「想定外の特徴量数: 99」「ダミーモデル使用」。
+
+**原因**: `trading_cycle_manager.py`の`ensure_correct_model()`に`main_features`の全カラム数（open/high/low含む99列）が渡されていた。MLモデルは55特徴量なので不一致判定→ダミーモデル（全hold）にフォールバック→品質フィルタにシグナルが来ない→エントリーゼロ。
+
+**修正**: `main_features_for_ml.columns`（ML用に選択済みの55特徴量）を使用。
+
+### BUG 2: DonchianChannelがRegistryに残留してエラー
+
+**症状**: 毎サイクル「DonchianChannel シグナル生成エラー: 必要特徴量が不足」。
+
+**原因**: `__init__.py`のimportでDonchianChannelStrategyが自動的にStrategyRegistryに登録。thresholds.yamlに定義がなくてもimportチェーンで登録される。Phase 72でdonchian_high_20/low_20特徴量を削除済みのためエラー。
+
+**修正**: `__init__.py`からDonchianChannelのimportを除去。ファイル自体は過去参照用に残す。
