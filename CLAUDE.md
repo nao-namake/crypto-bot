@@ -10,7 +10,7 @@
 | **最新成果** | メタラベリング+全戦略機能回復 / 漏斗型設計（戦略→MLフィルタ→エントリー） |
 | **最終更新** | 2026年3月30日 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-73）、`docs/開発履歴/Phase_71-73.md`（最新）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-73）、`docs/開発履歴/Phase_71-74.md`（最新）
 
 ---
 
@@ -349,5 +349,5 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 | **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
 | **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-73） |
-| **履歴** | [Phase_71-73.md](docs/開発履歴/Phase_71-73.md) | 最新Phase詳細 |
+| **履歴** | [Phase_71-74.md](docs/開発履歴/Phase_71-74.md) | 最新Phase詳細 |
 | **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |
