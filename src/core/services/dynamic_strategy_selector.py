@@ -44,7 +44,7 @@ class DynamicStrategySelector:
 
         Returns:
             Dict[str, float]: 戦略名と重みのマッピング
-                例: {"ATRBased": 0.70, "DonchianChannel": 0.30}
+                例: {"ATRBased": 0.70, "CMFReversal": 0.30}
                 high_volatility時は空辞書 {}
 
         Raises:

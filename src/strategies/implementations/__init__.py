@@ -19,14 +19,12 @@ from .adx_trend import ADXTrendStrengthStrategy
 from .atr_based import ATRBasedStrategy
 from .bb_reversal import BBReversalStrategy
 from .cmf_reversal import CMFReversalStrategy
-from .donchian_channel import DonchianChannelStrategy
 from .macd_ema_crossover import MACDEMACrossoverStrategy
 from .stochastic_reversal import StochasticReversalStrategy
 
 __all__ = [
     "ATRBasedStrategy",
     "CMFReversalStrategy",
-    "DonchianChannelStrategy",
     "ADXTrendStrengthStrategy",
     "BBReversalStrategy",
     "StochasticReversalStrategy",

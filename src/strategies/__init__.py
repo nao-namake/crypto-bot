@@ -8,7 +8,7 @@ Registry Pattern + Decoratorによる自動登録・動的ロード機構。
 1. BBReversal: BB位置主導 + RSIボーナス → 平均回帰
 2. StochasticDivergence: 価格とStochasticの乖離検出 → 反転
 3. ATRBased: ATR消尽率70%以上 → 反転期待
-4. DonchianChannel: チャネル端部反転 + RSIボーナス
+4. CMFReversal: CMF出来高フロー反転（Phase 74）
 5. MACDEMACrossover: MACDクロス + EMAトレンド確認
 6. ADXTrendStrength: ADX≥25 + DIクロス → トレンドフォロー
 """

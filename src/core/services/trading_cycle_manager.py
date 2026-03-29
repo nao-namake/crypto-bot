@@ -420,7 +420,7 @@ class TradingCycleManager:
                 self.logger.debug(f"ML予測用特徴量選択完了: {main_features_for_ml.shape}")
 
                 # Phase 50.8: 特徴量数に応じた正しいモデルを確保
-                actual_feature_count = len(main_features.columns)
+                actual_feature_count = len(main_features_for_ml.columns)
                 if not self.orchestrator.ml_service.ensure_correct_model(actual_feature_count):
                     self.logger.warning(
                         f"⚠️ Phase 50.8: モデルロード失敗（{actual_feature_count}特徴量） - "

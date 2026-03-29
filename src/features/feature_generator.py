@@ -445,7 +445,7 @@ class FeatureGenerator:
             strategy_signals: 戦略シグナル辞書（StrategyManager.get_individual_strategy_signals()の戻り値）
                 例: {
                     "ATRBased": {"action": "buy", "confidence": 0.678, "encoded": 0.678},
-                    "DonchianChannel": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
+                    "CMFReversal": {"action": "sell", "confidence": 0.729, "encoded": -0.729},
                     ...
                 }
 
