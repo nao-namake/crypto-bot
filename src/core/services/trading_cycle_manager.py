@@ -122,7 +122,11 @@ class TradingCycleManager:
             )
 
             # Phase 70: シグナル一貫性チェック
-            trade_evaluation = self._apply_signal_consistency_check(trade_evaluation)
+            # パイプライン監査: quality_filterモードではメタラベリングが確認機能を担うため
+            # consecutive signal checkはスキップ（Web調査: メタラベリング時は有害）
+            ml_mode_for_consistency = get_threshold("ml.mode", "direction")
+            if ml_mode_for_consistency != "quality_filter":
+                trade_evaluation = self._apply_signal_consistency_check(trade_evaluation)
 
             # Phase 8: 注文実行
             await self._execute_approved_trades(trade_evaluation, cycle_id)
@@ -1325,28 +1329,14 @@ class TradingCycleManager:
             if side.lower() in ["hold", "none", ""] or position_size <= 0:
                 return {"allowed": False, "reason": "holdシグナルまたは無効なポジションサイズ"}
 
-            # 2. ExecutionService経由でポジション制限再確認
-            try:
-                execution_service = self.orchestrator.execution_service
-                if hasattr(execution_service, "_check_position_limits"):
-                    position_check = execution_service._check_position_limits(trade_evaluation)
-                    if not position_check.get("allowed", True):
-                        return {
-                            "allowed": False,
-                            "reason": f"ポジション制限再確認失敗: {position_check.get('reason', '不明')}",
-                        }
-            except Exception as e:
-                self.logger.warning(f"⚠️ ポジション制限再確認エラー: {e}")
-
-            # 3. 現在残高確認（最新残高でのチェック）
+            # 2. 現在残高確認（最新残高でのチェック）
             try:
                 current_balance = await self._get_current_balance()
                 if current_balance is not None and current_balance > 0:
-                    # 最小取引可能残高チェック
                     min_trade_size = get_threshold("trading.min_trade_size", 0.0001)
-                    estimated_cost = min_trade_size * 16700000  # BTC価格概算
+                    estimated_cost = min_trade_size * 16700000
 
-                    if current_balance < estimated_cost * 1.5:  # 1.5倍の余裕を確保
+                    if current_balance < estimated_cost * 1.5:
                         return {
                             "allowed": False,
                             "reason": f"残高不足: ¥{current_balance:,.0f} < 必要残高¥{estimated_cost * 1.5:,.0f}",
@@ -1354,40 +1344,7 @@ class TradingCycleManager:
             except Exception as e:
                 self.logger.warning(f"⚠️ 現在残高確認エラー: {e}")
 
-            # 4. 市場急変状況チェック
-            try:
-                # 直近の価格ボラティリティ確認（簡易実装）
-                market_volatility_check = await self._check_current_market_volatility()
-                if market_volatility_check and not market_volatility_check.get("stable", True):
-                    volatile_threshold = get_threshold(
-                        "trading.anomaly.max_volatility_for_trade", 0.05
-                    )
-                    current_volatility = market_volatility_check.get("volatility", 0.0)
-
-                    if current_volatility > volatile_threshold:
-                        return {
-                            "allowed": False,
-                            "reason": (
-                                f"市場急変検出: ボラティリティ {current_volatility * 100:.1f}% "
-                                f"> {volatile_threshold * 100:.0f}%"
-                            ),
-                        }
-            except Exception as e:
-                self.logger.debug(f"市場ボラティリティチェックエラー（非致命的）: {e}")
-
-            # 5. 緊急時条件確認（Emergency Stop-Lossがアクティブでないか）
-            try:
-                if hasattr(self.orchestrator, "execution_service"):
-                    emergency_status = await self._check_emergency_conditions()
-                    if emergency_status and not emergency_status.get("normal", True):
-                        return {
-                            "allowed": False,
-                            "reason": f"緊急時条件検出: {emergency_status.get('reason', '不明な緊急事態')}",
-                        }
-            except Exception as e:
-                self.logger.debug(f"緊急時条件チェックエラー（非致命的）: {e}")
-
-            # 6. システム健全性最終確認
+            # 3. システム健全性最終確認
             health_status = await self._check_system_health_for_trading()
             if not health_status.get("healthy", False):
                 return {
@@ -1403,10 +1360,7 @@ class TradingCycleManager:
                 "additional_info": {
                     "verification_time": datetime.now(),
                     "checks_performed": [
-                        "position_limits",
                         "balance",
-                        "volatility",
-                        "emergency",
                         "health",
                     ],
                 },

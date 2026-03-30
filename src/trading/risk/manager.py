@@ -245,7 +245,10 @@ class IntegratedRiskManager:
             else:
                 trade_side = raw_side
 
-            if ml_confidence < min_ml_confidence:
+            # Phase 75: 品質フィルタモードではML信頼度チェック不要
+            # （品質判定は_apply_quality_filterで実施済み）
+            ml_mode = ml_prediction.get("ml_mode", "direction")
+            if ml_mode != "quality_filter" and ml_confidence < min_ml_confidence:
                 denial_reasons.append(
                     f"ML信頼度不足: {ml_confidence:.3f} < {min_ml_confidence:.3f}"
                 )
