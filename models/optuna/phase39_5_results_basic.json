@@ -1,6 +1,6 @@
 {
-  "created_at": "2026-03-29T05:42:04.979895",
-  "n_trials": 50,
+  "created_at": "2026-03-31T04:17:01.909517",
+  "n_trials": 30,
   "models": {
     "lightgbm": {
       "best_params": {
@@ -14,7 +14,7 @@
         "bagging_fraction": 0.7960239524600667
       },
       "best_score": 0.5407585814306844,
-      "n_trials": 50
+      "n_trials": 30
     },
     "xgboost": {
       "best_params": {
@@ -28,7 +28,7 @@
         "colsample_bytree": 0.8006240213367635
       },
       "best_score": 0.5523440795957062,
-      "n_trials": 50
+      "n_trials": 30
     },
     "random_forest": {
       "best_params": {
@@ -38,7 +38,7 @@
         "min_samples_leaf": 9
       },
       "best_score": 0.5348338386698627,
-      "n_trials": 50
+      "n_trials": 30
     }
   }
 }

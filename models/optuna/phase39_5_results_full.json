@@ -1,20 +1,20 @@
 {
-  "created_at": "2026-03-29T05:06:36.174760",
-  "n_trials": 50,
+  "created_at": "2026-03-31T04:01:44.785921",
+  "n_trials": 30,
   "models": {
     "lightgbm": {
       "best_params": {
-        "learning_rate": 0.04513534280748688,
-        "max_depth": 10,
-        "n_estimators": 167,
+        "learning_rate": 0.125879335636804,
+        "max_depth": 15,
+        "n_estimators": 139,
         "num_leaves": 96,
-        "reg_alpha": 0.6674813321479831,
-        "reg_lambda": 6.9023540895647315,
-        "feature_fraction": 0.5909532322071382,
-        "bagging_fraction": 0.8346208354813233
+        "reg_alpha": 5.829989478026363,
+        "reg_lambda": 0.11922268341623424,
+        "feature_fraction": 0.5271281071050484,
+        "bagging_fraction": 0.6878870615056237
       },
-      "best_score": 0.5402664624387726,
-      "n_trials": 50
+      "best_score": 0.5403164395787521,
+      "n_trials": 30
     },
     "xgboost": {
       "best_params": {
@@ -27,18 +27,18 @@
         "subsample": 0.6246844304357644,
         "colsample_bytree": 0.7080272084711243
       },
-      "best_score": 0.5525423651518224,
-      "n_trials": 50
+      "best_score": 0.5525303370903293,
+      "n_trials": 30
     },
     "random_forest": {
       "best_params": {
-        "n_estimators": 113,
+        "n_estimators": 175,
         "max_depth": 12,
-        "min_samples_split": 20,
-        "min_samples_leaf": 9
+        "min_samples_split": 15,
+        "min_samples_leaf": 7
       },
-      "best_score": 0.5343677902546394,
-      "n_trials": 50
+      "best_score": 0.5328952654150826,
+      "n_trials": 30
     }
   }
 }

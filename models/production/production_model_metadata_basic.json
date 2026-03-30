@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-03-29T06:08:33.803972",
+  "created_at": "2026-03-31T04:50:07.972712",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_basic.pkl",
   "version": "1.0.0",
@@ -116,8 +116,8 @@
     "optimal_threshold": 0.5
   },
   "git_info": {
-    "commit": "be3fa5df26e64333d7a5523895aaaee3bbb20b9e",
-    "commit_short": "be3fa5df",
+    "commit": "c2564f86ea463a38a96ad802b0b5b3df7e3ae47a",
+    "commit_short": "c2564f86",
     "branch": "main"
   },
   "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"
