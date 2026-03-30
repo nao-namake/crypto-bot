@@ -733,7 +733,7 @@ class BotFunctionChecker:
             },
             "BBReversal tight_range重み": {
                 "path": "dynamic_strategy_selection.regime_strategy_mapping.tight_range.BBReversal",
-                "expected": 0.15,
+                "expected": 0.20,
                 "default": 0.0,
             },
             "Entry Maker有効": {
