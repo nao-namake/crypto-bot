@@ -596,7 +596,7 @@ risk:
   kelly_max_fraction: 1.0
   recent_lookback_hours: 24
   safe_balance_ratio: 0.3
-  max_capital_usage: 1.5
+  max_capital_usage: 0.3
   reserve_ratio: 0.5
   fallback_atr: 120000
   require_tpsl_recalculation: true
