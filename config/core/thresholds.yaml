@@ -115,6 +115,8 @@ market_regime:
   high_volatility:
     atr_ratio_threshold: 0.018
 ml:
+  # Phase 73-D: MLモード（quality_filter=メタラベリング品質判定, direction=旧方向予測）
+  # quality_filterモードでは下記strategy_integration/regime_ml_integrationは無視される
   mode: quality_filter
   quality_filter:
     enabled: true
@@ -137,6 +139,7 @@ ml:
   confidence_threshold: 0.3
   allow_dummy_fallback: false
   default_confidence: 0.5
+  # 以下はmode=directionの場合のみ使用。mode=quality_filterでは無視される
   strategy_integration:
     enabled: true
     ml_weight: 0.35

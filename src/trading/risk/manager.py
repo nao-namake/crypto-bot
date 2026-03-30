@@ -250,11 +250,11 @@ class IntegratedRiskManager:
                     f"ML信頼度不足: {ml_confidence:.3f} < {min_ml_confidence:.3f}"
                 )
 
-            # 4. 残高利用率チェック
+            # 4. 残高利用率チェック（ログのみ。DENY判定はposition_limitsで実施）
             capital_usage_check = self._check_capital_usage_limits(current_balance, last_price)
             if not capital_usage_check["allowed"]:
-                denial_reasons.append(capital_usage_check["reason"])
-                self.logger.warning(f"🚫 残高利用率制限: {capital_usage_check['reason']}")
+                warnings.append(capital_usage_check["reason"])
+                self.logger.info(f"📊 残高利用率情報: {capital_usage_check['reason']}")
 
             # 5. 保証金維持率監視（Phase 43: 拒否機能追加）
             should_deny, margin_message = await self._check_margin_ratio(
