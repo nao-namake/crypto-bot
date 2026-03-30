@@ -197,10 +197,7 @@ ml:
       uncertainty_max: 0.2
       uncertainty_boost: 1.0
     strategies:
-      donchian_channel:
-        breakout_base: 0.6
-        breakout_min: 0.3
-        breakout_max: 0.85
+      cmf_reversal:
         reversal_base: 0.5
         reversal_min: 0.3
         reversal_max: 0.7

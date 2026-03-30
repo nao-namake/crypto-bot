@@ -1239,16 +1239,12 @@ class TradingCycleManager:
 
     def _apply_signal_consistency_check(self, trade_evaluation):
         """
-        Phase 70: シグナル一貫性チェック
+        Phase 70 + ワークフロー監査修正: シグナル一貫性チェック
 
-        過去N回のシグナルと同方向の場合のみエントリーを許可する。
-        異なる方向のシグナルが来た場合はHOLDに変換し、ノイズシグナルを削減。
-
-        Args:
-            trade_evaluation: リスク評価結果
-
-        Returns:
-            TradeEvaluation: 一貫性チェック適用後の評価結果
+        過去N回の非holdシグナルが同方向の場合のみエントリーを許可。
+        holdは「判断なし」として扱い、バッファに記録しない。
+        これにより ['hold','buy'] でもbuyが通過可能。
+        buy→sell の方向反転のみをブロックする。
         """
         try:
             from ...trading.core import RiskDecision
@@ -1260,11 +1256,9 @@ class TradingCycleManager:
 
             side = getattr(trade_evaluation, "side", "none")
 
-            # シグナル方向をバッファに記録（承認/拒否に関わらず）
+            # 非holdシグナルのみバッファに記録（holdは「判断なし」として無視）
             if side and side.lower() not in ("none", "hold", ""):
                 self._signal_history.append(side.lower())
-            else:
-                self._signal_history.append("hold")
 
             # バッファサイズ制限（直近5回分）
             if len(self._signal_history) > 5:
@@ -1274,10 +1268,9 @@ class TradingCycleManager:
             if not is_approved or side.lower() in ("none", "hold", ""):
                 return trade_evaluation
 
-            # 一貫性チェック: 直近N回が同方向かどうか
+            # 一貫性チェック: 直近N回の非holdシグナルが同方向かどうか
             required = self._signal_consistency_required
             if len(self._signal_history) < required:
-                # 履歴不足 → 拒否（初回サイクルは様子見）
                 self.logger.info(
                     f"📊 Phase 70: シグナル履歴不足 "
                     f"({len(self._signal_history)}/{required}回) → エントリー保留"
