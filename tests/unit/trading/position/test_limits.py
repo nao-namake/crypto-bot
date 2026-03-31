@@ -409,23 +409,15 @@ class TestCheckCapitalUsage:
         assert "資金利用率OK" in result["reason"]
 
     @patch("src.trading.position.limits.get_threshold")
-    def test_capital_usage_at_limit(self, mock_threshold, limits):
-        """資金利用率制限到達（Phase 65.6: mode引数使用）"""
+    def test_capital_usage_always_allowed(self, mock_threshold, limits):
+        """Phase 75: 資金利用率チェックは常に許可（DrawdownManagerと重複のため無効化）"""
 
-        def threshold_side_effect(key, default=None):
-            if key == "risk.max_capital_usage":
-                return 0.3
-            if key == "mode_balances.backtest.initial_balance":
-                return 10000.0
-            return default
-
-        mock_threshold.side_effect = threshold_side_effect
-
-        # 10,000円初期残高、6,800円現在残高 = 32%使用
+        # どんな残高でも常にallowed=True
         result = limits._check_capital_usage(6800.0, mode="backtest")
+        assert result["allowed"] is True
 
-        assert result["allowed"] is False
-        assert "資金利用率制限" in result["reason"]
+        result = limits._check_capital_usage(100.0, mode="live")
+        assert result["allowed"] is True
 
     @patch("src.trading.position.limits.get_threshold")
     def test_capital_usage_live_mode_explicit(self, mock_threshold, limits):

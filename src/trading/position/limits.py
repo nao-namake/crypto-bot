@@ -282,44 +282,21 @@ class PositionLimits:
         """
         残高利用率チェック
 
+        Phase 75: DrawdownManagerが既にmax_drawdown_ratio(20%)でチェックしているため、
+        ここでは固定initial_balanceとの比較を行わない（残高が流動的なため）。
+        常に許可を返す。
+
         Args:
             current_balance: 現在の残高
-            mode: 実行モード（Phase 65.6: 残高ベース推定を排除）
+            mode: 実行モード
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
         """
-        max_capital_usage = get_threshold("risk.max_capital_usage", 0.3)
-
-        # Phase 65.6: mode引数優先、フォールバックは残高ベース推定（後方互換）
-        if not mode:
-            if current_balance >= 90000:
-                mode = "live"
-            elif current_balance >= 8000:
-                mode = "paper"
-            else:
-                mode = "backtest"
-
-        if mode == "backtest":
-            initial_balance = get_threshold("mode_balances.backtest.initial_balance", 100000.0)
-        elif mode == "paper":
-            initial_balance = get_threshold("mode_balances.paper.initial_balance", 100000.0)
-        else:
-            initial_balance = get_threshold("mode_balances.live.initial_balance", 100000.0)
-
-        # 現在の使用率計算
-        if initial_balance > 0:
-            current_usage_ratio = (initial_balance - current_balance) / initial_balance
-        else:
-            current_usage_ratio = 1.0
-
-        if current_usage_ratio >= max_capital_usage:
-            return {
-                "allowed": False,
-                "reason": f"資金利用率制限({max_capital_usage * 100:.0f}%)に達しています。現在: {current_usage_ratio * 100:.1f}%",
-            }
-
-        return {"allowed": True, "reason": "資金利用率OK"}
+        # Phase 75: ドローダウンチェック（DrawdownManager）と重複するため無効化
+        # 固定initial_balanceとの比較は残高が減るほど厳しくなり、
+        # ポジションゼロでも「資金利用率超過」と判定される問題があった
+        return {"allowed": True, "reason": "資金利用率OK（DrawdownManagerで管理）"}
 
     def _check_daily_trades(self, virtual_positions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
