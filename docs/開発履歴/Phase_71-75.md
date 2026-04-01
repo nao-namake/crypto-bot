@@ -220,3 +220,10 @@ Phase 70ライブ検証（3/22-3/26）で10取引中8敗（勝率20%、PnL -4,11
 | Kelly Criterion完全無効（weight=0）だが毎サイクル計算 | 既知（害は小さい、次Phase以降で対応） |
 | PositionLimitsがライブで未呼出 | 既知（executor.pyから呼出されるが統合不完全） |
 | record_trade_result()がライブで未呼出 | 既知（DrawdownManager更新が欠落） |
+
+### バグ修正（Phase 75追加）
+
+| 修正 | 内容 |
+|------|------|
+| 資本使用率チェック | 固定initial_balance(50万)との比較で残高減少時にブロック → DrawdownManagerと重複のため無効化 |
+| シグナルシミュレーション | `scripts/analysis/signal_simulation.py`追加。戦略/MLの判断を事後検証 |

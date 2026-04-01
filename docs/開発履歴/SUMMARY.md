@@ -313,6 +313,8 @@
 | **ML信頼度重複排除** | 品質フィルタモードでrisk_managerのML信頼度チェックをスキップ | ✅ 完了 |
 | **設定修正** | max_capital_usage 1.5→0.3・資本使用率DENY→ログのみ | ✅ 完了 |
 | **設定残骸** | donchian_channel→cmf_reversal入替（dynamic_confidence） | ✅ 完了 |
+| **資本使用率修正** | 固定initial_balance比較→DrawdownManagerと重複で無効化 | ✅ 完了 |
+| **シミュレーション** | signal_simulation.py追加（戦略/MLの事後検証ツール） | ✅ 完了 |
 
 ### Phase 69 成果（✅完了）
 | 変更 | 内容 | 状態 |

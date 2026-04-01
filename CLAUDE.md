@@ -93,6 +93,11 @@ python3 scripts/backtest/standard_analysis.py results/backtest_result.json
 
 # 戦略個別パフォーマンス分析
 python3 scripts/analysis/strategy_performance_analysis.py
+
+# シグナルシミュレーション（Phase 75: 事後検証）
+python3 scripts/analysis/signal_simulation.py                          # 直近7日全足
+python3 scripts/analysis/signal_simulation.py --with-signals           # GCPシグナル検証
+python3 scripts/analysis/signal_simulation.py --start 2026-03-25 --end 2026-04-01 --full
 ```
 
 ---
