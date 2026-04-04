@@ -773,8 +773,8 @@ class BotFunctionChecker:
             },
             "固定金額SL目標": {
                 "path": "position_management.stop_loss.fixed_amount.target_max_loss",
-                "expected": 500,
-                "default": 500,
+                "expected": 1000,
+                "default": 1000,
             },
             "ポジションサイズモード": {
                 "path": "position_sizing.mode",

@@ -502,8 +502,8 @@ class TestADXTrendStrengthStrategy(unittest.TestCase):
 
         confidence = self.strategy._calculate_weak_trend_hold_confidence(analysis, df)
 
-        # Phase 38.5: hold_min 0.20→0.35, hold_max 0.45→0.60 に引き上げ
-        self.assertGreaterEqual(confidence, 0.35)
+        # Phase 76: hold_confidence中立化(0.45→0.12)に伴い下限緩和
+        self.assertGreaterEqual(confidence, 0.10)
         self.assertLessEqual(confidence, 0.60)
 
     def test_calculate_default_confidence(self):

@@ -1181,8 +1181,8 @@ class TradingCycleManager:
             )
             return strategy_signal
 
-        elif ml_pred == 0 or ml_confidence < reject_threshold:
-            # 低品質 → HOLDに変換（取引拒否）
+        elif (ml_pred == 0 and ml_confidence >= 0.55) or ml_confidence < reject_threshold:
+            # 低品質 → HOLDに変換（モデルが確信を持って失敗予測、または信頼度極低）
             self.logger.warning(
                 f"🚫 Phase 73-D: 品質フィルタ拒否 - "
                 f"{strategy_action.upper()}→HOLD "

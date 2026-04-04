@@ -120,9 +120,9 @@ ml:
   mode: quality_filter
   quality_filter:
     enabled: true
-    accept_threshold: 0.60
-    reject_threshold: 0.40
-    uncertain_penalty: 0.5
+    accept_threshold: 0.55
+    reject_threshold: 0.35
+    uncertain_penalty: 0.7
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3
@@ -266,11 +266,11 @@ dynamic_strategy_selection:
   enabled: true
   trend_filter:
     enabled: true
-    ema_slope_threshold: 0.001
-    counter_trend_penalty: 0.3
+    ema_slope_threshold: 0.002
+    counter_trend_penalty: 0.5
     strong_trend_multiplier: 2.0
     strong_trend_block: true
-    di_confirmation_enabled: true
+    di_confirmation_enabled: false
     di_spread_threshold: 5
   regime_strategy_mapping:
     tight_range:
@@ -323,7 +323,7 @@ strategies:
     regime_affinity: range
     di_crossover_threshold: 0.5
     di_weak_signal_confidence: 0.35
-    hold_confidence: 0.45
+    hold_confidence: 0.12
     min_confidence: 0.25
     moderate_trend_max: 25
     moderate_trend_min: 15
@@ -360,7 +360,7 @@ strategies:
     rsi_lower: 40
     rsi_confirmation_bonus: 0.05
     min_confidence: 0.35
-    hold_confidence: 0.2
+    hold_confidence: 0.10
     base_confidence: 0.4
     high_confidence: 0.6
     min_score_threshold: 0.65
@@ -391,7 +391,7 @@ strategies:
     base_confidence: 0.4
     max_confidence: 0.6
     min_confidence: 0.3
-    hold_confidence: 0.25
+    hold_confidence: 0.10
     extreme_position_bonus: 0.1
     rsi_confirmation_bonus: 0.05
     rsi_mismatch_penalty: 0.08
@@ -404,7 +404,7 @@ strategies:
     priority: 4
     regime_affinity: range
     min_confidence: 0.25
-    hold_confidence: 0.2
+    hold_confidence: 0.10
     bb_width_threshold: 0.06
     rsi_overbought: 55
     rsi_oversold: 45
@@ -433,7 +433,7 @@ strategies:
     stoch_oversold: 35
     adx_max_threshold: 50
     min_confidence: 0.25
-    hold_confidence: 0.2
+    hold_confidence: 0.10
     base_confidence: 0.32
     max_confidence: 0.6
     zone_bonus: 0.12
@@ -447,7 +447,7 @@ strategies:
     priority: 6
     regime_affinity: trend
     min_confidence: 0.3
-    hold_confidence: 0.25
+    hold_confidence: 0.10
     adx_trend_threshold: 15
     volume_ratio_threshold: 0.8
     macd_strong_threshold: 50000
@@ -569,8 +569,8 @@ risk:
   stop_loss_atr_multiplier: 1.2
   consecutive_loss_limit: 5
   take_profit_ratio: 2.0
-  daily_loss_limit: 0.005
-  weekly_loss_limit: 0.02
+  daily_loss_limit: 0.01
+  weekly_loss_limit: 0.04
   emergency_stop_enabled: true
   drawdown_manager:
     max_drawdown_ratio: 0.2
@@ -709,12 +709,12 @@ position_management:
       slippage_increase_per_retry: 0.001
     fixed_amount:
       enabled: true
-      target_max_loss: 500
+      target_max_loss: 1000
       confidence_based:
         enabled: true
         threshold: 0.4
-        low: 400
-        high: 500
+        low: 800
+        high: 1000
       include_entry_fee: true
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true
@@ -724,18 +724,18 @@ position_management:
       tight_range:
         max_loss_ratio: 0.004
         weekend_ratio: 0.0025
-        fixed_amount_target: 500
+        fixed_amount_target: 1000
       normal_range:
         max_loss_ratio: 0.007
         weekend_ratio: 0.0045
-        fixed_amount_target: 500
+        fixed_amount_target: 1000
       trending:
         max_loss_ratio: 0.01
         weekend_ratio: 0.0065
-        fixed_amount_target: 500
+        fixed_amount_target: 1000
       high_volatility:
         max_loss_ratio: 0.015
-        fixed_amount_target: 500
+        fixed_amount_target: 1000
     adaptive_atr:
       enabled: true
       use_15m_timeframe: true

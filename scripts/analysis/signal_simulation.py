@@ -266,9 +266,10 @@ def main():
 
     # 全足シミュレーション
     if args.full:
-        print(f"\n{'='*70}")
+        separator = "=" * 70
+        print(f"\n{separator}")
         print("全足BUY/SELLシミュレーション（市場特性分析）")
-        print(f"{'='*70}")
+        print(f"{separator}")
 
         stats = run_full_simulation(df, args.tp, args.sl, args.max_bars, args.tp_pnl, args.sl_pnl)
 
@@ -278,17 +279,19 @@ def main():
             decided = s["wins"] + s["losses"]
             wr = s["wins"] / decided * 100 if decided > 0 else 0
             pnl = s["wins"] * args.tp_pnl - s["losses"] * args.sl_pnl
+            ev = pnl / total if total > 0 else 0
             print(
                 f"\n  {direction.upper()}: {total}件 "
                 f"(TP {s['wins']} / SL {s['losses']} / TO {s['timeouts']})"
             )
-            print(f"    勝率: {wr:.1f}% | PnL: ¥{pnl:+,.0f} | 期待値: ¥{pnl/total:+,.0f}/取引")
+            print(f"    勝率: {wr:.1f}% | PnL: ¥{pnl:+,.0f} | 期待値: ¥{ev:+,.0f}/取引")
 
     # GCPシグナルシミュレーション
     if args.with_signals:
-        print(f"\n{'='*70}")
+        separator = "=" * 70
+        print(f"\n{separator}")
         print("GCPログからのシグナルシミュレーション")
-        print(f"{'='*70}")
+        print(f"{separator}")
 
         signals = fetch_gcp_signals(args.days)
         if not signals:
@@ -342,9 +345,10 @@ def main():
         if total > 0:
             print(f"\n  合計: {total}件 TP{wins}/SL{losses}/TO{timeouts}")
             if wins + losses > 0:
-                print(f"  勝率: {wins/(wins+losses)*100:.0f}% | PnL: ¥{total_pnl:+,}")
+                wr = wins / (wins + losses) * 100
+                print(f"  勝率: {wr:.0f}% | PnL: ¥{total_pnl:+,}")
 
-            print(f"\n  MLフィルタ別:")
+            print("\n  MLフィルタ別:")
             for f_type in ["通過", "中間", "拒否"]:
                 items = results_by_filter[f_type]
                 if not items:
@@ -359,9 +363,10 @@ def main():
 
     # 全足もシグナルもない場合はデフォルトで全足シミュレーション
     if not args.full and not args.with_signals:
-        print(f"\n{'='*70}")
+        separator = "=" * 70
+        print(f"\n{separator}")
         print("全足BUY/SELLシミュレーション（市場特性分析）")
-        print(f"{'='*70}")
+        print(f"{separator}")
 
         stats = run_full_simulation(df, args.tp, args.sl, args.max_bars, args.tp_pnl, args.sl_pnl)
 
@@ -371,11 +376,12 @@ def main():
             decided = s["wins"] + s["losses"]
             wr = s["wins"] / decided * 100 if decided > 0 else 0
             pnl = s["wins"] * args.tp_pnl - s["losses"] * args.sl_pnl
+            ev = pnl / total if total > 0 else 0
             print(
                 f"\n  {direction.upper()}: {total}件 "
                 f"(TP {s['wins']} / SL {s['losses']} / TO {s['timeouts']})"
             )
-            print(f"    勝率: {wr:.1f}% | PnL: ¥{pnl:+,.0f} | 期待値: ¥{pnl/total:+,.0f}/取引")
+            print(f"    勝率: {wr:.1f}% | PnL: ¥{pnl:+,.0f} | 期待値: ¥{ev:+,.0f}/取引")
 
 
 if __name__ == "__main__":
