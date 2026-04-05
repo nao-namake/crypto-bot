@@ -117,26 +117,23 @@ class TestFeatureGenerator:
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
 
-        # Phase 51.5-A: 60特徴量固定（外部API削除・戦略シグナル3個含む）
-        # strategy_signalsパラメータがNoneでも、戦略シグナル特徴量は0.0で生成される
-        strategy_signal_features = [
-            "strategy_signal_ATRBased",
-            "strategy_signal_CMFReversal",
-            "strategy_signal_ADXTrendStrength",
-        ]
-
-        # Phase 51.5-A: 外部API特徴量を除く60特徴量が存在するかチェック（戦略シグナル含む）
+        # Phase 77: 59特徴量（戦略シグナル廃止・単一モデル）
         for feature in FEATURES_WITHOUT_EXTERNAL_API:
+            if feature in result_df.columns:
+                continue
+            # Phase 77で削除/名前変更された特徴量はスキップ
+            if feature in [
+                "close_lag_1", "close_lag_2", "close_lag_3", "close_lag_10",
+                "day_cos", "is_europe_session",
+                "strategy_signal_ATRBased", "strategy_signal_CMFReversal",
+                "strategy_signal_ADXTrendStrength", "strategy_signal_BBReversal",
+                "strategy_signal_StochasticReversal", "strategy_signal_MACDEMACrossover",
+            ]:
+                continue
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
-        # Phase 51.5-A: 戦略シグナル特徴量は0.0で存在するはず（確実な60特徴量生成）
-        for feature in strategy_signal_features:
-            assert feature in result_df.columns, f"戦略シグナル特徴量{feature}が生成されていない"
-            # strategy_signals=Noneの場合は0.0で生成
-            assert (result_df[feature] == 0.0).all(), f"戦略シグナル特徴量{feature}が0.0でない"
-
-        # computed_featuresに記録されているかチェック - Phase 51.5-A: 60特徴量（確実）
-        assert len(generator.computed_features) == 55
+        # Phase 77: ML用37特徴量 + 戦略用補助指標がcomputed_featuresに含まれる
+        assert len(generator.computed_features) >= 37
 
     @pytest.mark.asyncio
     async def test_generate_features_multitime_input(self, generator, multitime_data):
@@ -536,9 +533,8 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # 計算された特徴量数が55-63の範囲になるはず - Phase 51.7 Day 7（6戦略構成）
-        # 49基本特徴量 + 6戦略信号特徴量 = 55特徴量
-        assert 55 <= len(generator.computed_features) <= 63
+        # Phase 77: 37 ML特徴量 + 戦略用補助指標（ML未使用だがDataFrame上に存在）
+        assert 37 <= len(generator.computed_features) <= 50
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:
@@ -733,17 +729,13 @@ class TestTimeFeatures:
 
         result_df = generator._generate_time_features(df)
 
-        # 時間特徴量が生成されているかチェック
+        # Phase 77: 時間特徴量5個（day_cos・is_europe_session削除）
         assert "hour" in result_df.columns
         assert "day_of_week" in result_df.columns
-        # Phase 72: is_market_open_hour削除（williams_r_14に入替）
-        assert "is_europe_session" in result_df.columns
         assert "hour_cos" in result_df.columns
         assert "day_sin" in result_df.columns
-        assert "day_cos" in result_df.columns
 
-        # 時間値が正しいかチェック
-        assert result_df["hour"].iloc[0] == 9  # 最初の時間は9時
+        assert result_df["hour"].iloc[0] == 9
         assert all(0 <= h <= 23 for h in result_df["hour"])
         assert all(0 <= d <= 6 for d in result_df["day_of_week"])
 
@@ -763,33 +755,9 @@ class TestTimeFeatures:
 
         result_df = generator._generate_time_features(df)
 
-        # 時間特徴量が生成されているかチェック
         assert "hour" in result_df.columns
         assert "day_of_week" in result_df.columns
-        # Phase 72: is_market_open_hour削除（williams_r_14に入替）
-        assert "is_europe_session" in result_df.columns
-
-    def test_time_features_europe_session(self, generator):
-        """欧州セッション判定テスト（日をまたぐ処理）"""
-        # 欧州セッション時間帯を含むデータ作成
-        hours = [15, 16, 17, 22, 23, 0, 1, 2, 6, 12]
-        dates = [pd.Timestamp(f"2025-01-01 {h:02d}:00") for h in hours]
-        df = pd.DataFrame(
-            {
-                "open": [100] * 10,
-                "high": [105] * 10,
-                "low": [95] * 10,
-                "close": [103] * 10,
-                "volume": [1000] * 10,
-            },
-            index=pd.DatetimeIndex(dates),
-        )
-
-        result_df = generator._generate_time_features(df)
-
-        # 欧州セッション判定チェック（16:00-01:00がTrue）
-        expected_europe = [0, 1, 1, 1, 1, 1, 0, 0, 0, 0]
-        assert list(result_df["is_europe_session"]) == expected_europe
+        assert "day_sin" in result_df.columns
 
     def test_time_features_cyclic_encoding(self, generator):
         """周期性エンコーディングテスト"""
@@ -807,10 +775,8 @@ class TestTimeFeatures:
 
         result_df = generator._generate_time_features(df)
 
-        # 周期性エンコーディング値の範囲チェック
         assert all(-1 <= v <= 1 for v in result_df["hour_cos"])
         assert all(-1 <= v <= 1 for v in result_df["day_sin"])
-        assert all(-1 <= v <= 1 for v in result_df["day_cos"])
 
 
 class TestStrategySignalFeatures:

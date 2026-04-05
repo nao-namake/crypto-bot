@@ -31,12 +31,12 @@ class TestMLLoader2StageGracefulDegradation:
         level = loader._determine_feature_level(feature_count=55)
         assert level == "full"
 
-    def test_determine_feature_level_49_features(self, logger):
-        """特徴量レベル判定テスト（49特徴量 → basic - Phase 51.7 Day 7）"""
+    def test_determine_feature_level_59_features(self, logger):
+        """特徴量レベル判定テスト（59特徴量 → full - Phase 77単一モデル）"""
         loader = MLModelLoader(logger=logger)
 
-        level = loader._determine_feature_level(feature_count=49)
-        assert level == "basic"
+        level = loader._determine_feature_level(feature_count=59)
+        assert level == "full"
 
     def test_determine_feature_level_unknown_features(self, logger):
         """特徴量レベル判定テスト（想定外の特徴量数 → fullフォールバック）"""

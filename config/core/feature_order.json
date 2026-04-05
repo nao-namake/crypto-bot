@@ -1,20 +1,20 @@
 {
-  "feature_order_version": "v5.0.0",
-  "phase": "Phase 72",
-  "total_features": 55,
-  "last_updated": "2026-03-27T00:00:00Z",
-  "description": "55特徴量（49基本+6戦略信号・Phase 72: CMF/CCI/Williams%R追加）",
+  "feature_order_version": "v8.0.0",
+  "phase": "Phase 77",
+  "total_features": 37,
+  "last_updated": "2026-04-05T00:00:00Z",
+  "description": "37特徴量（SHAP+Forward Selectionで最適化・OHLCV由来のみ・単一モデル）",
 
   "feature_levels": {
     "full": {
-      "count": 55,
-      "description": "完全特徴量（6戦略信号含む・49基本+6戦略）- デフォルトモデル",
-      "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time", "strategy_signals"],
+      "count": 37,
+      "description": "37特徴量（Phase 77最適化・歴代最高性能）",
+      "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time"],
       "model_file": "ensemble_full.pkl"
     },
     "basic": {
-      "count": 49,
-      "description": "基本特徴量（戦略信号なし・49基本特徴量のみ）- フォールバックモデル",
+      "count": 37,
+      "description": "37特徴量（fullと同一・将来のオーダーブック拡張時にフォールバック用）",
       "categories": ["basic", "momentum", "volatility", "trend", "volume", "breakout", "regime", "lag", "rolling", "interaction", "time"],
       "model_file": "ensemble_basic.pkl"
     }
@@ -22,562 +22,118 @@
 
   "feature_categories": {
     "basic": {
-      "description": "基本価格・出来高情報（2個）",
-      "features": [
-        "close",
-        "volume"
-      ]
+      "description": "基本価格・出来高（2個）",
+      "features": ["close", "volume"]
     },
-
     "momentum": {
-      "description": "モメンタム指標（6個）- Phase 51.7拡張",
-      "features": [
-        "rsi_14",
-        "macd",
-        "macd_signal",
-        "macd_histogram",
-        "stoch_k",
-        "stoch_d"
-      ]
+      "description": "モメンタム指標（2個）",
+      "features": ["rsi_14", "macd"]
     },
-
     "volatility": {
-      "description": "ボラティリティ指標（5個）- Phase 51.7拡張",
-      "features": [
-        "atr_14",
-        "bb_upper",
-        "bb_lower",
-        "bb_position",
-        "atr_ratio"
-      ]
+      "description": "ボラティリティ指標（2個）",
+      "features": ["atr_14", "bb_position"]
     },
-
     "trend": {
-      "description": "トレンド指標（2個）- Phase 51.7 Day 7",
-      "features": [
-        "ema_20",
-        "ema_50"
-      ]
+      "description": "トレンド指標（2個）",
+      "features": ["ema_20", "ema_50"]
     },
-
     "volume": {
-      "description": "出来高指標（2個）- Phase 51.7拡張",
-      "features": [
-        "volume_ratio",
-        "volume_ema"
-      ]
+      "description": "出来高指標（2個）",
+      "features": ["volume_ratio", "volume_ema"]
     },
-
     "breakout": {
-      "description": "チャネル・出来高フロー指標（3個）- Phase 72: CMF/CCI追加",
-      "features": [
-        "cmf_20",
-        "cci_20",
-        "channel_position"
-      ]
+      "description": "チャネル指標（1個）",
+      "features": ["channel_position"]
     },
-
     "regime": {
       "description": "市場レジーム指標（3個）",
-      "features": [
-        "adx_14",
-        "plus_di_14",
-        "minus_di_14"
-      ]
+      "features": ["adx_14", "plus_di_14", "minus_di_14"]
     },
-
     "lag": {
-      "description": "ラグ特徴量（過去N期間の値・9個）- Phase 51.7削減",
+      "description": "ラグ特徴量（9個）- Phase 77: close_lag→returns変換",
       "features": [
-        "close_lag_1",
-        "close_lag_2",
-        "close_lag_3",
-        "close_lag_10",
-        "volume_lag_1",
-        "volume_lag_2",
-        "volume_lag_3",
-        "rsi_lag_1",
-        "macd_lag_1"
+        "returns_1", "returns_2", "returns_3", "returns_10",
+        "volume_lag_1", "volume_lag_2", "volume_lag_3",
+        "rsi_lag_1", "macd_lag_1"
       ]
     },
-
     "rolling": {
-      "description": "移動統計量（Rolling Statistics・5個）- Phase 51.7削減",
-      "features": [
-        "close_ma_10",
-        "close_ma_20",
-        "close_std_5",
-        "close_std_10",
-        "close_std_20"
-      ]
+      "description": "移動統計量（5個）",
+      "features": ["close_ma_10", "close_ma_20", "close_std_5", "close_std_10", "close_std_20"]
     },
-
     "interaction": {
-      "description": "交互作用特徴量（Feature Interactions・5個）- Phase 51.7削減",
-      "features": [
-        "rsi_x_atr",
-        "macd_x_volume",
-        "bb_position_x_volume_ratio",
-        "close_x_atr",
-        "volume_x_bb_position"
-      ]
+      "description": "交互作用特徴量（5個）",
+      "features": ["rsi_x_atr", "macd_x_volume", "bb_position_x_volume_ratio", "close_x_atr", "volume_x_bb_position"]
     },
-
     "time": {
-      "description": "時間・モメンタム補完特徴量（7個）- Phase 72: Williams%R追加",
-      "features": [
-        "hour",
-        "day_of_week",
-        "williams_r_14",
-        "is_europe_session",
-        "hour_cos",
-        "day_sin",
-        "day_cos"
-      ]
-    },
-
-    "strategy_signals": {
-      "description": "戦略シグナル特徴量（Strategy Signals・6個・Phase 51.7 Day 6-7完了）",
-      "features": [
-        "strategy_signal_ATRBased",
-        "strategy_signal_CMFReversal",
-        "strategy_signal_ADXTrendStrength",
-        "strategy_signal_BBReversal",
-        "strategy_signal_StochasticReversal",
-        "strategy_signal_MACDEMACrossover"
-      ],
-      "note": "✅ Phase 51.7 Day 6-7完了: 6戦略シグナル完全対応"
+      "description": "時間特徴量（4個）- Phase 77: day_cos・is_europe_session削除",
+      "features": ["hour", "day_of_week", "hour_cos", "day_sin"]
     }
   },
 
+  "basic_feature_categories": {
+    "basic": {"features": ["close", "volume"]},
+    "momentum": {"features": ["rsi_14", "macd"]},
+    "volatility": {"features": ["atr_14", "bb_position"]},
+    "trend": {"features": ["ema_20", "ema_50"]},
+    "volume": {"features": ["volume_ratio", "volume_ema"]},
+    "breakout": {"features": ["channel_position"]},
+    "regime": {"features": ["adx_14", "plus_di_14", "minus_di_14"]},
+    "lag": {"features": ["returns_1", "returns_2", "returns_3", "returns_10", "volume_lag_1", "volume_lag_2", "volume_lag_3", "rsi_lag_1", "macd_lag_1"]},
+    "rolling": {"features": ["close_ma_10", "close_ma_20", "close_std_5", "close_std_10", "close_std_20"]},
+    "interaction": {"features": ["rsi_x_atr", "macd_x_volume", "bb_position_x_volume_ratio", "close_x_atr", "volume_x_bb_position"]},
+    "time": {"features": ["hour", "day_of_week", "hour_cos", "day_sin"]}
+  },
+
   "feature_definitions": {
-    "close": {
-      "type": "price",
-      "description": "終値",
-      "range": "positive_float",
-      "importance": "critical",
-      "feature_importance": 8
-    },
-    "volume": {
-      "type": "volume",
-      "description": "出来高",
-      "range": "positive_float",
-      "importance": "high",
-      "feature_importance": 8
-    },
-    "rsi_14": {
-      "type": "momentum",
-      "description": "14期間RSI",
-      "range": "0-100",
-      "importance": "high",
-      "feature_importance": 5
-    },
-    "macd": {
-      "type": "momentum",
-      "description": "MACDライン（12期間EMA - 26期間EMA）",
-      "range": "float",
-      "importance": "high",
-      "feature_importance": 9
-    },
-    "macd_signal": {
-      "type": "momentum",
-      "description": "MACDシグナル線（MACD 9期間EMA）",
-      "range": "float",
-      "importance": "high",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "macd_histogram": {
-      "type": "momentum",
-      "description": "MACDヒストグラム（MACD - Signal）",
-      "range": "float",
-      "importance": "medium",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "stoch_k": {
-      "type": "momentum",
-      "description": "Stochastic %K（Slow %K・3期間平滑化）",
-      "range": "0-100",
-      "importance": "medium",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "stoch_d": {
-      "type": "momentum",
-      "description": "Stochastic %D（%K 3期間SMA）",
-      "range": "0-100",
-      "importance": "medium",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "atr_14": {
-      "type": "volatility",
-      "description": "14期間ATR",
-      "range": "positive_float",
-      "importance": "critical",
-      "feature_importance": 8
-    },
-    "bb_upper": {
-      "type": "volatility",
-      "description": "ボリンジャーバンド上限（20期間MA + 2σ）",
-      "range": "positive_float",
-      "importance": "medium",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "bb_lower": {
-      "type": "volatility",
-      "description": "ボリンジャーバンド下限（20期間MA - 2σ）",
-      "range": "positive_float",
-      "importance": "medium",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "bb_position": {
-      "type": "volatility",
-      "description": "ボリンジャーバンド位置（0-1正規化）",
-      "range": "0-1",
-      "importance": "medium",
-      "feature_importance": 6
-    },
-    "atr_ratio": {
-      "type": "volatility",
-      "description": "ATR/Close比率（ボラティリティ正規化）",
-      "range": "positive_float",
-      "importance": "medium",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "ema_20": {
-      "type": "trend",
-      "description": "20期間EMA",
-      "range": "positive_float",
-      "importance": "medium",
-      "feature_importance": 3,
-      "note": "Phase 51.7 Day 7復活: MACDEMACrossover戦略で必須",
-      "phase": "Phase 51.7 Day 7"
-    },
-    "ema_50": {
-      "type": "trend",
-      "description": "50期間EMA",
-      "range": "positive_float",
-      "importance": "high",
-      "feature_importance": 4
-    },
-    "volume_ratio": {
-      "type": "anomaly",
-      "description": "出来高比率（20期間平均比）",
-      "range": "positive_float",
-      "importance": "critical",
-      "feature_importance": 11
-    },
-    "volume_ema": {
-      "type": "volume",
-      "description": "出来高EMA（20期間）",
-      "range": "positive_float",
-      "importance": "medium",
-      "phase": "Phase 51.7 Day 2"
-    },
-    "cmf_20": {
-      "type": "volume_flow",
-      "description": "Chaikin Money Flow 20期間（-1〜+1、正=買い圧力）",
-      "range": "-1.0 to 1.0",
-      "importance": "high",
-      "feature_importance": 0,
-      "note": "Phase 72追加: donchian_high_20の代替。短期暗号資産で高予測力",
-      "phase": "Phase 72"
-    },
-    "cci_20": {
-      "type": "momentum",
-      "description": "Commodity Channel Index 20期間（突発的値動きへの高感度）",
-      "range": "float",
-      "importance": "high",
-      "feature_importance": 0,
-      "note": "Phase 72追加: donchian_low_20の代替。RSIより短期crypto向き",
-      "phase": "Phase 72"
-    },
-    "channel_position": {
-      "type": "breakout",
-      "description": "Donchianチャネル内位置（0-1）",
-      "range": "0-1",
-      "importance": "medium",
-      "feature_importance": 6
-    },
-    "adx_14": {
-      "type": "regime",
-      "description": "14期間ADX（トレンド強度）",
-      "range": "0-100",
-      "importance": "critical",
-      "feature_importance": 11
-    },
-    "plus_di_14": {
-      "type": "regime",
-      "description": "14期間+DI（上昇方向性）",
-      "range": "0-100",
-      "importance": "medium",
-      "feature_importance": 3
-    },
-    "minus_di_14": {
-      "type": "regime",
-      "description": "14期間-DI（下降方向性）",
-      "range": "0-100",
-      "importance": "high",
-      "feature_importance": 5
-    },
-    "close_lag_1": {
-      "type": "lag",
-      "description": "1期間前の終値",
-      "range": "positive_float",
-      "importance": "high",
-      "feature_importance": 9
-    },
-    "close_lag_2": {
-      "type": "lag",
-      "description": "2期間前の終値",
-      "range": "positive_float",
-      "importance": "low",
-      "feature_importance": 2
-    },
-    "close_lag_3": {
-      "type": "lag",
-      "description": "3期間前の終値",
-      "range": "positive_float",
-      "importance": "low",
-      "feature_importance": 2
-    },
-    "close_lag_10": {
-      "type": "lag",
-      "description": "10期間前の終値",
-      "range": "positive_float",
-      "importance": "medium",
-      "feature_importance": 4
-    },
-    "volume_lag_1": {
-      "type": "lag",
-      "description": "1期間前の出来高",
-      "range": "positive_float",
-      "importance": "high",
-      "feature_importance": 5
-    },
-    "volume_lag_2": {
-      "type": "lag",
-      "description": "2期間前の出来高",
-      "range": "positive_float",
-      "importance": "critical",
-      "feature_importance": 17,
-      "note": "🎯 Phase 51.7 Day 1発見: 全特徴量中最重要！"
-    },
-    "volume_lag_3": {
-      "type": "lag",
-      "description": "3期間前の出来高",
-      "range": "positive_float",
-      "importance": "low",
-      "feature_importance": 2
-    },
-    "rsi_lag_1": {
-      "type": "lag",
-      "description": "1期間前のRSI",
-      "range": "0-100",
-      "importance": "high",
-      "feature_importance": 5
-    },
-    "macd_lag_1": {
-      "type": "lag",
-      "description": "1期間前のMACD",
-      "range": "float",
-      "importance": "medium",
-      "feature_importance": 3
-    },
-    "close_ma_10": {
-      "type": "rolling",
-      "description": "10期間移動平均（終値）",
-      "range": "positive_float",
-      "importance": "low",
-      "feature_importance": 2
-    },
-    "close_ma_20": {
-      "type": "rolling",
-      "description": "20期間移動平均（終値）",
-      "range": "positive_float",
-      "importance": "medium",
-      "feature_importance": 3
-    },
-    "close_std_5": {
-      "type": "rolling",
-      "description": "5期間標準偏差（終値）",
-      "range": "positive_float",
-      "importance": "critical",
-      "feature_importance": 16,
-      "note": "🎯 Phase 51.7 Day 1発見: 全特徴量中第2位！"
-    },
-    "close_std_10": {
-      "type": "rolling",
-      "description": "10期間標準偏差（終値）",
-      "range": "positive_float",
-      "importance": "critical",
-      "feature_importance": 12,
-      "note": "🎯 Phase 51.7 Day 1発見: 全特徴量中第3位！"
-    },
-    "close_std_20": {
-      "type": "rolling",
-      "description": "20期間標準偏差（終値）",
-      "range": "positive_float",
-      "importance": "high",
-      "feature_importance": 5
-    },
-    "rsi_x_atr": {
-      "type": "interaction",
-      "description": "RSI × ATR（モメンタム×ボラティリティ）",
-      "range": "float",
-      "importance": "high",
-      "feature_importance": 7
-    },
-    "macd_x_volume": {
-      "type": "interaction",
-      "description": "MACD × Volume（モメンタム×出来高）",
-      "range": "float",
-      "importance": "medium",
-      "feature_importance": 3
-    },
-    "bb_position_x_volume_ratio": {
-      "type": "interaction",
-      "description": "BB Position × Volume Ratio",
-      "range": "float",
-      "importance": "medium",
-      "feature_importance": 4
-    },
-    "close_x_atr": {
-      "type": "interaction",
-      "description": "Close × ATR（価格×ボラティリティ）",
-      "range": "float",
-      "importance": "medium",
-      "feature_importance": 4
-    },
-    "volume_x_bb_position": {
-      "type": "interaction",
-      "description": "Volume × BB Position",
-      "range": "float",
-      "importance": "medium",
-      "feature_importance": 4
-    },
-    "hour": {
-      "type": "time",
-      "description": "時刻（0-23）",
-      "range": "0-23",
-      "importance": "low",
-      "feature_importance": 2
-    },
-    "day_of_week": {
-      "type": "time",
-      "description": "曜日（0-6）",
-      "range": "0-6",
-      "importance": "medium",
-      "feature_importance": 3
-    },
-    "williams_r_14": {
-      "type": "momentum",
-      "description": "Williams %R 14期間（-100〜0、-100=売られすぎ、0=買われすぎ）",
-      "range": "-100 to 0",
-      "importance": "high",
-      "feature_importance": 0,
-      "note": "Phase 72追加: is_market_open_hourの代替。売られすぎ/買われすぎ検出",
-      "phase": "Phase 72"
-    },
-    "is_europe_session": {
-      "type": "time",
-      "description": "欧州市場セッション（JST 16:00-01:00: 1, それ以外: 0）",
-      "range": "0-1",
-      "importance": "low",
-      "feature_importance": 1,
-      "phase": "Phase 50.2"
-    },
-    "hour_cos": {
-      "type": "time",
-      "description": "時刻の周期性（cos変換・24時間サイクル）",
-      "range": "-1.0 to 1.0",
-      "importance": "low",
-      "feature_importance": 2,
-      "phase": "Phase 50.2"
-    },
-    "day_sin": {
-      "type": "time",
-      "description": "曜日の周期性（sin変換・7日サイクル）",
-      "range": "-1.0 to 1.0",
-      "importance": "high",
-      "feature_importance": 7,
-      "phase": "Phase 50.2"
-    },
-    "day_cos": {
-      "type": "time",
-      "description": "曜日の周期性（cos変換・7日サイクル）",
-      "range": "-1.0 to 1.0",
-      "importance": "low",
-      "feature_importance": 1,
-      "phase": "Phase 50.2"
-    },
-    "strategy_signal_ATRBased": {
-      "type": "strategy_signal",
-      "description": "ATRベース戦略シグナル（0.0-1.0連続値）",
-      "range": "0.0 to 1.0",
-      "importance": "low",
-      "feature_importance": 0,
-      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
-    },
-    "strategy_signal_CMFReversal": {
-      "type": "strategy_signal",
-      "description": "CMF Reversal戦略シグナル（Phase 74: DonchianChannel置換・0.0-1.0連続値）",
-      "range": "0.0 to 1.0",
-      "importance": "medium",
-      "feature_importance": 0,
-      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 74: CMF出来高フロー反転戦略。DonchianChannel(勝率14%)から入替",
-      "phase": "Phase 74"
-    },
-    "strategy_signal_ADXTrendStrength": {
-      "type": "strategy_signal",
-      "description": "ADXトレンド強度戦略シグナル（0.0-1.0連続値）",
-      "range": "0.0 to 1.0",
-      "importance": "low",
-      "feature_importance": 0,
-      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.9: エンコーディング改善完了（hold=0.5中立・全値非ゼロ）・importance=0改善はML再訓練後"
-    },
-    "strategy_signal_BBReversal": {
-      "type": "strategy_signal",
-      "description": "BB Reversal戦略シグナル（レンジ相場での平均回帰・0.0-1.0連続値）",
-      "range": "0.0 to 1.0",
-      "importance": "medium",
-      "feature_importance": 0,
-      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.7 Day 3追加・Phase 51.9エンコーディング改善完了",
-      "phase": "Phase 51.9"
-    },
-    "strategy_signal_StochasticReversal": {
-      "type": "strategy_signal",
-      "description": "Stochastic Reversal戦略シグナル（モメンタム逆張り・0.0-1.0連続値）",
-      "range": "0.0 to 1.0",
-      "importance": "medium",
-      "feature_importance": 0,
-      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.7 Day 4追加・Phase 51.9エンコーディング改善完了",
-      "phase": "Phase 51.9"
-    },
-    "strategy_signal_MACDEMACrossover": {
-      "type": "strategy_signal",
-      "description": "MACD+EMA Crossover戦略シグナル（トレンド転換期の押し目買い・戻り売り・0.0-1.0連続値）",
-      "range": "0.0 to 1.0",
-      "importance": "medium",
-      "feature_importance": 0,
-      "encoding": "buy=0.5+confidence*0.5 (0.5-1.0), hold=0.5, sell=0.5-confidence*0.5 (0.0-0.5)",
-      "note": "Phase 51.7 Day 5追加・Phase 51.9エンコーディング改善完了",
-      "phase": "Phase 51.9"
-    }
+    "close": {"type": "price", "description": "終値", "feature_importance": 8},
+    "volume": {"type": "volume", "description": "出来高", "feature_importance": 8},
+    "rsi_14": {"type": "momentum", "description": "14期間RSI", "feature_importance": 5},
+    "macd": {"type": "momentum", "description": "MACDライン", "feature_importance": 9},
+    "atr_14": {"type": "volatility", "description": "14期間ATR", "feature_importance": 8},
+    "bb_position": {"type": "volatility", "description": "BB内位置（0-1）", "feature_importance": 6},
+    "ema_20": {"type": "trend", "description": "20期間EMA", "feature_importance": 3},
+    "ema_50": {"type": "trend", "description": "50期間EMA", "feature_importance": 4},
+    "volume_ratio": {"type": "anomaly", "description": "出来高比率（20期間平均比）", "feature_importance": 11},
+    "volume_ema": {"type": "volume", "description": "出来高EMA（20期間）", "feature_importance": 6, "note": "Forward Selectionで採用（+0.006 F1）"},
+    "channel_position": {"type": "breakout", "description": "Donchianチャネル内位置", "feature_importance": 6},
+    "adx_14": {"type": "regime", "description": "14期間ADX", "feature_importance": 11},
+    "plus_di_14": {"type": "regime", "description": "+DI", "feature_importance": 3},
+    "minus_di_14": {"type": "regime", "description": "-DI", "feature_importance": 5},
+    "returns_1": {"type": "lag", "description": "1期間リターン(%)", "feature_importance": 9, "note": "Phase 77: close_lagから変換"},
+    "returns_2": {"type": "lag", "description": "2期間リターン(%)", "feature_importance": 2},
+    "returns_3": {"type": "lag", "description": "3期間リターン(%)", "feature_importance": 2},
+    "returns_10": {"type": "lag", "description": "10期間リターン(%)", "feature_importance": 4},
+    "volume_lag_1": {"type": "lag", "description": "1期間前出来高", "feature_importance": 5},
+    "volume_lag_2": {"type": "lag", "description": "2期間前出来高", "feature_importance": 17, "note": "全特徴量中最重要"},
+    "volume_lag_3": {"type": "lag", "description": "3期間前出来高", "feature_importance": 2},
+    "rsi_lag_1": {"type": "lag", "description": "1期間前RSI", "feature_importance": 5},
+    "macd_lag_1": {"type": "lag", "description": "1期間前MACD", "feature_importance": 3},
+    "close_ma_10": {"type": "rolling", "description": "10期間MA", "feature_importance": 2},
+    "close_ma_20": {"type": "rolling", "description": "20期間MA", "feature_importance": 3},
+    "close_std_5": {"type": "rolling", "description": "5期間標準偏差", "feature_importance": 16, "note": "全特徴量中第2位"},
+    "close_std_10": {"type": "rolling", "description": "10期間標準偏差", "feature_importance": 12},
+    "close_std_20": {"type": "rolling", "description": "20期間標準偏差", "feature_importance": 5},
+    "rsi_x_atr": {"type": "interaction", "description": "RSI×ATR", "feature_importance": 7},
+    "macd_x_volume": {"type": "interaction", "description": "MACD×Volume", "feature_importance": 3},
+    "bb_position_x_volume_ratio": {"type": "interaction", "description": "BB Position×Volume Ratio", "feature_importance": 4},
+    "close_x_atr": {"type": "interaction", "description": "Close×ATR", "feature_importance": 4},
+    "volume_x_bb_position": {"type": "interaction", "description": "Volume×BB Position", "feature_importance": 4},
+    "hour": {"type": "time", "description": "時刻（0-23）", "feature_importance": 2},
+    "day_of_week": {"type": "time", "description": "曜日（0-6）", "feature_importance": 3},
+    "hour_cos": {"type": "time", "description": "時刻cos変換", "feature_importance": 2},
+    "day_sin": {"type": "time", "description": "曜日sin変換", "feature_importance": 7}
   },
 
   "reduction_history": {
     "original_features": 97,
-    "current_features": 55,
-    "summary": "97→60→55特徴量（Feature Importance分析・6戦略対応・Stacking無効化）"
+    "current_features": 37,
+    "summary": "97→60→55→37特徴量（Phase 77: SHAP分析+Forward Selection。戦略シグナル6削除・低重要度22削除・close_lag→returns変換・volume_ema採用）"
   },
 
   "validation": {
-    "last_validated": "2026-02-22T00:00:00Z",
-    "validation_status": "passed",
-    "feature_count_validation": "55_features_confirmed"
+    "last_validated": "2026-04-05T00:00:00Z",
+    "validation_status": "pending_retraining",
+    "feature_count_validation": "37_features_phase77_optimized"
   }
 }

@@ -84,7 +84,7 @@ class FeatureManager:
             features = []
             categories = config["feature_categories"]
 
-            # 順序保証のためのカテゴリ順序 - Phase 50.3: 70特徴量対応
+            # 順序保証のためのカテゴリ順序 - Phase 77: 37特徴量最適化
             category_order = [
                 "basic",
                 "momentum",
@@ -93,11 +93,10 @@ class FeatureManager:
                 "volume",
                 "breakout",
                 "regime",
-                "lag",  # Phase 40.6: ラグ特徴量（10個）
-                "rolling",  # Phase 40.6: 移動統計量（12個）
-                "interaction",  # Phase 40.6: 交互作用特徴量（6個）
-                "time",  # Phase 40.6: 時間ベース特徴量（14個）
-                "strategy_signals",  # Phase 41: 戦略シグナル特徴量（5個）
+                "lag",
+                "rolling",
+                "interaction",
+                "time",
             ]
 
             for category in category_order:
@@ -203,6 +202,19 @@ class FeatureManager:
         level_info = self.get_feature_level_info()
         return {level: info["count"] for level, info in level_info.items()}
 
+    def get_basic_feature_names(self) -> List[str]:
+        """Phase 77: Basicモデル用特徴量名リストを取得（importance>=2の実績ある特徴量のみ）"""
+        config = self._load_feature_config()
+        basic_cats = config.get("basic_feature_categories", {})
+        if not basic_cats:
+            return self.get_feature_names()  # フォールバック: full同等
+
+        features = []
+        for cat_data in basic_cats.values():
+            if "features" in cat_data:
+                features.extend(cat_data["features"])
+        return features
+
     def clear_cache(self):
         """キャッシュをクリア"""
         self._feature_config = None
@@ -227,3 +239,8 @@ def get_feature_count() -> int:
 def get_feature_categories() -> Dict[str, List[str]]:
     """特徴量カテゴリを取得"""
     return _feature_manager.get_feature_categories()
+
+
+def get_basic_feature_names() -> List[str]:
+    """Phase 77: Basicモデル用特徴量名リストを取得"""
+    return _feature_manager.get_basic_feature_names()

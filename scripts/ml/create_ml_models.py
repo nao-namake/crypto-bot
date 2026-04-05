@@ -497,31 +497,25 @@ class NewSystemMLModelCreator:
 
     def _select_features_by_level(self, features_df: pd.DataFrame) -> pd.DataFrame:
         """
-        Phase 51.9: モデル別特徴量選択（2段階システム・設定駆動型・6戦略統合）
+        Phase 77: モデル別特徴量選択
 
-        model_type="full": 全55特徴量使用（6戦略信号含む）
-        model_type="basic": 戦略信号6個を除外（49特徴量）
-
-        Args:
-            features_df: 全特徴量を含むDataFrame
-
-        Returns:
-            pd.DataFrame: モデルに応じた特徴量のみを含むDataFrame
+        model_type="full": 全59特徴量使用
+        model_type="basic": importance>=2の36特徴量のみ（フォールバック用）
         """
         if self.current_model_type == "full":
-            # full: 全55特徴量使用
-            self.logger.info(f"📊 Phase 51.9: full モデル - 全{len(features_df.columns)}特徴量使用")
+            self.logger.info(
+                f"📊 Phase 55.6: fullモデル用特徴量選択 - {len(features_df.columns)}特徴量"
+            )
             return features_df
 
-        # basic: 戦略信号を除外（49特徴量）
-        # 設定駆動型: strategy_signal_ プレフィックスで動的検索
-        strategy_signal_features = [
-            col for col in features_df.columns if col.startswith("strategy_signal_")
-        ]
+        # basic: feature_order.jsonのbasic_feature_categoriesから特徴量リストを取得
+        from src.core.config.feature_manager import get_basic_feature_names
 
-        features_df = features_df.drop(columns=strategy_signal_features, errors="ignore")
+        basic_features = get_basic_feature_names()
+        available = [f for f in basic_features if f in features_df.columns]
+        features_df = features_df[available]
         self.logger.info(
-            f"📊 Phase 51.9: basic モデル - 戦略信号{len(strategy_signal_features)}個を除外 → {len(features_df.columns)}特徴量"
+            f"📊 Phase 77: basicモデル用特徴量選択 - {len(available)}特徴量（importance>=2）"
         )
         return features_df
 

@@ -1,8 +1,8 @@
 """
-特徴量生成統合システム - 55特徴量固定（49基本 + 6戦略シグナル）
+特徴量生成統合システム - 37特徴量（Phase 77: 単一モデル・OHLCV由来のみ）
 
 TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
-1つのクラスに統合。6戦略対応・設定駆動型特徴量生成。
+1つのクラスに統合。設定駆動型特徴量生成。
 """
 
 from typing import Any, Dict, List, Optional
@@ -26,7 +26,7 @@ FEATURE_CATEGORIES = get_feature_categories()
 
 class FeatureGenerator:
     """
-    統合特徴量生成クラス - 55特徴量固定（49基本 + 6戦略シグナル）
+    統合特徴量生成クラス - 37特徴量（Phase 77単一モデル）
 
     特徴量構成:
     - 基本（2個）: close, volume
@@ -58,7 +58,7 @@ class FeatureGenerator:
         result_df: pd.DataFrame,
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
-        """共通特徴量生成パイプライン（49基本 + 6戦略シグナル = 55特徴量）"""
+        """共通特徴量生成パイプライン（37特徴量（Phase 77））"""
         self._validate_required_columns(result_df)
         result_df = self._generate_basic_features(result_df)
         result_df = self._generate_technical_indicators(result_df)
@@ -77,14 +77,14 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        統合特徴量生成処理（55特徴量固定: 49基本 + 6戦略シグナル）
+        統合特徴量生成処理（37特徴量: Phase 77）
 
         Args:
             market_data: 市場データ（DataFrame または dict）
             strategy_signals: 戦略シグナル辞書（オプション、None時は0埋め）
 
         Returns:
-            特徴量を含むDataFrame（55特徴量固定）
+            特徴量を含むDataFrame（37特徴量）
 
         Raises:
             DataProcessingError: 特徴量生成エラー
@@ -93,7 +93,7 @@ class FeatureGenerator:
             result_df = self._convert_to_dataframe(market_data)
             self.computed_features.clear()
             result_df = self._run_feature_pipeline(result_df, strategy_signals)
-            self._validate_feature_generation(result_df, expected_count=55)
+            self._validate_feature_generation(result_df, expected_count=37)
             return result_df
 
         except Exception as e:
@@ -106,14 +106,14 @@ class FeatureGenerator:
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
         """
-        同期版特徴量生成（55特徴量固定・バックテスト事前計算用）
+        同期版特徴量生成（37特徴量・バックテスト事前計算用）
 
         Args:
             df: OHLCVデータを含むDataFrame
             strategy_signals: 戦略シグナル辞書（オプション、None時は0埋め）
 
         Returns:
-            特徴量を含むDataFrame（55特徴量固定）
+            特徴量を含むDataFrame（37特徴量）
         """
         try:
             result_df = df.copy()
@@ -187,50 +187,44 @@ class FeatureGenerator:
         return result_df
 
     def _generate_technical_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """テクニカル指標生成（21個）"""
+        """Phase 77: テクニカル指標生成（SHAP+Forward Selectionで最適化済み）"""
         result_df = df.copy()
 
         # RSI 14期間
         result_df["rsi_14"] = self._calculate_rsi(result_df["close"])
         self.computed_features.add("rsi_14")
 
-        # MACD拡張（ライン・シグナル・ヒストグラム生成）
+        # MACDライン（signal/histogramはSHAP分析でimportance=0のためML入力から除外）
         macd_line, macd_signal = self._calculate_macd(result_df["close"])
         result_df["macd"] = macd_line
-        result_df["macd_signal"] = macd_signal
-        result_df["macd_histogram"] = macd_line - macd_signal
-        self.computed_features.update(["macd", "macd_signal", "macd_histogram"])
+        result_df["macd_signal"] = macd_signal  # 戦略で使用するが、ML特徴量には含まない
+        result_df["macd_histogram"] = macd_line - macd_signal  # 同上
+        self.computed_features.add("macd")
 
         # ATR 14期間
         result_df["atr_14"] = self._calculate_atr(result_df)
         self.computed_features.add("atr_14")
 
-        # ボリンジャーバンド拡張（上限・下限・位置）
+        # BB位置のみ（bb_upper/bb_lowerはbb_positionと冗長のためML入力から除外）
         bb_upper, bb_lower, bb_position = self._calculate_bb_bands(result_df["close"])
-        result_df["bb_upper"] = bb_upper
-        result_df["bb_lower"] = bb_lower
+        result_df["bb_upper"] = bb_upper  # 戦略で使用
+        result_df["bb_lower"] = bb_lower  # 戦略で使用
         result_df["bb_position"] = bb_position
-        self.computed_features.update(["bb_upper", "bb_lower", "bb_position"])
+        self.computed_features.add("bb_position")
 
-        # EMA 2本（20/50期間）- Phase 51.7 Day 7: ema_20復活（MACDEMACrossover必須）
+        # EMA 2本
         result_df["ema_20"] = result_df["close"].ewm(span=20, adjust=False).mean()
         result_df["ema_50"] = result_df["close"].ewm(span=50, adjust=False).mean()
         self.computed_features.update(["ema_20", "ema_50"])
 
-        # Donchian Channel指標（Phase 72: donchian_high/low → cmf_20/cci_20に入替）
+        # Donchian Channel（channel_positionのみML使用）
         donchian_high, donchian_low, channel_position = self._calculate_donchian_channel(result_df)
-        # Phase 72: donchian_high_20/low_20はML特徴量から除外（CMF/CCIに入替）
-        # channel_positionはATRBased戦略で使用するため残す
         result_df["channel_position"] = channel_position
         self.computed_features.add("channel_position")
 
-        # Phase 72-A: CMF（Chaikin Money Flow）- donchian_high_20の代替
+        # CMF/CCI（戦略で使用するが、ML特徴量にはimportance=0のため含まない）
         result_df["cmf_20"] = self._calculate_cmf(result_df)
-        self.computed_features.add("cmf_20")
-
-        # Phase 72-B: CCI（Commodity Channel Index）- donchian_low_20の代替
         result_df["cci_20"] = self._calculate_cci(result_df)
-        self.computed_features.add("cci_20")
 
         # ADX指標（3個）
         adx, plus_di, minus_di = self._calculate_adx_indicators(result_df)
@@ -239,25 +233,19 @@ class FeatureGenerator:
         result_df["minus_di_14"] = minus_di
         self.computed_features.update(["adx_14", "plus_di_14", "minus_di_14"])
 
-        # Stochastic Oscillator（2個）
+        # Stochastic（戦略で使用するが、ML特徴量にはimportance=0のため含まない）
         stoch_k, stoch_d = self._calculate_stochastic(result_df)
         result_df["stoch_k"] = stoch_k
         result_df["stoch_d"] = stoch_d
-        self.computed_features.update(["stoch_k", "stoch_d"])
 
-        # 出来高EMA
+        # 出来高EMA（Forward Selectionで+0.006改善、採用）
         result_df["volume_ema"] = self._calculate_volume_ema(result_df["volume"])
         self.computed_features.add("volume_ema")
 
-        # ATR比率（ボラティリティ正規化）
-        result_df["atr_ratio"] = self._calculate_atr_ratio(result_df)
-        self.computed_features.add("atr_ratio")
-
-        # Phase 72-B: Williams %R - is_market_open_hourの代替
+        # Williams %R（戦略で使用するが、ML特徴量にはimportance=0のため含まない）
         result_df["williams_r_14"] = self._calculate_williams_r(result_df)
-        self.computed_features.add("williams_r_14")
 
-        self.logger.debug("テクニカル指標生成完了: 17個")
+        self.logger.debug("テクニカル指標生成完了: 10個ML特徴量 + 戦略用補助指標")
         return result_df
 
     def _generate_anomaly_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -275,10 +263,13 @@ class FeatureGenerator:
         """ラグ特徴量生成（過去N期間の値・7個・Phase 51.7 Day 2削減）"""
         result_df = df.copy()
 
-        # Close lag features (4個・close_lag_5削除: Importance=1.0と低い)
+        # Phase 77: close_lag → returns変換（定常性改善・研究裏付け）
         for lag in [1, 2, 3, 10]:
-            result_df[f"close_lag_{lag}"] = result_df["close"].shift(lag)
-            self.computed_features.add(f"close_lag_{lag}")
+            shifted = result_df["close"].shift(lag)
+            result_df[f"returns_{lag}"] = (
+                (result_df["close"] - shifted) / (shifted + 1e-8) * 100
+            ).fillna(0.0)
+            self.computed_features.add(f"returns_{lag}")
 
         # Volume lag features (3個・全保持: volume_lag_2が最重要!)
         for lag in [1, 2, 3]:
@@ -354,34 +345,22 @@ class FeatureGenerator:
         return result_df
 
     def _generate_time_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """時間ベース特徴量生成（Time-based Features・8個・Phase 51.7 Day 2削減）"""
+        """時間ベース特徴量生成（5個）- Phase 77: day_cos・is_europe_session削除"""
         result_df = df.copy()
 
         # indexまたはtimestamp列から日時情報を抽出
         if isinstance(result_df.index, pd.DatetimeIndex):
             dt_index = result_df.index
         elif "timestamp" in result_df.columns:
-            # SeriesをDatetimeIndexに変換（.hour等のアクセスを可能にする）
             dt_index = pd.DatetimeIndex(pd.to_datetime(result_df["timestamp"]))
         else:
-            # 日時情報がない場合はゼロ埋め（削減後の8特徴量のみ）
             self.logger.warning("日時情報が見つかりません。時間特徴量をデフォルト値で生成します")
             result_df["hour"] = 0
             result_df["day_of_week"] = 0
-            # Phase 72: is_market_open_hour削除（williams_r_14に入替済み）
-            result_df["is_europe_session"] = 0
             result_df["hour_cos"] = 1.0
             result_df["day_sin"] = 0.0
-            result_df["day_cos"] = 1.0
             self.computed_features.update(
-                [
-                    "hour",
-                    "day_of_week",
-                    "is_europe_session",
-                    "hour_cos",
-                    "day_sin",
-                    "day_cos",
-                ]
+                ["hour", "day_of_week", "hour_cos", "day_sin"]
             )
             return result_df
 
@@ -395,23 +374,17 @@ class FeatureGenerator:
 
         # Phase 72: is_market_open_hour削除（williams_r_14に入替済み）
 
-        # 欧州市場セッション（JST 16:00-01:00）- 日をまたぐ処理
-        result_df["is_europe_session"] = (
-            ((dt_index.hour >= 16) & (dt_index.hour <= 23)) | (dt_index.hour < 1)
-        ).astype(int)
-        self.computed_features.add("is_europe_session")
+        # Phase 77: is_europe_session削除（hourで代替可能）
 
         # 周期性エンコーディング
         result_df["hour_cos"] = np.cos(2 * np.pi * dt_index.hour / 24)
         self.computed_features.add("hour_cos")
 
-        # 曜日の周期性エンコーディング（7日サイクル・全保持: day_sin=7と高い）
+        # 曜日の周期性エンコーディング（Phase 77: day_cos削除、day_sinのみ保持）
         result_df["day_sin"] = np.sin(2 * np.pi * dt_index.dayofweek / 7)
-        result_df["day_cos"] = np.cos(2 * np.pi * dt_index.dayofweek / 7)
         self.computed_features.add("day_sin")
-        self.computed_features.add("day_cos")
 
-        self.logger.debug("時間ベース特徴量生成完了: 7個（Phase 51.7 Day 2削減）")
+        self.logger.debug("時間ベース特徴量生成完了: 5個（Phase 77削減）")
         return result_df
 
     def _get_strategy_signal_feature_names(self) -> Dict[str, str]:
@@ -618,6 +591,87 @@ class FeatureGenerator:
             self.logger.error(f"Williams %%R計算エラー: {e}")
             return pd.Series(np.full(len(df), -50.0), index=df.index)
 
+    # ===== Phase 77: 新規特徴量計算メソッド =====
+
+    def _calculate_obv(self, df: pd.DataFrame) -> pd.Series:
+        """On Balance Volume - 出来高累積による蓄積/分配検出"""
+        try:
+            sign = np.sign(df["close"].diff()).fillna(0)
+            obv = (sign * df["volume"]).cumsum()
+            # 正規化（直近20期間のz-score）
+            obv_mean = obv.rolling(window=20, min_periods=1).mean()
+            obv_std = obv.rolling(window=20, min_periods=1).std()
+            return ((obv - obv_mean) / (obv_std + 1e-8)).fillna(0.0)
+        except Exception as e:
+            self.logger.error(f"OBV計算エラー: {e}")
+            return pd.Series(np.zeros(len(df)), index=df.index)
+
+    def _calculate_mfi(self, df: pd.DataFrame, period: int = 14) -> pd.Series:
+        """Money Flow Index - 出来高加重RSI（0-100）"""
+        try:
+            tp = (df["high"] + df["low"] + df["close"]) / 3
+            raw_mf = tp * df["volume"]
+            tp_diff = tp.diff()
+
+            pos_mf = raw_mf.where(tp_diff > 0, 0).rolling(window=period, min_periods=1).sum()
+            neg_mf = raw_mf.where(tp_diff <= 0, 0).rolling(window=period, min_periods=1).sum()
+
+            mfi = 100 - (100 / (1 + pos_mf / (neg_mf + 1e-8)))
+            return mfi.fillna(50.0)
+        except Exception as e:
+            self.logger.error(f"MFI計算エラー: {e}")
+            return pd.Series(np.full(len(df), 50.0), index=df.index)
+
+    def _calculate_roc(self, close: pd.Series, period: int = 12) -> pd.Series:
+        """Rate of Change - モメンタム指標（%）"""
+        try:
+            roc = (close - close.shift(period)) / (close.shift(period) + 1e-8) * 100
+            return roc.fillna(0.0)
+        except Exception as e:
+            self.logger.error(f"ROC計算エラー: {e}")
+            return pd.Series(np.zeros(len(close)), index=close.index)
+
+    def _calculate_vwap(self, df: pd.DataFrame) -> pd.Series:
+        """VWAP - 出来高加重平均価格（現在価格との乖離率）"""
+        try:
+            tp = (df["high"] + df["low"] + df["close"]) / 3
+            # ローリングVWAP（20期間）
+            cum_tp_vol = (tp * df["volume"]).rolling(window=20, min_periods=1).sum()
+            cum_vol = df["volume"].rolling(window=20, min_periods=1).sum()
+            vwap = cum_tp_vol / (cum_vol + 1e-8)
+            # 現在価格との乖離率（%）で正規化
+            return ((df["close"] - vwap) / (vwap + 1e-8) * 100).fillna(0.0)
+        except Exception as e:
+            self.logger.error(f"VWAP計算エラー: {e}")
+            return pd.Series(np.zeros(len(df)), index=df.index)
+
+    def _calculate_stochastic_rsi(self, df: pd.DataFrame, period: int = 14) -> pd.Series:
+        """Stochastic RSI - RSIにストキャスティクスを適用（0-100）"""
+        try:
+            if "rsi_14" not in df.columns:
+                return pd.Series(np.full(len(df), 50.0), index=df.index)
+            rsi = df["rsi_14"]
+            rsi_min = rsi.rolling(window=period, min_periods=1).min()
+            rsi_max = rsi.rolling(window=period, min_periods=1).max()
+            stoch_rsi = ((rsi - rsi_min) / (rsi_max - rsi_min + 1e-8)) * 100
+            return stoch_rsi.fillna(50.0)
+        except Exception as e:
+            self.logger.error(f"Stochastic RSI計算エラー: {e}")
+            return pd.Series(np.full(len(df), 50.0), index=df.index)
+
+    def _calculate_keltner_position(self, df: pd.DataFrame, period: int = 20) -> pd.Series:
+        """Keltner Channel Position - ATRベースのバンド内位置（0-1）"""
+        try:
+            ema = df["close"].ewm(span=period, adjust=False).mean()
+            atr = self._calculate_atr(df, period)
+            upper = ema + 2 * atr
+            lower = ema - 2 * atr
+            position = (df["close"] - lower) / (upper - lower + 1e-8)
+            return position.fillna(0.5)
+        except Exception as e:
+            self.logger.error(f"Keltner Channel計算エラー: {e}")
+            return pd.Series(np.full(len(df), 0.5), index=df.index)
+
     def _calculate_volume_ratio(self, volume: pd.Series, period: Optional[int] = None) -> pd.Series:
         """出来高比率計算"""
         try:
@@ -732,13 +786,13 @@ class FeatureGenerator:
                 df[feature] = df[feature].fillna(0)
         return df
 
-    def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 55) -> None:
+    def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 37) -> None:
         """
-        特徴量完全確認・検証 - Phase 51.7 Day 7: 55特徴量固定
+        特徴量完全確認・検証 - Phase 51.7 Day 7: 37特徴量
 
         Args:
             df: 検証対象DataFrame
-            expected_count: 期待特徴量数（55固定）
+            expected_count: 期待特徴量数（59）
         """
         generated_features = [col for col in OPTIMIZED_FEATURES if col in df.columns]
         missing_features = [col for col in OPTIMIZED_FEATURES if col not in df.columns]
@@ -807,7 +861,7 @@ class FeatureGenerator:
             )
 
         if total_generated == expected_count:
-            self.logger.info(f"55特徴量完全生成成功")
+            self.logger.info(f"37特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""
