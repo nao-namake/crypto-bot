@@ -83,6 +83,9 @@ class TradingCycleManager:
                 self.logger.warning("市場データ取得失敗 - サイクル終了")
                 return
 
+            # Phase 77: オーダーブックスナップショット蓄積（将来のFull(40)モデル用）
+            self._collect_orderbook_snapshot()
+
             # Phase 45: 市場データキャッシュ（Meta-ML用）
             self.market_data_cache = market_data
 
@@ -1139,6 +1142,66 @@ class TradingCycleManager:
         self.logger.critical(f"❌ 予期しない取引サイクルエラー - ID: {cycle_id}: {e}")
         self.orchestrator.system_recovery.record_cycle_error(cycle_id, e)
         raise CryptoBotError(f"取引サイクルで予期しないエラー - ID: {cycle_id}: {e}")
+
+    def _collect_orderbook_snapshot(self) -> None:
+        """
+        Phase 77: オーダーブックスナップショットをCSVに蓄積
+
+        将来のFull(40)モデル学習データとして使用。
+        取引フローに影響を与えない（失敗時は静かにスキップ）。
+        """
+        import csv
+        from datetime import datetime
+        from pathlib import Path
+
+        try:
+            orderbook = self.orchestrator.data_service.client.fetch_order_book(
+                "BTC/JPY", limit=20
+            )
+            if not orderbook or not orderbook.get("bids") or not orderbook.get("asks"):
+                return
+
+            bids = orderbook["bids"]
+            asks = orderbook["asks"]
+
+            best_bid = float(bids[0][0])
+            best_ask = float(asks[0][0])
+            mid_price = (best_bid + best_ask) / 2
+            spread_pct = (best_ask - best_bid) / mid_price * 100
+
+            # Top 5 depth
+            bid_depth_5 = sum(float(b[1]) for b in bids[:5])
+            ask_depth_5 = sum(float(a[1]) for a in asks[:5])
+            imbalance_5 = bid_depth_5 / (bid_depth_5 + ask_depth_5 + 1e-8)
+
+            # Top 20 depth
+            bid_depth_20 = sum(float(b[1]) for b in bids[:20])
+            ask_depth_20 = sum(float(a[1]) for a in asks[:20])
+            imbalance_20 = bid_depth_20 / (bid_depth_20 + ask_depth_20 + 1e-8)
+
+            # CSV保存（日次ローテーション）
+            now = datetime.now()
+            ob_dir = Path("data/orderbook")
+            ob_dir.mkdir(parents=True, exist_ok=True)
+            csv_path = ob_dir / f"orderbook_{now.strftime('%Y%m%d')}.csv"
+
+            write_header = not csv_path.exists()
+            with open(csv_path, "a", newline="") as f:
+                writer = csv.writer(f)
+                if write_header:
+                    writer.writerow([
+                        "timestamp", "best_bid", "best_ask", "spread_pct",
+                        "bid_depth_5", "ask_depth_5", "depth_imbalance_5",
+                        "bid_depth_20", "ask_depth_20", "depth_imbalance_20",
+                    ])
+                writer.writerow([
+                    now.isoformat(),
+                    f"{best_bid:.0f}", f"{best_ask:.0f}", f"{spread_pct:.6f}",
+                    f"{bid_depth_5:.8f}", f"{ask_depth_5:.8f}", f"{imbalance_5:.6f}",
+                    f"{bid_depth_20:.8f}", f"{ask_depth_20:.8f}", f"{imbalance_20:.6f}",
+                ])
+        except Exception as e:
+            self.logger.debug(f"オーダーブック蓄積スキップ: {e}")
 
     def _apply_quality_filter(
         self,

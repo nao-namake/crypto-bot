@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-04-05T18:53:41.707253",
+  "created_at": "2026-04-06T06:36:51.767255",
   "feature_names": [
     "close",
     "volume",
@@ -42,49 +42,49 @@
   "training_samples": 34970,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.580442241707968,
-      "f1_score": 0.5765851033132201,
-      "precision": 0.573405081281827,
-      "recall": 0.580442241707968,
-      "cv_f1_mean": 0.5559128431365372,
-      "cv_f1_std": 0.03143020042050665,
-      "confidence_mean": 0.5866450585046847,
-      "confidence_std": 0.08710488055604772,
-      "confidence_min": 0.5000016266145825,
-      "confidence_max": 0.924567897707359
+      "accuracy": 0.5874952344643538,
+      "f1_score": 0.5915242736291477,
+      "precision": 0.5968091267180562,
+      "recall": 0.5874952344643538,
+      "cv_f1_mean": 0.5140708662812636,
+      "cv_f1_std": 0.08718605809959441,
+      "confidence_mean": 0.5668464001399873,
+      "confidence_std": 0.06884527107849876,
+      "confidence_min": 0.5000098147971537,
+      "confidence_max": 0.849797289560621
     },
     "xgboost": {
-      "accuracy": 0.5362180709111705,
-      "f1_score": 0.5467246614214281,
-      "precision": 0.5912759963498092,
-      "recall": 0.5362180709111705,
-      "cv_f1_mean": 0.5308082424041611,
-      "cv_f1_std": 0.06820852769473655,
-      "confidence_mean": 0.6626145243644714,
-      "confidence_std": 0.11134478449821472,
-      "confidence_min": 0.5000349283218384,
-      "confidence_max": 0.9901964068412781
+      "accuracy": 0.46683187190240183,
+      "f1_score": 0.43414750036460587,
+      "precision": 0.6417644743717902,
+      "recall": 0.46683187190240183,
+      "cv_f1_mean": 0.4837463104373003,
+      "cv_f1_std": 0.09201980458273801,
+      "confidence_mean": 0.6250913143157959,
+      "confidence_std": 0.06746336817741394,
+      "confidence_min": 0.5000720620155334,
+      "confidence_max": 0.8528013229370117
     },
     "random_forest": {
-      "accuracy": 0.520777735417461,
-      "f1_score": 0.5258804959978873,
-      "precision": 0.6073320822687103,
-      "recall": 0.520777735417461,
-      "cv_f1_mean": 0.5242798349952787,
-      "cv_f1_std": 0.07219558135469933,
-      "confidence_mean": 0.6054774553634553,
-      "confidence_std": 0.0730903820770961,
-      "confidence_min": 0.5000971962378185,
-      "confidence_max": 0.8633202244691276
+      "accuracy": 0.5272588638963019,
+      "f1_score": 0.5355249054950793,
+      "precision": 0.5995872401138002,
+      "recall": 0.5272588638963019,
+      "cv_f1_mean": 0.5123770089910775,
+      "cv_f1_std": 0.08444185051238293,
+      "confidence_mean": 0.5899890786574737,
+      "confidence_std": 0.07603917003070276,
+      "confidence_min": 0.5000170883759298,
+      "confidence_max": 0.8894294806014281
     }
   },
   "model_files": {
     "lightgbm": "models/training/lightgbm_model.pkl",
     "xgboost": "models/training/xgboost_model.pkl",
     "random_forest": "models/training/random_forest_model.pkl",
-    "production_ensemble": "models/production/ensemble_basic.pkl"
+    "production_ensemble": "models/production/ensemble_full.pkl"
   },
   "config_path": "config/core/thresholds.yaml",
   "phase": "Phase 51.9",
-  "notes": "Phase 51.9完了・真の3クラス分類実装（multiclass params追加）・6戦略統合（ATRBased/DonchianChannel/ADXTrendStrength/BBReversal/StochasticReversal/MACDEMACrossover）・実戦略信号学習（訓練時と推論時の一貫性確保）・55特徴量・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果"
+  "notes": "Phase 77完了・37特徴量（SHAP最適化）・メタラベリング・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果"
 }
