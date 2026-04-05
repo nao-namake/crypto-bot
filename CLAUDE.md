@@ -4,13 +4,13 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 77（特徴量最適化・ML性能向上） |
+| **現在Phase** | 77（特徴量最適化・ML性能向上）完了 |
 | **直前の作業** | Phase 77: SHAP+Forward Selectionで55→37特徴量最適化 / 戦略シグナル削除 / close_lag→returns変換 |
 | **次の予定** | デプロイ → ライブ検証 → オーダーブックデータ蓄積開始 |
 | **最新成果** | 37特徴量で歴代最高CV F1=0.556±0.031（55特徴量時代の0.550±0.042から改善） |
 | **最終更新** | 2026年4月6日 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-76.md`（最新）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-77.md`（最新）
 
 ---
 
@@ -31,7 +31,7 @@
 | **年利目標** | 10%（DD 10%許容） |
 | **戦略数** | 6戦略（レンジ型4 + トレンド型2、CMFReversalがDonchianChannel置換） |
 | **特徴量数** | 37特徴量（Phase 77: SHAP+Forward Selectionで最適化） |
-| **MLモデル** | ProductionEnsemble（LGB30%/XGB30%/RF40%） |
+| **MLモデル** | ProductionEnsemble（LGB40%/XGB40%/RF20%） |
 | **ML方式** | メタラベリング（取引品質フィルタ: Go/No-Go判定） |
 
 ---
@@ -352,6 +352,6 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 | **運用** | [システムリファレンス.md](docs/運用ガイド/システムリファレンス.md) | 仕様+実装の統合リファレンス |
 | **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
-| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-73） |
-| **履歴** | [Phase_71-75.md](docs/開発履歴/Phase_71-75.md) | 最新Phase詳細 |
+| **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-77） |
+| **履歴** | [Phase_71-77.md](docs/開発履歴/Phase_71-77.md) | 最新Phase詳細 |
 | **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |
