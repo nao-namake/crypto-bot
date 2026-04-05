@@ -41,7 +41,7 @@ tests/
 |---------|---------|------|
 | core/ | 167 | 設定・ML統合・ヘルスチェック |
 | data/ | 67 | Bitbank API・キャッシュ |
-| features/ | 21 | 55特徴量生成 |
+| features/ | 21 | 37特徴量生成 |
 | ml/ | 168 | ProductionEnsemble・3モデル |
 | monitoring/ | 28 | Discord通知 |
 | services/ | 57 | レジーム判定・戦略選択 |
@@ -126,7 +126,7 @@ bash scripts/testing/checks.sh
 
 | モジュール | 内容 |
 |-----------|------|
-| `src/features/` | 55特徴量生成 |
+| `src/features/` | 37特徴量生成 |
 | `src/ml/` | ProductionEnsemble・3モデル統合 |
 | `src/strategies/` | 6戦略・戦略管理 |
 | `src/trading/` | 取引実行・リスク管理 |

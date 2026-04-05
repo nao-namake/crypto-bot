@@ -65,9 +65,9 @@ cat models/training/training_metadata.json | jq '.model_metrics'
 ```
 models/training/           models/production/
 ├── lightgbm_model.pkl  ─┐
-├── xgboost_model.pkl   ─┼→ ensemble_basic.pkl（49特徴量）
+├── xgboost_model.pkl   ─┼→ ensemble_basic.pkl（37特徴量）
 ├── random_forest_model.pkl ┘
-                           └→ ensemble_full.pkl（55特徴量・戦略信号付き）
+                           └→ ensemble_full.pkl（37特徴量・戦略信号付き）
 ```
 
 - `training/`の個別モデルは学習時の中間成果物

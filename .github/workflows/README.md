@@ -9,7 +9,7 @@
 ```
 .github/workflows/
 ├── ci.yml               # CI/CDパイプライン（品質チェック・ビルド・デプロイ）
-├── model-training.yml   # ML自動再学習（週次・55特徴量Strategy-Aware ML）
+├── model-training.yml   # ML自動再学習（週次・37特徴量）
 ├── backtest.yml         # バックテスト実行（手動・Markdownレポート生成）
 ├── cleanup.yml          # GCPリソースクリーンアップ（月次・コスト最適化）
 ├── weekly_report.yml    # 週間レポート自動送信（Phase 48実装）
@@ -41,7 +41,7 @@
 
 ### **model-training.yml - ML自動再学習**
 
-**役割**: MLモデルの週次自動再学習とデプロイメント・55特徴量Strategy-Aware ML
+**役割**: MLモデルの週次自動再学習とデプロイメント・37特徴量
 
 **実行条件**:
 - 毎週日曜日 18:00 JST（スケジュール実行）
@@ -156,7 +156,7 @@
 🤖 model-training.yml 自動実行
     ├── 180日分データ収集
     ├── ProductionEnsemble学習（LightGBM・XGBoost・RandomForest）
-    ├── 55特徴量品質検証（MIN_FEATURE_COUNT: 50）
+    ├── 37特徴量品質検証
     └── Git自動コミット・model-updatedイベント送信
     ↓
 🚀 ci.yml 自動トリガー
@@ -249,8 +249,8 @@ gh run list --limit 1
 - cleanup.yml: SHA256ダイジェストベース削除
 - model-training.yml: データ収集ステップ追加
 - weekly_report.yml: Cloud Storage統合
-- 55特徴量システム対応
+- 37特徴量システム対応
 
 ---
 
-**Phase 52.2完了**: 55特徴量Strategy-Aware ML・Python 3.13統一・緊急停止機能追加により、堅牢なCI/CD基盤が整備されています。
+**Phase 52.2完了**: 37特徴量・Python 3.13統一・緊急停止機能追加により、堅牢なCI/CD基盤が整備されています。

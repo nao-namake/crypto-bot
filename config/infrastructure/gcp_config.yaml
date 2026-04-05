@@ -1,6 +1,6 @@
 # GCP統合設定ファイル
 #
-# bitbank信用取引・55特徴量システム・段階的デプロイ（paper→live）
+# bitbank信用取引・37特徴量システム・段階的デプロイ（paper→live）
 # Phase 49完了（品質指標: config/core/feature_order.json参照）
 #
 # 使用方法:

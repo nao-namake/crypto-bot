@@ -381,7 +381,7 @@ echo "✅ システム整合性検証完了（6項目）"
 # [7/12] ML検証（--quick）
 # ========================================
 echo ""
-echo "🤖 [7/12] ML検証（55特徴量）..."
+echo "🤖 [7/12] ML検証（37特徴量）..."
 
 if [[ -f "scripts/testing/validate_ml_models.py" ]]; then
     python3 scripts/testing/validate_ml_models.py --quick || {
@@ -472,7 +472,7 @@ echo "🎉 品質チェック完了！ (Phase 61)"
 echo "============================================="
 echo "📊 チェック結果:"
 echo "  - システム整合性: ✅ PASS (6項目)"
-echo "  - ML検証: ✅ PASS (55特徴量)"
+echo "  - ML検証: ✅ PASS (37特徴量)"
 echo "  - flake8: ✅ PASS"
 echo "  - isort: ✅ PASS"
 echo "  - black: ✅ PASS"

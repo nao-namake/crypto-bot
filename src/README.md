@@ -1,6 +1,6 @@
 # src/ - AI自動取引システム
 
-Phase 64完了。55特徴量 → 6戦略 → ML予測 → リスク管理 → 取引実行の完全自動化。
+Phase 77完了。37特徴量 → 6戦略 → ML予測 → リスク管理 → 取引実行の完全自動化。
 
 ## ディレクトリ構成
 
@@ -13,7 +13,7 @@ src/
 │   ├── reporting/          # レポート生成（BaseReporter・PaperTradingReporter）
 │   └── services/           # GracefulShutdown・MarketRegimeClassifier・HealthChecker
 ├── data/                   # Bitbank API統合・データキャッシュ
-├── features/               # 特徴量生成（49基本特徴量）
+├── features/               # 特徴量生成（37特徴量）
 ├── strategies/             # 6戦略（BBReversal・StochasticDivergence・ATRBased・DonchianChannel・MACDEMACrossover・ADXTrendStrength）
 ├── ml/                     # ProductionEnsemble（LightGBM・XGBoost・RandomForest）
 ├── trading/                # 取引管理（5層分離）
@@ -31,9 +31,7 @@ src/
 ```
 Bitbank API（15分足取得）
     ↓
-特徴量生成（49基本特徴量）
-    ↓
-6戦略実行 → 戦略信号（+6特徴量 = 55特徴量）
+特徴量生成（37特徴量・SHAP最適化）
     ↓
 ML予測（ProductionEnsemble → 信頼度）
     ↓

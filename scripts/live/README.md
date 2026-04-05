@@ -77,7 +77,7 @@ python3 scripts/live/standard_analysis.py --quick
 
 | 項目 | 内容 |
 |------|------|
-| 55特徴量システム | 特徴量セット・フォールバック状況確認 |
+| 37特徴量システム | 特徴量セット・フォールバック状況確認 |
 | Silent Failure検出 | シグナル生成 vs 注文実行の比率 |
 | 6戦略動作確認 | 各戦略のログ検出 |
 | ML予測確認 | ProductionEnsemble動作確認 |

@@ -9,8 +9,8 @@
 ```
 models/production/
 ├── README.md                              # このファイル
-├── ensemble_full.pkl                      # メイン: 55特徴量モデル（32MB）
-├── ensemble_basic.pkl                     # フォールバック: 49特徴量モデル（33MB）
+├── ensemble_full.pkl                      # メイン: 37特徴量モデル（32MB）
+├── ensemble_basic.pkl                     # フォールバック: 37特徴量モデル（33MB）
 ├── production_model_metadata.json         # メインモデルのメタデータ
 └── production_model_metadata_basic.json   # Basicモデルのメタデータ
 ```
@@ -19,29 +19,28 @@ models/production/
 
 ## 主要モデル
 
-### ensemble_full.pkl - メインモデル（55特徴量）
+### ensemble_full.pkl - メインモデル（37特徴量）
 
 本番環境で使用される主力モデルです。
 
 | 項目 | 値 |
 |------|-----|
-| **特徴量数** | 55（49基本 + 6戦略信号） |
+| **特徴量数** | 37（SHAP最適化） |
 | **アンサンブル方式** | 重み付き平均（Stacking無効） |
 | **モデル重み** | LightGBM 40% / XGBoost 40% / RF 20% |
 | **分類** | 3クラス（BUY / HOLD / SELL） |
 | **ファイルサイズ** | 約32MB |
 
 **特徴量構成:**
-- 基本特徴量（49個）: 価格・ボリューム・モメンタム・ボラティリティ・トレンド・時間
-- 戦略信号（6個）: ATRBased・DonchianChannel・ADXTrendStrength・BBReversal・StochasticReversal・MACDEMACrossover
+- 37特徴量（Phase 77: SHAP+Forward Selectionで最適化）
 
-### ensemble_basic.pkl - フォールバックモデル（49特徴量）
+### ensemble_basic.pkl - フォールバックモデル（37特徴量）
 
 戦略信号なしで動作する安定モデルです。
 
 | 項目 | 値 |
 |------|-----|
-| **特徴量数** | 49（基本特徴量のみ） |
+| **特徴量数** | 37（SHAP最適化） |
 | **使用場面** | Full特徴量生成失敗時のフォールバック |
 | **ファイルサイズ** | 約33MB |
 
@@ -50,9 +49,9 @@ models/production/
 ```
 Level 0: Stacking無効（現在の設定）
     ↓ Full特徴量生成失敗
-Level 1: ensemble_full.pkl（55特徴量）
+Level 1: ensemble_full.pkl（37特徴量）
     ↓ モデル読み込み失敗
-Level 2: ensemble_basic.pkl（49特徴量）
+Level 2: ensemble_basic.pkl（37特徴量）
     ↓ モデル読み込み失敗
 Level 3: DummyModel（常にHOLD）
 ```

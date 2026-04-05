@@ -117,7 +117,7 @@ class TestFeatureGenerator:
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
 
-        # Phase 77: 59特徴量（戦略シグナル廃止・単一モデル）
+        # Phase 77: 37特徴量（SHAP最適化・戦略シグナル廃止・単一モデル）
         for feature in FEATURES_WITHOUT_EXTERNAL_API:
             if feature in result_df.columns:
                 continue

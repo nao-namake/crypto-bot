@@ -5,7 +5,7 @@
 config/core/feature_order.jsonを真の情報源として全システムが統一的に参照。
 
 Phase 64.13: 未使用メソッド・ラッパー削除（validate_features/get_feature_info/get_basic_feature_names/reload_feature_config）
-Phase 51.7: 55特徴量固定管理（49基本+6戦略シグナル）
+Phase 77: 37特徴量管理（SHAP最適化）
 Phase 28-29: 15特徴量統一管理システム確立
 """
 

@@ -5,7 +5,7 @@
 システム全体で使用する基本設定を管理する中核フォルダです。2つのファイルにより、全設定・特徴量定義を管理します。
 
 **Phase 65.12（2026年2月24日）**:
-- 55特徴量（49基本+6戦略信号）
+- 37特徴量（SHAP最適化）
 - 6戦略統合・3モデルアンサンブル
 - 1ファイル体系（thresholds.yaml）
 
@@ -49,15 +49,15 @@ feature_flags:         # 機能トグル（旧features.yaml）
 
 ### 2. **feature_order.json** - 特徴量定義（単一真実源）
 
-**役割**: 全システムで使用する55特徴量の順序・定義を一元管理
+**役割**: 全システムで使用する37特徴量の順序・定義を一元管理
 
 **構造**:
 ```json
 {
-  "total_features": 55,
+  "total_features": 37,
   "feature_levels": {
-    "full": { "count": 55, "model_file": "ensemble_full.pkl" },
-    "basic": { "count": 49, "model_file": "ensemble_basic.pkl" }
+    "full": { "count": 37, "model_file": "ensemble_full.pkl" },
+    "basic": { "count": 37, "model_file": "ensemble_basic.pkl" }
   },
   "feature_categories": {
     "basic": ["close", "volume"],

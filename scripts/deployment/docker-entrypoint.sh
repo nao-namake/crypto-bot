@@ -33,7 +33,7 @@ try:
         model_info = adapter.get_model_info()
         print(f'✅ MLモデル初期化成功: {model_info[\"model_type\"]}')
 
-        # 簡易予測テスト（55特徴量 - feature_order.json準拠）
+        # 簡易予測テスト（37特徴量 - feature_order.json準拠）
         import numpy as np
         from src.core.config.feature_manager import get_feature_count
         feature_count = get_feature_count()

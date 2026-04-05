@@ -100,13 +100,13 @@ class TradingCycleManager:
 
             # Phase 49.8: 診断ログ削除（根本原因修正完了）
 
-            # Phase 41: 戦略シグナル特徴量追加（50→55特徴量）
+            # Phase 41: 戦略シグナル特徴量追加
             if strategy_signals:
                 main_features = await self._add_strategy_signal_features(
                     main_features, strategy_signals
                 )
 
-            # Phase 5: ML予測（Phase 41: 55特徴量対応）
+            # Phase 5: ML予測（Phase 77: 37特徴量対応）
             ml_prediction = await self._get_ml_prediction(main_features)
 
             # Phase 6: 追加情報取得（リスク管理のため）
@@ -331,7 +331,7 @@ class TradingCycleManager:
 
     async def _add_strategy_signal_features(self, main_features, strategy_signals):
         """
-        Phase 41: 戦略シグナル特徴量追加（50→55特徴量）
+        Phase 41: 戦略シグナル特徴量追加
 
         個別戦略シグナルをDataFrameに特徴量として追加します。
 
@@ -340,7 +340,7 @@ class TradingCycleManager:
             strategy_signals: 個別戦略シグナル辞書
 
         Returns:
-            pd.DataFrame: 戦略シグナル特徴量が追加されたDataFrame（55特徴量）
+            pd.DataFrame: 戦略シグナル特徴量が追加されたDataFrame
         """
         try:
             if main_features.empty or not strategy_signals:

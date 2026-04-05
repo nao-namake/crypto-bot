@@ -86,7 +86,7 @@ jobs:
           DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}
 
           echo "🎯 モデル学習開始（${N_TRIALS}試行）"
-          echo "📊 3クラス分類（SELL/HOLD/BUY）・55特徴量"
+          echo "📊 37特徴量・メタラベリング"
 
           if [ "$DRY_RUN" = "true" ]; then
             echo "🧪 ドライランモード"
@@ -153,7 +153,7 @@ jobs:
 
           git commit -m "feat: MLモデル自動更新（週次再学習）" \
             -m "" \
-            -m "- 55特徴量Strategy-Aware ML再学習" \
+            -m "- 37特徴量メタラベリングML再学習" \
             -m "- 3クラス分類（SELL/HOLD/BUY）・閾値±0.5%" \
             -m "- Optuna最適化（${{ github.event.inputs.n_trials || '50' }}試行）" \
             -m "" \

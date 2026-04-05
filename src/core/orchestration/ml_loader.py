@@ -7,8 +7,8 @@ ml_adapter.pyから分離したモデル読み込み専用モジュール。
 Phase 64.6:
 - Stacking関連コード削除（Phase 59.10で無効化済み・pklファイル不在）
 - フォールバック階層を2段階に簡素化:
-  - Level 1（完全）: ensemble_full.pkl（55特徴量）
-  - Level 2（基本）: ensemble_basic.pkl（49特徴量）
+  - Level 1（完全）: ensemble_full.pkl（37特徴量）
+  - Level 2（基本）: ensemble_basic.pkl（37特徴量）
   - Level 2.5（再構築）: 個別モデルから再構築
   - Level 3（ダミー）: DummyModel（最終フォールバック）
 """
@@ -30,8 +30,8 @@ class MLModelLoader:
     設定駆動型モデル選択により、特徴量レベルに応じた最適なモデルを自動選択。
 
     モデル読み込み優先順位:
-    - Level 1: ProductionEnsemble full（55特徴量）
-    - Level 2: ProductionEnsemble basic（49特徴量）
+    - Level 1: ProductionEnsemble full（37特徴量）
+    - Level 2: ProductionEnsemble basic（37特徴量）
     - Level 2.5: 個別モデル再構築
     - Level 3: DummyModel（最終フォールバック）
     """
@@ -47,8 +47,8 @@ class MLModelLoader:
         """
         モデル優先順位読み込み
 
-        Level 1（完全）: ensemble_full.pkl → ProductionEnsemble（55特徴量）
-        Level 2（基本）: ensemble_basic.pkl → ProductionEnsemble（49特徴量）
+        Level 1（完全）: ensemble_full.pkl → ProductionEnsemble（37特徴量）
+        Level 2（基本）: ensemble_basic.pkl → ProductionEnsemble（37特徴量）
         Level 2.5（再構築）: 個別モデルから再構築
         Level 3（ダミー）: DummyModel → 最終フォールバック
 
@@ -64,11 +64,11 @@ class MLModelLoader:
         target_level = self._determine_feature_level(feature_count)
         self.logger.info(f"特徴量レベル判定: {target_level} ({feature_count}特徴量)")
 
-        # Level 1: 完全特徴量モデル読み込み試行（55特徴量）
+        # Level 1: 完全特徴量モデル読み込み試行（37特徴量）
         if target_level == "full" and self._load_production_ensemble(level="full"):
             return self.model
 
-        # Level 2: 基本特徴量モデル読み込み試行（49特徴量）
+        # Level 2: 基本特徴量モデル読み込み試行（37特徴量）
         if target_level in ["full", "basic"] and self._load_production_ensemble(level="basic"):
             if target_level == "full":
                 self.logger.info("Level 2（基本）モデルにフォールバック")
@@ -100,10 +100,10 @@ class MLModelLoader:
 
         # feature_countが指定されていない場合は、デフォルトでfullを試行
         if feature_count is None:
-            self.logger.debug("特徴量数未指定 → Level 1（完全55特徴量）を試行")
+            self.logger.debug("特徴量数未指定 → Level 1（37特徴量）を試行")
             return "full"
 
-        # 55特徴量の場合（完全特徴量: 49基本+6戦略シグナル）
+        # full特徴量の場合
         if feature_count == level_counts.get("full", 55):
             return "full"
 
@@ -112,7 +112,7 @@ class MLModelLoader:
             return "basic"
 
         # その他の場合はfullを試行（フォールバック）
-        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（完全55特徴量）を試行")
+        self.logger.warning(f"想定外の特徴量数: {feature_count} → Level 1（37特徴量）を試行")
         return "full"
 
     def _load_production_ensemble(self, level: str = "full") -> bool:

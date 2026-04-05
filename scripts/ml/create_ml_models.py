@@ -3,7 +3,7 @@
 MLモデル作成スクリプト - Phase 61
 
 機能:
-- 2段階MLモデル生成: full（55特徴量）・basic（49特徴量）
+- 2段階MLモデル生成: full（37特徴量）・basic（37特徴量）
 - 6戦略統合・実戦略信号学習
 - TimeSeriesSplit・SMOTE・Optuna最適化
 - ProductionEnsemble作成
@@ -276,11 +276,11 @@ class NewSystemMLModelCreator:
         """
         Phase 51.9: モデル別特徴量選択（2段階システム・6戦略統合）
 
-        model_type="full": 55特徴量（全特徴量使用・6戦略信号含む）
-        model_type="basic": 49特徴量（戦略信号除外）
+        model_type="full": 37特徴量（全特徴量使用）
+        model_type="basic": 37特徴量
         """
         model_name = (
-            "full（55特徴量）" if self.current_model_type == "full" else "basic（49特徴量）"
+            "full（37特徴量）" if self.current_model_type == "full" else "basic（37特徴量）"
         )
         self.logger.info(f"📊 Phase 51.9: 実データ学習開始（過去{days}日分・{model_name}）")
 
@@ -304,7 +304,7 @@ class NewSystemMLModelCreator:
                     f"✅ 戦略シグナル特徴量削除: {len(strategy_signal_cols)}個（実戦略信号で置き換え）"
                 )
 
-            # Phase 51.9: 実戦略信号生成（49→55特徴量・6戦略統合）
+            # Phase 51.9: 実戦略信号生成
             # Note: 過去データから実際に戦略を実行し、本物の戦略信号を生成
             #       これにより訓練時と推論時の一貫性を確保
             #       特徴量を含むデータを渡す（戦略はテクニカル指標を必要とするため）
@@ -312,14 +312,14 @@ class NewSystemMLModelCreator:
                 features_df
             )
 
-            # Phase 51.9: 基本特徴量（49） + 実戦略信号（6） = 55特徴量を結合
+            # Phase 51.9: 基本特徴量 + 実戦略信号を結合
             features_df = pd.concat([features_df, strategy_signals_df], axis=1)
 
-            # Phase 51.9: 特徴量整合性確保（55特徴量固定システム）
+            # Phase 51.9: 特徴量整合性確保
             features_df = self._ensure_feature_consistency(features_df)
 
             # Phase 55.6 Fix: モデル別特徴量選択はrun()内のループで実行
-            # ここでは全55特徴量を返す
+            # ここでは全特徴量を返す
 
             # ターゲット生成（Phase 39.2: 閾値・クラス数対応）
             target = self._generate_target(df, self.target_threshold, self.n_classes)
@@ -479,14 +479,14 @@ class NewSystemMLModelCreator:
             return strategy_signals
 
     def _ensure_feature_consistency(self, features_df: pd.DataFrame) -> pd.DataFrame:
-        """特徴量整合性確保（Phase 51.9: 55特徴量対応・6戦略統合）"""
+        """特徴量整合性確保（Phase 77: 37特徴量対応）"""
         # 不足特徴量の0埋め
         for feature in self.expected_features:
             if feature not in features_df.columns:
                 features_df[feature] = 0.0
                 self.logger.warning(f"⚠️ 不足特徴量を0埋め: {feature}")
 
-        # 特徴量のみ選択 - Phase 51.9: 55特徴量対応
+        # 特徴量のみ選択 - Phase 77: 37特徴量対応
         features_df = features_df[self.expected_features]
 
         expected_count = len(self.expected_features)
@@ -499,7 +499,7 @@ class NewSystemMLModelCreator:
         """
         Phase 77: モデル別特徴量選択
 
-        model_type="full": 全59特徴量使用
+        model_type="full": 全37特徴量使用
         model_type="basic": importance>=2の36特徴量のみ（フォールバック用）
         """
         if self.current_model_type == "full":
@@ -1368,7 +1368,7 @@ class NewSystemMLModelCreator:
             "model_files": saved_files,
             "config_path": self.config_path,
             "phase": "Phase 51.9",  # Phase 51.9完了: 真の3クラス分類実装
-            "notes": "Phase 51.9完了・真の3クラス分類実装（multiclass params追加）・6戦略統合（ATRBased/DonchianChannel/ADXTrendStrength/BBReversal/StochasticReversal/MACDEMACrossover）・実戦略信号学習（訓練時と推論時の一貫性確保）・55特徴量・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果",
+            "notes": "Phase 77完了・37特徴量（SHAP最適化）・メタラベリング・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果",
         }
 
         training_metadata_file = self.training_dir / "training_metadata.json"
@@ -1561,17 +1561,17 @@ class NewSystemMLModelCreator:
                 if not self._archive_existing_models():
                     self.logger.warning("⚠️ アーカイブ失敗 - 処理続行")
 
-            # 1. 学習データ準備（1回のみ・全55特徴量生成）
+            # 1. 学習データ準備（1回のみ・全37特徴量生成）
             # 戦略信号生成が最も時間がかかるため、1回だけ実行
             self.logger.info("📊 Phase 51.9: 学習データ準備開始（全モデル共通）")
             features, target = self.prepare_training_data(days)
-            self.logger.info("✅ 学習データ準備完了（全55特徴量生成済み）")
+            self.logger.info("✅ 学習データ準備完了（全37特徴量生成済み）")
 
             # 2. 各モデルを訓練（ループ処理）
             all_saved_files = {}
             for model_type in self.models_to_train:
                 self.current_model_type = model_type
-                model_name = "full（55特徴量）" if model_type == "full" else "basic（49特徴量）"
+                model_name = "full（37特徴量）" if model_type == "full" else "basic（37特徴量）"
 
                 self.logger.info("")
                 self.logger.info("=" * 80)

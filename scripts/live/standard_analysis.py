@@ -13,7 +13,7 @@
     - Secret Manager権限確認
     - Container安定性・API・エラー検出
   - Bot機能診断（BotFunctionChecker）
-    - 55特徴量・ML予測・6戦略動作確認
+    - 37特徴量・ML予測・6戦略動作確認
     - Silent Failure検出
     - エントリー実行フロー検証（約定ポーリング・固定サイズ）
     - TP/SL管理検証（SL超過チェック・緊急決済）
@@ -403,9 +403,9 @@ class InfrastructureChecker:
 class BotFunctionCheckResult:
     """Bot機能診断結果"""
 
-    # 55特徴量システム
-    feature_55_count: int = 0
-    feature_49_count: int = 0
+    # 37特徴量システム
+    feature_37_count: int = 0
+    feature_fallback_count: int = 0
     dummy_model_count: int = 0
 
     # Silent Failure
@@ -535,19 +535,19 @@ class BotFunctionChecker:
         return self.infra_checker._count_gcp_logs(query, limit)
 
     def _check_feature_system(self):
-        """55特徴量システム確認"""
-        self.logger.info("📊 55特徴量システム確認")
-        self.result.feature_55_count = self._count_logs(
-            'textPayload:"55特徴量" OR textPayload:"55個の特徴量"', 15
+        """37特徴量システム確認"""
+        self.logger.info("📊 37特徴量システム確認")
+        self.result.feature_37_count = self._count_logs(
+            'textPayload:"37特徴量" OR textPayload:"37個の特徴量"', 15
         )
-        self.result.feature_49_count = self._count_logs(
-            'textPayload:"49特徴量" OR textPayload:"基本特徴量のみ"', 15
+        self.result.feature_fallback_count = self._count_logs(
+            'textPayload:"基本特徴量のみ"', 15
         )
         self.result.dummy_model_count = self._count_logs('textPayload:"DummyModel"', 15)
 
-        if self.result.feature_55_count > 0 and self.result.dummy_model_count == 0:
+        if self.result.feature_37_count > 0 and self.result.dummy_model_count == 0:
             self.result.normal_checks += 1
-        elif self.result.feature_49_count > 0 and self.result.dummy_model_count == 0:
+        elif self.result.feature_fallback_count > 0 and self.result.dummy_model_count == 0:
             self.result.warning_issues += 1
         elif self.result.dummy_model_count > 0:
             self.result.critical_issues += 2
@@ -3011,8 +3011,8 @@ def _generate_diagnostic_markdown(
         "",
         "| 項目 | 結果 |",
         "|------|------|",
-        f"| 55特徴量検出 | {bot_result.feature_55_count}回 |",
-        f"| 49特徴量（フォールバック） | {bot_result.feature_49_count}回 |",
+        f"| 37特徴量検出 | {bot_result.feature_37_count}回 |",
+        f"| フォールバック | {bot_result.feature_fallback_count}回 |",
         f"| DummyModel使用 | {bot_result.dummy_model_count}回 |",
         f"| シグナル生成 | {bot_result.signal_count}回 |",
         f"| 注文実行 | {bot_result.order_count}回 |",

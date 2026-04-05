@@ -1,5 +1,5 @@
 # CI/CDパイプライン
-# Phase 52.2整理（55特徴量・Python 3.13・Phase 49ベース）
+# Phase 77整理（37特徴量・Python 3.13）
 
 name: CI/CD Pipeline
 
@@ -316,7 +316,7 @@ jobs:
           IMAGE_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/crypto-bot:${{ github.sha }}"
 
           echo "🚀 段階的デプロイ開始: ${IMAGE_TAG}"
-          echo "Phase 52.2: 55特徴量・Python 3.13"
+          echo "Phase 77: 37特徴量・Python 3.13"
           
           # デプロイモード判定（レガシー改良・本番モードデフォルト）
           DEPLOY_MODE="${{ secrets.DEPLOY_MODE || 'live' }}"
@@ -430,7 +430,7 @@ jobs:
             echo "📊 サービス: ${{ env.SERVICE_NAME }}"
             echo "🏷️ イメージ: ${{ github.sha }}"
             echo "🌐 モード: live（ライブトレード）"
-            echo "📈 品質保証: 55特徴量・Python 3.13"
+            echo "📈 品質保証: 37特徴量・Python 3.13"
           else
             echo "❌ デプロイ失敗"
             echo "🔍 ログを確認してください"

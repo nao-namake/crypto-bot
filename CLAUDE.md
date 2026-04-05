@@ -137,9 +137,7 @@ models/production/          # MLモデル（週次更新）
 ```
 Bitbank API（15分足取得）
     ↓
-特徴量生成（49基本特徴量）
-    ↓
-6戦略実行 → 戦略信号（+6特徴量 = 55特徴量）
+特徴量生成（37特徴量・SHAP最適化）
     ↓
 ML予測（ensemble_full.pkl → 信頼度）
     ↓

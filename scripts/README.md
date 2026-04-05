@@ -31,7 +31,7 @@ scripts/
 │   └── run_paper.sh               # ペーパートレード実行スクリプト
 ├── ml/                     # 機械学習モデル学習・管理 [詳細: ml/README.md]
 │   ├── README.md                  # ML管理ガイド（Phase 61版）
-│   └── create_ml_models.py        # MLモデル学習スクリプト（55特徴量）
+│   └── create_ml_models.py        # MLモデル学習スクリプト（37特徴量）
 └── testing/                # 品質保証・テストシステム [詳細: testing/README.md]
     ├── README.md                  # テストシステムガイド（Phase 61版）
     ├── checks.sh                  # 品質チェック統合スクリプト（12項目）
@@ -49,7 +49,7 @@ scripts/
 | checks.sh | 品質チェック統合スクリプト（12項目・約60秒） |
 | validate_ml_models.py | ML検証スクリプト（8項目・整合性+品質検証） |
 
-**checks.sh 12項目**: ディレクトリ構造・Dockerfile整合性・特徴量数(55)・戦略整合性(6)・設定ファイル・モデルファイル・ML検証・flake8・isort・black・pytest・結果サマリー
+**checks.sh 12項目**: ディレクトリ構造・Dockerfile整合性・特徴量数(37)・戦略整合性(6)・設定ファイル・モデルファイル・ML検証・flake8・isort・black・pytest・結果サマリー
 
 ### **ml/ - 機械学習モデル学習・管理（Phase 61版）**
 
@@ -57,9 +57,9 @@ scripts/
 
 | ファイル | 役割 |
 |----------|------|
-| create_ml_models.py | 55特徴量MLモデル学習（LightGBM・XGBoost・RandomForest） |
+| create_ml_models.py | 37特徴量MLモデル学習（LightGBM・XGBoost・RandomForest） |
 
-**特徴量構成**: 49基本特徴量 + 6戦略信号 = 55特徴量
+**特徴量構成**: 37特徴量（Phase 77: SHAP最適化）
 
 ### **deployment/ - デプロイメント・インフラ管理（Phase 61版）**
 
@@ -113,7 +113,7 @@ bash scripts/testing/checks.sh
 
 # 期待結果:
 # ✅ システム整合性（6項目）
-# ✅ ML検証通過（55特徴量・3クラス分類）
+# ✅ ML検証通過（37特徴量）
 # ✅ コードスタイル準拠（flake8・black・isort）
 # ✅ pytest成功（62%+カバレッジ）
 ```
@@ -190,7 +190,7 @@ gcloud run services describe crypto-bot-service-prod --region=asia-northeast1
 | テスト成功率 | 100% | 全テスト成功必須 |
 | カバレッジ | 62%以上 | 最低ライン維持 |
 | コードスタイル | PASS | flake8/black/isort通過 |
-| 特徴量数 | 55 | 49基本 + 6戦略信号 |
+| 特徴量数 | 37 | SHAP最適化 |
 | 戦略数 | 6 | レンジ型4 + トレンド型2 |
 | 3クラス分類 | 必須 | BUY/HOLD/SELL |
 

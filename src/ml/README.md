@@ -1,6 +1,6 @@
 # src/ml/ - 機械学習システム
 
-**Phase 64.6更新**: 55特徴量を入力とした3モデルアンサンブル（LightGBM・XGBoost・RandomForest）による高精度取引シグナル予測システム。
+**Phase 77更新**: 37特徴量を入力とした3モデルアンサンブル（LightGBM・XGBoost・RandomForest）による高精度取引シグナル予測システム。
 
 ## ファイル構成
 
@@ -49,7 +49,7 @@ import pickle
 with open('models/production/ensemble_full.pkl', 'rb') as f:
     production_model = pickle.load(f)
 
-predictions = production_model.predict(sample_features)  # 55特徴量必須
+predictions = production_model.predict(sample_features)  # 37特徴量必須
 ```
 
 ## アンサンブル構成
@@ -66,5 +66,5 @@ weights = {
 ## 設定
 
 - **環境変数**: 不要（設定ファイルから自動取得）
-- **データ要件**: 55特徴量固定・順序厳守
+- **データ要件**: 37特徴量・順序厳守
 - **本番モデル**: models/production/ensemble_full.pkl

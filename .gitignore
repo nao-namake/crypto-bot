@@ -109,7 +109,7 @@ docs/検証記録/analysis_history.csv
 # ──────────────────────────────────────────────────────────────────────────────
 # 動的生成される学習中間ファイル・一時モデル
 *.pkl
-# 本番用2段階モデルは例外（55特徴量）
+# 本番用2段階モデルは例外（37特徴量）
 !models/production/ensemble_full.pkl
 !models/production/ensemble_basic.pkl
 *.model

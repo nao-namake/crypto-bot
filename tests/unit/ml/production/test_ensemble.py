@@ -2,7 +2,7 @@
 ProductionEnsemble テストファイル - Phase 64.6更新
 
 本番用アンサンブルモデルの全メソッドを包括的にテスト。
-55特徴量システム・重み付け投票・予測精度検証をカバー。
+37特徴量システム・重み付け投票・予測精度検証をカバー。
 
 Phase 64.6: StackingEnsembleテスト削除
 """
@@ -44,7 +44,7 @@ class TestProductionEnsemble:
 
     @pytest.fixture
     def sample_data(self):
-        """55特徴量サンプルデータ作成"""
+        """37特徴量サンプルデータ作成"""
         return np.random.random((3, 37))
 
     @pytest.fixture
@@ -303,7 +303,7 @@ class TestProductionEnsembleEdgeCases:
 
     @pytest.fixture
     def sample_data(self):
-        """55特徴量サンプルデータ作成"""
+        """37特徴量サンプルデータ作成"""
         return np.random.random((3, 37))
 
     def test_single_model_ensemble(self):

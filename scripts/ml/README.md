@@ -16,13 +16,13 @@ scripts/ml/
 
 ## create_ml_models.py
 
-6戦略統合・55特徴量・3クラス分類のMLモデルを学習。
+37特徴量・メタラベリングのMLモデルを学習。
 
 ### 主要機能
 
 | 機能 | 説明 |
 |------|------|
-| 2段階モデル生成 | full（55特徴量）・basic（49特徴量） |
+| 2段階モデル生成 | full（37特徴量）・basic（37特徴量） |
 | 6戦略統合 | ATRBased / BBReversal / StochasticReversal / DonchianChannel / ADXTrendStrength / MACDEMACrossover |
 | 3クラス分類 | BUY / HOLD / SELL |
 | Optuna最適化 | ハイパーパラメータ自動最適化 |
@@ -72,8 +72,8 @@ python3 scripts/ml/create_ml_models.py --model full --optimize --n-trials 50
 
 | ファイル | 場所 | 説明 |
 |---------|------|------|
-| `ensemble_full.pkl` | models/production/ | 55特徴量モデル |
-| `ensemble_basic.pkl` | models/production/ | 49特徴量モデル（フォールバック用） |
+| `ensemble_full.pkl` | models/production/ | 37特徴量モデル |
+| `ensemble_basic.pkl` | models/production/ | 37特徴量モデル（フォールバック用） |
 | `production_model_metadata.json` | models/production/ | モデルメタデータ |
 | `training_metadata.json` | models/training/ | 学習メタデータ |
 | `ml_training_*.log` | logs/ml/ | 学習ログ |
@@ -111,4 +111,4 @@ python3 scripts/testing/validate_ml_models.py
 | `src/ml/ensemble.py` | ProductionEnsemble |
 | `src/features/feature_generator.py` | 特徴量生成 |
 | `src/strategies/strategy_loader.py` | 6戦略動的ロード |
-| `config/core/feature_order.json` | 55特徴量定義 |
+| `config/core/feature_order.json` | 37特徴量定義 |

@@ -6,7 +6,7 @@ MLモデル読み込み失敗時の最終的な安全装置。
 
 Phase 49完了:
 - DummyModel: 全予測でhold信頼度0.5返却（フォールバック用）
-- 55特徴量対応（feature_manager統合）
+- 37特徴量対応（feature_manager統合）
 - 3クラス分類対応（buy/hold/sell）
 - is_fitted=True固定（常に利用可能状態）
 

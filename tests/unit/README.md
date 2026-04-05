@@ -34,7 +34,7 @@ tests/unit/
 │   ├── test_data_cache.py
 │   └── ...
 ├── features/                    # 特徴量システムテスト（21テスト）
-│   └── test_feature_generator.py    # 55特徴量対応
+│   └── test_feature_generator.py    # 37特徴量対応
 ├── ml/                          # 機械学習システムテスト
 │   ├── models/                     # 個別モデルテスト
 │   │   ├── test_lgb_model.py

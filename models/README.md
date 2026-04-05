@@ -10,8 +10,8 @@
 models/
 ├── README.md                              # このファイル
 ├── production/                            # 本番環境用モデル（65MB）
-│   ├── ensemble_full.pkl                  # メイン: 55特徴量（32MB）
-│   ├── ensemble_basic.pkl                 # フォールバック: 49特徴量（33MB）
+│   ├── ensemble_full.pkl                  # メイン: 37特徴量（32MB）
+│   ├── ensemble_basic.pkl                 # フォールバック: 37特徴量（33MB）
 │   ├── production_model_metadata.json     # メインモデルメタデータ
 │   └── production_model_metadata_basic.json
 ├── training/                              # 学習メタデータ
@@ -24,7 +24,7 @@ models/
 
 | 項目 | 値 |
 |------|-----|
-| **特徴量数** | 55（49基本 + 6戦略信号） |
+| **特徴量数** | 37（SHAP最適化） |
 | **アンサンブル方式** | 重み付き平均 |
 | **モデル重み** | LightGBM 40% / XGBoost 40% / RF 20% |
 | **分類** | 3クラス（BUY / HOLD / SELL） |
@@ -32,9 +32,9 @@ models/
 ## 3段階Graceful Degradation
 
 ```
-Level 1: ensemble_full.pkl（55特徴量）
+Level 1: ensemble_full.pkl（37特徴量）
     ↓ モデル読み込み失敗
-Level 2: ensemble_basic.pkl（49特徴量）
+Level 2: ensemble_basic.pkl（37特徴量）
     ↓ モデル読み込み失敗
 Level 3: DummyModel（常にHOLD）
 ```

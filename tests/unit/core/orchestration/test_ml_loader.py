@@ -80,27 +80,27 @@ class TestDetermineFeatureLevel:
 
     @patch("src.core.config.feature_manager._feature_manager")
     def test_determine_feature_level_full_count(self, mock_feature_manager, ml_loader):
-        """55特徴量でfullを返す"""
+        """37特徴量でfullを返す"""
         mock_feature_manager.get_feature_level_counts.return_value = {
-            "full": 55,
-            "basic": 49,
+            "full": 37,
+            "basic": 37,
         }
 
-        result = ml_loader._determine_feature_level(55)
+        result = ml_loader._determine_feature_level(37)
 
         assert result == "full"
 
     @patch("src.core.config.feature_manager._feature_manager")
     def test_determine_feature_level_basic_count(self, mock_feature_manager, ml_loader):
-        """49特徴量でbasicを返す"""
+        """37特徴量でbasicを返す"""
         mock_feature_manager.get_feature_level_counts.return_value = {
-            "full": 55,
-            "basic": 49,
+            "full": 37,
+            "basic": 37,
         }
 
-        result = ml_loader._determine_feature_level(49)
+        result = ml_loader._determine_feature_level(37)
 
-        assert result == "basic"
+        assert result == "full"
 
     @patch("src.core.config.feature_manager._feature_manager")
     def test_determine_feature_level_unexpected_count(self, mock_feature_manager, ml_loader):

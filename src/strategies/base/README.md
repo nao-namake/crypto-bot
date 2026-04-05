@@ -90,4 +90,4 @@ normal_range・trendingの詳細は `config/core/thresholds.yaml` 参照。
 - **環境変数**: `BACKTEST_MODE=true` でログ抑制
 - **features.yaml**: `strategies.consensus.enabled`（2票ルール有効/無効）
 - **thresholds.yaml**: レジーム別重み・ML閾値
-- **データ要件**: 55特徴量（49基本 + 6戦略信号）・最小データ数20
+- **データ要件**: 37特徴量（SHAP最適化）・最小データ数20

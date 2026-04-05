@@ -11,7 +11,7 @@ src/core/                          # 31 Pythonファイル（8,078行）+ 4 READ
 ├── config/                        # 設定管理システム（5ファイル）
 │   ├── __init__.py                # 設定ローダー・3層設定体系
 │   ├── config_classes.py          # 5設定dataclass定義
-│   ├── feature_manager.py         # 55特徴量統一管理（Phase 41）
+│   ├── feature_manager.py         # 37特徴量統一管理（Phase 77）
 │   ├── runtime_flags.py           # ランタイムフラグ（Phase 35）
 │   └── threshold_manager.py       # 閾値・動的設定管理・実行時オーバーライド（Phase 40.1）
 │
