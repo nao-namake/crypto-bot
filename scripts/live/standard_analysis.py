@@ -513,6 +513,7 @@ class BotFunctionChecker:
         self._check_maker_strategy()  # Phase 62.9-62.10
         self._verify_config()  # 設定検証
         self._check_phase71_stats()  # Phase 71: トレンドフィルタ・戦略エントリー統計
+        self._check_orderbook_collection()  # Phase 77: オーダーブック蓄積確認
         self._check_phase65_2_logs()  # Phase 65.2: GCPログ動作確認
         self._check_entry_execution()  # Phase 67.4/67.5: エントリー実行フロー
         self._check_tp_sl_management()  # Phase 67.4/67.5/64.12: TP/SL管理
@@ -726,56 +727,63 @@ class BotFunctionChecker:
         from src.core.config.threshold_manager import get_threshold
 
         checks = {
-            "min_strategy_confidence": {
-                "path": "ml.strategy_integration.min_strategy_confidence",
-                "expected": 0.22,
-                "default": 0.25,
+            # Phase 73-D: ML品質フィルタモード
+            "MLモード": {
+                "path": "ml.mode",
+                "expected": "quality_filter",
+                "default": "direction",
             },
-            "BBReversal tight_range重み": {
-                "path": "dynamic_strategy_selection.regime_strategy_mapping.tight_range.BBReversal",
-                "expected": 0.20,
-                "default": 0.0,
+            # Phase 76: 品質フィルタ閾値
+            "品質フィルタ accept": {
+                "path": "ml.quality_filter.accept_threshold",
+                "expected": 0.55,
+                "default": 0.60,
             },
-            "Entry Maker有効": {
-                "path": "order_execution.maker_strategy.enabled",
-                "expected": True,
-                "default": True,
+            "品質フィルタ reject": {
+                "path": "ml.quality_filter.reject_threshold",
+                "expected": 0.35,
+                "default": 0.40,
             },
-            "Maker timeout_seconds": {
-                "path": "order_execution.maker_strategy.timeout_seconds",
-                "expected": 60,
-                "default": 30,
+            # Phase 76: トレンドフィルタ正常化
+            "EMA傾き閾値": {
+                "path": "dynamic_strategy_selection.trend_filter.ema_slope_threshold",
+                "expected": 0.002,
+                "default": 0.001,
             },
-            "TP entry_fee_rate": {
-                "path": "position_management.take_profit.fixed_amount.fallback_entry_fee_rate",
-                "expected": 0.001,
-                "default": 0.0,
+            "逆トレンドペナルティ": {
+                "path": "dynamic_strategy_selection.trend_filter.counter_trend_penalty",
+                "expected": 0.5,
+                "default": 0.3,
             },
-            "SL entry_fee_rate": {
-                "path": "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate",
-                "expected": 0.001,
-                "default": 0.0,
+            # Phase 76: hold_confidence中立化
+            "ADXTrend hold_conf": {
+                "path": "strategies.adx_trend.hold_confidence",
+                "expected": 0.12,
+                "default": 0.45,
             },
-            "固定金額TP有効": {
-                "path": "position_management.take_profit.fixed_amount.enabled",
-                "expected": True,
-                "default": False,
+            "ATRBased hold_conf": {
+                "path": "strategies.atr_based.hold_confidence",
+                "expected": 0.10,
+                "default": 0.20,
             },
+            # Phase 75-B: TP/SL固定金額
             "固定金額TP目標": {
                 "path": "position_management.take_profit.fixed_amount.target_net_profit",
                 "expected": 750,
                 "default": 1000,
             },
-            "固定金額SL有効": {
-                "path": "position_management.stop_loss.fixed_amount.enabled",
-                "expected": True,
-                "default": False,
-            },
             "固定金額SL目標": {
                 "path": "position_management.stop_loss.fixed_amount.target_max_loss",
                 "expected": 1000,
-                "default": 1000,
+                "default": 500,
             },
+            # Maker戦略
+            "Entry Maker有効": {
+                "path": "order_execution.maker_strategy.enabled",
+                "expected": True,
+                "default": True,
+            },
+            # ポジションサイズ
             "ポジションサイズモード": {
                 "path": "position_sizing.mode",
                 "expected": "fixed",
@@ -858,6 +866,32 @@ class BotFunctionChecker:
         self.result.quality_filter_uncertain = self._count_logs(
             'textPayload:"品質フィルタ中間"', 20
         )
+
+    def _check_orderbook_collection(self):
+        """Phase 77: オーダーブック蓄積動作確認"""
+        from datetime import datetime
+        from pathlib import Path
+
+        ob_dir = Path("data/orderbook")
+        if not ob_dir.exists():
+            self.logger.info("ℹ️ Phase 77: オーダーブックディレクトリ未作成")
+            return
+
+        # 今日のCSV確認
+        today_csv = ob_dir / f"orderbook_{datetime.now().strftime('%Y%m%d')}.csv"
+        if today_csv.exists():
+            with open(today_csv) as f:
+                lines = sum(1 for _ in f) - 1  # ヘッダ除く
+            self.logger.info(f"📊 Phase 77: オーダーブック蓄積 - 本日{lines}件記録")
+            self.result.normal_checks += 1
+        else:
+            # 過去のCSVを確認
+            csvs = sorted(ob_dir.glob("orderbook_*.csv"), reverse=True)
+            if csvs:
+                self.logger.info(f"ℹ️ Phase 77: 本日のオーダーブック未記録（直近: {csvs[0].name}）")
+            else:
+                self.logger.warning("⚠️ Phase 77: オーダーブックCSV未生成（蓄積開始前 or 失敗）")
+                self.result.warning_issues += 1
 
     def _check_phase65_2_logs(self):
         """Phase 65.2: GCPログベース動作確認"""
@@ -1006,7 +1040,7 @@ class LiveAnalysisResult:
     # MLモデル状態（4指標）- Phase 59.8追加
     ml_model_type: str = ""  # ProductionEnsemble / DummyModel
     ml_model_level: int = -1  # 1=Full, 2=Basic, 3=Dummy
-    ml_feature_count: int = 0  # 55 / 49 / 0
+    ml_feature_count: int = 0  # 37 / 0（Phase 77: Full=Basic=37）
 
     # Phase 62.16: スリッページ分析（6指標）
     slippage_avg: float = 0.0  # 平均スリッページ（円）
