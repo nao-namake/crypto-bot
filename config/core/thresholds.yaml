@@ -689,8 +689,8 @@ position_management:
         fixed_amount_target: 750
   stop_loss:
     enabled: true
-    order_type: stop
-    slippage_buffer: 0.008
+    order_type: stop_limit  # Phase 78: stop→stop_limit（スリッページ上限制御）
+    slippage_buffer: 0.005  # Phase 78: 0.008→0.005（0.5%上限）
     stop_limit_timeout: 900
     skip_bot_monitoring: true
     default_atr_multiplier: 2.0
