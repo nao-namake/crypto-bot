@@ -733,15 +733,15 @@ class BotFunctionChecker:
                 "expected": "quality_filter",
                 "default": "direction",
             },
-            # Phase 76: 品質フィルタ閾値
+            # Phase 79: 品質フィルタ閾値（Phase 76の0.55→0.65に引き上げ）
             "品質フィルタ accept": {
                 "path": "ml.quality_filter.accept_threshold",
-                "expected": 0.55,
+                "expected": 0.65,
                 "default": 0.60,
             },
             "品質フィルタ reject": {
                 "path": "ml.quality_filter.reject_threshold",
-                "expected": 0.35,
+                "expected": 0.45,
                 "default": 0.40,
             },
             # Phase 76: トレンドフィルタ正常化

@@ -475,10 +475,10 @@ class OrderStrategy:
 
     def _calculate_maker_price(self, side: str, best_bid: float, best_ask: float) -> float:
         """
-        Phase 68: Maker価格計算（best_bid/ask直接配置）
+        Phase 79: Maker価格計算（スプレッド内配置）
 
-        スプレッド内への配置をやめ、best_bid(buy)/best_ask(sell)に直接配置。
-        post_only拒否を回避し、Maker約定を確実にする。
+        Phase 68の bug 修正: best_bid/askに直接配置すると post_only で必ずreject
+        される（既存板にマッチするため）。スプレッド内に配置することで Maker 約定を実現。
 
         Args:
             side: 売買方向（buy/sell）
@@ -488,21 +488,33 @@ class OrderStrategy:
         Returns:
             float: Maker価格（0の場合は計算失敗）
         """
+        spread = best_ask - best_bid
+
+        # スプレッドが2円未満の場合はMaker不可（best_bid+1=best_ask以上になる）
+        if spread < 2:
+            self.logger.warning(
+                f"⚠️ Phase 79: スプレッド狭小({spread:.0f}円) - Maker配置不可"
+            )
+            return 0
+
+        # スプレッド内に配置（best_bid/askから1円改善 or spread*10%の小さい方）
+        improvement = max(1, min(int(spread * 0.1), int(spread - 1)))
+
         if side.lower() == "buy":
-            # Phase 68: best_bidに直接配置（Maker確定）
-            price = best_bid
+            # best_bidより improvement円上（既存買い板より優先される位置）
+            price = best_bid + improvement
             self.logger.info(
-                f"📡 Phase 68: Maker価格 best_bid={best_bid:.0f}円 "
-                f"(スプレッド={best_ask - best_bid:.0f}円)"
+                f"📡 Phase 79: Maker買い価格 {price:.0f}円 "
+                f"(best_bid={best_bid:.0f} +{improvement}, スプレッド={spread:.0f}円)"
             )
             return round(price)
 
         elif side.lower() == "sell":
-            # Phase 68: best_askに直接配置（Maker確定）
-            price = best_ask
+            # best_askより improvement円下（既存売り板より優先される位置）
+            price = best_ask - improvement
             self.logger.info(
-                f"📡 Phase 68: Maker価格 best_ask={best_ask:.0f}円 "
-                f"(スプレッド={best_ask - best_bid:.0f}円)"
+                f"📡 Phase 79: Maker売り価格 {price:.0f}円 "
+                f"(best_ask={best_ask:.0f} -{improvement}, スプレッド={spread:.0f}円)"
             )
             return round(price)
 

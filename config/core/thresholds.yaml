@@ -120,9 +120,9 @@ ml:
   mode: quality_filter
   quality_filter:
     enabled: true
-    accept_threshold: 0.55
-    reject_threshold: 0.35
-    uncertain_penalty: 0.7
+    accept_threshold: 0.65  # Phase 79: 0.55→0.65（モデル平均0.5928より上、上位約20%通過）
+    reject_threshold: 0.45  # Phase 79: 0.35→0.45
+    uncertain_penalty: 0.5  # Phase 79: 0.7→0.5（中間帯を50%に縮小）
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3

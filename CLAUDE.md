@@ -4,13 +4,13 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 78（SLスリッページ対策）完了 |
-| **直前の作業** | Phase 78: SL注文 stop→stop_limit化（実損失1386円→約1000円目標） |
-| **次の予定** | デプロイ → ライブ検証 → SL実損失が目標近くに収束するか確認 |
-| **最新成果** | TP/SL網羅シミュレーションで現在のTP=750/SL=1000が最適と確認、stop_limit化のみ実施 |
-| **最終更新** | 2026年4月7日 |
+| **現在Phase** | 79（Maker失敗100%+ML品質フィルタ機能不全 緊急修正）完了 |
+| **直前の作業** | Phase 79: Maker価格をスプレッド内配置に修正 / ML品質フィルタ閾値0.55→0.65 |
+| **次の予定** | デプロイ → 1週間運用 → 統計データで戦略判断 |
+| **最新成果** | post_only拒否バグ修正（Phase 68設計矛盾）/ 品質フィルタ通過率100%→約30%目標 |
+| **最終更新** | 2026年4月8日 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-78.md`（最新）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-79.md`（最新）
 
 ---
 
@@ -353,5 +353,5 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 | **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
 | **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-77） |
-| **履歴** | [Phase_71-78.md](docs/開発履歴/Phase_71-78.md) | 最新Phase詳細 |
+| **履歴** | [Phase_71-79.md](docs/開発履歴/Phase_71-79.md) | 最新Phase詳細 |
 | **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |

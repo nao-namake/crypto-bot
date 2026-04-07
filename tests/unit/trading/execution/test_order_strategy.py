@@ -677,60 +677,76 @@ class TestOrderStrategyLimitPriceCalculation:
 
 
 class TestMakerPriceCalculation:
-    """Phase 68: Maker価格計算テスト（best_bid/ask直接配置）"""
+    """Phase 79: Maker価格計算テスト（スプレッド内配置）"""
 
     def setup_method(self):
         self.order_strategy = OrderStrategy()
 
     def test_buy_normal_spread(self):
-        """Phase 68: 買い注文 → best_bid直接配置"""
+        """Phase 79: 買い注文 → best_bidより上に配置（spread=2円）"""
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500002)
-        assert price == 14500000  # best_bid
+        # spread=2, improvement=max(1,min(int(2*0.1),1))=1
+        assert price == 14500001
 
     def test_sell_normal_spread(self):
-        """Phase 68: 売り注文 → best_ask直接配置"""
+        """Phase 79: 売り注文 → best_askより下に配置（spread=2円）"""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500002)
-        assert price == 14500002  # best_ask
+        assert price == 14500001
+
+    def test_buy_wide_spread(self):
+        """Phase 79: 買い注文・広いスプレッド（spread=100円）"""
+        price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500100)
+        # improvement=max(1,min(int(100*0.1),99))=10
+        assert price == 14500010
+
+    def test_sell_wide_spread(self):
+        """Phase 79: 売り注文・広いスプレッド（spread=100円）"""
+        price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500100)
+        assert price == 14500090
 
     def test_buy_1yen_spread(self):
-        """Phase 68: 買い注文・スプレッド1円 → best_bid配置"""
+        """Phase 79: スプレッド1円 → Maker不可（0返却）"""
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500001)
-        assert price == 14500000  # best_bid
+        assert price == 0
 
     def test_sell_1yen_spread(self):
-        """Phase 68: 売り注文・スプレッド1円 → best_ask配置"""
+        """Phase 79: スプレッド1円 → Maker不可（0返却）"""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500001)
-        assert price == 14500001  # best_ask
+        assert price == 0
 
     def test_buy_zero_spread(self):
-        """買い注文: スプレッド0円（bid=ask） → best_bid配置"""
+        """Phase 79: スプレッド0円 → Maker不可（0返却）"""
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000)
-        assert price == 14500000
+        assert price == 0
 
     def test_sell_zero_spread(self):
-        """売り注文: スプレッド0円（bid=ask） → best_ask配置"""
+        """Phase 79: スプレッド0円 → Maker不可（0返却）"""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000)
-        assert price == 14500000
+        assert price == 0
 
     def test_invalid_side(self):
         """不正なside → 0返却"""
-        price = self.order_strategy._calculate_maker_price("invalid", 14500000, 14500001)
+        price = self.order_strategy._calculate_maker_price("invalid", 14500000, 14500002)
         assert price == 0
 
-    def test_buy_never_returns_zero(self):
-        """Phase 68: 買い注文は0を返さない"""
-        # どのスプレッドでも有効な価格を返す
-        for spread in [0, 1, 2, 5, 100]:
+    def test_buy_returns_zero_on_narrow_spread(self):
+        """Phase 79: 狭スプレッド時はMaker不可で0返却"""
+        # spread<2でMaker不可、spread>=2で価格返却
+        for spread in [0, 1]:
             price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000 + spread)
-            assert price > 0, f"spread={spread}でprice=0が返された"
+            assert price == 0, f"spread={spread}は0が返るべき"
+        for spread in [2, 5, 100]:
+            price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000 + spread)
+            assert price > 0, f"spread={spread}は価格を返すべき"
 
-    @patch("src.trading.execution.order_strategy.get_threshold")
-    def test_sell_never_returns_zero(self, mock_threshold):
-        """Phase 65.16: 売り注文は0を返さない（フォールバック不要）"""
-        mock_threshold.return_value = 1
-        for spread in [0, 1, 2, 5, 100]:
+    def test_sell_returns_zero_on_narrow_spread(self):
+        """Phase 79: 狭スプレッド時はMaker不可で0返却"""
+        for spread in [0, 1]:
             price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000 + spread)
-            assert price > 0, f"spread={spread}でprice=0が返された"
+            assert price == 0, f"spread={spread}は0が返るべき"
+        for spread in [2, 5, 100]:
+            price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000 + spread)
+            assert price > 0, f"spread={spread}は価格を返すべき"
 
 
 class TestOrderStrategyErrorHandling:
