@@ -1431,11 +1431,13 @@ class LiveAnalyzer:
             # Phase 61.9の自動執行検知ログを使用
             tp_from_logs = self._count_logs('textPayload:"TP自動執行検知"', 50)
             # Phase 68: SL検出パターン拡充（Phase 63/64.12/65.13/67.5の成行SLも検出）
+            # Phase 78: ポジション決済完了+SL到達パターンを追加（stop_limit化対応）
             sl_from_logs = self._count_logs(
                 'textPayload:"SL自動執行検知"'
                 ' OR textPayload:"Phase 63: stop_limitタイムアウト"'
                 ' OR textPayload:"Phase 65.13: SLキャンセル且つSL超過検出"'
-                ' OR textPayload:"Phase 64.12: SLトリガー超過"',
+                ' OR textPayload:"Phase 64.12: SLトリガー超過"'
+                ' OR (textPayload:"ポジション決済完了" AND textPayload:"SL到達")',
                 50,
             )
             self.result.tp_triggered_count = tp_from_logs
@@ -2076,11 +2078,13 @@ class LiveAnalyzer:
 
         try:
             # Phase 68: GCPログから自動執行検知ログを取得（全SLパターン対応）
+            # Phase 78: ポジション決済完了+SL到達パターンを追加（stop_limit化対応）
             logs = self._fetch_gcp_logs_json(
-                'textPayload:"Phase 61.9" AND textPayload:"自動執行検知"'
+                '(textPayload:"Phase 61.9" AND textPayload:"自動執行検知")'
                 ' OR textPayload:"Phase 63: stop_limitタイムアウト"'
                 ' OR textPayload:"Phase 65.13: SLキャンセル且つSL超過検出"'
-                ' OR textPayload:"Phase 64.12: SLトリガー超過"',
+                ' OR textPayload:"Phase 64.12: SLトリガー超過"'
+                ' OR (textPayload:"ポジション決済完了" AND textPayload:"SL到達")',
                 limit=500,
             )
 
@@ -2142,6 +2146,22 @@ class LiveAnalyzer:
                     sl_executions.append(
                         {
                             "pnl": None,
+                            "strategy": "unknown",
+                            "timestamp": ts,
+                        }
+                    )
+                    continue
+
+                # Phase 78: ポジション決済完了 + SL到達パターン（stop_limit化後の主要SLパターン）
+                pos_close_match = re.search(
+                    r"ポジション決済完了: \w+ [\d.]+ BTC @ \d+円 "
+                    r"\(理由: SL到達.*?\) 損失:([+-]?\d+)円",
+                    text,
+                )
+                if pos_close_match:
+                    sl_executions.append(
+                        {
+                            "pnl": float(pos_close_match.group(1)),
                             "strategy": "unknown",
                             "timestamp": ts,
                         }
