@@ -130,70 +130,6 @@ class TestPhase596SLStopLimit:
         return client
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
-    async def test_sl_stop_limit_buy_position(
-        self, mock_threshold, tp_sl_manager, mock_bitbank_client
-    ):
-        """Phase 59.6: SL指値化 - 買いポジション（SL=売り注文）"""
-        # stop_loss設定をモック
-        mock_threshold.side_effect = lambda key, default=None: {
-            "position_management.stop_loss": {
-                "enabled": True,
-                "order_type": "stop_limit",
-                "slippage_buffer": 0.001,
-            }
-        }.get(key, default)
-
-        result = await tp_sl_manager.place_stop_loss(
-            side="buy",  # 買いポジション
-            amount=0.0001,
-            entry_price=14000000.0,
-            stop_loss_price=13900000.0,
-            symbol="BTC/JPY",
-            bitbank_client=mock_bitbank_client,
-        )
-
-        # create_stop_loss_orderが呼ばれる
-        mock_bitbank_client.create_stop_loss_order.assert_called_once()
-        call_kwargs = mock_bitbank_client.create_stop_loss_order.call_args[1]
-
-        # stop_limit + limit_price計算確認（sellなのでslippage_buffer引く）
-        assert call_kwargs["order_type"] == "stop_limit"
-        expected_limit_price = 13900000.0 * (1 - 0.001)  # 13886100.0
-        assert abs(call_kwargs["limit_price"] - expected_limit_price) < 1
-
-    @patch("src.trading.execution.tp_sl_manager.get_threshold")
-    async def test_sl_stop_limit_sell_position(
-        self, mock_threshold, tp_sl_manager, mock_bitbank_client
-    ):
-        """Phase 59.6: SL指値化 - 売りポジション（SL=買い注文）"""
-        # stop_loss設定をモック
-        mock_threshold.side_effect = lambda key, default=None: {
-            "position_management.stop_loss": {
-                "enabled": True,
-                "order_type": "stop_limit",
-                "slippage_buffer": 0.001,
-            }
-        }.get(key, default)
-
-        result = await tp_sl_manager.place_stop_loss(
-            side="sell",  # 売りポジション
-            amount=0.0001,
-            entry_price=14000000.0,
-            stop_loss_price=14100000.0,
-            symbol="BTC/JPY",
-            bitbank_client=mock_bitbank_client,
-        )
-
-        # create_stop_loss_orderが呼ばれる
-        mock_bitbank_client.create_stop_loss_order.assert_called_once()
-        call_kwargs = mock_bitbank_client.create_stop_loss_order.call_args[1]
-
-        # stop_limit + limit_price計算確認（buyなのでslippage_buffer足す）
-        assert call_kwargs["order_type"] == "stop_limit"
-        expected_limit_price = 14100000.0 * (1 + 0.001)  # 14114100.0
-        assert abs(call_kwargs["limit_price"] - expected_limit_price) < 1
-
-    @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_sl_traditional_stop_order(
         self, mock_threshold, tp_sl_manager, mock_bitbank_client
     ):
@@ -1046,35 +982,6 @@ class TestPhase6514InactiveSLCancel:
             virtual_positions=virtual_positions,
             bitbank_client=mock_client,
         )
-
-    @patch("src.trading.execution.tp_sl_manager.get_threshold")
-    async def test_stop_limit_sl_preserved_in_cleanup(self, mock_threshold, tp_sl_manager):
-        """Phase 68.6: stop_limit型SLはエントリー前クリーンアップでキャンセルされない"""
-        mock_threshold.side_effect = lambda key, default=None: default
-
-        mock_client = MagicMock()
-        mock_client.fetch_active_orders = MagicMock(
-            return_value=[
-                {
-                    "id": "sl_stop_limit_1",
-                    "side": "sell",
-                    "type": "stop_limit",
-                    "price": "13900000",
-                },
-            ]
-        )
-        mock_client.cancel_order = MagicMock()
-
-        await tp_sl_manager.cleanup_old_tp_sl_before_entry(
-            side="buy",
-            symbol="BTC/JPY",
-            entry_order_id="new_entry_1",
-            virtual_positions=[],
-            bitbank_client=mock_client,
-        )
-
-        # Phase 68.6: SL保護 - stop_limit型はキャンセルされない
-        mock_client.cancel_order.assert_not_called()
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_take_profit_type_detected_as_tp_in_cleanup(self, mock_threshold, tp_sl_manager):

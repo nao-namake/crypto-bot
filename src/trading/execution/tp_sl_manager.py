@@ -285,24 +285,9 @@ class TPSLManager:
                 f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
             )
 
-        # Phase 59.6: SL指値化設定取得
+        # Phase 81: stop（成行）専用のため limit_price は常にNone
         sl_order_type = sl_config.get("order_type", "stop")
-        slippage_buffer = sl_config.get("slippage_buffer", 0.001)
-
-        # stop_limit時の指値価格計算
         limit_price = None
-        if sl_order_type == "stop_limit":
-            if side.lower() == "buy":
-                # ロングポジションのSL（売り決済）：トリガー価格より低い指値
-                limit_price = stop_loss_price * (1 - slippage_buffer)
-            else:
-                # ショートポジションのSL（買い決済）：トリガー価格より高い指値
-                limit_price = stop_loss_price * (1 + slippage_buffer)
-
-            self.logger.info(
-                f"📊 Phase 59.6: SL指値化 - order_type={sl_order_type}, "
-                f"trigger={stop_loss_price:.0f}円, limit={limit_price:.0f}円"
-            )
 
         # SL注文配置（Phase 65.5: asyncio.to_threadでラップ）
         sl_order = await asyncio.to_thread(

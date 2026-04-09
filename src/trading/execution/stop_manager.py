@@ -4,9 +4,9 @@ Phase 28: TP/SL機能、Phase 31.1: 柔軟クールダウン、Phase 37.5.3: 残
 Phase 46: 個別TP/SL配置、Phase 49.6: ポジション決済時クリーンアップ
 Phase 51.6: Discord通知削除・SL価格検証強化・エラー30101対策
 Phase 61.3: 決済注文の約定確認・リトライ機能
-Phase 62.17: stop_limit未約定バグ修正（Bot側SL監視スキップ・タイムアウトフォールバック）
 Phase 68.6: reason文字列マッチ修正・SL再配置フォールバック追加
 Phase 69.2: 複数VP決済時の孤児TP/SL注文防止（同サイド全VP一括クリーンアップ）
+Phase 81: stop_limit関連デッドコード削除（stop専用設計に整理）
 
 ストップロス、テイクプロフィット、緊急決済、クールダウン管理を統合。
 """
@@ -597,7 +597,7 @@ class StopManager:
                     continue
 
                 # 約定確認
-                fill_config = get_threshold(TPSLConfig.SL_FILL_CONFIRMATION, {})
+                fill_config = get_threshold("position_management.stop_loss.fill_confirmation", {})
                 timeout = fill_config.get("timeout_seconds", 30)
                 interval = fill_config.get("check_interval_seconds", 3)
 
@@ -764,9 +764,6 @@ class StopManager:
         """
         個別ポジションの決済判定
 
-        Phase 62.17: stop_limit配置済みの場合はBot側SL監視をスキップ
-        （bitbankのstop_limitトリガーに任せる）
-
         Args:
             position: ポジション情報
             current_price: 現在価格
@@ -822,40 +819,8 @@ class StopManager:
                         virtual_positions,
                     )
 
-            # ========================================
-            # Phase 62.17: stop_limit配置済み時のBot側SL監視スキップ
-            # ========================================
-            # stop_limit注文が配置済みの場合、Bot側のSL監視をスキップし
-            # bitbankのstop_limitトリガーに任せる（二重決済防止）
-            # ========================================
+            # Bot側SLチェック（stopモード: 成行SL）
             if sl_config.get("enabled", True) and stop_loss:
-                # Phase 62.17: stop_limit配置済みかチェック
-                skip_bot_sl_monitoring = self._should_skip_bot_sl_monitoring(position, sl_config)
-
-                if skip_bot_sl_monitoring:
-                    # タイムアウトチェック（stop_limitが長時間未約定の場合のフォールバック）
-                    # Phase 69.2: virtual_positionsを渡して兄弟VPクリーンアップ
-                    timeout_result = await self._check_stop_limit_timeout(
-                        position,
-                        current_price,
-                        sl_config,
-                        mode,
-                        bitbank_client,
-                        virtual_positions,
-                    )
-                    if timeout_result:
-                        return timeout_result
-                    # Phase 65.13: SL注文がクリアされた場合、Bot側SLチェックにフォールスルー
-                    if not position.get("sl_order_id"):
-                        self.logger.info(
-                            "📊 Phase 65.13: SL注文クリア済み - Bot側SLチェックにフォールスルー"
-                        )
-                        # passしてBot側SLチェック（従来ロジック）へ進む
-                    else:
-                        # SL注文健在: bitbankのstop_limitトリガー待機継続
-                        return None
-
-                # 従来のBot側SLチェック（stop_limit未配置 or stop_limit以外の場合）
                 sl_triggered = False
                 if entry_side.lower() == "buy" and current_price <= float(stop_loss):
                     sl_triggered = True
@@ -883,44 +848,6 @@ class StopManager:
             self.logger.error(f"❌ ポジション決済判定エラー: {e}")
             return None
 
-    def _should_skip_bot_sl_monitoring(
-        self,
-        position: dict,
-        sl_config: dict,
-    ) -> bool:
-        """
-        Phase 62.17: Bot側SL監視をスキップすべきか判定
-
-        stop_limit注文が配置済みで、skip_bot_monitoringが有効な場合は
-        Bot側のSL監視をスキップし、bitbankのトリガーに任せる。
-
-        Args:
-            position: ポジション情報
-            sl_config: SL設定
-
-        Returns:
-            bool: スキップすべき場合はTrue
-        """
-        # skip_bot_monitoringが無効な場合はスキップしない
-        if not sl_config.get("skip_bot_monitoring", True):
-            return False
-
-        # SL注文IDが存在しない場合はスキップしない
-        sl_order_id = position.get("sl_order_id")
-        if not sl_order_id:
-            return False
-
-        # order_typeがstop_limit以外の場合はスキップしない
-        order_type = sl_config.get("order_type", "stop")
-        if order_type != "stop_limit":
-            return False
-
-        self.logger.debug(
-            f"📊 Phase 62.17: stop_limit配置済み - Bot側SL監視スキップ "
-            f"(sl_order_id={sl_order_id})"
-        )
-        return True
-
     def _is_sl_price_breached(self, position: dict, current_price: float) -> bool:
         """
         Phase 64.12: 現在価格がSLトリガー価格を超過しているか判定
@@ -942,230 +869,6 @@ class StopManager:
         elif entry_side.lower() == "sell" and current_price >= sl_price:
             return True
         return False
-
-    async def _check_stop_limit_timeout(
-        self,
-        position: dict,
-        current_price: float,
-        sl_config: dict,
-        mode: str,
-        bitbank_client: Optional[BitbankClient] = None,
-        virtual_positions: Optional[List[Dict[str, Any]]] = None,
-    ) -> Optional[ExecutionResult]:
-        """
-        Phase 62.17: stop_limitタイムアウトチェック
-
-        stop_limit注文が配置後、一定時間経過しても約定しない場合、
-        成行でフォールバック決済を行う。
-
-        Args:
-            position: ポジション情報
-            current_price: 現在価格
-            sl_config: SL設定
-            mode: 実行モード
-            bitbank_client: BitbankClientインスタンス
-            virtual_positions: Phase 69.2: 全VPリスト（兄弟VPクリーンアップ用）
-
-        Returns:
-            ExecutionResult: タイムアウト時の決済結果（タイムアウトしていない場合はNone）
-        """
-        # SL配置時刻を取得（Phase 69.6: 永続化データからの復元対応）
-        sl_placed_at = position.get("sl_placed_at")
-        if not sl_placed_at:
-            # Phase 69.6: 永続化ファイルからsl_placed_atを復元（Cloud Run再起動対策）
-            entry_side = position.get("side", "").lower()
-            if entry_side:
-                sl_state = self.sl_persistence.load()
-                sl_info = sl_state.get(entry_side, {})
-                sl_placed_at = sl_info.get("sl_placed_at")
-                if sl_placed_at:
-                    position["sl_placed_at"] = sl_placed_at
-                    self.logger.info(f"📊 Phase 69.6: sl_placed_at永続化から復元 - {sl_placed_at}")
-        if not sl_placed_at:
-            # 配置時刻が記録されていない場合はタイムアウトチェックスキップ
-            return None
-
-        # タイムアウト秒数を取得
-        timeout_seconds = sl_config.get("stop_limit_timeout", 300)  # デフォルト5分
-
-        # 経過時間を計算
-        if isinstance(sl_placed_at, str):
-            sl_placed_at = datetime.fromisoformat(sl_placed_at.replace("Z", "+00:00"))
-        elif not isinstance(sl_placed_at, datetime):
-            return None
-
-        # タイムゾーン対応
-        now = datetime.now(timezone.utc)
-        if sl_placed_at.tzinfo is None:
-            sl_placed_at = sl_placed_at.replace(tzinfo=timezone.utc)
-
-        elapsed_seconds = (now - sl_placed_at).total_seconds()
-
-        if elapsed_seconds < timeout_seconds:
-            # タイムアウトしていない
-            return None
-
-        # Phase 63: Bug 4修正 - タイムアウト前にSL注文の存在を確認
-        # SLが既に約定済み/キャンセル済みの場合はフォールバック不要
-        sl_order_id = position.get("sl_order_id")
-        if sl_order_id and bitbank_client:
-            try:
-                symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
-                sl_order_status = await asyncio.to_thread(
-                    bitbank_client.fetch_order, sl_order_id, symbol
-                )
-                order_status = sl_order_status.get("status", "")
-                if order_status == "closed":
-                    self.logger.info(
-                        f"✅ Phase 64.12: SL注文 {sl_order_id} は約定済み - フォールバック不要"
-                    )
-                    return None
-                elif order_status in ("canceled", "cancelled"):
-                    # Phase 69.6: canceledはSL消失 → SL再配置試行 → 失敗時のみフォールバック
-                    self.logger.warning(
-                        f"⚠️ Phase 69.6: SL注文 {sl_order_id} はキャンセル済み - SL再配置試行"
-                    )
-                    position["sl_order_id"] = None
-                    position["sl_placed_at"] = None
-
-                    # Phase 69.6: SL価格未超過ならSL再配置を試行
-                    if not self._is_sl_price_breached(position, current_price):
-                        try:
-                            stop_loss = position.get("stop_loss")
-                            if stop_loss and bitbank_client:
-                                new_sl_order_id = await self._replace_sl_order(
-                                    position, stop_loss, bitbank_client
-                                )
-                                if new_sl_order_id:
-                                    # 再配置成功: sl_placed_at/sl_order_idを直接更新
-                                    position["sl_placed_at"] = datetime.now(
-                                        timezone.utc
-                                    ).isoformat()
-                                    position["sl_order_id"] = new_sl_order_id
-                                self.logger.info(
-                                    f"✅ Phase 69.6: SL再配置成功 - " f"bitbankトリガー待機継続"
-                                )
-                                return None
-                        except Exception as e:
-                            self.logger.warning(f"⚠️ Phase 69.6: SL再配置失敗: {e}")
-                        # 再配置失敗でもSL未超過なら待機継続
-                        return None
-                    else:
-                        self.logger.critical(
-                            f"🚨 Phase 69.6: SLキャンセル且つSL超過検出 - 即時成行決済へ "
-                            f"(SL={position.get('stop_loss', 'N/A')}, "
-                            f"現在={current_price:.0f})"
-                        )
-                        # return Noneせず、下のフォールバック決済コードへフォールスルー
-                elif order_status in ("open", "INACTIVE"):
-                    # Phase 65.4: INACTIVEはbitbankのstop_limit正常状態（トリガー価格待ち）
-                    # Phase 64.12: open時はSL超過チェック
-                    if self._is_sl_price_breached(position, current_price):
-                        self.logger.warning(
-                            f"⚠️ Phase 64.12: SL注文 {sl_order_id} open但しSL価格超過 - "
-                            f"既存注文キャンセル→成行フォールバック実行"
-                        )
-                        # 既存注文キャンセル→成行フォールバック
-                        symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
-                        try:
-                            await asyncio.to_thread(
-                                bitbank_client.cancel_order, sl_order_id, symbol
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                f"⚠️ Phase 65.5: SL注文キャンセル失敗（フォールバック続行）: {e}"
-                            )
-                        # フォールバック決済へ進む（return Noneしない）
-                    else:
-                        self.logger.info(
-                            f"📊 Phase 65.4: SL注文 {sl_order_id} ステータス '{order_status}' - "
-                            f"bitbankトリガー待機継続"
-                        )
-                        return None
-                else:
-                    # Phase 64.12: 不明ステータスもSL超過チェック
-                    if self._is_sl_price_breached(position, current_price):
-                        self.logger.warning(
-                            f"⚠️ Phase 64.12: SL注文 {sl_order_id} 不明ステータス '{order_status}' "
-                            f"且つSL価格超過 - フォールバック実行"
-                        )
-                    else:
-                        self.logger.warning(
-                            f"⚠️ Phase 64.12: SL注文 {sl_order_id} 不明ステータス: '{order_status}' "
-                            f"- 安全側でフォールバックスキップ"
-                        )
-                        return None
-            except Exception as e:
-                # Phase 64.12: APIエラー時もSL超過チェック
-                if self._is_sl_price_breached(position, current_price):
-                    self.logger.warning(
-                        f"⚠️ Phase 64.12: SL注文確認エラー: {e} 且つSL価格超過 - フォールバック実行"
-                    )
-                else:
-                    self.logger.warning(
-                        f"⚠️ Phase 64.12: SL注文確認エラー: {e} - フォールバックスキップ"
-                    )
-                    return None
-
-        # Phase 64.9: sl_order_id未設定の場合のみフォールバック実行
-        if not sl_order_id:
-            self.logger.warning(
-                f"⚠️ Phase 64.9: sl_order_idが未設定 - タイムアウトフォールバック実行"
-            )
-
-        # タイムアウト発生 - フォールバック決済（SL注文が確認できない場合のみ）
-        entry_side = position.get("side", "")
-        amount = float(position.get("amount", 0))
-        stop_loss = position.get("stop_loss")
-
-        # Phase 63.4: 価格安全チェック - SLゾーン外なら実行しない
-        if stop_loss and current_price > 0:
-            sl_price = float(stop_loss)
-            if entry_side.lower() == "buy":
-                # ロング: 現在価格がSL+1.5%以上なら、SL発動は不合理
-                if current_price > sl_price * TPSLConfig.SL_SAFETY_MARGIN_BUY:
-                    self.logger.warning(
-                        f"⚠️ Phase 63.4: SLタイムアウト中止 - "
-                        f"現在価格({current_price:.0f})がSL({sl_price:.0f})より"
-                        f"大幅に高い。bitbankトリガー待機継続。"
-                    )
-                    return None
-            elif entry_side.lower() == "sell":
-                # ショート: 現在価格がSL-1.5%以下なら不合理
-                if current_price < sl_price * TPSLConfig.SL_SAFETY_MARGIN_SELL:
-                    self.logger.warning(
-                        f"⚠️ Phase 63.4: SLタイムアウト中止 - "
-                        f"現在価格({current_price:.0f})がSL({sl_price:.0f})より"
-                        f"大幅に低い。bitbankトリガー待機継続。"
-                    )
-                    return None
-
-        self.logger.warning(
-            f"⚠️ Phase 63: stop_limitタイムアウト ({elapsed_seconds:.0f}秒経過) - "
-            f"SL注文確認不可のため成行フォールバック実行 "
-            f"({entry_side} {amount:.6f} BTC, SL: {f'{stop_loss:.0f}' if stop_loss is not None else 'N/A'}円, 現在: {current_price:.0f}円)"
-        )
-
-        # 成行でフォールバック決済
-        # Phase 69.2: virtual_positionsを渡して兄弟VPクリーンアップ
-        result = await self._execute_position_exit(
-            position,
-            current_price,
-            "stop_loss_timeout",
-            mode,
-            bitbank_client,
-            virtual_positions,
-        )
-
-        # Phase 68.6: 決済失敗時はSLを再配置して保護を維持
-        if not result.success:
-            self.logger.warning(f"⚠️ Phase 68.6: タイムアウト決済失敗 - SL再配置試行")
-            try:
-                await self._replace_sl_order(position, stop_loss, bitbank_client)
-            except Exception as e:
-                self.logger.error(f"❌ Phase 68.6: SL再配置も失敗: {e}")
-
-        return result
 
     async def _execute_position_exit(
         self,
@@ -1288,7 +991,9 @@ class StopManager:
 
                         if not is_filled:
                             # 未約定の場合、リトライ設定を確認
-                            retry_config = get_threshold(TPSLConfig.SL_RETRY_UNFILLED, {})
+                            retry_config = get_threshold(
+                                "position_management.stop_loss.retry_on_unfilled", {}
+                            )
                             if retry_config.get("enabled", False):
                                 max_retries = retry_config.get("max_retries", 3)
                                 slippage_inc = retry_config.get(
@@ -1616,17 +1321,9 @@ class StopManager:
 
         sl_config = get_threshold(TPSLConfig.SL_CONFIG, {})
         sl_order_type = sl_config.get("order_type", "stop")
-        slippage_buffer = sl_config.get("slippage_buffer", 0.001)
 
-        # stop_limit時の指値価格計算
-        # NOTE: tp_sl_manager.py place_stop_loss()と同一ロジック。
-        # StopManagerからTPSLManagerへの参照がないため重複を許容。
+        # Phase 81: stop（成行）専用のため limit_price は常にNone
         limit_price = None
-        if sl_order_type == "stop_limit":
-            if entry_side.lower() == "buy":
-                limit_price = sl_price * (1 - slippage_buffer)
-            else:
-                limit_price = sl_price * (1 + slippage_buffer)
 
         sl_order = await asyncio.to_thread(
             bitbank_client.create_stop_loss_order,

@@ -691,22 +691,11 @@ position_management:
     enabled: true
     order_type: stop  # Phase 80: stop_limit→stop ロールバック（Phase 69.8の教訓を再確認）
     slippage_buffer: 0.008  # Phase 80: 0.005→0.008 ロールバック
-    stop_limit_timeout: 900
-    skip_bot_monitoring: true
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007
     override_strategy_sl: false
     enable_trailing: false
     execution_slippage: 0.003
-    use_native_type: false
-    fill_confirmation:
-      enabled: true
-      timeout_seconds: 30
-      check_interval_seconds: 3
-    retry_on_unfilled:
-      enabled: true
-      max_retries: 3
-      slippage_increase_per_retry: 0.001
     fixed_amount:
       enabled: true
       target_max_loss: 1000

@@ -4,13 +4,13 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 80（SL注文タイプ ロールバック）完了 |
-| **直前の作業** | Phase 80: stop_limit→stop ロールバック（Phase 69.8の教訓を踏まえ） |
+| **現在Phase** | 81（stop_limitデッドコード削除）完了 |
+| **直前の作業** | Phase 81: stop_limit関連818行削除（stop専用設計に完全移行） |
 | **次の予定** | デプロイ → 1週間運用 → 統計データで戦略判断 |
-| **最新成果** | Phase 78 stop_limit化が再び失敗と判明、Phase 69.8の正しい結論に戻す |
+| **最新成果** | Phase 62-68のstop_limitインフラ完全撤去。SLはstop（成行）専用設計に |
 | **最終更新** | 2026年4月9日 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-80.md`（最新）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`（最新）
 
 ---
 
@@ -376,5 +376,5 @@ gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --lim
 | **運用** | [bitbank_APIリファレンス.md](docs/運用ガイド/bitbank_APIリファレンス.md) | API仕様・署名方式 |
 | **運用** | [税務対応ガイド.md](docs/運用ガイド/税務対応ガイド.md) | 確定申告・移動平均法 |
 | **履歴** | [SUMMARY.md](docs/開発履歴/SUMMARY.md) | 全Phase総括（Phase 1-77） |
-| **履歴** | [Phase_71-80.md](docs/開発履歴/Phase_71-80.md) | 最新Phase詳細 |
+| **履歴** | [Phase_71-81.md](docs/開発履歴/Phase_71-81.md) | 最新Phase詳細 |
 | **計画** | [ToDo.md](docs/開発計画/ToDo.md) | 開発計画 |

@@ -50,18 +50,7 @@ class TPSLConfig:
     SL_MAX_LOSS_RATIO = "position_management.stop_loss.max_loss_ratio"
     SL_ORDER_TYPE = "position_management.stop_loss.order_type"
     SL_SLIPPAGE_BUFFER = "position_management.stop_loss.slippage_buffer"
-    SL_STOP_LIMIT_TIMEOUT = "position_management.stop_loss.stop_limit_timeout"
-    SL_SKIP_BOT_MONITORING = "position_management.stop_loss.skip_bot_monitoring"
     SL_DEFAULT_ATR_MULTIPLIER = "position_management.stop_loss.default_atr_multiplier"
-    SL_USE_NATIVE_TYPE = "position_management.stop_loss.use_native_type"
-    SL_FILL_TIMEOUT = "position_management.stop_loss.fill_confirmation.timeout_seconds"
-    SL_FILL_INTERVAL = "position_management.stop_loss.fill_confirmation.check_interval_seconds"
-    SL_FILL_CONFIRMATION = "position_management.stop_loss.fill_confirmation"
-    SL_RETRY_MAX = "position_management.stop_loss.retry_on_unfilled.max_retries"
-    SL_RETRY_UNFILLED = "position_management.stop_loss.retry_on_unfilled"
-    SL_RETRY_SLIPPAGE_INCREASE = (
-        "position_management.stop_loss.retry_on_unfilled.slippage_increase_per_retry"
-    )
     SL_MIN_DISTANCE_RATIO = "position_management.stop_loss.min_distance.ratio"
 
     # Phase 68.8: 信頼度別TP設定パス
