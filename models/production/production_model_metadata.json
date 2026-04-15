@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-04-05T17:50:50.593579",
+  "created_at": "2026-04-16T06:11:15.471859",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_full.pkl",
   "version": "1.0.0",
@@ -56,40 +56,40 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.580442241707968,
-      "f1_score": 0.5765851033132201,
-      "precision": 0.573405081281827,
-      "recall": 0.580442241707968,
-      "cv_f1_mean": 0.5559128431365372,
-      "cv_f1_std": 0.03143020042050665,
-      "confidence_mean": 0.5866450585046847,
-      "confidence_std": 0.08710488055604772,
-      "confidence_min": 0.5000016266145825,
-      "confidence_max": 0.924567897707359
+      "accuracy": 0.5526115135341212,
+      "f1_score": 0.5578779323043378,
+      "precision": 0.5791529399331911,
+      "recall": 0.5526115135341212,
+      "cv_f1_mean": 0.5326389623947353,
+      "cv_f1_std": 0.03157011155374248,
+      "confidence_mean": 0.5752062546009892,
+      "confidence_std": 0.0778880838366607,
+      "confidence_min": 0.5000085865817572,
+      "confidence_max": 0.8838711938387914
     },
     "xgboost": {
-      "accuracy": 0.5362180709111705,
-      "f1_score": 0.5467246614214281,
-      "precision": 0.5912759963498092,
-      "recall": 0.5362180709111705,
-      "cv_f1_mean": 0.5308082424041611,
-      "cv_f1_std": 0.06820852769473655,
-      "confidence_mean": 0.6626145243644714,
-      "confidence_std": 0.11134478449821472,
-      "confidence_min": 0.5000349283218384,
-      "confidence_max": 0.9901964068412781
+      "accuracy": 0.5303088067098742,
+      "f1_score": 0.5326407632096734,
+      "precision": 0.5750423381970502,
+      "recall": 0.5303088067098742,
+      "cv_f1_mean": 0.5067611030014341,
+      "cv_f1_std": 0.05619457353431355,
+      "confidence_mean": 0.6640803813934326,
+      "confidence_std": 0.11142714321613312,
+      "confidence_min": 0.5000276565551758,
+      "confidence_max": 0.9901633262634277
     },
     "random_forest": {
-      "accuracy": 0.520777735417461,
-      "f1_score": 0.5258804959978873,
-      "precision": 0.6073320822687103,
-      "recall": 0.520777735417461,
-      "cv_f1_mean": 0.5242798349952787,
-      "cv_f1_std": 0.07219558135469933,
-      "confidence_mean": 0.6054774553634553,
-      "confidence_std": 0.0730903820770961,
-      "confidence_min": 0.5000971962378185,
-      "confidence_max": 0.8633202244691276
+      "accuracy": 0.5219214639725506,
+      "f1_score": 0.5135240868728896,
+      "precision": 0.5955629733893105,
+      "recall": 0.5219214639725506,
+      "cv_f1_mean": 0.5052776356029953,
+      "cv_f1_std": 0.08154787475705338,
+      "confidence_mean": 0.6075212874383985,
+      "confidence_std": 0.07144744507606539,
+      "confidence_min": 0.5000486223477053,
+      "confidence_max": 0.898633500205683
     }
   },
   "training_info": {
@@ -97,15 +97,15 @@
     "feature_count": 37,
     "training_duration_seconds": 0,
     "class_distribution": {
-      "success": 0.35327423505862166,
-      "failure": 0.6467257649413783
+      "success": 0.39416642836717186,
+      "failure": 0.6058335716328281
     },
     "n_classes": 2,
     "optimal_threshold": 0.5
   },
   "git_info": {
-    "commit": "5d5bbe8c310e638a8a3e330e411b9799bade5f37",
-    "commit_short": "5d5bbe8c",
+    "commit": "fd4163434377c4d82100b704fa2ed5d6acdb287f",
+    "commit_short": "fd416343",
     "branch": "main"
   },
   "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"

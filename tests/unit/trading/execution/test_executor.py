@@ -1654,8 +1654,9 @@ class TestEnsureTpSlForExistingPositions:
 
     async def test_ensure_tp_sl_places_missing_orders(self, mock_bitbank_client):
         """TP/SLなしポジションに注文配置"""
+        # Phase 82: amount 0.01（min_valid_position_btc=0.001超え・ダストでない通常サイズ）
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
-            return_value=[{"side": "long", "amount": 0.0001, "average_price": 14000000}]
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 14000000}]
         )
         # TP/SL注文なし
         mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
@@ -1678,8 +1679,9 @@ class TestEnsureTpSlForExistingPositions:
 
     async def test_ensure_tp_sl_short_position(self, mock_bitbank_client):
         """Shortポジションのtp/sl配置テスト"""
+        # Phase 82: amount 0.01（ダスト判定下限0.001超え）
         mock_bitbank_client.fetch_margin_positions = AsyncMock(
-            return_value=[{"side": "short", "amount": 0.0001, "average_price": 14000000}]
+            return_value=[{"side": "short", "amount": 0.01, "average_price": 14000000}]
         )
         mock_bitbank_client.fetch_active_orders = MagicMock(return_value=[])
 

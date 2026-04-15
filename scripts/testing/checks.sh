@@ -170,33 +170,11 @@ else
     echo "  📋 thresholds.yaml 戦略: $STRATEGIES_YAML_STRATEGIES"
 fi
 
-# feature_order.json の strategy_signal 特徴量取得
-FEATURE_STRATEGIES=$(python3 -c "
-import json
-with open('config/core/feature_order.json') as f:
-    data = json.load(f)
-    signals = data['feature_categories']['strategy_signals']['features']
-    strategies = [s.replace('strategy_signal_', '') for s in signals]
-    print(' '.join(sorted(strategies)))
-" 2>&1)
-
-if [ $? -ne 0 ]; then
-    echo "  ❌ ERROR: feature_order.json の strategy_signals 読み込みに失敗"
-    ERRORS=$((ERRORS + 1))
-else
-    echo "  📊 feature_order.json 戦略信号: $FEATURE_STRATEGIES"
-fi
-
-# 戦略数一致確認
-if [ -n "$STRATEGIES_YAML_STRATEGIES" ] && [ -n "$FEATURE_STRATEGIES" ]; then
+# Phase 77で strategy_signals 特徴量はML入力から削除済み。
+# feature_order.json に strategy_signals カテゴリは存在しないため、整合性チェックは thresholds.yaml のみ。
+if [ -n "$STRATEGIES_YAML_STRATEGIES" ]; then
     STRATEGIES_COUNT=$(echo $STRATEGIES_YAML_STRATEGIES | wc -w | tr -d ' ')
-    FEATURE_COUNT=$(echo $FEATURE_STRATEGIES | wc -w | tr -d ' ')
-
-    if [ "$STRATEGIES_COUNT" != "$FEATURE_COUNT" ]; then
-        echo "  ⚠️  WARNING: 戦略数不一致 - thresholds.yaml:$STRATEGIES_COUNT vs feature_order.json:$FEATURE_COUNT"
-    else
-        echo "  ✅ 戦略数一致: $STRATEGIES_COUNT 戦略"
-    fi
+    echo "  ✅ 戦略数: $STRATEGIES_COUNT 戦略（Phase 77以降 strategy_signals特徴量は削除）"
 fi
 
 # ========================================

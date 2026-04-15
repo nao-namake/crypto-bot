@@ -280,9 +280,12 @@ class TPSLManager:
                 f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
             )
         elif sl_distance_ratio > max_sl_ratio * 3:  # 設定値の3倍以上（極端に遠い）
-            self.logger.warning(
-                f"⚠️ SL価格が極端に遠い: {sl_distance_ratio * 100:.2f}% > {max_sl_ratio * 3 * 100:.1f}% "
-                f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円)"
+            # Phase 82: 配置中止（旧: WARNINGログのみ → ダスト残渣で-88%SLを配置する事故が発生）
+            raise TradingError(
+                f"⛔ SL価格が極端に遠い（配置中止）: "
+                f"{sl_distance_ratio * 100:.2f}% > {max_sl_ratio * 3 * 100:.1f}% "
+                f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円). "
+                f"ダスト/微小ポジションまたは計算バグの可能性。"
             )
 
         # Phase 81: stop（成行）専用のため limit_price は常にNone
@@ -683,7 +686,7 @@ class TPSLManager:
                     vp for vp in virtual_positions if vp.get("side") != entry_side
                 ]
 
-                await self._place_missing_tp_sl(
+                result = await self._place_missing_tp_sl(
                     position_side=position_side,
                     amount=side_total,
                     avg_price=avg_price,
@@ -693,6 +696,13 @@ class TPSLManager:
                     bitbank_client=bitbank_client,
                     existing_sl_info=existing_sl_info,
                 )
+                # Phase 82: ダスト検出時は成行決済で自動クリーンアップ
+                if isinstance(result, dict) and result.get("action") == "dust_cleanup_required":
+                    await self._cleanup_dust_position(
+                        position_side=position_side,
+                        amount=side_total,
+                        bitbank_client=bitbank_client,
+                    )
                 processed_sides.add(position_side)
 
         except Exception as e:
@@ -845,6 +855,42 @@ class TPSLManager:
                 self.logger.error(f"❌ Phase 64.4: SL配置失敗: {e}")
                 return None
 
+    async def _cleanup_dust_position(
+        self,
+        position_side: str,
+        amount: float,
+        bitbank_client: BitbankClient,
+    ) -> None:
+        """
+        Phase 82: ダスト残りポジションを成行決済でクリーンアップ
+
+        TP決済後の残渣等でbitbankが極小ポジション（< min_valid_position_btc）を
+        返した場合、そのまま放置すると新規エントリーがブロックされるため成行で
+        自動決済する。
+        """
+        symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
+        exit_side = "sell" if position_side == "long" else "buy"
+        try:
+            close_order = await asyncio.to_thread(
+                bitbank_client.create_order,
+                symbol=symbol,
+                order_type="market",
+                side=exit_side,
+                amount=amount,
+                is_closing_order=True,
+                entry_position_side=position_side,
+            )
+            self.logger.info(
+                f"✅ Phase 82: ダストポジション自動クリーンアップ完了 - "
+                f"{position_side} {amount:.6f} BTC 成行決済 "
+                f"(order_id={close_order.get('id', 'unknown') if close_order else 'none'})"
+            )
+        except Exception as e:
+            self.logger.critical(
+                f"🚨 Phase 82: ダストクリーンアップ失敗（手動介入必要） - "
+                f"{position_side} {amount:.6f} BTC: {e}"
+            )
+
     async def _place_missing_tp_sl(
         self,
         position_side: str,
@@ -881,6 +927,24 @@ class TPSLManager:
             existing_sl_info = {}
         symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
         entry_side = "buy" if position_side == "long" else "sell"
+
+        # Phase 82: ダスト/微小ポジション検出（TP決済後の残渣対策）
+        # amountが極小（通常0.01-0.02 BTC、ダストは0.0001 BTC）の場合、
+        # 固定金額TP/SL計算で分母が小さくなり価格が極端値になる（例: TP+66%, SL-88%）。
+        # ここで配置をスキップして呼び出し側にクリーンアップを促す。
+        min_valid_btc = get_threshold("position_management.min_valid_position_btc", 0.001)
+        if amount < min_valid_btc:
+            self.logger.warning(
+                f"🧹 Phase 82: ダストポジション検出（TP/SL配置スキップ） - "
+                f"{position_side} {amount:.6f} BTC @ {avg_price:.0f}円 "
+                f"(下限 {min_valid_btc} BTC未満・要クリーンアップ)"
+            )
+            return {
+                "action": "dust_cleanup_required",
+                "amount": amount,
+                "side": position_side,
+                "avg_price": avg_price,
+            }
 
         # ── Phase 67.5: TP/SL価格計算を先行実行 ──
         # キャンセル前にSL超過チェックを行うため、価格計算を最初に実行
@@ -1182,6 +1246,14 @@ class TPSLManager:
         Returns:
             float: TP価格
         """
+        # Phase 82: amount下限ガード（ダスト残り対策）
+        min_valid_btc = get_threshold("position_management.min_valid_position_btc", 0.001)
+        if amount < min_valid_btc:
+            raise ValueError(
+                f"固定金額TP計算のamount下限未満: {amount:.6f} BTC < "
+                f"{min_valid_btc} BTC. ダスト/微小ポジションの可能性。"
+            )
+
         target = get_threshold(
             "position_management.take_profit.fixed_amount.target_net_profit", 500
         )
@@ -1215,6 +1287,14 @@ class TPSLManager:
         Returns:
             float: SL価格
         """
+        # Phase 82: amount下限ガード（ダスト残り対策）
+        min_valid_btc = get_threshold("position_management.min_valid_position_btc", 0.001)
+        if amount < min_valid_btc:
+            raise ValueError(
+                f"固定金額SL計算のamount下限未満: {amount:.6f} BTC < "
+                f"{min_valid_btc} BTC. ダスト/微小ポジションの可能性。"
+            )
+
         target = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_TARGET, 500)
         # Phase 70.2: entry_feeをSL予算に再包含（bitbank PnLとの整合性確保）
         entry_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_ENTRY_FEE, 0.001)
@@ -1263,7 +1343,6 @@ class TPSLManager:
             )
 
             target_tp_side = "sell" if side == "buy" else "buy"
-            target_sl_side = "sell" if side == "buy" else "buy"
 
             # Phase 65.5: 共通ヘルパーで保護対象ID収集
             from .position_restorer import PositionRestorer

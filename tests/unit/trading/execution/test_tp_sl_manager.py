@@ -336,10 +336,10 @@ class TestPlaceStopLossDetailed:
         assert result is not None
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
-    async def test_sl_distance_too_far_warning(
+    async def test_sl_distance_too_far_raises(
         self, mock_threshold, tp_sl_manager, mock_bitbank_client
     ):
-        """SL価格が極端に遠い場合は警告"""
+        """Phase 82: SL価格が極端に遠い場合は配置中止（TradingError）"""
         mock_threshold.side_effect = lambda key, default=None: {
             "position_management.stop_loss": {
                 "enabled": True,
@@ -348,17 +348,16 @@ class TestPlaceStopLossDetailed:
             }
         }.get(key, default)
 
-        result = await tp_sl_manager.place_stop_loss(
-            side="buy",
-            amount=0.001,
-            entry_price=14000000.0,
-            stop_loss_price=13500000.0,  # 3.6%（極端に遠い）
-            symbol="BTC/JPY",
-            bitbank_client=mock_bitbank_client,
-        )
-
-        # 警告は出るが配置は成功
-        assert result is not None
+        # SL距離 3.6% > max_loss_ratio * 3 = 2.1% → TradingError
+        with pytest.raises(TradingError, match="SL価格が極端に遠い"):
+            await tp_sl_manager.place_stop_loss(
+                side="buy",
+                amount=0.001,
+                entry_price=14000000.0,
+                stop_loss_price=13500000.0,  # 3.6%（極端に遠い）
+                symbol="BTC/JPY",
+                bitbank_client=mock_bitbank_client,
+            )
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     async def test_sl_no_order_id(self, mock_threshold, tp_sl_manager, mock_bitbank_client):
@@ -1344,3 +1343,70 @@ class TestPhase687SLPersistenceClear:
                 bitbank_client=mock_client,
             )
             mock_clear.assert_called_once_with("buy")
+
+
+class TestPhase82DustDetection:
+    """Phase 82: ダスト/微小ポジション検出テスト"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    @pytest.fixture
+    def mock_bitbank_client(self):
+        return MagicMock()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_place_missing_tp_sl_skips_dust(
+        self, mock_threshold, tp_sl_manager, mock_bitbank_client
+    ):
+        """ダストポジション(<0.001 BTC)ではTP/SL配置をスキップしcleanup_required返却"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.min_valid_position_btc": 0.001,
+            "trading_constraints.currency_pair": "BTC/JPY",
+        }.get(key, default)
+
+        result = await tp_sl_manager._place_missing_tp_sl(
+            position_side="long",
+            amount=0.0001,  # ダストサイズ（下限0.001未満）
+            avg_price=11321161.0,
+            has_tp=False,
+            has_sl=False,
+            virtual_positions=[],
+            bitbank_client=mock_bitbank_client,
+        )
+
+        assert result is not None
+        assert result["action"] == "dust_cleanup_required"
+        assert result["amount"] == 0.0001
+        assert result["side"] == "long"
+        # TP/SL配置APIが呼ばれていないこと
+        mock_bitbank_client.create_stop_loss_order.assert_not_called()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_fixed_amount_tp_raises_on_dust(self, mock_threshold, tp_sl_manager):
+        """固定金額TP計算でamount<0.001 BTCはValueError"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.min_valid_position_btc": 0.001,
+        }.get(key, default)
+
+        with pytest.raises(ValueError, match="固定金額TP計算のamount下限未満"):
+            tp_sl_manager._calculate_fixed_amount_tp_for_position(
+                position_side="long",
+                amount=0.0001,
+                avg_price=11321161.0,
+            )
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_fixed_amount_sl_raises_on_dust(self, mock_threshold, tp_sl_manager):
+        """固定金額SL計算でamount<0.001 BTCはValueError"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.min_valid_position_btc": 0.001,
+        }.get(key, default)
+
+        with pytest.raises(ValueError, match="固定金額SL計算のamount下限未満"):
+            tp_sl_manager._calculate_fixed_amount_sl_for_position(
+                position_side="long",
+                amount=0.0001,
+                avg_price=11321161.0,
+            )

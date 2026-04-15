@@ -72,6 +72,8 @@ class NewSystemMLModelCreator:
         lookahead_periods: int = 1,
         adaptive_threshold: bool = False,
         meta_label: bool = False,
+        meta_tp_ratio: float = None,
+        meta_sl_ratio: float = None,
     ):
         """
         初期化
@@ -102,6 +104,9 @@ class NewSystemMLModelCreator:
         self.adaptive_threshold = adaptive_threshold
         # Phase 73-D: メタラベリング（取引品質フィルタ）
         self.meta_label = meta_label
+        # Phase 82: 運用TP/SLに合わせた個別指定（省略時はthreshold*1.5/thresholdの旧挙動）
+        self.meta_tp_ratio = meta_tp_ratio
+        self.meta_sl_ratio = meta_sl_ratio
         if meta_label:
             self.n_classes = 2  # メタラベリングは常にバイナリ
 
@@ -618,11 +623,18 @@ class NewSystemMLModelCreator:
 
         方向は考慮しない（buyエントリー想定でTP/SL判定）。
         sellエントリーの品質も同様に学習できる（市場の動きやすさを学習するため）。
+
+        Phase 82: meta_tp_ratio / meta_sl_ratio で運用TP/SLに合わせた個別指定可能。
         """
         close = df["close"].values
         n = len(close)
-        tp_ratio = threshold * 1.5  # TP: 閾値の1.5倍（RR 1.5:1相当）
-        sl_ratio = threshold  # SL: 閾値そのまま
+        # Phase 82: 運用と学習のパラメータ乖離を解消するため個別指定優先
+        if self.meta_tp_ratio is not None and self.meta_sl_ratio is not None:
+            tp_ratio = self.meta_tp_ratio
+            sl_ratio = self.meta_sl_ratio
+        else:
+            tp_ratio = threshold * 1.5  # 旧: 閾値の1.5倍（RR 1.5:1相当）
+            sl_ratio = threshold  # 旧: 閾値そのまま
         max_bars = 20  # 5時間（15分×20本）
 
         self.logger.info(
@@ -1684,6 +1696,19 @@ def main():
         action="store_true",
         help="Phase 73-D: Triple Barrier Methodで取引品質ラベル生成（方向予測→品質判定）",
     )
+    # Phase 82: メタラベリングのTP/SL個別指定（運用TP/SLに合わせた学習）
+    parser.add_argument(
+        "--meta-tp-ratio",
+        type=float,
+        default=None,
+        help="Phase 82: メタラベリングTPバリア比率（例: 0.0043で0.43%）。未指定時はthreshold*1.5",
+    )
+    parser.add_argument(
+        "--meta-sl-ratio",
+        type=float,
+        default=None,
+        help="Phase 82: メタラベリングSLバリア比率（例: 0.0037で0.37%）。未指定時はthreshold",
+    )
 
     # Phase 55.6: SMOTEデフォルト有効（--no-smoteで無効化可能）
     parser.add_argument(
@@ -1747,6 +1772,8 @@ def main():
         lookahead_periods=args.lookahead_periods,
         adaptive_threshold=args.adaptive_threshold,
         meta_label=args.meta_label,
+        meta_tp_ratio=args.meta_tp_ratio,
+        meta_sl_ratio=args.meta_sl_ratio,
     )
 
     success = creator.run(dry_run=args.dry_run, days=args.days)

@@ -120,9 +120,11 @@ ml:
   mode: quality_filter
   quality_filter:
     enabled: true
-    accept_threshold: 0.65  # Phase 79: 0.55→0.65（モデル平均0.5928より上、上位約20%通過）
-    reject_threshold: 0.45  # Phase 79: 0.35→0.45
-    uncertain_penalty: 0.5  # Phase 79: 0.7→0.5（中間帯を50%に縮小）
+    # Phase 82: 再学習後モデル(TP 0.43%/SL 0.37%)分布に合わせ閾値再調整
+    # 実データ検証結果: モデル平均p(1)=0.50, std=0.10, p(1)>=0.58で通過率21.9%
+    accept_threshold: 0.58  # Phase 82: 0.65→0.58（新モデル分布で通過率~22%）
+    reject_threshold: 0.42  # Phase 82: 0.45→0.42（リジェクト率~21%）
+    uncertain_penalty: 0.5  # 中間帯50%縮小（維持）
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3
@@ -607,6 +609,8 @@ position_management:
   max_same_direction_positions: 1
   cooldown_minutes: 15
   min_trade_size: 0.0001
+  # Phase 82: ダスト/微小ポジション判定下限（これ未満はTP/SL配置スキップ）
+  min_valid_position_btc: 0.001
   max_position_ratio_per_trade:
     low_confidence: 0.8
     medium_confidence: 1.0
@@ -698,12 +702,13 @@ position_management:
     execution_slippage: 0.003
     fixed_amount:
       enabled: true
-      target_max_loss: 1000
+      # Phase 82: 実績-1,192円(目標-1000円+19%超過)→目標を800円に下げ実績1000円前後に収束
+      target_max_loss: 800
       confidence_based:
         enabled: true
         threshold: 0.4
-        low: 800
-        high: 1000
+        low: 600   # Phase 82: 800→600（高/低信頼度の差を維持）
+        high: 800  # Phase 82: 1000→800
       include_entry_fee: true
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true
@@ -713,18 +718,18 @@ position_management:
       tight_range:
         max_loss_ratio: 0.004
         weekend_ratio: 0.0025
-        fixed_amount_target: 1000
+        fixed_amount_target: 800  # Phase 82: 1000→800
       normal_range:
         max_loss_ratio: 0.007
         weekend_ratio: 0.0045
-        fixed_amount_target: 1000
+        fixed_amount_target: 800  # Phase 82: 1000→800
       trending:
         max_loss_ratio: 0.01
         weekend_ratio: 0.0065
-        fixed_amount_target: 1000
+        fixed_amount_target: 800  # Phase 82: 1000→800
       high_volatility:
         max_loss_ratio: 0.015
-        fixed_amount_target: 1000
+        fixed_amount_target: 800  # Phase 82: 1000→800
     adaptive_atr:
       enabled: true
       use_15m_timeframe: true
