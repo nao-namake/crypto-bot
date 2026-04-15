@@ -492,9 +492,7 @@ class OrderStrategy:
 
         # スプレッドが2円未満の場合はMaker不可（best_bid+1=best_ask以上になる）
         if spread < 2:
-            self.logger.warning(
-                f"⚠️ Phase 79: スプレッド狭小({spread:.0f}円) - Maker配置不可"
-            )
+            self.logger.warning(f"⚠️ Phase 79: スプレッド狭小({spread:.0f}円) - Maker配置不可")
             return 0
 
         # スプレッド内に配置（best_bid/askから1円改善 or spread*10%の小さい方）

@@ -541,9 +541,7 @@ class BotFunctionChecker:
         self.result.feature_37_count = self._count_logs(
             'textPayload:"37特徴量" OR textPayload:"37個の特徴量"', 15
         )
-        self.result.feature_fallback_count = self._count_logs(
-            'textPayload:"基本特徴量のみ"', 15
-        )
+        self.result.feature_fallback_count = self._count_logs('textPayload:"基本特徴量のみ"', 15)
         self.result.dummy_model_count = self._count_logs('textPayload:"DummyModel"', 15)
 
         if self.result.feature_37_count > 0 and self.result.dummy_model_count == 0:

@@ -359,9 +359,7 @@ class FeatureGenerator:
             result_df["day_of_week"] = 0
             result_df["hour_cos"] = 1.0
             result_df["day_sin"] = 0.0
-            self.computed_features.update(
-                ["hour", "day_of_week", "hour_cos", "day_sin"]
-            )
+            self.computed_features.update(["hour", "day_of_week", "hour_cos", "day_sin"])
             return result_df
 
         # Hour (0-23)

@@ -123,11 +123,18 @@ class TestFeatureGenerator:
                 continue
             # Phase 77で削除/名前変更された特徴量はスキップ
             if feature in [
-                "close_lag_1", "close_lag_2", "close_lag_3", "close_lag_10",
-                "day_cos", "is_europe_session",
-                "strategy_signal_ATRBased", "strategy_signal_CMFReversal",
-                "strategy_signal_ADXTrendStrength", "strategy_signal_BBReversal",
-                "strategy_signal_StochasticReversal", "strategy_signal_MACDEMACrossover",
+                "close_lag_1",
+                "close_lag_2",
+                "close_lag_3",
+                "close_lag_10",
+                "day_cos",
+                "is_europe_session",
+                "strategy_signal_ATRBased",
+                "strategy_signal_CMFReversal",
+                "strategy_signal_ADXTrendStrength",
+                "strategy_signal_BBReversal",
+                "strategy_signal_StochasticReversal",
+                "strategy_signal_MACDEMACrossover",
             ]:
                 continue
             assert feature in result_df.columns, f"特徴量{feature}が不足"

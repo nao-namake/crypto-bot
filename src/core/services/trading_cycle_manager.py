@@ -1155,9 +1155,7 @@ class TradingCycleManager:
         from pathlib import Path
 
         try:
-            orderbook = self.orchestrator.data_service.client.fetch_order_book(
-                "BTC/JPY", limit=20
-            )
+            orderbook = self.orchestrator.data_service.client.fetch_order_book("BTC/JPY", limit=20)
             if not orderbook or not orderbook.get("bids") or not orderbook.get("asks"):
                 return
 
@@ -1189,17 +1187,34 @@ class TradingCycleManager:
             with open(csv_path, "a", newline="") as f:
                 writer = csv.writer(f)
                 if write_header:
-                    writer.writerow([
-                        "timestamp", "best_bid", "best_ask", "spread_pct",
-                        "bid_depth_5", "ask_depth_5", "depth_imbalance_5",
-                        "bid_depth_20", "ask_depth_20", "depth_imbalance_20",
-                    ])
-                writer.writerow([
-                    now.isoformat(),
-                    f"{best_bid:.0f}", f"{best_ask:.0f}", f"{spread_pct:.6f}",
-                    f"{bid_depth_5:.8f}", f"{ask_depth_5:.8f}", f"{imbalance_5:.6f}",
-                    f"{bid_depth_20:.8f}", f"{ask_depth_20:.8f}", f"{imbalance_20:.6f}",
-                ])
+                    writer.writerow(
+                        [
+                            "timestamp",
+                            "best_bid",
+                            "best_ask",
+                            "spread_pct",
+                            "bid_depth_5",
+                            "ask_depth_5",
+                            "depth_imbalance_5",
+                            "bid_depth_20",
+                            "ask_depth_20",
+                            "depth_imbalance_20",
+                        ]
+                    )
+                writer.writerow(
+                    [
+                        now.isoformat(),
+                        f"{best_bid:.0f}",
+                        f"{best_ask:.0f}",
+                        f"{spread_pct:.6f}",
+                        f"{bid_depth_5:.8f}",
+                        f"{ask_depth_5:.8f}",
+                        f"{imbalance_5:.6f}",
+                        f"{bid_depth_20:.8f}",
+                        f"{ask_depth_20:.8f}",
+                        f"{imbalance_20:.6f}",
+                    ]
+                )
         except Exception as e:
             self.logger.debug(f"オーダーブック蓄積スキップ: {e}")
 

@@ -170,7 +170,7 @@ class MLModelValidator:
             print(f"\n✅ 特徴量数一致: {actual_feature_count} == {expected_full}")
 
     def validate_strategy_signals(self) -> None:
-        """戦略信号特徴量の整合性検証"""
+        """戦略信号特徴量の整合性検証（Phase 77以降は戦略シグナル削除済み）"""
         print("\n" + "=" * 60)
         print("🎯 戦略信号特徴量整合性検証")
         print("=" * 60)
@@ -184,13 +184,21 @@ class MLModelValidator:
         )
         expected_signals = len(strategy_signals.get("features", []))
 
-        print(f"\n🎯 期待値:")
+        print(f"\n🎯 現状:")
         print(f"   有効戦略数: {active_strategies}")
         print(f"   戦略信号特徴量数: {expected_signals}")
 
-        if active_strategies > 0 and active_strategies != expected_signals:
-            self.errors.append(
-                f"❌ 戦略信号数不一致: 有効戦略={active_strategies}, 戦略信号特徴量={expected_signals}"
+        # Phase 77: SHAP importance=0 の戦略シグナル6個を削除。
+        # strategy_signals特徴量が0個でも正常（戦略自体は6個でMLと独立動作）。
+        if expected_signals == 0:
+            print(
+                f"\n✅ Phase 77設計準拠: 戦略シグナル特徴量は削除済み"
+                f"（戦略{active_strategies}個は独立動作）"
+            )
+        elif active_strategies != expected_signals:
+            self.warnings.append(
+                f"⚠️  戦略信号数不一致（通常はPhase 77で0）: "
+                f"有効戦略={active_strategies}, 戦略信号特徴量={expected_signals}"
             )
         else:
             print(f"\n✅ 戦略信号数一致: {active_strategies} == {expected_signals}")
@@ -267,12 +275,11 @@ class MLModelValidator:
         print(f"   Full:  {full_md5}")
         print(f"   Basic: {basic_md5}")
 
+        # Phase 77: Full=Basic=37特徴量の統一モデル構成。MD5一致は設計通り（正常）。
         if full_md5 == basic_md5:
-            self.errors.append(
-                "❌ full/basicモデルが同一（MD5一致）- create_ml_models.pyのバグの可能性"
-            )
+            print(f"\n✅ Phase 77設計準拠: Full=Basic=37特徴量の統一モデル（MD5一致は正常）")
         else:
-            print(f"\n✅ full/basicモデルは異なる（MD5不一致）")
+            print(f"\nℹ️  full/basicモデルは異なる（MD5不一致）")
 
         full_size = full_path.stat().st_size
         basic_size = basic_path.stat().st_size
@@ -280,7 +287,8 @@ class MLModelValidator:
         print(f"   Full:  {full_size / 1024 / 1024:.2f} MB")
         print(f"   Basic: {basic_size / 1024 / 1024:.2f} MB")
 
-        if full_size <= basic_size:
+        # Phase 77: Full=Basic統一のためサイズ一致が正常。警告は不要。
+        if full_md5 != basic_md5 and full_size <= basic_size:
             self.warnings.append(f"⚠️  fullモデル <= basicモデル - 通常はfull > basic")
 
     def validate_n_classes(self) -> None:
