@@ -1,44 +1,44 @@
 {
-  "created_at": "2026-03-31T04:17:01.909517",
-  "n_trials": 30,
+  "created_at": "2026-04-24T05:24:29.463367",
+  "n_trials": 50,
   "models": {
     "lightgbm": {
       "best_params": {
-        "learning_rate": 0.120809463347311,
-        "max_depth": 10,
-        "n_estimators": 120,
-        "num_leaves": 94,
-        "reg_alpha": 1.2683772725478168,
-        "reg_lambda": 1.1285777081957562,
-        "feature_fraction": 0.8615426831693717,
-        "bagging_fraction": 0.7960239524600667
+        "learning_rate": 0.02466643115765464,
+        "max_depth": 8,
+        "n_estimators": 50,
+        "num_leaves": 97,
+        "reg_alpha": 0.3934327953892573,
+        "reg_lambda": 0.04745278355827382,
+        "feature_fraction": 0.7767679257799672,
+        "bagging_fraction": 0.672584371009072
       },
-      "best_score": 0.5407585814306844,
-      "n_trials": 30
+      "best_score": 0.6404407207753864,
+      "n_trials": 50
     },
     "xgboost": {
       "best_params": {
-        "learning_rate": 0.010368610646402598,
-        "max_depth": 12,
-        "n_estimators": 119,
-        "min_child_weight": 7,
-        "xgb_reg_alpha": 0.09936871842770725,
-        "xgb_reg_lambda": 3.3697722928952967,
-        "subsample": 0.6847739866114739,
-        "colsample_bytree": 0.8006240213367635
+        "learning_rate": 0.023238160952885466,
+        "max_depth": 7,
+        "n_estimators": 190,
+        "min_child_weight": 4,
+        "xgb_reg_alpha": 0.09217589866652795,
+        "xgb_reg_lambda": 2.1184644638272596,
+        "subsample": 0.6278058679175968,
+        "colsample_bytree": 0.7048810810969393
       },
-      "best_score": 0.5523440795957062,
-      "n_trials": 30
+      "best_score": 0.636152529611496,
+      "n_trials": 50
     },
     "random_forest": {
       "best_params": {
-        "n_estimators": 113,
-        "max_depth": 12,
-        "min_samples_split": 20,
-        "min_samples_leaf": 9
+        "n_estimators": 260,
+        "max_depth": 6,
+        "min_samples_split": 2,
+        "min_samples_leaf": 2
       },
-      "best_score": 0.5348338386698627,
-      "n_trials": 30
+      "best_score": 0.6407376467494604,
+      "n_trials": 50
     }
   }
 }
