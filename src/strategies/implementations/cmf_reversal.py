@@ -22,7 +22,7 @@ from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ..base.strategy_base import StrategyBase, StrategySignal
 from ..strategy_registry import StrategyRegistry
-from ..utils import SignalBuilder, StrategyType
+from ..utils import EntryAction, SignalBuilder, StrategyType
 
 
 @StrategyRegistry.register(name="CMFReversal", strategy_type=StrategyType.CMF_REVERSAL)
@@ -169,8 +169,7 @@ class CMFReversalStrategy(StrategyBase):
                 )
 
             # Step 5: シグナル生成
-            from ..base.strategy_base import EntryAction
-
+            # Phase 83A-1: utils 配下の EntryAction を使用（他5戦略と統一）
             action = EntryAction.BUY if direction == "buy" else EntryAction.SELL
 
             decision = {
