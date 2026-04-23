@@ -1186,6 +1186,8 @@ class TestPhase70FixedAmountSLWithEntryFee:
                 "position_management.stop_loss.fixed_amount.target_max_loss": 500,
                 "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+                # Phase 83A-2 floor無効化（このテストは旧ロジック検証）
+                "position_management.stop_loss.min_distance.ratio": 0.0,
             }
             return mapping.get(key, default)
 
@@ -1220,6 +1222,7 @@ class TestPhase70FixedAmountSLWithEntryFee:
                 "position_management.stop_loss.fixed_amount.target_max_loss": 500,
                 "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+                "position_management.stop_loss.min_distance.ratio": 0.0,
             }
             return mapping.get(key, default)
 
@@ -1241,6 +1244,7 @@ class TestPhase70FixedAmountSLWithEntryFee:
                 "position_management.stop_loss.fixed_amount.target_max_loss": 100,
                 "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.01,
                 "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.01,
+                "position_management.stop_loss.min_distance.ratio": 0.0,
             }
             return mapping.get(key, default)
 
@@ -1254,6 +1258,60 @@ class TestPhase70FixedAmountSLWithEntryFee:
         sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("long", amount, avg_price)
         # sl_offset = 100 / 0.1 = 1000
         assert abs(sl_price - (avg_price - 1000)) < 1.0
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_sl_min_distance_floor_applied(self, mock_threshold, tp_sl_manager):
+        """Phase 83A-2: SL距離がmin_distance.ratio未満なら0.7%にfloor強制"""
+
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                # target=800円、手数料250円で実効SL=0.23%を模擬
+                "position_management.stop_loss.fixed_amount.target_max_loss": 800,
+                "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
+                "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+                "position_management.stop_loss.min_distance.ratio": 0.007,  # 0.7%
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        avg_price = 12_500_000
+        amount = 0.015  # 0.015BTC @ 12.5M: 手数料2×188円、素のSL距離0.23%
+        sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("long", amount, avg_price)
+
+        # floor 0.7% が適用されるはず: sl_offset = 12.5M * 0.007 = 87,500
+        expected_offset = avg_price * 0.007
+        actual_offset = avg_price - sl_price
+        assert abs(actual_offset - expected_offset) < 1.0
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_sl_min_distance_floor_not_applied_when_natural_distance_larger(
+        self, mock_threshold, tp_sl_manager
+    ):
+        """Phase 83A-2: 素のSL距離がfloorより大きい場合はfloor非適用"""
+
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                "position_management.stop_loss.fixed_amount.target_max_loss": 5000,
+                "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
+                "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+                "position_management.stop_loss.min_distance.ratio": 0.007,
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        # 小さな amount + 大きな target で素のSL距離 > 0.7%
+        avg_price = 10_000_000
+        amount = 0.005  # 素のSL距離 = (5000 - 100) / 0.005 = 980,000円 >> floor
+        sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("long", amount, avg_price)
+
+        # 素のSL距離がそのまま使われる
+        entry_fee = avg_price * amount * 0.001  # 50
+        exit_fee = avg_price * amount * 0.001  # 50
+        expected_offset = (5000 - entry_fee - exit_fee) / amount
+        actual_offset = avg_price - sl_price
+        assert abs(actual_offset - expected_offset) < 1.0
 
 
 class TestPhase686FixedAmountTPForPosition:

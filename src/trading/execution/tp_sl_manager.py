@@ -1306,6 +1306,17 @@ class TPSLManager:
             gross_needed = target
         sl_offset = gross_needed / amount
 
+        # Phase 83A-2: min_distance floor強制（ノイズ幅以下のSL禁止）
+        min_ratio = get_threshold("position_management.stop_loss.min_distance.ratio", 0.007)
+        min_offset = avg_price * min_ratio
+        if sl_offset < min_offset:
+            self.logger.info(
+                f"🛡️ Phase 83A-2: SL距離floor適用 - "
+                f"{sl_offset:.0f}円({sl_offset / avg_price * 100:.2f}%) → "
+                f"{min_offset:.0f}円({min_ratio * 100:.2f}%)"
+            )
+            sl_offset = min_offset
+
         if position_side == "long":
             return avg_price - sl_offset
         else:
