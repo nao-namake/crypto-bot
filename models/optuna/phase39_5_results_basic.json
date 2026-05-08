@@ -1,43 +1,43 @@
 {
-  "created_at": "2026-04-24T05:24:29.463367",
+  "created_at": "2026-05-08T19:46:17.483183",
   "n_trials": 50,
   "models": {
     "lightgbm": {
       "best_params": {
-        "learning_rate": 0.02466643115765464,
-        "max_depth": 8,
-        "n_estimators": 50,
-        "num_leaves": 97,
-        "reg_alpha": 0.3934327953892573,
-        "reg_lambda": 0.04745278355827382,
-        "feature_fraction": 0.7767679257799672,
-        "bagging_fraction": 0.672584371009072
+        "learning_rate": 0.29902804003065214,
+        "max_depth": 13,
+        "n_estimators": 260,
+        "num_leaves": 57,
+        "reg_alpha": 0.2611956170165578,
+        "reg_lambda": 0.13752677777660177,
+        "feature_fraction": 0.8488718753497699,
+        "bagging_fraction": 0.7663359362157866
       },
-      "best_score": 0.6404407207753864,
+      "best_score": 0.5599271809847711,
       "n_trials": 50
     },
     "xgboost": {
       "best_params": {
-        "learning_rate": 0.023238160952885466,
-        "max_depth": 7,
-        "n_estimators": 190,
-        "min_child_weight": 4,
-        "xgb_reg_alpha": 0.09217589866652795,
-        "xgb_reg_lambda": 2.1184644638272596,
-        "subsample": 0.6278058679175968,
-        "colsample_bytree": 0.7048810810969393
+        "learning_rate": 0.08182387974350809,
+        "max_depth": 14,
+        "n_estimators": 216,
+        "min_child_weight": 1,
+        "xgb_reg_alpha": 0.4626011777772376,
+        "xgb_reg_lambda": 3.19626034020815,
+        "subsample": 0.6678237540231452,
+        "colsample_bytree": 0.8634358001550331
       },
-      "best_score": 0.636152529611496,
+      "best_score": 0.5624435439411499,
       "n_trials": 50
     },
     "random_forest": {
       "best_params": {
-        "n_estimators": 260,
-        "max_depth": 6,
-        "min_samples_split": 2,
+        "n_estimators": 206,
+        "max_depth": 12,
+        "min_samples_split": 7,
         "min_samples_leaf": 2
       },
-      "best_score": 0.6407376467494604,
+      "best_score": 0.5324069507106667,
       "n_trials": 50
     }
   }
