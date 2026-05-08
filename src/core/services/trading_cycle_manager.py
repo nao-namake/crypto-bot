@@ -1260,7 +1260,17 @@ class TradingCycleManager:
             return strategy_signal
 
         elif (ml_pred == 0 and ml_confidence >= 0.55) or ml_confidence < reject_threshold:
-            # 低品質 → HOLDに変換（モデルが確信を持って失敗予測、または信頼度極低）
+            # 低品質 → HOLDに変換
+            # Phase 83C 注釈:
+            # メタラベリングでは prediction=0 が「失敗(SL hit)」、1 が「成功(TP hit)」を示す。
+            # confidence は class 1（成功）の確率。
+            # 条件1 (ml_pred==0 and ml_confidence>=0.55):
+            #   class 0 が選ばれた状態で confidence>=0.55 → 「成功確率55%以上だが失敗を予測」
+            #   = 1-0.55=0.45以下の確率で class 1 を選ばなかった → 失敗を確信
+            #   ※ 直感に反するが、predict() の argmax と predict_proba()[1] の関係から正しい
+            # 条件2 (ml_confidence < reject_threshold):
+            #   成功確率が reject_threshold (0.42) 未満 → 戦略無効化
+            # どちらかが成立すれば HOLD 変換
             self.logger.warning(
                 f"🚫 Phase 73-D: 品質フィルタ拒否 - "
                 f"{strategy_action.upper()}→HOLD "

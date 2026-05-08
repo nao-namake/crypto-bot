@@ -713,6 +713,115 @@ class TestConfidenceBasedTPSL(unittest.TestCase):
         self.assertAlmostEqual(total_loss, 500, delta=1)
 
 
+class TestPhase83CSLFallThrough(unittest.TestCase):
+    """Phase 83C: SL予算 < 手数料合計時の暗黙 regime fallback バグ修正テスト"""
+
+    def setUp(self):
+        self.current_price = 12_500_000.0  # 本番BTC/JPY水準
+        self.current_atr = 50_000.0
+        self.basic_config = {
+            "stop_loss_atr_multiplier": 2.0,
+            "take_profit_ratio": 1.29,
+            "max_loss_ratio": 0.007,  # regime fallback 0.7% — これが採用されてはならない
+            "min_profit_ratio": 0.009,
+            "default_atr_multiplier": 2.0,
+        }
+
+    def _make_threshold_side_effect(self, sl_target=500, position_target=500):
+        """fixed_amount SL/TP 設定（Phase 83B運用条件）"""
+
+        def side_effect(key, default=None):
+            thresholds = {
+                "position_management.take_profit.regime_based.enabled": False,
+                "position_management.weekend_adjustment.enabled": False,
+                "position_management.stop_loss.max_loss_ratio": 0.007,
+                "position_management.take_profit.min_profit_ratio": 0.009,
+                "position_management.take_profit.default_ratio": 1.29,
+                "position_management.stop_loss.fixed_amount": {
+                    "enabled": True,
+                    "target_max_loss": sl_target,
+                    "confidence_based": {"enabled": False},
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.001,
+                    "include_entry_fee": True,
+                },
+                "position_management.take_profit.fixed_amount": {
+                    "enabled": True,
+                    "target_net_profit": position_target,
+                    "confidence_based": {"enabled": False},
+                    "include_entry_fee": True,
+                    "include_exit_fee_rebate": True,
+                    "include_interest": True,
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.0,
+                },
+            }
+            return thresholds.get(key, default)
+
+        return side_effect
+
+    @patch("src.core.config.get_threshold")
+    def test_sl_when_fees_exceed_target_uses_raw_target(self, mock_get_threshold):
+        """Phase 83C: 手数料合計≧目標損失でも raw target でSL算出（regime fallback禁止）
+
+        典型ケース: 0.020 BTC × 12.5M JPY @ SL=500円
+        - entry_fee = 12.5M × 0.020 × 0.001 = 250
+        - exit_fee = 250
+        - gross_loss = 500 - 500 = 0 ≦ 0
+        - 旧実装: regime SL 0.7% (≒87,500円距離) を黙って採用
+        - 新実装: raw target で fixed_sl_distance = 500/0.020 = 25,000円
+        """
+        mock_get_threshold.side_effect = self._make_threshold_side_effect(sl_target=500)
+
+        stop_loss, _ = RiskManager.calculate_stop_loss_take_profit(
+            action=EntryAction.BUY,
+            current_price=self.current_price,
+            current_atr=self.current_atr,
+            config=self.basic_config.copy(),
+            position_amount=0.020,  # 大ポジション → fees=500円で gross_loss=0
+        )
+
+        assert stop_loss is not None
+        sl_distance = self.current_price - stop_loss
+        # 旧バグの値: 12.5M × 0.007 = 87,500
+        legacy_buggy_distance = self.current_price * 0.007
+        # raw target / amount = 500 / 0.020 = 25,000
+        expected_distance = 500 / 0.020
+
+        # raw target が採用されることを検証
+        self.assertAlmostEqual(sl_distance, expected_distance, delta=10)
+        # regime fallback が起きていないことを検証
+        self.assertLess(
+            sl_distance,
+            legacy_buggy_distance * 0.5,
+            f"Phase 83C: regime fallback バグが再発: SL距離={sl_distance:.0f} ≧ "
+            f"旧バグ値の半分 {legacy_buggy_distance / 2:.0f}",
+        )
+
+    @patch("src.core.config.get_threshold")
+    def test_sl_when_fees_below_target_uses_gross_loss(self, mock_get_threshold):
+        """Phase 83C: 手数料合計 < 目標損失なら従来通り gross_loss / amount"""
+        mock_get_threshold.side_effect = self._make_threshold_side_effect(sl_target=500)
+
+        # 小さい amount で fees < target
+        stop_loss, _ = RiskManager.calculate_stop_loss_take_profit(
+            action=EntryAction.BUY,
+            current_price=self.current_price,
+            current_atr=self.current_atr,
+            config=self.basic_config.copy(),
+            position_amount=0.005,  # 小ポジション → fees=125円で gross_loss=375
+        )
+
+        assert stop_loss is not None
+        sl_distance = self.current_price - stop_loss
+        entry_fee = self.current_price * 0.005 * 0.001  # 62.5
+        exit_fee = self.current_price * 0.005 * 0.001  # 62.5
+        gross_loss = 500 - entry_fee - exit_fee  # 375
+        expected_distance = gross_loss / 0.005  # 75,000
+
+        self.assertAlmostEqual(sl_distance, expected_distance, delta=10)
+
+
 def run_risk_manager_tests():
     """リスク管理テスト実行関数."""
     print("=" * 50)

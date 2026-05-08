@@ -14,7 +14,7 @@
 Phase 61.10更新: Dynamic Position Sizingをバックテストでも使用（ライブ互換）
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -373,8 +373,19 @@ class RiskManager:
             # ========================================
             weekend_enabled = get_threshold("position_management.weekend_adjustment.enabled", False)
             if weekend_enabled and regime:
-                # 土日判定（バックテスト対応）
-                check_time = current_time if current_time else datetime.now()
+                # Phase 83C: 土日判定をJST明示で実施
+                # 旧実装は naive datetime.now() で UTC 解釈 → JST金曜23時=UTC金曜14時=平日扱い
+                # の境界バグがあった。tz-aware を強制して BTC/JPY 市場の実JST判定に統一。
+                from ...core.logger import JST
+
+                if current_time:
+                    if current_time.tzinfo is None:
+                        # naive datetime はUTC扱いとしてJST変換
+                        check_time = current_time.replace(tzinfo=timezone.utc).astimezone(JST)
+                    else:
+                        check_time = current_time.astimezone(JST)
+                else:
+                    check_time = datetime.now(JST)
                 is_weekend = check_time.weekday() >= 5  # 5=土, 6=日
 
                 if is_weekend:
@@ -474,24 +485,36 @@ class RiskManager:
                 gross_loss = sl_target - exit_fee - entry_fee
                 if gross_loss > 0:
                     fixed_sl_distance = gross_loss / position_amount
+                else:
+                    # Phase 83C: 手数料合計≧目標損失時の安全フォールバック
+                    # tp_sl_manager._calculate_fixed_amount_sl_for_position と同形式（L1305-1306）
+                    # 旧実装は else 句なしで regime SL に黙って fallback → SL設計175倍化バグ発生
+                    fixed_sl_distance = sl_target / position_amount
+                    logger.warning(
+                        f"⚠️ Phase 83C: 手数料超過 - 目標={sl_target:.0f}円 ≦ "
+                        f"手数料合計={entry_fee + exit_fee:.0f}円 → "
+                        f"raw target で算出 SL距離={fixed_sl_distance:.0f}円"
+                        f"({fixed_sl_distance / current_price * 100:.2f}%) "
+                        f"※ポジ縮小 or sl_target増 を検討"
+                    )
 
-                    # 妥当性チェック（10%超は異常値）
-                    if fixed_sl_distance <= current_price * 0.10:
-                        stop_loss_distance = fixed_sl_distance
-                        logger.info(
-                            f"🛡️ Phase 70.2: 固定金額SL適用 - "
-                            f"目標最大損失={sl_target:.0f}円{confidence_label}, "
-                            f"エントリー手数料={entry_fee:.0f}円, "
-                            f"決済手数料={exit_fee:.0f}円, "
-                            f"SL距離={fixed_sl_distance:.0f}円"
-                            f"({fixed_sl_distance / current_price * 100:.2f}%)"
-                        )
-                    else:
-                        logger.warning(
-                            f"⚠️ Phase 66.6: 固定金額SL計算異常 - "
-                            f"距離={fixed_sl_distance:.0f}円 > 10% "
-                            f"→ %ベースを維持"
-                        )
+                # 妥当性チェック（10%超は異常値）
+                if fixed_sl_distance <= current_price * 0.10:
+                    stop_loss_distance = fixed_sl_distance
+                    logger.info(
+                        f"🛡️ Phase 70.2: 固定金額SL適用 - "
+                        f"目標最大損失={sl_target:.0f}円{confidence_label}, "
+                        f"エントリー手数料={entry_fee:.0f}円, "
+                        f"決済手数料={exit_fee:.0f}円, "
+                        f"SL距離={fixed_sl_distance:.0f}円"
+                        f"({fixed_sl_distance / current_price * 100:.2f}%)"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ Phase 66.6: 固定金額SL計算異常 - "
+                        f"距離={fixed_sl_distance:.0f}円 > 10% "
+                        f"→ %ベースを維持"
+                    )
 
             # === TP距離計算 ===
             # Phase 61.7: 固定金額TPモードチェック

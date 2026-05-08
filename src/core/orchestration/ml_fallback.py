@@ -25,10 +25,13 @@ class DummyModel:
 
     全ての予測でholdシグナル（信頼度0.5）を返すフォールバック用モデル。
     実際のMLモデルが利用できない場合の安全装置として機能。
+
+    Phase 83C: n_classes を動的化（旧実装は2クラス固定で3クラスモデル時shape不一致）
     """
 
-    def __init__(self) -> None:
+    def __init__(self, n_classes: int = 2) -> None:
         self.is_fitted = True
+        self.n_classes = n_classes
 
     def predict(self, X: Union[pd.DataFrame, np.ndarray]) -> np.ndarray:
         """常にholdシグナル（0）を返す予測."""
@@ -39,8 +42,10 @@ class DummyModel:
         """
         設定値から取得した確率値を返す（フォールバック時は0.5）.
 
+        Phase 83C: n_classes に応じた shape で返す（2クラス/3クラス対応）
+
         Returns:
-            2D array: [[confidence, confidence], ...] 形式
+            2D array: [[confidence, confidence, ...], ...] 形式（列数=n_classes）
         """
         try:
             from ..config import get_threshold
@@ -50,4 +55,6 @@ class DummyModel:
             confidence = 0.5  # フォールバック値
 
         n_samples = len(X)
-        return np.full((n_samples, 2), confidence)
+        # Phase 83C: 確率は合計1.0になるよう均等配分（2クラス→0.5/0.5、3クラス→0.33/0.33/0.33）
+        prob = 1.0 / self.n_classes if self.n_classes > 0 else confidence
+        return np.full((n_samples, self.n_classes), prob)

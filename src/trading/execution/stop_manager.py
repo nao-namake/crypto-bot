@@ -41,8 +41,17 @@ class StopManager:
             from ..analysis.trade_analysis_recorder import TradeAnalysisRecorder
 
             self.trade_analysis_recorder = TradeAnalysisRecorder()
-        except Exception:
-            pass
+        except Exception as e:
+            # Phase 83C: 旧実装は無音 pass → 取引分析機能の利用不能を検知漏れ
+            self.logger.warning(
+                f"⚠️ Phase 83C: TradeAnalysisRecorder初期化失敗（記録機能なしで継続）: {e}"
+            )
+
+        # Phase 83C: 価格スパイク検出用の in-memory 履歴バッファ
+        # 5min × 1cycle/min = 直近5サンプル保持。_get_current_price 呼び出し時に更新
+        from collections import deque
+
+        self._price_history: deque = deque(maxlen=5)
 
     # ========================================
     # Phase 61.9: TP/SL自動執行検知機能
@@ -1527,12 +1536,19 @@ class StopManager:
     # cooldown.py (CooldownManager) に同一実装があるため削除
 
     async def _get_current_price(self, bitbank_client: Optional[BitbankClient]) -> float:
-        """現在価格取得（緊急時用）"""
+        """現在価格取得（緊急時用）
+
+        Phase 83C: 取得時に _price_history を更新（_check_rapid_price_movement で利用）
+        """
         try:
             if bitbank_client:
                 ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, "BTC/JPY")
                 if ticker and "last" in ticker:
-                    return float(ticker["last"])
+                    price = float(ticker["last"])
+                    # Phase 83C: 履歴バッファに追加（最大5サンプル）
+                    if price > 0:
+                        self._price_history.append(price)
+                    return price
 
             # フォールバック価格
             return get_threshold(TPSLConfig.FALLBACK_BTC_JPY, TPSLConfig.DEFAULT_FALLBACK_BTC_JPY)
@@ -1547,18 +1563,35 @@ class StopManager:
         """
         急激な価格変動検出
 
+        Phase 83C: 旧実装は TODO で常に None を返していた。
+        in-memory 履歴バッファ（過去最大5サンプル）と current_price を比較し
+        threshold（デフォルト 3%）超過時にアラート文字列を返す。
+
         Returns:
-            str: 価格変動情報（変動なしの場合はNone）
+            str: 価格変動情報（変動なしの場合は None）
         """
         try:
-            # 簡易実装: 設定された閾値以上の変動を検出
-            # 実際の実装では過去5分間の価格履歴を確認する
             price_change_threshold = config.get("price_change_threshold", 0.03)
 
-            # TODO: 実際の価格履歴データベースから過去5分間の価格変動を計算
-            # 現在は簡易実装として、大きな価格変動があったと仮定した場合の処理のみ
+            if len(self._price_history) < 2:
+                return None  # 履歴不足
 
-            return None  # 実際の価格変動検出は将来実装
+            # 履歴中の最古値と current_price の比率
+            oldest_price = self._price_history[0]
+            if oldest_price <= 0:
+                return None
+            change_ratio = abs(current_price - oldest_price) / oldest_price
+
+            if change_ratio >= price_change_threshold:
+                direction = "上昇" if current_price > oldest_price else "下落"
+                return (
+                    f"🚨 Phase 83C: 急変動検出 - "
+                    f"{oldest_price:.0f}円 → {current_price:.0f}円 "
+                    f"({change_ratio * 100:.2f}% {direction}, "
+                    f"閾値={price_change_threshold * 100:.1f}%)"
+                )
+
+            return None
 
         except Exception as e:
             self.logger.error(f"❌ 価格変動チェックエラー: {e}")

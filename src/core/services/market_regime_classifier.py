@@ -170,14 +170,8 @@ class MarketRegimeClassifier:
 
             # 5. デフォルト: 通常レンジ
             # Phase 51.9-Fix: バックテストモードでDEBUGに変更（速度最適化・99%ログ削減）
-            if os.environ.get("BACKTEST_MODE") == "true":
-                self.logger.debug(
-                    f"📊 デフォルト分類: 通常レンジ (BB幅={bb_width:.4f}, ADX={adx:.2f})"
-                )
-            else:
-                self.logger.warning(
-                    f"📊 デフォルト分類: 通常レンジ (BB幅={bb_width:.4f}, ADX={adx:.2f})"
-                )
+            # Phase 83C: ライブモードもDEBUG降格（連続出力で本物のERROR/WARNINGを埋もれさせるため）
+            self.logger.debug(f"📊 デフォルト分類: 通常レンジ (BB幅={bb_width:.4f}, ADX={adx:.2f})")
             return RegimeType.NORMAL_RANGE
 
         except Exception as e:

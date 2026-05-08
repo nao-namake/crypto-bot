@@ -65,7 +65,11 @@ class TestDummyModel:
         assert result[0] == 0
 
     def test_dummy_model_predict_proba_with_dataframe(self):
-        """DummyModel確率予測（DataFrame入力）"""
+        """DummyModel確率予測（DataFrame入力）
+
+        Phase 83C: 旧実装は confidence(0.7) を全要素に入れていたが、確率合計が1.4で不正。
+        新実装は n_classes に応じた均等配分（2クラス→0.5/0.5）で確率分布として正常化。
+        """
         model = DummyModel()
         X = pd.DataFrame({"feature1": [1, 2], "feature2": [3, 4]})
 
@@ -74,7 +78,10 @@ class TestDummyModel:
 
             assert isinstance(result, np.ndarray)
             assert result.shape == (2, 2)
-            assert np.all(result == 0.7)  # 設定値を使用
+            # Phase 83C: 均等配分 (1/n_classes = 0.5)
+            assert np.all(result == 0.5)
+            # 確率合計が1.0であること
+            assert np.allclose(result.sum(axis=1), 1.0)
 
     def test_dummy_model_predict_proba_fallback_confidence(self):
         """DummyModel確率予測（設定値取得失敗時のフォールバック）"""

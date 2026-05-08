@@ -86,14 +86,27 @@ class DataPipeline:
         return f"{request.symbol}_{request.timeframe.value}_{request.limit}"
 
     def _is_cache_valid(self, cache_key: str) -> bool:
-        """キャッシュの有効性チェック."""
+        """キャッシュの有効性チェック.
+
+        Phase 83C: timeframe-aware キャッシュ期間
+        - 旧実装は固定 5分 で 15分足の世代切替に対応できなかった
+        - cache_key の "_15m_" / "_4h_" を見て期間調整
+        """
         if cache_key not in self._cache_timestamps:
             return False
 
         cache_time = self._cache_timestamps[cache_key]
         now = datetime.now()
 
-        return (now - cache_time).total_seconds() < (self.cache_duration_minutes * 60)
+        # Phase 83C: timeframe-aware（足の長さの 1/3 以下にして新足を取りこぼさない）
+        if "_4h_" in cache_key:
+            duration_minutes = 60  # 4h足は60分キャッシュ
+        elif "_15m_" in cache_key:
+            duration_minutes = 4  # 15m足は4分キャッシュ
+        else:
+            duration_minutes = self.cache_duration_minutes  # デフォルト5分
+
+        return (now - cache_time).total_seconds() < (duration_minutes * 60)
 
     def _validate_ohlcv_data(self, data: List[List[Union[int, float]]]) -> bool:
         """OHLCV データの品質チェック."""

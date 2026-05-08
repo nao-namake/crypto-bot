@@ -495,9 +495,14 @@ class FeatureGenerator:
         return true_range.rolling(window=period, min_periods=1).mean()
 
     def _calculate_bb_bands(self, close: pd.Series, period: int = 20) -> tuple:
-        """ボリンジャーバンド拡張（上限・下限・位置を返す）"""
+        """ボリンジャーバンド拡張（上限・下限・位置を返す）
+
+        Phase 83C: 初期period本未満では std が不安定（1サンプルでNaN、2-3で≒0）
+        → bb_upper - bb_lower ≒ 1e-8 → bb_position が数百万のスパイク。
+        std の min_periods=period に統一し、初期はNaN→後段の_handle_nan_valuesで補完。
+        """
         bb_middle = close.rolling(window=period, min_periods=1).mean()
-        bb_std_dev = close.rolling(window=period, min_periods=1).std()
+        bb_std_dev = close.rolling(window=period, min_periods=period).std()
         bb_upper = bb_middle + (bb_std_dev * 2)
         bb_lower = bb_middle - (bb_std_dev * 2)
         bb_position = (close - bb_lower) / (bb_upper - bb_lower + 1e-8)

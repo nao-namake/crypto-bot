@@ -44,14 +44,32 @@ if env_path.exists():
         print(f"❌ .envファイル読み込みエラー: {e}")
 
     # 重要な環境変数の設定確認
+    # Phase 83C: 必須変数欠落で fail-fast（旧実装は warning のみで起動継続→silent failure）
     required_vars = ["BITBANK_API_KEY", "BITBANK_API_SECRET", "DISCORD_WEBHOOK_URL"]
+    missing_vars = []
     for var in required_vars:
         if var in os.environ and os.environ[var]:
             print(f"✅ {var}: 設定済み（{len(os.environ[var])}文字）")
         else:
-            print(f"⚠️ {var}: 未設定または空")
+            print(f"❌ {var}: 未設定または空")
+            missing_vars.append(var)
+    if missing_vars:
+        print(
+            f"❌ Phase 83C: 必須環境変数 {missing_vars} が未設定 - 起動を中止します。"
+            f" Cloud Run の場合は Secret Manager の設定を確認してください。"
+        )
+        sys.exit(1)
 else:
     print("⚠️ .envファイルが見つかりません（オプション）")
+    # Phase 83C: GCP Cloud Run では環境変数が直接設定される想定。
+    # ローカルで .env なし→必須変数も未設定なら fail-fast。
+    required_vars = ["BITBANK_API_KEY", "BITBANK_API_SECRET", "DISCORD_WEBHOOK_URL"]
+    missing_vars = [v for v in required_vars if not os.environ.get(v)]
+    if missing_vars:
+        print(
+            f"❌ Phase 83C: 必須環境変数 {missing_vars} が未設定 - 起動を中止します。"
+        )
+        sys.exit(1)
 
 try:
     from src.core.config import load_config

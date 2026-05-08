@@ -1261,7 +1261,7 @@ class TestPhase70FixedAmountSLWithEntryFee:
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     def test_sl_min_distance_floor_applied(self, mock_threshold, tp_sl_manager):
-        """Phase 83A-2: SL距離がmin_distance.ratio未満なら0.7%にfloor強制"""
+        """Phase 83A-2 / Phase 83C: enabled=true 時のみ floor 強制適用"""
 
         def threshold_side_effect(key, default=None):
             mapping = {
@@ -1269,6 +1269,8 @@ class TestPhase70FixedAmountSLWithEntryFee:
                 "position_management.stop_loss.fixed_amount.target_max_loss": 800,
                 "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+                # Phase 83C: enabled フラグ参照に対応（既存テストを更新）
+                "position_management.stop_loss.min_distance.enabled": True,
                 "position_management.stop_loss.min_distance.ratio": 0.007,  # 0.7%
             }
             return mapping.get(key, default)
@@ -1295,6 +1297,7 @@ class TestPhase70FixedAmountSLWithEntryFee:
                 "position_management.stop_loss.fixed_amount.target_max_loss": 5000,
                 "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+                "position_management.stop_loss.min_distance.enabled": True,
                 "position_management.stop_loss.min_distance.ratio": 0.007,
             }
             return mapping.get(key, default)
@@ -1312,6 +1315,36 @@ class TestPhase70FixedAmountSLWithEntryFee:
         expected_offset = (5000 - entry_fee - exit_fee) / amount
         actual_offset = avg_price - sl_price
         assert abs(actual_offset - expected_offset) < 1.0
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    def test_sl_min_distance_floor_disabled(self, mock_threshold, tp_sl_manager):
+        """Phase 83C: enabled=false の場合は ratio に関係なく floor 非適用（Phase 83B floor撤廃）"""
+
+        def threshold_side_effect(key, default=None):
+            mapping = {
+                # 0.020 BTC × 12.5M JPY で実SL距離 0.20% （fees込み 500円目標）
+                "position_management.stop_loss.fixed_amount.target_max_loss": 500,
+                "position_management.stop_loss.fixed_amount.fallback_entry_fee_rate": 0.001,
+                "position_management.stop_loss.fixed_amount.fallback_exit_fee_rate": 0.001,
+                # Phase 83C: enabled=False で floor を完全無効化（ratio=0.007 でも適用されない）
+                "position_management.stop_loss.min_distance.enabled": False,
+                "position_management.stop_loss.min_distance.ratio": 0.007,
+            }
+            return mapping.get(key, default)
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        avg_price = 12_500_000
+        amount = 0.020  # gross_needed = 500 - 250 - 250 = 0 → fallback target=500
+        sl_price = tp_sl_manager._calculate_fixed_amount_sl_for_position("long", amount, avg_price)
+
+        # enabled=False のため floor 0.7% (=87,500円) は適用されない
+        actual_offset = avg_price - sl_price
+        floor_offset = avg_price * 0.007  # 87,500
+        assert actual_offset < floor_offset, (
+            f"enabled=False なのに floor が適用された: "
+            f"actual={actual_offset:.0f}, floor={floor_offset:.0f}"
+        )
 
 
 class TestPhase686FixedAmountTPForPosition:

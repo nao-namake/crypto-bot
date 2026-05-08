@@ -324,18 +324,34 @@ class DrawdownManager:
         - 連敗7回: 25%
         - 連敗8回以上: 0%（完全停止はcheck_trading_allowedで処理）
 
+        Phase 83C: 閾値跨ぎ時の倍率変化を WARNING ログで記録（運用観測性向上）
+
         Returns:
             float: ポジションサイズ倍率（0.0-1.0）
         """
         if self.consecutive_losses >= 8:
-            return 0.0
+            multiplier = 0.0
         elif self.consecutive_losses >= 7:
-            return 0.25
+            multiplier = 0.25
         elif self.consecutive_losses >= 6:
-            return 0.4
+            multiplier = 0.4
         elif self.consecutive_losses >= 5:
-            return 0.5
-        return 1.0
+            multiplier = 0.5
+        else:
+            multiplier = 1.0
+
+        # Phase 83C: 倍率が前回と変わったら WARNING（閾値跨ぎを観測）
+        if not hasattr(self, "_last_position_multiplier"):
+            self._last_position_multiplier = 1.0
+        if multiplier != self._last_position_multiplier:
+            self.logger.warning(
+                f"⚠️ Phase 83C: ポジションサイズ倍率変化 - "
+                f"連敗={self.consecutive_losses}回, "
+                f"倍率={self._last_position_multiplier:.2f} → {multiplier:.2f}"
+            )
+            self._last_position_multiplier = multiplier
+
+        return multiplier
 
     def get_drawdown_statistics(self) -> Dict[str, Any]:
         """ドローダウン統計取得"""

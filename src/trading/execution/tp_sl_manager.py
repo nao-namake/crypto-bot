@@ -767,7 +767,9 @@ class TPSLManager:
         try:
             ticker = await asyncio.to_thread(bitbank_client.fetch_ticker, symbol)
             current_price = float(ticker.get("last") or 0)
-        except Exception:
+        except Exception as e:
+            # Phase 83C: 旧実装は無音 pass → API障害検知漏れ
+            self.logger.warning(f"⚠️ Phase 83C: ticker取得失敗 - SL超過判定スキップ: {e}")
             current_price = 0
 
         sl_breached = False
@@ -798,16 +800,20 @@ class TPSLManager:
                             symbol,
                         )
                         self.logger.info(f"✅ Phase 64.12: 注文キャンセル - ID: {order.get('id')}")
-                    except Exception:
-                        pass  # キャンセル失敗は無視して続行
+                    except Exception as e:
+                        # Phase 83C: 旧実装は無音 pass → 孤児注文検知漏れ
+                        self.logger.warning(
+                            f"⚠️ Phase 83C: 注文キャンセル失敗 - " f"ID={order.get('id')}: {e}"
+                        )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 64.12: 注文一括キャンセルエラー: {e}")
 
             # Phase 68.7: SL永続化クリア（SL超過成行決済時）
             try:
                 self.sl_persistence.clear(entry_side)
-            except Exception:
-                pass
+            except Exception as e:
+                # Phase 83C: 旧実装は無音 pass → SL永続化ファイル不整合検知漏れ
+                self.logger.warning(f"⚠️ Phase 83C: SL永続化クリア失敗 ({entry_side}): {e}")
 
             # キャンセル後に成行決済
             try:
@@ -1306,16 +1312,21 @@ class TPSLManager:
             gross_needed = target
         sl_offset = gross_needed / amount
 
-        # Phase 83A-2: min_distance floor強制（ノイズ幅以下のSL禁止）
-        min_ratio = get_threshold("position_management.stop_loss.min_distance.ratio", 0.007)
-        min_offset = avg_price * min_ratio
-        if sl_offset < min_offset:
-            self.logger.info(
-                f"🛡️ Phase 83A-2: SL距離floor適用 - "
-                f"{sl_offset:.0f}円({sl_offset / avg_price * 100:.2f}%) → "
-                f"{min_offset:.0f}円({min_ratio * 100:.2f}%)"
-            )
-            sl_offset = min_offset
+        # Phase 83A-2 / Phase 83C: min_distance floor強制（ノイズ幅以下のSL禁止）
+        # Phase 83C: enabled フラグを参照（旧実装は ratio のみ参照で yaml の enabled 無視）
+        min_distance_enabled = get_threshold(
+            "position_management.stop_loss.min_distance.enabled", False
+        )
+        if min_distance_enabled:
+            min_ratio = get_threshold("position_management.stop_loss.min_distance.ratio", 0.0)
+            min_offset = avg_price * min_ratio
+            if sl_offset < min_offset:
+                self.logger.info(
+                    f"🛡️ Phase 83A-2: SL距離floor適用 - "
+                    f"{sl_offset:.0f}円({sl_offset / avg_price * 100:.2f}%) → "
+                    f"{min_offset:.0f}円({min_ratio * 100:.2f}%)"
+                )
+                sl_offset = min_offset
 
         if position_side == "long":
             return avg_price - sl_offset
