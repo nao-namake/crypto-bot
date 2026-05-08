@@ -104,6 +104,19 @@ class InfrastructureCheckResult:
     nonetype_error_count: int = 0
     api_error_count: int = 0
 
+    # Phase 83C: 新警告ログ追跡（コミット f515f0a4 で追加）
+    phase83c_fee_overflow_count: int = 0  # SL予算 < 手数料合計（C1 fall-through 検出）
+    phase83c_ticker_failure_count: int = 0  # ticker取得失敗（C3）
+    phase83c_cancel_failure_count: int = 0  # 注文キャンセル失敗（C3）
+    phase83c_sl_persist_failure_count: int = 0  # SL永続化クリア失敗（C3）
+    phase83c_recorder_init_failure_count: int = 0  # TradeAnalysisRecorder失敗（M1関連）
+    phase83c_price_spike_count: int = 0  # 急変動検出（M1）
+    phase83c_multiplier_change_count: int = 0  # 連敗倍率変化（M3）
+
+    # Phase 83B: SL=0.20% 適用率（floor撤廃の効果確認用）
+    phase70_2_fixed_sl_count: int = 0  # 固定金額SL適用ログ
+    phase49_16_tp_sl_count: int = 0  # TP/SL確定総数
+
     # スコア
     normal_checks: int = 0
     warning_issues: int = 0
@@ -230,6 +243,7 @@ class InfrastructureChecker:
         self._check_api_balance()
         self._check_position_restore()
         self._check_trade_blocking_errors()
+        self._check_phase83c_anomalies()  # Phase 83C: 新警告ログ追跡
 
         # 総合スコア計算
         self.result.total_score = (
@@ -392,6 +406,104 @@ class InfrastructureChecker:
             self.result.warning_issues += 1
         else:
             self.result.critical_issues += 1
+
+    def _check_phase83c_anomalies(self):
+        """Phase 83C: 新警告ログ追跡 + Phase 83B SL適用率検証
+
+        Phase 83C コミット f515f0a4 で追加された8種の警告ログをカウント。
+        特に C1 fall-through (手数料超過) が再発していないかを最優先で検出。
+        Phase 70.2 / Phase 49.16 のSL適用比率からフィルタ機能の正常性も確認。
+        """
+        self.logger.info("🔬 Phase 83C/83B ログ追跡")
+
+        # Phase 83C: C1 fall-through 検出（最重要・再発時は CRITICAL）
+        self.result.phase83c_fee_overflow_count = self._count_gcp_logs(
+            'textPayload:"Phase 83C: 手数料超過"', 50
+        )
+
+        # Phase 83C: C3 関連
+        self.result.phase83c_ticker_failure_count = self._count_gcp_logs(
+            'textPayload:"Phase 83C: ticker取得失敗"', 30
+        )
+        self.result.phase83c_cancel_failure_count = self._count_gcp_logs(
+            'textPayload:"Phase 83C: 注文キャンセル失敗"', 30
+        )
+        self.result.phase83c_sl_persist_failure_count = self._count_gcp_logs(
+            'textPayload:"Phase 83C: SL永続化クリア失敗"', 20
+        )
+        self.result.phase83c_recorder_init_failure_count = self._count_gcp_logs(
+            'textPayload:"Phase 83C: TradeAnalysisRecorder初期化失敗"', 5
+        )
+
+        # Phase 83C: M1 価格スパイク
+        self.result.phase83c_price_spike_count = self._count_gcp_logs(
+            'textPayload:"Phase 83C: 急変動検出"', 30
+        )
+
+        # Phase 83C: M3 連敗倍率変化
+        self.result.phase83c_multiplier_change_count = self._count_gcp_logs(
+            'textPayload:"Phase 83C: ポジションサイズ倍率変化"', 20
+        )
+
+        # Phase 83B: SL=0.20% 適用率検証（C1修正の効果確認）
+        self.result.phase70_2_fixed_sl_count = self._count_gcp_logs(
+            'textPayload:"Phase 70.2: 固定金額SL適用"', 100
+        )
+        self.result.phase49_16_tp_sl_count = self._count_gcp_logs(
+            'textPayload:"Phase 49.16 TP/SL確定"', 100
+        )
+
+        # 判定ロジック
+        # 1. Phase 83C: 手数料超過が出ている = C1 fall-through 再発 = CRITICAL
+        if self.result.phase83c_fee_overflow_count > 0:
+            self.logger.warning(
+                f"⚠️ Phase 83C: 手数料超過警告 {self.result.phase83c_fee_overflow_count}件 "
+                f"検出 - C1 fall-through 再発の可能性"
+            )
+            self.result.warning_issues += 1
+
+        # 2. Phase 70.2 適用率（SL=固定金額が確実に動作しているか）
+        # Phase 49.16 TP/SL確定が出る場面の8割以上で Phase 70.2 が出るべき
+        if self.result.phase49_16_tp_sl_count > 0:
+            sl_apply_rate = (
+                self.result.phase70_2_fixed_sl_count / self.result.phase49_16_tp_sl_count
+            )
+            self.logger.info(
+                f"📊 Phase 83B SL固定金額適用率: "
+                f"{self.result.phase70_2_fixed_sl_count}/{self.result.phase49_16_tp_sl_count} "
+                f"= {sl_apply_rate * 100:.1f}%"
+            )
+            if sl_apply_rate < 0.5 and self.result.phase49_16_tp_sl_count >= 10:
+                # 半分未満しか固定金額SLが出ていない = フィルタ不全
+                self.logger.warning(
+                    "⚠️ Phase 83B: SL固定金額適用率が低い - "
+                    "regime SL fallback が頻発している可能性"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+        # 3. ticker/cancel/persist 失敗が連発（API障害指標）
+        infra_failures = (
+            self.result.phase83c_ticker_failure_count
+            + self.result.phase83c_cancel_failure_count
+            + self.result.phase83c_sl_persist_failure_count
+        )
+        if infra_failures >= 10:
+            self.logger.warning(
+                f"⚠️ Phase 83C: インフラ系警告 {infra_failures}件 - bitbank API 不安定の可能性"
+            )
+            self.result.warning_issues += 1
+        elif infra_failures > 0:
+            self.logger.info(f"ℹ️ Phase 83C: インフラ系警告 {infra_failures}件（許容範囲）")
+
+        # 4. 価格スパイクが多発 = 市場異常
+        if self.result.phase83c_price_spike_count >= 5:
+            self.logger.warning(
+                f"⚠️ Phase 83C: 価格スパイク {self.result.phase83c_price_spike_count}件 - "
+                f"市場異常 or 設定閾値（3%）が低すぎ"
+            )
+            self.result.warning_issues += 1
 
 
 # =============================================================================
@@ -2819,6 +2931,36 @@ async def main():
     print(f"   ⚠️  警告項目: {infra_result.warning_issues}")
     print(f"   ❌ 致命的問題: {infra_result.critical_issues}")
     print(f"   🏆 スコア: {infra_result.total_score}点")
+
+    # Phase 83C: 新警告ログ追跡サマリー
+    print("\n🔬 Phase 83C/83B 動作確認:")
+    if infra_result.phase49_16_tp_sl_count > 0:
+        sl_rate = infra_result.phase70_2_fixed_sl_count / infra_result.phase49_16_tp_sl_count * 100
+        print(
+            f"   📊 SL固定金額適用率: "
+            f"{infra_result.phase70_2_fixed_sl_count}/"
+            f"{infra_result.phase49_16_tp_sl_count} = {sl_rate:.1f}%"
+        )
+    if infra_result.phase83c_fee_overflow_count > 0:
+        print(
+            f"   ⚠️ C1 手数料超過fall-through: "
+            f"{infra_result.phase83c_fee_overflow_count}件 ※再発要確認"
+        )
+    if infra_result.phase83c_price_spike_count > 0:
+        print(f"   🚨 価格スパイク検出: {infra_result.phase83c_price_spike_count}件")
+    if infra_result.phase83c_multiplier_change_count > 0:
+        print(f"   ⚠️ ポジ倍率変化: {infra_result.phase83c_multiplier_change_count}件")
+    infra_failures = (
+        infra_result.phase83c_ticker_failure_count
+        + infra_result.phase83c_cancel_failure_count
+        + infra_result.phase83c_sl_persist_failure_count
+    )
+    if infra_failures > 0:
+        print(
+            f"   ⚠️ インフラ系警告: ticker={infra_result.phase83c_ticker_failure_count} "
+            f"cancel={infra_result.phase83c_cancel_failure_count} "
+            f"sl_persist={infra_result.phase83c_sl_persist_failure_count}"
+        )
 
     print("\n🤖 Bot機能診断:")
     print(f"   ✅ 正常項目: {bot_result.normal_checks}")
