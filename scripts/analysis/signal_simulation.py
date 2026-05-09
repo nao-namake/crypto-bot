@@ -232,10 +232,11 @@ def main():
     parser.add_argument("--start", type=str, help="開始日 (YYYY-MM-DD)")
     parser.add_argument("--end", type=str, help="終了日 (YYYY-MM-DD)")
     parser.add_argument("--days", type=int, default=7, help="日数（--start未指定時に使用）")
-    parser.add_argument("--tp", type=float, default=50000, help="TP距離（円）")
+    parser.add_argument("--tp", type=float, default=66000, help="TP距離（円）")
     parser.add_argument("--sl", type=float, default=33000, help="SL距離（円）")
     parser.add_argument("--max-bars", type=int, default=20, help="最大保有本数")
-    parser.add_argument("--tp-pnl", type=float, default=750, help="TP時PnL（円）")
+    # Phase 83B: TP1000円/SL500円 (RR比2.0:1) に同期
+    parser.add_argument("--tp-pnl", type=float, default=1000, help="TP時PnL（円）")
     parser.add_argument("--sl-pnl", type=float, default=500, help="SL時PnL（円）")
     parser.add_argument("--with-signals", action="store_true", help="GCPログからシグナルも取得")
     parser.add_argument("--full", action="store_true", help="全足でBUY/SELLシミュレーション")

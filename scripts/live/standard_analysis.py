@@ -843,15 +843,15 @@ class BotFunctionChecker:
                 "expected": "quality_filter",
                 "default": "direction",
             },
-            # Phase 79: 品質フィルタ閾値（Phase 76の0.55→0.65に引き上げ）
+            # Phase 82/83A-3: 品質フィルタ閾値（Phase 79の0.65→0.58, 0.45→0.42に変更）
             "品質フィルタ accept": {
                 "path": "ml.quality_filter.accept_threshold",
-                "expected": 0.65,
+                "expected": 0.58,
                 "default": 0.60,
             },
             "品質フィルタ reject": {
                 "path": "ml.quality_filter.reject_threshold",
-                "expected": 0.45,
+                "expected": 0.42,
                 "default": 0.40,
             },
             # Phase 76: トレンドフィルタ正常化
@@ -876,15 +876,15 @@ class BotFunctionChecker:
                 "expected": 0.10,
                 "default": 0.20,
             },
-            # Phase 75-B: TP/SL固定金額
+            # Phase 83B: TP/SL固定金額（Phase 75-Bの750/1000 → 1000/500、RR比2.0:1）
             "固定金額TP目標": {
                 "path": "position_management.take_profit.fixed_amount.target_net_profit",
-                "expected": 750,
+                "expected": 1000,
                 "default": 1000,
             },
             "固定金額SL目標": {
                 "path": "position_management.stop_loss.fixed_amount.target_max_loss",
-                "expected": 1000,
+                "expected": 500,
                 "default": 500,
             },
             # Maker戦略
