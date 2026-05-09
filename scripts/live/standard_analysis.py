@@ -702,7 +702,7 @@ class BotFunctionChecker:
             if count > 0:
                 self.result.active_strategy_count += 1
 
-        # Phase 71: DonchianChannel無効化対応（5戦略でも正常）
+        # Phase 75: 6戦略構成（CMFReversalがDonchianChannel置換）
         if self.result.active_strategy_count >= 5:
             self.result.normal_checks += 1
         elif self.result.active_strategy_count >= 3:
@@ -1176,10 +1176,11 @@ class LiveAnalysisResult:
 class LiveAnalyzer:
     """ライブモード標準分析"""
 
+    # Phase 75: DonchianChannel → CMFReversal に置換（thresholds.yaml と同期）
     STRATEGIES = [
         "ATRBased",
         "BBReversal",
-        "DonchianChannel",
+        "CMFReversal",
         "StochasticReversal",
         "ADXTrendStrength",
         "MACDEMACrossover",

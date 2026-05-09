@@ -126,11 +126,11 @@ class AnalysisResult:
 class StandardAnalyzer:
     """標準分析クラス"""
 
-    # 6戦略の固定リスト
+    # 6戦略の固定リスト（Phase 75以降: DonchianChannel → CMFReversal）
     STRATEGIES = [
         "ATRBased",
         "BBReversal",
-        "DonchianChannel",
+        "CMFReversal",
         "StochasticReversal",
         "ADXTrendStrength",
         "MACDEMACrossover",

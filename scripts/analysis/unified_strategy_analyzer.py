@@ -206,17 +206,17 @@ class UnifiedStrategyAnalyzer:
         """戦略をロード"""
         print("\n🔧 戦略をロード中...")
 
-        # 戦略を直接インポート
+        # 戦略を直接インポート（Phase 75: DonchianChannel → CMFReversal 置換）
         from src.strategies.implementations.adx_trend import ADXTrendStrengthStrategy
         from src.strategies.implementations.atr_based import ATRBasedStrategy
         from src.strategies.implementations.bb_reversal import BBReversalStrategy
-        from src.strategies.implementations.donchian_channel import DonchianChannelStrategy
+        from src.strategies.implementations.cmf_reversal import CMFReversalStrategy
         from src.strategies.implementations.macd_ema_crossover import MACDEMACrossoverStrategy
         from src.strategies.implementations.stochastic_reversal import StochasticReversalStrategy
 
         strategy_classes = {
             "ATRBased": ATRBasedStrategy,
-            "DonchianChannel": DonchianChannelStrategy,
+            "CMFReversal": CMFReversalStrategy,
             "ADXTrendStrength": ADXTrendStrengthStrategy,
             "BBReversal": BBReversalStrategy,
             "StochasticReversal": StochasticReversalStrategy,
