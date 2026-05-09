@@ -1241,6 +1241,11 @@ class TradingCycleManager:
         accept_threshold = get_threshold("ml.quality_filter.accept_threshold", 0.60)
         reject_threshold = get_threshold("ml.quality_filter.reject_threshold", 0.40)
         uncertain_penalty = get_threshold("ml.quality_filter.uncertain_penalty", 0.5)
+        # Phase 84: 旧ハードコード0.55を yaml化、デフォルト0.65に緩和
+        # 失敗予測の確信度閾値（max(p_0, p_1)が >= この値で確信失敗とみなしてHOLD化）
+        high_conf_failure = get_threshold(
+            "ml.quality_filter.high_confidence_failure_threshold", 0.65
+        )
 
         strategy_action = strategy_signal.action
         strategy_confidence = strategy_signal.confidence
@@ -1259,18 +1264,21 @@ class TradingCycleManager:
             )
             return strategy_signal
 
-        elif (ml_pred == 0 and ml_confidence >= 0.55) or ml_confidence < reject_threshold:
+        elif (
+            ml_pred == 0 and ml_confidence >= high_conf_failure
+        ) or ml_confidence < reject_threshold:
             # 低品質 → HOLDに変換
-            # Phase 83C 注釈:
+            # Phase 84 注釈（Phase 83C 注釈を訂正）:
             # メタラベリングでは prediction=0 が「失敗(SL hit)」、1 が「成功(TP hit)」を示す。
-            # confidence は class 1（成功）の確率。
-            # 条件1 (ml_pred==0 and ml_confidence>=0.55):
-            #   class 0 が選ばれた状態で confidence>=0.55 → 「成功確率55%以上だが失敗を予測」
-            #   = 1-0.55=0.45以下の確率で class 1 を選ばなかった → 失敗を確信
-            #   ※ 直感に反するが、predict() の argmax と predict_proba()[1] の関係から正しい
+            # confidence は max(p_0, p_1) = 「最も確実なクラスの確率」。
+            # 条件1 (ml_pred==0 and ml_confidence>=high_conf_failure 例:0.65):
+            #   class 0(失敗) が argmax + 失敗確率が high_conf_failure 以上
+            #   = モデルが「失敗を強く確信」している場合のみ拒否
+            #   旧ハードコード0.55では失敗確率55%以上で拒否 → 過剰防衛
+            #   yaml化+デフォルト0.65に緩和 → 失敗確信55-65%は通過（成功確率35-45%）
+            #   RR比2.0:1なら勝率33%で採算ライン → 35-45%の成功確率なら長期黒字
             # 条件2 (ml_confidence < reject_threshold):
-            #   成功確率が reject_threshold (0.42) 未満 → 戦略無効化
-            # どちらかが成立すれば HOLD 変換
+            #   max(p) < reject_threshold (0.42) — 二値分類で max(p) は通常>=0.5 のため稀
             self.logger.warning(
                 f"🚫 Phase 73-D: 品質フィルタ拒否 - "
                 f"{strategy_action.upper()}→HOLD "

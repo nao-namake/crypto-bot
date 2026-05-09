@@ -125,6 +125,11 @@ ml:
     accept_threshold: 0.58  # Phase 82: 0.65→0.58（新モデル分布で通過率~22%）
     reject_threshold: 0.42  # Phase 82: 0.45→0.42（リジェクト率~21%）
     uncertain_penalty: 0.5  # 中間帯50%縮小（維持）
+    # Phase 84: 旧trading_cycle_manager.pyハードコード0.55を yaml化+0.65に緩和
+    # 失敗予測の確信度閾値: ml_pred=0 かつ max(p)>=この値で「確信失敗」とみなしHOLD化
+    # 0.55→0.65に緩和: 失敗確率55-65%（成功確率35-45%）の取引を通過させる
+    # RR比2.0:1なら勝率33%で採算ラインのため、成功確率35-45%でも長期黒字想定
+    high_confidence_failure_threshold: 0.65
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3
@@ -347,6 +352,12 @@ strategies:
     di_diff_threshold: 5.0
     di_divergence_threshold: 12.0
     use_di_divergence: false
+    # Phase 84: 強トレンド継続中のDI差順張りエントリー（DIクロス不要）
+    # 旧実装は「強トレンド + DIクロス」必須で、強トレンド継続中はクロスが起きず hold 確定だった
+    # ADX≥30 かつ |+DI - -DI|≥8 で順張り発火（信頼度=0.5）
+    strong_trend_continuation_adx: 30
+    strong_trend_continuation_di_diff: 8.0
+    strong_trend_continuation_confidence: 0.5
   atr_based:
     enabled: true
     class_name: ATRBased
@@ -606,7 +617,8 @@ position_management:
   min_account_balance: 10000
   max_open_positions: 3
   max_daily_trades: 50
-  max_same_direction_positions: 1
+  # Phase 84: 1→2に緩和（保証金維持率予測80%/レジーム別上限/連敗縮小等で多重防衛のため安全）
+  max_same_direction_positions: 2
   cooldown_minutes: 15
   min_trade_size: 0.0001
   # Phase 82: ダスト/微小ポジション判定下限（これ未満はTP/SL配置スキップ）

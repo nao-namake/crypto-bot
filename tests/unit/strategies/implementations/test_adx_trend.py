@@ -809,5 +809,84 @@ class TestADXConfidenceCalculations(unittest.TestCase):
         self.assertLessEqual(conf, 0.55)
 
 
+class TestPhase84StrongTrendContinuation(unittest.TestCase):
+    """Phase 84: 強トレンド継続中のDI差順張りエントリーテスト"""
+
+    def setUp(self):
+        from src.strategies.implementations.adx_trend import ADXTrendStrengthStrategy
+
+        self.strategy = ADXTrendStrengthStrategy()
+
+    def _create_data_with_strong_trend(self, di_diff: float, adx: float = 35):
+        """強トレンド継続中のテストデータ生成（DIクロスなし）"""
+        import pandas as pd
+
+        n = 50
+        # 高値・安値・終値を生成
+        df = pd.DataFrame(
+            {
+                "close": [12500000.0] * n,
+                "high": [12550000.0] * n,
+                "low": [12450000.0] * n,
+                "volume": [1.0] * n,
+                "atr_14": [50000.0] * n,
+                "volume_ratio": [1.0] * n,
+                "rsi_14": [50.0] * n,
+                "bb_position": [0.5] * n,
+            }
+        )
+        # 強トレンド継続中: ADXは継続的に高い、DIクロスは発生していない
+        df["adx_14"] = adx
+        # DIクロス防止: 前期間も同じ方向
+        if di_diff > 0:
+            df["plus_di_14"] = 25 + di_diff / 2
+            df["minus_di_14"] = 25 - di_diff / 2
+        else:
+            df["plus_di_14"] = 25 + di_diff / 2  # マイナス
+            df["minus_di_14"] = 25 - di_diff / 2
+        return df
+
+    def test_strong_trend_continuation_buy_signal(self):
+        """ADX≥30 + DI差≥8 で BUY シグナル発火（DIクロス不要）"""
+        df = self._create_data_with_strong_trend(di_diff=10.0, adx=35)
+        signal = self.strategy.generate_signal(df)
+
+        self.assertEqual(signal.action, "buy")
+        self.assertAlmostEqual(signal.confidence, 0.5, delta=0.01)
+        self.assertIn("Phase 84 強トレンド継続順張り", signal.reason)
+
+    def test_strong_trend_continuation_sell_signal(self):
+        """ADX≥30 + DI差≤-8 で SELL シグナル発火"""
+        df = self._create_data_with_strong_trend(di_diff=-10.0, adx=35)
+        signal = self.strategy.generate_signal(df)
+
+        self.assertEqual(signal.action, "sell")
+        self.assertAlmostEqual(signal.confidence, 0.5, delta=0.01)
+        self.assertIn("Phase 84 強トレンド継続順張り", signal.reason)
+
+    def test_strong_trend_continuation_di_diff_too_small(self):
+        """ADX≥30 だが DI差<8 では発火しない"""
+        df = self._create_data_with_strong_trend(di_diff=5.0, adx=35)
+        signal = self.strategy.generate_signal(df)
+
+        # Phase 84条件不成立 → 後続ロジックで判定（is_strong_trendなのでmoderate判定外、結果holdになる）
+        # is_strong_trend かつ adx_rising False（一定値なので）+ DI差 5（>=2.0）+ volume_ratio=1.0 (<=1.1)
+        # → moderate_trend条件外 → weak_trend条件外 → 動的confidence のhold
+        self.assertEqual(signal.action, "hold")
+
+    def test_strong_trend_continuation_adx_too_low(self):
+        """ADX<30 では Phase 84 条件不成立"""
+        df = self._create_data_with_strong_trend(di_diff=10.0, adx=25)
+        signal = self.strategy.generate_signal(df)
+
+        # ADX=25 では strong_trend_continuation_adx(=30) 未満
+        # → Phase 84 はスキップ
+        # → 既存ロジック: is_strong_trend(>=22) True, adx_rising False（一定値）→ DIクロスチェックスキップ
+        # → moderate_trend(15<=adx<22) False → weak_trend(<15) False → hold
+        # ただし is_moderate_trend の boundary が weak_trend_threshold〜strong_trend_threshold
+        # つまり 15<=adx<22 のため、ADX=25は moderate_trend ではない
+        self.assertEqual(signal.action, "hold")
+
+
 if __name__ == "__main__":
     unittest.main()

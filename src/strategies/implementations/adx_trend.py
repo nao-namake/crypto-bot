@@ -91,11 +91,25 @@ class ADXTrendStrengthStrategy(StrategyBase):
         self.bb_extreme_bonus = get_threshold("strategies.adx_trend.bb_extreme_bonus", 0.05)
         self.adx_falling_bonus = get_threshold("strategies.adx_trend.adx_falling_bonus", 0.05)
 
+        # Phase 84: 強トレンド継続中のDI差順張りパラメータ
+        # 旧実装は「強トレンド + DIクロス」必須で、強トレンド継続中はDIクロス未発生→hold確定だった
+        self.strong_trend_continuation_adx = get_threshold(
+            "strategies.adx_trend.strong_trend_continuation_adx", 30
+        )
+        self.strong_trend_continuation_di_diff = get_threshold(
+            "strategies.adx_trend.strong_trend_continuation_di_diff", 8.0
+        )
+        self.strong_trend_continuation_confidence = get_threshold(
+            "strategies.adx_trend.strong_trend_continuation_confidence", 0.5
+        )
+
         self.logger.info(
             f"ADX Trend戦略初期化完了 - 期間: {self.adx_period}, "
             f"強いトレンド閾値: {self.strong_trend_threshold}, "
             f"レンジモード: {self.range_mode_enabled}, "
-            f"RSI主導モード: {self.use_rsi_driven_mode}"
+            f"RSI主導モード: {self.use_rsi_driven_mode}, "
+            f"強トレンド継続: ADX≥{self.strong_trend_continuation_adx} + "
+            f"DI差≥{self.strong_trend_continuation_di_diff}"
         )
 
     def get_required_features(self) -> list[str]:
@@ -310,6 +324,46 @@ class ADXTrendStrengthStrategy(StrategyBase):
                     analysis=analysis,
                     multi_timeframe_data=multi_timeframe_data,
                 )
+
+        # 1b. Phase 84: 強トレンド継続中のDI差順張り（DIクロス不要）
+        # 旧実装は「強トレンド + DIクロス」必須で、強トレンド継続中は新規DIクロスが起きず hold 確定だった
+        # ADX≥30 + |DI差|≥8 で順張りエントリー（方向性が明確な場合のみ）
+        if (
+            analysis["adx"] >= self.strong_trend_continuation_adx
+            and not analysis["bullish_crossover"]
+            and not analysis["bearish_crossover"]
+        ):
+            if analysis["di_difference"] >= self.strong_trend_continuation_di_diff:
+                return self._create_signal(
+                    action="buy",
+                    confidence=self.strong_trend_continuation_confidence,
+                    reason=(
+                        f"Phase 84 強トレンド継続順張り（ADX: {analysis['adx']:.1f}≥"
+                        f"{self.strong_trend_continuation_adx}, "
+                        f"+DI−−DI: {analysis['di_difference']:.1f}≥"
+                        f"{self.strong_trend_continuation_di_diff}）"
+                    ),
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
+                )
+            elif analysis["di_difference"] <= -self.strong_trend_continuation_di_diff:
+                return self._create_signal(
+                    action="sell",
+                    confidence=self.strong_trend_continuation_confidence,
+                    reason=(
+                        f"Phase 84 強トレンド継続順張り（ADX: {analysis['adx']:.1f}≥"
+                        f"{self.strong_trend_continuation_adx}, "
+                        f"−DI−+DI: {-analysis['di_difference']:.1f}≥"
+                        f"{self.strong_trend_continuation_di_diff}）"
+                    ),
+                    current_price=current_price,
+                    df=df,
+                    analysis=analysis,
+                    multi_timeframe_data=multi_timeframe_data,
+                )
+
         # 2. 中程度トレンド + 明確なDI優勢
         if analysis["is_moderate_trend"] and analysis["di_strength"] >= 2.0:
             if analysis["dominant_direction"] == "bullish" and analysis["volume_ratio"] > 1.1:
