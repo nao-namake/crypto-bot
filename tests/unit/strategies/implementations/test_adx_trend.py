@@ -810,12 +810,19 @@ class TestADXConfidenceCalculations(unittest.TestCase):
 
 
 class TestPhase84StrongTrendContinuation(unittest.TestCase):
-    """Phase 84: 強トレンド継続中のDI差順張りエントリーテスト"""
+    """Phase 84: 強トレンド継続中のDI差順張りエントリーテスト
+
+    Phase 85 注記: yaml で strong_trend_continuation_adx: 999 に設定（trending全停止と整合のため実質無効化）
+    したがって本テストクラスは setUp で 30 に上書きして Phase 84 ロジックの単体テストとして維持。
+    コード自体は将来 Phase 86 で削除予定。
+    """
 
     def setUp(self):
         from src.strategies.implementations.adx_trend import ADXTrendStrengthStrategy
 
         self.strategy = ADXTrendStrengthStrategy()
+        # Phase 85: yaml=999 を Phase 84 テスト用に 30 で上書き
+        self.strategy.strong_trend_continuation_adx = 30
 
     def _create_data_with_strong_trend(self, di_diff: float, adx: float = 35):
         """強トレンド継続中のテストデータ生成（DIクロスなし）"""

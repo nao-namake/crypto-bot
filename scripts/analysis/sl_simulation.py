@@ -45,6 +45,10 @@ SCENARIOS = [
     {"name": "TP1000/SL500(floor無し)", "tp_amount": 1000.0, "sl_amount": 500.0, "floor": 0.0},
     {"name": "TP750 /SL500(floor無し)", "tp_amount": 750.0, "sl_amount": 500.0, "floor": 0.0},
     {"name": "TP750 /SL800(floor0.4%)", "tp_amount": 750.0, "sl_amount": 800.0, "floor": 0.004},
+    # Phase 85: TP1500 × SL多段（ユーザー希望3パターン）
+    {"name": "TP1500/SL800 (floor無し)", "tp_amount": 1500.0, "sl_amount": 800.0, "floor": 0.0},
+    {"name": "TP1500/SL1000(floor無し)", "tp_amount": 1500.0, "sl_amount": 1000.0, "floor": 0.0},
+    {"name": "TP1500/SL1200(floor無し)", "tp_amount": 1500.0, "sl_amount": 1200.0, "floor": 0.0},
 ]
 
 
@@ -104,17 +108,31 @@ def reconstruct_entry_price(exit_side: str, exit_price: float, amount: float, pn
 def calc_sl_distance(
     entry_price: float, amount: float, sl_amount: float, floor_ratio: float
 ) -> float:
-    """SL距離（価格レベル）を算出。floor_ratio>0 ならfloor強制"""
-    fee_buffer = entry_price * amount * (ENTRY_FEE_RATE + 0.001)  # entry+exit_taker
-    target_loss_distance = (sl_amount + fee_buffer) / amount
+    """SL距離（価格レベル）を算出。floor_ratio>0 ならfloor強制
+
+    Phase 85 修正: 実コード（strategy_utils.py:485-487）と同じ手数料控除ロジックに変更。
+    旧実装は手数料を加算しており、SL距離を約7倍過大評価していた。
+    """
+    entry_fee = entry_price * amount * ENTRY_FEE_RATE
+    exit_fee = entry_price * amount * 0.001  # SL決済はTaker 0.1%
+    gross_loss = sl_amount - entry_fee - exit_fee
+    if gross_loss <= 0:
+        # 実コードのフォールバック (strategy_utils.py:492)
+        target_loss_distance = sl_amount / amount
+    else:
+        target_loss_distance = gross_loss / amount
     floor_distance = entry_price * floor_ratio if floor_ratio > 0 else 0
     return max(target_loss_distance, floor_distance)
 
 
 def calc_tp_distance(entry_price: float, amount: float, tp_amount: float) -> float:
-    """TP距離（価格レベル）を算出。TP決済はMaker想定で決済手数料0%"""
-    fee_buffer = entry_price * amount * ENTRY_FEE_RATE  # entryのみ
-    return (tp_amount + fee_buffer) / amount
+    """TP距離（価格レベル）を算出。TP決済はMaker想定で決済手数料0%
+
+    Phase 85 修正: 実コードと同じ手数料控除ロジックに変更。
+    """
+    entry_fee = entry_price * amount * ENTRY_FEE_RATE
+    gross_profit = tp_amount - entry_fee  # Maker想定でexit_fee=0
+    return gross_profit / amount
 
 
 def simulate_trade(

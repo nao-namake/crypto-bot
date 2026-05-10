@@ -76,13 +76,13 @@ class TestDynamicStrategySelector:
         assert selector.validate_weights(weights)
 
     def test_get_regime_weights_trending(self, selector):
-        """trending レジームの重み取得が正しいことを確認（Phase 51.8: 6戦略）"""
+        """trending レジームの重み取得が正しいことを確認（Phase 85: trending全戦略0.0で停止）"""
         weights = selector.get_regime_weights(RegimeType.TRENDING)
 
-        # Phase 51.8: 6戦略全てを含む
+        # Phase 51.8: 6戦略全てを含む（Phase 85でも構造は維持、値だけ0.0に）
         assert len(weights) == 6
 
-        # trendingはトレンド型戦略に集中（ADXTrendStrength・MACDEMACrossover）
+        # Phase 85: trending時は全戦略0.0でエントリー停止（過去30日全シナリオ赤字判明）
         assert "ADXTrendStrength" in weights
         assert "MACDEMACrossover" in weights
         assert "ATRBased" in weights
@@ -90,20 +90,17 @@ class TestDynamicStrategySelector:
         assert "BBReversal" in weights
         assert "StochasticReversal" in weights
 
-        # Phase 74: 全戦略に最低0.10重み
-        assert weights["ADXTrendStrength"] > 0
-        assert weights["MACDEMACrossover"] > 0
-        assert weights["ATRBased"] > 0
-        assert weights["CMFReversal"] > 0
-        assert weights["BBReversal"] > 0
-        assert weights["StochasticReversal"] > 0
+        # Phase 85: trending全戦略の重みは 0.0（過去Phase 74の最低0.10は撤廃、全停止）
+        assert weights["ADXTrendStrength"] == 0.0
+        assert weights["MACDEMACrossover"] == 0.0
+        assert weights["ATRBased"] == 0.0
+        assert weights["CMFReversal"] == 0.0
+        assert weights["BBReversal"] == 0.0
+        assert weights["StochasticReversal"] == 0.0
 
-        # ADXTrendStrengthが最も高い重みを持つことを確認
-        assert weights["ADXTrendStrength"] > weights["MACDEMACrossover"]
-        assert weights["ADXTrendStrength"] > weights["ATRBased"]
-
-        # 重み合計が1.0であることを確認
-        assert selector.validate_weights(weights)
+        # Phase 85: 重み合計は 0.0（high_volatilityと同様、戦略全停止）
+        # validate_weights は合計1.0±許容を期待するため false でOK（trending時は別ロジックでスキップ）
+        assert sum(weights.values()) == 0.0
 
     def test_get_regime_weights_high_volatility(self, selector):
         """high_volatility レジームは全戦略0.0（全戦略無効化）を返すことを確認（Phase 51.8: 6戦略）"""

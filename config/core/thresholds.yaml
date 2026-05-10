@@ -294,13 +294,14 @@ dynamic_strategy_selection:
       StochasticReversal: 0.15
       ADXTrendStrength: 0.15
       MACDEMACrossover: 0.15
+    # Phase 85: trending時は全戦略無効化（過去30日全シナリオ赤字、設計思想「レンジ専用」に合致）
     trending:
-      ADXTrendStrength: 0.30
-      MACDEMACrossover: 0.25
-      ATRBased: 0.15
-      CMFReversal: 0.10
-      StochasticReversal: 0.10
-      BBReversal: 0.10
+      ADXTrendStrength: 0.0
+      MACDEMACrossover: 0.0
+      ATRBased: 0.0
+      CMFReversal: 0.0
+      StochasticReversal: 0.0
+      BBReversal: 0.0
     high_volatility:
       ATRBased: 0.0
       BBReversal: 0.0
@@ -353,9 +354,9 @@ strategies:
     di_divergence_threshold: 12.0
     use_di_divergence: false
     # Phase 84: 強トレンド継続中のDI差順張りエントリー（DIクロス不要）
-    # 旧実装は「強トレンド + DIクロス」必須で、強トレンド継続中はクロスが起きず hold 確定だった
-    # ADX≥30 かつ |+DI - -DI|≥8 で順張り発火（信頼度=0.5）
-    strong_trend_continuation_adx: 30
+    # Phase 85: trending時はレジーム全戦略0.0で停止する方針のため、ADX閾値を999に上げて実質無効化
+    # （コードは残置、将来的にPhase 86で削除予定）
+    strong_trend_continuation_adx: 999
     strong_trend_continuation_di_diff: 8.0
     strong_trend_continuation_confidence: 0.5
   atr_based:
@@ -617,8 +618,9 @@ position_management:
   min_account_balance: 10000
   max_open_positions: 3
   max_daily_trades: 50
-  # Phase 84: 1→2に緩和（保証金維持率予測80%/レジーム別上限/連敗縮小等で多重防衛のため安全）
-  max_same_direction_positions: 2
+  # Phase 85: Phase 84で1→2に緩和したが、24h観測で0.030 BTC統合ポジが発生し損失40%増幅
+  # → 1にロールバック（trending停止と組み合わせて、エントリー機会は別軸で確保）
+  max_same_direction_positions: 1
   cooldown_minutes: 15
   min_trade_size: 0.0001
   # Phase 82: ダスト/微小ポジション判定下限（これ未満はTP/SL配置スキップ）
@@ -671,13 +673,14 @@ position_management:
       fallback_to_native: true
     fixed_amount:
       enabled: true
-      # Phase 83B: TP1000/SL500/floor撤廃（RR比2.0:1）に方針転換
-      target_net_profit: 1000
+      # Phase 85: tight_range基準のTP目標。レジーム別はregime_basedで個別設定
+      # 過去30日 tight 29件で TP1500/SL2000 floor 0.7% が勝率67.9%/+362円/件 黒字確認
+      target_net_profit: 1500
       confidence_based:
         enabled: true
         threshold: 0.4
-        low: 800
-        high: 1000
+        low: 1200
+        high: 1500
       include_entry_fee: true
       include_exit_fee_rebate: true
       include_interest: true
@@ -685,25 +688,27 @@ position_management:
       fallback_exit_fee_rate: 0.0
     regime_based:
       enabled: true
+      # Phase 85: レジーム別TP目標を実証データで再設計（過去30日106件分析より）
       tight_range:
-        min_profit_ratio: 0.004
-        weekend_ratio: 0.0025
+        min_profit_ratio: 0.007  # Phase 85: 0.4%→0.7%（floor 0.7%復活と整合）
+        weekend_ratio: 0.0045
         default_ratio: 1.33
-        fixed_amount_target: 1000
+        fixed_amount_target: 1500  # Phase 85: 1000→1500（tight勝率67.9% +362円/件）
       normal_range:
-        min_profit_ratio: 0.01
-        weekend_ratio: 0.0065
+        min_profit_ratio: 0.004  # Phase 85: 1.0%→0.4%（浅いTPで取りこぼし減）
+        weekend_ratio: 0.0025
         default_ratio: 1.43
-        fixed_amount_target: 1000
+        fixed_amount_target: 500  # Phase 85: 1000→500（normal勝率75% ±0円）
       trending:
+        # Phase 85: trending時は戦略全停止のため到達しないが、安全のため値は維持
         min_profit_ratio: 0.015
         weekend_ratio: 0.01
         default_ratio: 1.5
-        fixed_amount_target: 1000
+        fixed_amount_target: 1500
       high_volatility:
         min_profit_ratio: 0.02
         default_ratio: 1.33
-        fixed_amount_target: 1000
+        fixed_amount_target: 1500
   stop_loss:
     enabled: true
     order_type: stop  # Phase 80: stop_limit→stop ロールバック（Phase 69.8の教訓を再確認）
@@ -715,34 +720,36 @@ position_management:
     execution_slippage: 0.003
     fixed_amount:
       enabled: true
-      # Phase 83B: TP1000/SL500/floor撤廃（RR比2.0:1）。シミュ24件で勝率95.5%維持を確認
-      target_max_loss: 500
+      # Phase 85: Phase 83B撤廃(SL500/floor無し)→真の運用シミュ全106件で勝率0-39%・全シナリオ赤字判明
+      # tight基準のSL目標。floor 0.7%復活と組み合わせて BTC ノイズ(0.3-0.5%) 越え保証
+      target_max_loss: 2000
       confidence_based:
         enabled: true
         threshold: 0.4
-        low: 400
-        high: 500
+        low: 1500
+        high: 2000
       include_entry_fee: true
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true
       fallback_exit_fee_rate: 0.001
     regime_based:
       enabled: true
+      # Phase 85: レジーム別SL目標を実証データで再設計
       tight_range:
-        max_loss_ratio: 0.004
-        weekend_ratio: 0.0025
-        fixed_amount_target: 500
+        max_loss_ratio: 0.0086  # Phase 85: 0.4%→0.86%（SL2000相当、ノイズ越え）
+        weekend_ratio: 0.0056
+        fixed_amount_target: 2000  # Phase 85: 500→2000
       normal_range:
-        max_loss_ratio: 0.007
+        max_loss_ratio: 0.007  # Phase 85: 0.7%維持
         weekend_ratio: 0.0045
-        fixed_amount_target: 500
+        fixed_amount_target: 1500  # Phase 85: 500→1500
       trending:
         max_loss_ratio: 0.01
         weekend_ratio: 0.0065
-        fixed_amount_target: 500
+        fixed_amount_target: 2000
       high_volatility:
         max_loss_ratio: 0.015
-        fixed_amount_target: 500
+        fixed_amount_target: 2000
     adaptive_atr:
       enabled: true
       use_15m_timeframe: true
@@ -756,9 +763,11 @@ position_management:
         threshold_ratio: 1.3
         multiplier: 1.5
     min_distance:
-      # Phase 83B: floor撤廃（SL500円徹底のため）
-      enabled: false
-      ratio: 0.0
+      # Phase 85: floor 0.7%復活（Phase 83B撤廃判断は sl_simulation.py の手数料加算バグに基づく虚像と判明）
+      # 真の運用シミュ106件で floor 0.7% 無しは全シナリオ -200円/件超の壊滅的損失
+      # floor 0.7% 入れると損失が90%縮小（最良 tight_range TP1500/SL2000 で +362円/件 黒字）
+      enabled: true
+      ratio: 0.007
       override_atr: false
       min_atr_multiplier: 1.5
     trailing:

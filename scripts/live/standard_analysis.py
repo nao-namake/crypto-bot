@@ -876,16 +876,31 @@ class BotFunctionChecker:
                 "expected": 0.10,
                 "default": 0.20,
             },
-            # Phase 83B: TP/SL固定金額（Phase 75-Bの750/1000 → 1000/500、RR比2.0:1）
+            # Phase 85: TP/SL固定金額（tight基準 TP1500/SL2000 + floor 0.7%復活、レジーム別はregime_basedで個別）
             "固定金額TP目標": {
                 "path": "position_management.take_profit.fixed_amount.target_net_profit",
-                "expected": 1000,
-                "default": 1000,
+                "expected": 1500,
+                "default": 1500,
             },
             "固定金額SL目標": {
                 "path": "position_management.stop_loss.fixed_amount.target_max_loss",
-                "expected": 500,
-                "default": 500,
+                "expected": 2000,
+                "default": 2000,
+            },
+            "SL floor有効化": {
+                "path": "position_management.stop_loss.min_distance.enabled",
+                "expected": True,
+                "default": False,
+            },
+            "SL floor比率": {
+                "path": "position_management.stop_loss.min_distance.ratio",
+                "expected": 0.007,
+                "default": 0.0,
+            },
+            "同方向ポジション上限": {
+                "path": "position_management.max_same_direction_positions",
+                "expected": 1,
+                "default": 1,
             },
             # Maker戦略
             "Entry Maker有効": {
