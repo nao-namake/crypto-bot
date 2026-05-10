@@ -202,7 +202,7 @@ class RiskManager:
         logger = get_logger()
 
         try:
-            target_net_profit = config.get("target_net_profit", 1000)
+            target_net_profit = config.get("target_net_profit", 1500)  # Phase 85: 1000→1500
 
             # エントリー手数料
             include_entry_fee = config.get("include_entry_fee", True)
@@ -449,10 +449,10 @@ class RiskManager:
                 if regime:
                     sl_target = get_threshold(
                         f"position_management.stop_loss.regime_based.{regime}.fixed_amount_target",
-                        fixed_sl_config.get("target_max_loss", 500),
+                        fixed_sl_config.get("target_max_loss", 2000),  # Phase 85: 500→2000
                     )
                 else:
-                    sl_target = fixed_sl_config.get("target_max_loss", 500)
+                    sl_target = fixed_sl_config.get("target_max_loss", 2000)  # Phase 85: 500→2000
 
                 # Phase 68.8: 信頼度別SL金額
                 confidence_config = fixed_sl_config.get("confidence_based", {})
@@ -529,7 +529,7 @@ class RiskManager:
                 if regime:
                     regime_target = get_threshold(
                         f"position_management.take_profit.regime_based.{regime}.fixed_amount_target",
-                        fixed_amount_config.get("target_net_profit", 1000),
+                        fixed_amount_config.get("target_net_profit", 1500),  # Phase 85: 1000→1500
                     )
                     # レジーム別目標をconfigにコピー
                     fixed_amount_config = dict(fixed_amount_config)  # コピーして変更
@@ -565,7 +565,7 @@ class RiskManager:
                     take_profit = fixed_tp
                     logger.info(
                         f"🎯 Phase 61.7: 固定金額TP適用 - "
-                        f"目標純利益={fixed_amount_config.get('target_net_profit', 1000):.0f}円"
+                        f"目標純利益={fixed_amount_config.get('target_net_profit', 1500):.0f}円"
                         f"{tp_confidence_label}, "
                         f"TP={fixed_tp:.0f}円"
                     )

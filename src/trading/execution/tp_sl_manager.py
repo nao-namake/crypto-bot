@@ -1261,7 +1261,8 @@ class TPSLManager:
             )
 
         target = get_threshold(
-            "position_management.take_profit.fixed_amount.target_net_profit", 500
+            "position_management.take_profit.fixed_amount.target_net_profit",
+            1500,  # Phase 85: 500→1500
         )
         # 決済手数料考慮（TP決済はMaker 0%がデフォルト）
         exit_fee_rate = get_threshold(
@@ -1301,7 +1302,7 @@ class TPSLManager:
                 f"{min_valid_btc} BTC. ダスト/微小ポジションの可能性。"
             )
 
-        target = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_TARGET, 500)
+        target = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_TARGET, 2000)  # Phase 85: 500→2000
         # Phase 70.2: entry_feeをSL予算に再包含（bitbank PnLとの整合性確保）
         entry_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_ENTRY_FEE, 0.001)
         entry_fee = avg_price * amount * entry_fee_rate

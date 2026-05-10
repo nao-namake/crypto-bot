@@ -315,10 +315,10 @@ SL距離: `max((SL目標 - エントリー手数料(0.1%) - 決済手数料(0.1%
 | timeout | 60秒、リトライ3回 |
 | fallback | Maker失敗時はTakerで成行注文 |
 
-### ML品質フィルタ（Phase 83B-ML 再学習）
+### ML品質フィルタ（Phase 85 再学習）
 
 メタラベリング（Triple Barrier Method）方式。MLは方向予測ではなく、戦略の出した取引が成功するかを判定。
-Phase 83B-ML: TP1000/SL500/floor撤廃に合わせ再学習（meta_tp_ratio 0.006 / meta_sl_ratio 0.0045）。
+Phase 85: tight基準 TP1500/SL2000 + floor 0.7%に合わせ再学習（meta_tp_ratio 0.007 / meta_sl_ratio 0.0086）。
 
 | 閾値 | 値 | 動作 |
 |------|-----|------|
@@ -329,20 +329,21 @@ Phase 83B-ML: TP1000/SL500/floor撤廃に合わせ再学習（meta_tp_ratio 0.00
 
 **Phase 84 補足**: confidence は `max(p_0, p_1)`（class 1確率ではない）。ml_pred==0 + confidence=0.808 なら失敗確信80.8%＝正常な拒否動作。
 
-**再学習後モデル信頼度分布**（2026/5/8-9学習、Phase 83B-ML）:
-- アンサンブル p(1) mean=0.652, std=0.149, range=[0.243-0.896]
-- CV F1: LGB 0.612±0.032 / XGB 0.583±0.060 / RF 0.552±0.075（Phase 83A-3 0.612と一致）
-- 学習サンプル: 35,036件（365日分、2025-05-08〜2026-05-07）
-- class_distribution: success 31.4% / failure 68.6%
-- ランダムデータ推論: accept 72% / middle 17% / reject 11%（前回 24.1/66.7/9.3 から大幅変化）
-- 高信頼度(>60%)比率: 71%
-- 極端予測 >0.75: 28%（要監視・前回0%）
+**再学習後モデル性能**（2026/5/11学習、Phase 85）:
+- CV F1: LGB 0.602±0.051 / XGB 0.577±0.073 / RF 0.571±0.074（Phase 83A-3とほぼ同等）
+- 学習サンプル: 35,036件（365日分、2025-05-11〜2026-05-10）
+- 信頼度分布: LGB mean=0.633 / XGB mean=0.740 / RF mean=0.677
+- 最適閾値: 0.50 (F1=0.5021)
+- SMOTE適用: 29,780 → 41,312サンプル
 
-**注意**: meta_sl_ratio が前回より厳しいため信頼度上振れ。デプロイ後の実データ推論で accept率が高すぎる場合（>50%）、accept_threshold を 0.65 に引き上げ要検討。
+**Phase 85採算ライン勝率**（レジーム別）:
+- tight_range (実RR 0.81:1): 採算 55%、実証67.9%で大幅余裕 ✅
+- normal_range (実RR 0.16:1): 採算 86%、実証75%でやや厳しい（薄利OK狙い）
 
 **モデルバックアップ**:
 - `models/production/ensemble_{full,basic}.phase82.pkl.bak`: Phase 82モデル
 - `models/production/ensemble_{full,basic}.phase83a.pkl.bak`: Phase 83A-3モデル
+- `models/production/ensemble_{full,basic}.phase84.pkl.bak`: Phase 84モデル
 
 ---
 

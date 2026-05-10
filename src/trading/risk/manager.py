@@ -362,7 +362,9 @@ class IntegratedRiskManager:
                                 "position_management.stop_loss.fixed_amount", {}
                             )
                             if fixed_sl_config.get("enabled", False):
-                                sl_target = fixed_sl_config.get("target_max_loss", 500)
+                                sl_target = fixed_sl_config.get(
+                                    "target_max_loss", 2000
+                                )  # Phase 85: 500→2000
                                 # Phase 70.2: entry_fee再包含
                                 entry_fee_rate = fixed_sl_config.get(
                                     "fallback_entry_fee_rate", 0.001

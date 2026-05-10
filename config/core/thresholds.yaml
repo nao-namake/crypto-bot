@@ -127,8 +127,10 @@ ml:
     uncertain_penalty: 0.5  # 中間帯50%縮小（維持）
     # Phase 84: 旧trading_cycle_manager.pyハードコード0.55を yaml化+0.65に緩和
     # 失敗予測の確信度閾値: ml_pred=0 かつ max(p)>=この値で「確信失敗」とみなしHOLD化
-    # 0.55→0.65に緩和: 失敗確率55-65%（成功確率35-45%）の取引を通過させる
-    # RR比2.0:1なら勝率33%で採算ラインのため、成功確率35-45%でも長期黒字想定
+    # Phase 85 注記: TP/SLがレジーム別になったため採算ライン勝率もレジーム別:
+    #   tight (TP1500/SL2000、名目RR 0.75:1、実RR 0.81:1) → 採算ライン勝率 55%
+    #   normal (TP500/SL1500、名目RR 0.33:1、実RR 0.16:1) → 採算ライン勝率 86%
+    # tight中心の運用なので閾値0.65のままで失敗確率65%超のみ拒否（過剰防衛回避）
     high_confidence_failure_threshold: 0.65
   ensemble_enabled: true
   ensemble_weights:
