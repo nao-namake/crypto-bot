@@ -4,11 +4,11 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 86（TP/SL/Entryアーキテクチャ根本再構築・対処療法からの脱却） |
-| **直前の作業** | Phase 86: TPSLCalculator単一実装・TP entry_fee加算バグ修正・bitbank API wrapper強化・Atomic Entry緊急成行決済・起動時SL自動修復 |
-| **次の予定** | デプロイ→現ポジSL自動修復確認→24-48h観測（孤児ポジゼロ・実態Maker/Taker率取得） |
-| **最新成果** | Phase 62-85の往復修正地獄の根本原因（TP/SL計算4箇所分散・Atomic Entry不完全・ccxt bitbank stop未対応）を解消 |
-| **最終更新** | 2026年5月12日 |
+| **現在Phase** | 86（TP/SL/Entryアーキテクチャ根本再構築）デプロイ完了 |
+| **直前の作業** | Phase 86: TPSLCalculator単一実装・bitbank API wrapper強化・Atomic Entry緊急成行決済・起動時SL自動修復 |
+| **次の予定** | 24-48h観測 `python3 scripts/live/standard_analysis.py --hours 24` で新検出機能(missing_sl/Taker率)とPhase 86挙動を確認 |
+| **最新成果** | デプロイ後現ポジ0.015BTC@12,840,001へSL自動配置成功(trigger=12,732,347, 0.838%) / TPもentry_fee加算で12,952,841に再配置(0.879%) |
+| **最終更新** | 2026年5月12日 06:00 JST |
 
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`docs/開発履歴/Phase_82.md`、`docs/開発履歴/Phase_83.md`、`docs/開発履歴/Phase_84.md`、`docs/開発履歴/Phase_85.md`、`docs/開発履歴/Phase_86.md`（最新）
 

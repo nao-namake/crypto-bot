@@ -1,7 +1,7 @@
 # Phase 86: 対処療法からの脱却 - TP/SL/Entry アーキテクチャ根本再構築
 
 **期間**: 2026年5月12日
-**状態**: 実装完了・コミット待ち
+**状態**: 実装完了・デプロイ済・現ポジSL自動修復確認済
 
 ---
 
@@ -166,3 +166,43 @@ python3 scripts/live/standard_analysis.py --hours 24
 - 起動時SL自動配置ログ「Phase 86: 緊急SL配置成功」が出る
 - TP/SL計算ログ「Phase 86: 固定金額TP計算（TPSLCalculator統一）」が出る
 - 「Phase 86: 即時SL検証スケジュール - 10秒後」が各エントリーで出る
+
+---
+
+## デプロイ実機検証（2026/5/12 06:00 JST）
+
+**コミット**: `13375665`
+**GCP Cloud Run リビジョン**: `crypto-bot-service-prod-unified-system-0511-2022` (Active 100%)
+**CI/CD**: Run 25694741852 success
+
+### 起動時の挙動
+
+1. 05:23:24: 新リビジョン起動完了 (PID:12)
+2. 05:55:20: `Phase 63.4: ポジション復元失敗: bitbank API エラー20001` （nonce/認証一時エラー）
+3. 次のメインサイクル（5分後）でAPI接続安定→ポジション復元成功
+4. **Phase 86 起動時SL欠損検出→緊急SL自動配置実行**
+
+### bitbank API での実態確認（06:00 JST）
+
+```
+Position: long 0.0150 BTC @ ¥12,840,001
+Open Orders: 2件
+  - SL: side=sell, type=stop, trigger=¥12,732,347（distance 0.838%）✅ 自動配置成功
+  - TP: side=sell, type=limit, price=¥12,952,841（distance 0.879%）✅ Phase 86 entry_fee加算
+```
+
+### Phase 86 設計通りの動作確認
+
+| 検証項目 | 期待 | 実機 | 状態 |
+|---------|------|------|------|
+| 起動時SL自動修復 (P0) | 緊急stop配置 | trigger=¥12,732,347 | ✅ |
+| SL距離 floor 0.7% 越え | ≥0.7% | **0.838%** | ✅ |
+| TP距離 entry_fee加算 (P1) | +13%拡大 | 0.779→**0.879%** | ✅ |
+| TPSLCalculator単一実装 | TP/SL計算統一 | 計算値一致 | ✅ |
+
+### 24h観測タスク（次回再開時）
+
+- bitbank API でSL注文がポジション数と対応しているか継続確認
+- 新規エントリーでPhase 86の即時SL検証（10秒後）ログが出るか
+- 分析スクリプトの新フィールド（`missing_sl_detected`, `api_entry_taker_rate`）動作確認
+- Maker/Taker実態の精度（ログベース vs API実値）
