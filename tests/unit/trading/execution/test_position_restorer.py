@@ -541,7 +541,12 @@ class TestPhase6412SLSafetyNet:
         return PositionRestorer()
 
     async def test_restore_skips_orphan_sl(self, restorer):
-        """Phase 64.12: 価格乖離3%超のSL注文を除外"""
+        """Phase 64.12: 価格乖離3%超のSL注文を除外
+
+        Phase 86 注: 孤児SLが除外されると緊急SL配置が試行されるため、
+        本テストでは create_stop_loss_order が失敗するモックを設定し、
+        sl_order_id=None を維持する。
+        """
         from unittest.mock import AsyncMock
 
         avg_price = 10000000.0
@@ -572,6 +577,11 @@ class TestPhase6412SLSafetyNet:
             ]
         )
 
+        # Phase 86: 緊急SL配置が試行されるが失敗するように設定
+        mock_client.create_stop_loss_order = MagicMock(
+            side_effect=Exception("test: emergency SL placement failure simulation")
+        )
+
         virtual_positions = []
         await restorer.restore_positions_from_api(
             virtual_positions=virtual_positions,
@@ -580,11 +590,11 @@ class TestPhase6412SLSafetyNet:
             mode="live",
         )
 
-        # 復元されたがSLは除外
+        # 復元されたがSLは除外（緊急配置も失敗）
         assert len(virtual_positions) == 1
         vp = virtual_positions[0]
         assert vp["tp_order_id"] == "tp_001"
-        assert vp["sl_order_id"] is None  # 孤児SLは除外
+        assert vp["sl_order_id"] is None  # 孤児SLは除外、緊急配置も失敗
 
     async def test_restore_accepts_valid_sl(self, restorer):
         """Phase 64.12: 価格乖離3%以内のSL注文は正常マッチング"""
@@ -621,6 +631,48 @@ class TestPhase6412SLSafetyNet:
 
         assert len(virtual_positions) == 1
         assert virtual_positions[0]["sl_order_id"] == "sl_valid"
+
+    async def test_phase86_emergency_sl_placement_success(self, restorer):
+        """Phase 86: SL注文がない場合に緊急SL配置が実行され、sl_order_idが設定される"""
+        from unittest.mock import AsyncMock
+
+        avg_price = 12_840_001.0
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.015, "average_price": avg_price}]
+        )
+        # TP注文のみ存在、SL注文なし
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {
+                    "id": "tp_001",
+                    "side": "sell",
+                    "type": "limit",
+                    "price": avg_price + 100_000,
+                },
+            ]
+        )
+        # 緊急SL配置成功
+        mock_client.create_stop_loss_order = MagicMock(
+            return_value={"id": "emergency_sl_42", "price": avg_price * 0.99}
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # Phase 86: 緊急SL配置で sl_order_id が設定される
+        assert len(virtual_positions) == 1
+        vp = virtual_positions[0]
+        assert vp["tp_order_id"] == "tp_001"
+        assert vp["sl_order_id"] == "emergency_sl_42"
+        # create_stop_loss_order が呼ばれたことを確認
+        assert mock_client.create_stop_loss_order.called
 
 
 # ========================================

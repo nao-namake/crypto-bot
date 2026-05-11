@@ -1356,11 +1356,12 @@ class TestPhase686FixedAmountTPForPosition:
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     def test_tp_long_position(self, mock_threshold, tp_sl_manager):
-        """ロングポジションのTP計算"""
+        """ロングポジションのTP計算（Phase 86: entry_fee 加算）"""
 
         def threshold_side_effect(key, default=None):
             mapping = {
                 "position_management.take_profit.fixed_amount.target_net_profit": 500,
+                "position_management.take_profit.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.take_profit.fixed_amount.fallback_exit_fee_rate": 0.0,
             }
             return mapping.get(key, default)
@@ -1370,16 +1371,19 @@ class TestPhase686FixedAmountTPForPosition:
         avg_price = 10_800_000
         amount = 0.01
         tp_price = tp_sl_manager._calculate_fixed_amount_tp_for_position("long", amount, avg_price)
-        # tp_offset = 500 / 0.01 = 50,000
-        assert abs(tp_price - (avg_price + 50_000)) < 1.0
+        # Phase 86: entry_fee = 10,800,000 * 0.01 * 0.001 = 108
+        # gross_needed = 500 + 108 + 0 = 608
+        # tp_offset = 608 / 0.01 = 60,800
+        assert abs(tp_price - (avg_price + 60_800)) < 1.0
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     def test_tp_short_position(self, mock_threshold, tp_sl_manager):
-        """ショートポジションのTP計算"""
+        """ショートポジションのTP計算（Phase 86: entry_fee 加算）"""
 
         def threshold_side_effect(key, default=None):
             mapping = {
                 "position_management.take_profit.fixed_amount.target_net_profit": 500,
+                "position_management.take_profit.fixed_amount.fallback_entry_fee_rate": 0.001,
                 "position_management.take_profit.fixed_amount.fallback_exit_fee_rate": 0.0,
             }
             return mapping.get(key, default)
@@ -1389,7 +1393,8 @@ class TestPhase686FixedAmountTPForPosition:
         avg_price = 10_800_000
         amount = 0.01
         tp_price = tp_sl_manager._calculate_fixed_amount_tp_for_position("short", amount, avg_price)
-        assert abs(tp_price - (avg_price - 50_000)) < 1.0
+        # Phase 86: 同じく 60,800円距離
+        assert abs(tp_price - (avg_price - 60_800)) < 1.0
 
     @patch("src.trading.execution.tp_sl_manager.get_threshold")
     def test_is_fixed_amount_tp_enabled(self, mock_threshold, tp_sl_manager):

@@ -202,60 +202,45 @@ class RiskManager:
         logger = get_logger()
 
         try:
+            # Phase 86: TPSLCalculator に統一（4箇所分散の根本解決）
+            from src.trading.execution.tpsl_calculator import TPSLCalculator
+
             target_net_profit = config.get("target_net_profit", 1500)  # Phase 85: 1000→1500
 
-            # エントリー手数料
-            include_entry_fee = config.get("include_entry_fee", True)
-            if include_entry_fee:
-                # Phase 63.2: fee_data.unrealized_fee_amountは集約ポジション全体の
-                # 累積手数料を返すため使用しない。fallbackレートで個別計算。
-                fallback_rate = config.get("fallback_entry_fee_rate", 0.0)
-                entry_fee = entry_price * amount * fallback_rate
+            # configから fee rate 取得（include フラグで 0 制御）
+            if config.get("include_entry_fee", True):
+                entry_fee_rate = config.get("fallback_entry_fee_rate", 0.001)
             else:
-                entry_fee = 0
-
-            # 利息
-            include_interest = config.get("include_interest", True)
-            if include_interest:
-                # Phase 63.2: fee_data.unrealized_interest_amountも集約ポジション
-                # 全体の累積値。新規エントリー時点では利息≈0円。
-                interest = 0
-            else:
-                interest = 0
-
-            # Phase 62.19: 決済手数料推定（Maker 0%）
-            # 2026年2月2日手数料改定: Maker 0%（リベート終了）、Taker 0.1%
+                entry_fee_rate = 0.0
             if config.get("include_exit_fee_rebate", True):
                 exit_fee_rate = config.get("fallback_exit_fee_rate", 0.0)
-                # exit_fee_rateが正（手数料）の場合は加算
-                exit_fee = entry_price * amount * exit_fee_rate
             else:
-                exit_fee = 0
-
-            # 必要含み益計算（Phase 62.11: 決済手数料を加算に修正）
-            required_gross_profit = target_net_profit + entry_fee + interest + exit_fee
+                exit_fee_rate = 0.0
 
             if amount <= 0:
                 logger.warning("⚠️ Phase 61.7: 数量が0以下のためTP計算不可")
                 return None
 
-            price_distance = required_gross_profit / amount
+            tp_price = TPSLCalculator.calculate_tp(
+                action=action.lower(),
+                entry_price=entry_price,
+                amount=amount,
+                target_net_profit=target_net_profit,
+                entry_fee_rate=entry_fee_rate,
+                exit_fee_rate=exit_fee_rate,
+            )
 
-            # Phase 61.8: 妥当性チェック - price_distanceがエントリー価格の10%を超える場合は異常値
-            # （ポジションサイズが小さすぎる場合に発生）
-            max_distance_ratio = 0.10  # 10%
+            # Phase 61.8: 妥当性チェック - price_distance がエントリー価格の10%超は異常値
+            price_distance = abs(tp_price - entry_price)
+            max_distance_ratio = 0.10
             if price_distance > entry_price * max_distance_ratio:
                 logger.warning(
                     f"⚠️ Phase 61.8: 固定金額TP計算異常 - "
-                    f"price_distance={price_distance:.0f}円 > エントリー価格の{max_distance_ratio * 100:.0f}% "
+                    f"price_distance={price_distance:.0f}円 > "
+                    f"エントリー価格の{max_distance_ratio * 100:.0f}% "
                     f"(数量={amount:.6f}が小さすぎる可能性) - %ベースにフォールバック"
                 )
                 return None
-
-            if action.lower() == "buy":
-                tp_price = entry_price + price_distance
-            else:
-                tp_price = entry_price - price_distance
 
             # Phase 61.8: TP価格の妥当性チェック
             if tp_price <= 0:
@@ -265,14 +250,10 @@ class RiskManager:
                 )
                 return None
 
-            # デバッグログ（Phase 62.19→68.8: 手数料改定対応 + 信頼度別）
             logger.info(
-                f"🎯 Phase 62.19: 固定金額TP計算 - "
+                f"🎯 Phase 86: 固定金額TP計算（TPSLCalculator統一） - "
                 f"目標純利益={target_net_profit:.0f}円, "
-                f"エントリー手数料={entry_fee:.0f}円, "
-                f"利息={interest:.0f}円, "
-                f"決済手数料={exit_fee:.0f}円, "
-                f"必要含み益={required_gross_profit:.0f}円, "
+                f"entry_fee_rate={entry_fee_rate}, exit_fee_rate={exit_fee_rate}, "
                 f"TP価格={tp_price:.0f}円 ({action})"
             )
 
@@ -466,46 +447,43 @@ class RiskManager:
                         sl_target = confidence_config.get("low", 400)
                         confidence_label = f"(低信頼度<{threshold})"
 
-                # SL決済手数料考慮（Taker 0.1%）
+                # Phase 86: TPSLCalculator に統一（floor強制を計算層に集約）
+                from src.trading.execution.tpsl_calculator import TPSLCalculator
+
                 exit_fee_rate = fixed_sl_config.get("fallback_exit_fee_rate", 0.001)
-                exit_fee = current_price * position_amount * exit_fee_rate
-
-                # Phase 70.2: entry_feeをSL予算に再包含
-                # Phase 69で「サンクコスト」として除外したが、bitbank PnLには
-                # entry_feeが含まれるため、実損がSL目標を常に超過していた。
-                # Phase 69の根本原因は二重計上バグ（修正済み）であり、
-                # entry_fee自体の包含は正しい。
                 include_entry_fee = fixed_sl_config.get("include_entry_fee", True)
-                if include_entry_fee:
-                    entry_fee_rate = fixed_sl_config.get("fallback_entry_fee_rate", 0.001)
-                    entry_fee = current_price * position_amount * entry_fee_rate
-                else:
-                    entry_fee = 0
+                entry_fee_rate = (
+                    fixed_sl_config.get("fallback_entry_fee_rate", 0.001)
+                    if include_entry_fee
+                    else 0.0
+                )
+                min_distance_enabled = get_threshold(
+                    "position_management.stop_loss.min_distance.enabled", False
+                )
+                min_ratio = get_threshold("position_management.stop_loss.min_distance.ratio", 0.007)
 
-                gross_loss = sl_target - exit_fee - entry_fee
-                if gross_loss > 0:
-                    fixed_sl_distance = gross_loss / position_amount
-                else:
-                    # Phase 83C: 手数料合計≧目標損失時の安全フォールバック
-                    # tp_sl_manager._calculate_fixed_amount_sl_for_position と同形式（L1305-1306）
-                    # 旧実装は else 句なしで regime SL に黙って fallback → SL設計175倍化バグ発生
-                    fixed_sl_distance = sl_target / position_amount
-                    logger.warning(
-                        f"⚠️ Phase 83C: 手数料超過 - 目標={sl_target:.0f}円 ≦ "
-                        f"手数料合計={entry_fee + exit_fee:.0f}円 → "
-                        f"raw target で算出 SL距離={fixed_sl_distance:.0f}円"
-                        f"({fixed_sl_distance / current_price * 100:.2f}%) "
-                        f"※ポジ縮小 or sl_target増 を検討"
-                    )
+                sl_action = "buy" if action.lower() == "buy" else "sell"
+                # 注: TPSLCalculator は entry_price/amount/target を受けて SL価格 を返す
+                sl_price_calc = TPSLCalculator.calculate_sl(
+                    action=sl_action,
+                    entry_price=current_price,
+                    amount=position_amount,
+                    target_max_loss=sl_target,
+                    entry_fee_rate=entry_fee_rate,
+                    exit_fee_rate=exit_fee_rate,
+                    min_distance_ratio=min_ratio,
+                    enable_floor=min_distance_enabled,
+                )
+                fixed_sl_distance = abs(sl_price_calc - current_price)
 
                 # 妥当性チェック（10%超は異常値）
                 if fixed_sl_distance <= current_price * 0.10:
                     stop_loss_distance = fixed_sl_distance
                     logger.info(
-                        f"🛡️ Phase 70.2: 固定金額SL適用 - "
+                        f"🛡️ Phase 86: 固定金額SL適用（TPSLCalculator統一） - "
                         f"目標最大損失={sl_target:.0f}円{confidence_label}, "
-                        f"エントリー手数料={entry_fee:.0f}円, "
-                        f"決済手数料={exit_fee:.0f}円, "
+                        f"entry_fee_rate={entry_fee_rate}, exit_fee_rate={exit_fee_rate}, "
+                        f"floor={'有' if min_distance_enabled else '無'}({min_ratio * 100:.2f}%), "
                         f"SL距離={fixed_sl_distance:.0f}円"
                         f"({fixed_sl_distance / current_price * 100:.2f}%)"
                     )

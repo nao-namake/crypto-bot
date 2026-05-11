@@ -1260,22 +1260,28 @@ class TPSLManager:
                 f"{min_valid_btc} BTC. ダスト/微小ポジションの可能性。"
             )
 
+        # Phase 86: TPSLCalculator に統一（entry_fee 加算漏れバグ修正）
+        from .tpsl_calculator import TPSLCalculator
+
         target = get_threshold(
             "position_management.take_profit.fixed_amount.target_net_profit",
             1500,  # Phase 85: 500→1500
         )
-        # 決済手数料考慮（TP決済はMaker 0%がデフォルト）
+        entry_fee_rate = get_threshold(
+            "position_management.take_profit.fixed_amount.fallback_entry_fee_rate", 0.001
+        )
         exit_fee_rate = get_threshold(
             "position_management.take_profit.fixed_amount.fallback_exit_fee_rate", 0.0
         )
-        # 必要含み益 = 目標純利益 + 決済手数料
-        gross_needed = target + (avg_price * amount * exit_fee_rate)
-        tp_offset = gross_needed / amount
-
-        if position_side == "long":
-            return avg_price + tp_offset
-        else:
-            return avg_price - tp_offset
+        action = "buy" if position_side == "long" else "sell"
+        return TPSLCalculator.calculate_tp(
+            action=action,
+            entry_price=avg_price,
+            amount=amount,
+            target_net_profit=target,
+            entry_fee_rate=entry_fee_rate,
+            exit_fee_rate=exit_fee_rate,
+        )
 
     def _calculate_fixed_amount_sl_for_position(
         self,
@@ -1302,37 +1308,28 @@ class TPSLManager:
                 f"{min_valid_btc} BTC. ダスト/微小ポジションの可能性。"
             )
 
-        target = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_TARGET, 2000)  # Phase 85: 500→2000
-        # Phase 70.2: entry_feeをSL予算に再包含（bitbank PnLとの整合性確保）
-        entry_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_ENTRY_FEE, 0.001)
-        entry_fee = avg_price * amount * entry_fee_rate
-        exit_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_EXIT_FEE, 0.001)
-        exit_fee = avg_price * amount * exit_fee_rate
-        gross_needed = target - exit_fee - entry_fee
-        if gross_needed <= 0:
-            gross_needed = target
-        sl_offset = gross_needed / amount
+        # Phase 86: TPSLCalculator に統一（floor強制を計算層に集約）
+        from .tpsl_calculator import TPSLCalculator
 
-        # Phase 83A-2 / Phase 83C: min_distance floor強制（ノイズ幅以下のSL禁止）
-        # Phase 83C: enabled フラグを参照（旧実装は ratio のみ参照で yaml の enabled 無視）
+        target = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_TARGET, 2000)  # Phase 85: 500→2000
+        entry_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_ENTRY_FEE, 0.001)
+        exit_fee_rate = get_threshold(TPSLConfig.SL_FIXED_AMOUNT_EXIT_FEE, 0.001)
         min_distance_enabled = get_threshold(
             "position_management.stop_loss.min_distance.enabled", False
         )
-        if min_distance_enabled:
-            min_ratio = get_threshold("position_management.stop_loss.min_distance.ratio", 0.0)
-            min_offset = avg_price * min_ratio
-            if sl_offset < min_offset:
-                self.logger.info(
-                    f"🛡️ Phase 83A-2: SL距離floor適用 - "
-                    f"{sl_offset:.0f}円({sl_offset / avg_price * 100:.2f}%) → "
-                    f"{min_offset:.0f}円({min_ratio * 100:.2f}%)"
-                )
-                sl_offset = min_offset
+        min_ratio = get_threshold("position_management.stop_loss.min_distance.ratio", 0.007)
 
-        if position_side == "long":
-            return avg_price - sl_offset
-        else:
-            return avg_price + sl_offset
+        action = "buy" if position_side == "long" else "sell"
+        return TPSLCalculator.calculate_sl(
+            action=action,
+            entry_price=avg_price,
+            amount=amount,
+            target_max_loss=target,
+            entry_fee_rate=entry_fee_rate,
+            exit_fee_rate=exit_fee_rate,
+            min_distance_ratio=min_ratio,
+            enable_floor=min_distance_enabled,
+        )
 
     # ========================================
     # エントリー前TP/SLクリーンアップ
@@ -1525,6 +1522,24 @@ class TPSLManager:
             f"📋 Phase 63: TP/SL検証スケジュール - {delay_seconds}秒後 "
             f"(Entry: {entry_order_id}, pending: {len(self._pending_verifications)}件)"
         )
+
+        # Phase 86: 即時SL存在確認（10秒後）も並行スケジュール
+        # 既存の10分後検証では孤児ポジ放置のリスクが大きいため、即時検証を追加
+        self._pending_verifications.append(
+            {
+                "scheduled_at": datetime.now(timezone.utc),
+                "verify_after": datetime.now(timezone.utc) + timedelta(seconds=10),
+                "entry_order_id": entry_order_id,
+                "side": side,
+                "amount": amount,
+                "entry_price": entry_price,
+                "expected_tp_order_id": tp_order_id,
+                "expected_sl_order_id": sl_order_id,
+                "symbol": symbol,
+                "immediate_check": True,  # Phase 86: 即時検証フラグ
+            }
+        )
+        self.logger.info(f"⚡ Phase 86: 即時SL検証スケジュール - 10秒後 (Entry: {entry_order_id})")
 
     async def process_pending_verifications(
         self,

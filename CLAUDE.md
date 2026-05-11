@@ -4,13 +4,13 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 85（レジーム別TP/SL再構築+floor 0.7%復活+trending停止） |
-| **直前の作業** | Phase 85: 真の運用シミュ106件で全シナリオ赤字判明→tight TP1500/SL2000・normal TP500/SL1500・trending停止・同方向1ロールバック |
-| **次の予定** | ML再学習→デプロイ→24-48h観測（tight勝率67.9%/+362円/件期待） |
-| **最新成果** | sl_simulation.py手数料加算バグ発見・Phase 83B floor撤廃判断は虚像と判明・レジーム別黒字戦略を実証 |
-| **最終更新** | 2026年5月11日 |
+| **現在Phase** | 86（TP/SL/Entryアーキテクチャ根本再構築・対処療法からの脱却） |
+| **直前の作業** | Phase 86: TPSLCalculator単一実装・TP entry_fee加算バグ修正・bitbank API wrapper強化・Atomic Entry緊急成行決済・起動時SL自動修復 |
+| **次の予定** | デプロイ→現ポジSL自動修復確認→24-48h観測（孤児ポジゼロ・実態Maker/Taker率取得） |
+| **最新成果** | Phase 62-85の往復修正地獄の根本原因（TP/SL計算4箇所分散・Atomic Entry不完全・ccxt bitbank stop未対応）を解消 |
+| **最終更新** | 2026年5月12日 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`docs/開発履歴/Phase_82.md`、`docs/開発履歴/Phase_83.md`、`docs/開発履歴/Phase_84.md`、`docs/開発履歴/Phase_85.md`（最新）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`docs/開発履歴/Phase_82.md`、`docs/開発履歴/Phase_83.md`、`docs/開発履歴/Phase_84.md`、`docs/開発履歴/Phase_85.md`、`docs/開発履歴/Phase_86.md`（最新）
 
 ---
 
@@ -274,15 +274,17 @@ dynamic_strategy_selection:
 - BTC 15分足ノイズ幅（0.3-0.5%）を確実に超える SL距離 0.7%以上を強制
 - Phase 83A-2 状態に近い（ただし TP/SL目標金額はレジーム別）
 
-TP計算式: `TP価格 = エントリー価格 ± (gross_profit / 数量)`
-gross_profit: `TP目標 - エントリー手数料(0.1%)` （TP決済はMaker 0%想定）
+**Phase 86 TP/SL計算の単一実装**: `src/trading/execution/tpsl_calculator.py` の `TPSLCalculator` クラスがすべてのTP/SL計算箇所で使用される唯一の実装（旧4箇所分散を解消）。
+
+TP計算式: `TP価格 = エントリー価格 ± (gross_needed / 数量)`
+gross_needed: `TP目標 + エントリー手数料(0.1%) + 決済手数料(Maker 0%想定で 0)` （Phase 86: entry_fee加算バグ修正）
 
 SL計算式: `SL価格 = エントリー価格 ∓ (SL距離 / 数量)`
-SL距離: `max((SL目標 - エントリー手数料(0.1%) - 決済手数料(0.1%)) / ポジションサイズ, エントリー価格 * 0.007)`
+SL距離: `max((SL目標 - エントリー手数料(0.1%) - 決済手数料(Taker 0.1%)) / ポジションサイズ, エントリー価格 * 0.007)`
 
-実例（amount 0.015 BTC、BTC 12.5M円、tight_range TP1500/SL2000）:
-- TP距離 = (1500-190)/0.015 = 87,333円 = **0.70%**
-- SL距離 = max((2000-380)/0.015, 12.5M×0.007) = max(108,000円, 87,500円) = **108,000円 = 0.86%**
+実例（amount 0.015 BTC、BTC 12.84M円、tight_range TP1500/SL2000）:
+- TP距離 = (1500+193+0)/0.015 = **112,840円 = 0.879%** （Phase 86: +13%拡大）
+- SL距離 = max((2000-193-193)/0.015, 12.84M×0.007) = max(107,613円, 89,880円) = **107,613円 = 0.838%**
 
 ### 手数料設定（2026年2月2日改定）
 

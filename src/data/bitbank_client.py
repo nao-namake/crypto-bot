@@ -1648,6 +1648,24 @@ class BitbankClient:
         try:
             pair = symbol.lower().replace("/", "_")
 
+            # Phase 86: stop型注文の trigger_price 必須検証
+            stop_types = ("stop", "stop_limit", "stop_loss", "take_profit", "take_profit_limit")
+            if order_type in stop_types and order_type not in ("take_profit",):
+                # take_profit は trigger_price 任意（priceのみで動く場合あり）
+                # stop / stop_loss は必須
+                if order_type in ("stop", "stop_limit", "stop_loss"):
+                    if trigger_price is None or trigger_price <= 0:
+                        raise ExchangeAPIError(
+                            f"Phase 86: stop型注文には trigger_price 必須 "
+                            f"(type={order_type}, trigger_price={trigger_price})",
+                            context={
+                                "symbol": symbol,
+                                "side": side,
+                                "order_type": order_type,
+                                "amount": amount,
+                            },
+                        )
+
             # bitbank API仕様: パラメータは全て文字列型
             params = {
                 "pair": pair,
@@ -1691,10 +1709,22 @@ class BitbankClient:
             )
 
             order_data = response.get("data", {})
+            order_id = str(order_data.get("order_id", ""))
+
+            # Phase 86: API応答にorder_idがあるか確認
+            if not order_id:
+                raise ExchangeAPIError(
+                    f"Phase 86: API応答にorder_idなし - response={response}",
+                    context={
+                        "symbol": symbol,
+                        "side": side,
+                        "order_type": order_type,
+                    },
+                )
 
             # ccxt形式に変換して返す
             result = {
-                "id": str(order_data.get("order_id", "")),
+                "id": order_id,
                 "symbol": symbol,
                 "type": order_type,
                 "side": side,
@@ -1705,6 +1735,47 @@ class BitbankClient:
                 "raw_response": response,
             }
 
+            # Phase 86: stop型注文の配置後実存在確認（最大3秒・3回ポーリング）
+            # API成功でも実際は注文されていない silent fail を検出
+            if order_type in ("stop", "stop_limit", "stop_loss"):
+                import asyncio as _asyncio
+
+                verified = False
+                for attempt in range(3):
+                    await _asyncio.sleep(1)
+                    try:
+                        verify_order = await _asyncio.to_thread(
+                            self.exchange.fetch_order, order_id, symbol
+                        )
+                        if verify_order and verify_order.get("status") in (
+                            "open",
+                            "closed",
+                            "active",
+                        ):
+                            verified = True
+                            break
+                        # INACTIVE 状態（stop_limit でトリガー未達）も「配置済み」扱い
+                        info_status = (verify_order or {}).get("info", {}).get("status", "")
+                        if info_status in ("INACTIVE", "UNFILLED", "PARTIALLY_FILLED"):
+                            verified = True
+                            break
+                    except Exception as verify_err:
+                        self.logger.warning(
+                            f"⚠️ Phase 86: 配置後確認 試行{attempt + 1}/3 失敗: {verify_err}"
+                        )
+                if not verified:
+                    raise ExchangeAPIError(
+                        f"Phase 86: stop注文配置後の実存在確認失敗 - order_id={order_id} "
+                        f"がAPIで取得できない（silent fail疑い）",
+                        context={
+                            "symbol": symbol,
+                            "side": side,
+                            "order_type": order_type,
+                            "order_id": order_id,
+                        },
+                    )
+                result["verified"] = True
+
             self.logger.info(
                 f"✅ Phase 61.3: 直接API注文成功 - ID: {result['id']}, type={order_type}",
                 extra_data={"order_id": result["id"], "order_type": order_type},
@@ -1712,15 +1783,38 @@ class BitbankClient:
 
             return result
 
+        except ExchangeAPIError:
+            raise  # Phase 86: 構造化エラーは再raise（上位で分類対応）
         except Exception as e:
-            self.logger.error(f"❌ Phase 61.3: 直接API注文失敗: {e}")
+            # Phase 86: bitbank エラーコード分類対応
+            err_msg = str(e)
+            err_code = None
+            for code in ("30101", "50061", "50062", "50063", "70015"):
+                if code in err_msg:
+                    err_code = code
+                    break
+            err_categories = {
+                "30101": "trigger_price未指定 or 不正",
+                "50061": "必要証拠金不足",
+                "50062": "保有建玉数量超過",
+                "50063": "建玉ロット数上限",
+                "70015": "新規発注停止中",
+            }
+            err_category = err_categories.get(err_code, "未分類")
+            self.logger.error(
+                f"❌ Phase 61.3/86: 直接API注文失敗: {e} "
+                f"[error_code={err_code}, category={err_category}]"
+            )
             raise ExchangeAPIError(
-                f"直接API注文作成に失敗しました: {e}",
+                f"直接API注文作成に失敗しました: {e} [code={err_code}, {err_category}]",
                 context={
                     "symbol": symbol,
                     "side": side,
                     "order_type": order_type,
                     "amount": amount,
+                    "trigger_price": trigger_price,
+                    "error_code": err_code,
+                    "error_category": err_category,
                 },
             )
 

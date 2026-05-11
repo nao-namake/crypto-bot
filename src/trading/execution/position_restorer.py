@@ -224,6 +224,73 @@ class PositionRestorer:
                     except Exception as e:
                         self.logger.debug(f"Phase 68.4: 永続化SL復元エラー: {e}")
 
+                # Phase 86: 起動時SL欠損検出 → 緊急SL配置
+                # ポジションあり・SL注文なし状態を検出して、TPSLCalculatorで計算した
+                # SL価格でstop注文を即配置（孤児ポジ防止）
+                if not sl_order_id and pos_amount > 0:
+                    try:
+                        from ...core.config import get_threshold as _get_threshold
+                        from .tpsl_calculator import TPSLCalculator
+
+                        sl_target = _get_threshold(
+                            "position_management.stop_loss.fixed_amount.confidence_based.high",
+                            2000,
+                        )
+                        min_distance_enabled = _get_threshold(
+                            "position_management.stop_loss.min_distance.enabled", True
+                        )
+                        min_ratio = _get_threshold(
+                            "position_management.stop_loss.min_distance.ratio", 0.007
+                        )
+                        sl_price_emergency = TPSLCalculator.calculate_sl(
+                            action=entry_side,
+                            entry_price=avg_price,
+                            amount=pos_amount,
+                            target_max_loss=sl_target,
+                            entry_fee_rate=0.001,
+                            exit_fee_rate=0.001,
+                            min_distance_ratio=min_ratio,
+                            enable_floor=min_distance_enabled,
+                        )
+                        self.logger.critical(
+                            f"🚨 Phase 86: 起動時SL欠損検出 → 緊急SL配置試行 "
+                            f"({pos_side} {pos_amount:.4f} BTC @ {avg_price:.0f}円, "
+                            f"SL価格 {sl_price_emergency:.0f}円)"
+                        )
+                        emergency_sl_order = await asyncio.to_thread(
+                            bitbank_client.create_stop_loss_order,
+                            entry_side=entry_side,
+                            amount=pos_amount,
+                            stop_loss_price=sl_price_emergency,
+                            symbol="BTC/JPY",
+                            order_type="stop",
+                            limit_price=None,
+                        )
+                        if emergency_sl_order and emergency_sl_order.get("id"):
+                            sl_order_id = str(emergency_sl_order["id"])
+                            sl_price = sl_price_emergency
+                            sl_placed_at = datetime.now(timezone.utc).isoformat()
+                            self.logger.critical(
+                                f"✅ Phase 86: 緊急SL配置成功 - ID={sl_order_id}, "
+                                f"price={sl_price_emergency:.0f}円"
+                            )
+                            # 永続化
+                            try:
+                                self.sl_persistence.save(
+                                    side=entry_side,
+                                    sl_order_id=sl_order_id,
+                                    sl_price=sl_price_emergency,
+                                    amount=pos_amount,
+                                    sl_placed_at=sl_placed_at,
+                                )
+                            except Exception:
+                                pass
+                    except Exception as emergency_err:
+                        self.logger.critical(
+                            f"🚨🚨 Phase 86: 緊急SL配置失敗 - 手動介入必要! "
+                            f"error={emergency_err}, {pos_side} {pos_amount:.4f} BTC"
+                        )
+
                 virtual_positions.append(
                     {
                         "order_id": f"restored_{pos_side}_{int(datetime.now().timestamp())}",
@@ -274,7 +341,8 @@ class PositionRestorer:
             tp_sl_manager: TPSLManagerインスタンス
         """
         now = datetime.now()
-        scan_interval = get_threshold(TPSLConfig.ORPHAN_SCAN_INTERVAL, 1800)
+        # Phase 86: デフォルト1800秒（30分）→ 300秒（5分）に短縮
+        scan_interval = get_threshold(TPSLConfig.ORPHAN_SCAN_INTERVAL, 300)
 
         if (
             self._last_orphan_scan_time

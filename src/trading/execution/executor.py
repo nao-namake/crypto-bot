@@ -800,19 +800,80 @@ class ExecutionService:
                                     f"{partial_filled} BTC"
                                 )
                             else:
+                                # Phase 86: SL再配置失敗時の緊急成行決済（孤児ポジ防止）
                                 self.logger.critical(
-                                    f"🚨 Phase 64.3: 部分約定分TP/SL再配置失敗 - "
+                                    f"🚨 Phase 86: 部分約定分TP/SL再配置失敗 → 緊急成行決済 - "
                                     f"TP={'OK' if tp_ok else 'NG'}, "
                                     f"SL={'OK' if sl_ok else 'NG'}, "
                                     f"order_id={result.order_id}, "
                                     f"amount={partial_filled} BTC"
                                 )
+                                close_side = "sell" if side == "buy" else "buy"
+                                try:
+                                    close_order = await asyncio.to_thread(
+                                        self.bitbank_client.create_order,
+                                        symbol=symbol,
+                                        order_type="market",
+                                        side=close_side,
+                                        amount=partial_filled,
+                                        is_closing_order=True,
+                                    )
+                                    self.logger.critical(
+                                        f"🚨 Phase 86: 緊急成行決済成功 - "
+                                        f"close_order_id={close_order.get('id')}, "
+                                        f"amount={partial_filled} BTC"
+                                    )
+                                    # 残ったTP注文があればキャンセル
+                                    if tp_ok:
+                                        try:
+                                            await asyncio.to_thread(
+                                                self.bitbank_client.cancel_order,
+                                                tp_retry["order_id"],
+                                                symbol,
+                                            )
+                                        except Exception:
+                                            pass
+                                    # virtual_positions から削除
+                                    if self.position_tracker:
+                                        self.position_tracker.remove_position(result.order_id)
+                                    else:
+                                        self.virtual_positions[:] = [
+                                            p
+                                            for p in self.virtual_positions
+                                            if p.get("order_id") != result.order_id
+                                        ]
+                                except Exception as close_err:
+                                    self.logger.critical(
+                                        f"🚨🚨 Phase 86: 緊急成行決済も失敗 - 手動介入必須! "
+                                        f"error={close_err}, order_id={result.order_id}, "
+                                        f"amount={partial_filled} BTC"
+                                    )
                         except Exception as tp_sl_err:
+                            # Phase 86: TP/SL再配置例外時も緊急成行決済
                             self.logger.critical(
-                                f"🚨 Phase 63.3: 部分約定TP/SL再配置エラー - "
-                                f"手動介入必要。order_id={result.order_id}, "
+                                f"🚨 Phase 86: 部分約定TP/SL再配置エラー → 緊急成行決済試行 - "
+                                f"order_id={result.order_id}, "
                                 f"amount={partial_filled} BTC, error={tp_sl_err}"
                             )
+                            close_side = "sell" if side == "buy" else "buy"
+                            try:
+                                close_order = await asyncio.to_thread(
+                                    self.bitbank_client.create_order,
+                                    symbol=symbol,
+                                    order_type="market",
+                                    side=close_side,
+                                    amount=partial_filled,
+                                    is_closing_order=True,
+                                )
+                                self.logger.critical(
+                                    f"🚨 Phase 86: 緊急成行決済成功 - "
+                                    f"close_order_id={close_order.get('id')}"
+                                )
+                            except Exception as close_err:
+                                self.logger.critical(
+                                    f"🚨🚨 Phase 86: 緊急成行決済も失敗 - 手動介入必須! "
+                                    f"error={close_err}"
+                                )
 
                         # 部分約定があったので成功として返す（TP/SLは再配置済みまたは手動介入）
                         return ExecutionResult(

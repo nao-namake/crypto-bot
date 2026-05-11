@@ -623,6 +623,10 @@ position_management:
   # Phase 85: Phase 84で1→2に緩和したが、24h観測で0.030 BTC統合ポジが発生し損失40%増幅
   # → 1にロールバック（trending停止と組み合わせて、エントリー機会は別軸で確保）
   max_same_direction_positions: 1
+  # Phase 86: 孤児ポジション定期スキャン間隔（旧30分→5分に短縮）
+  # SL未設置の孤児ポジを最大5分以内に検出し、自動修復するためのインターバル
+  orphan_scan:
+    interval_seconds: 300
   cooldown_minutes: 15
   min_trade_size: 0.0001
   # Phase 82: ダスト/微小ポジション判定下限（これ未満はTP/SL配置スキップ）

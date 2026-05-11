@@ -1155,6 +1155,15 @@ class LiveAnalysisResult:
     orphan_sl_detected: bool = False
     orphan_order_count: int = 0
 
+    # Phase 86: ポジあり SL未設置検出（致命的）+ Taker率検出
+    missing_sl_detected: bool = False
+    missing_sl_position_amount: float = 0.0
+    missing_sl_order_amount: float = 0.0
+    api_entry_maker_count: int = 0
+    api_entry_taker_count: int = 0
+    api_entry_taker_rate: float = 0.0
+    high_taker_rate_warning: bool = False
+
     # 稼働率（5指標）
     uptime_rate: float = 0.0
     total_downtime_minutes: float = 0.0
@@ -1375,6 +1384,24 @@ class LiveAnalyzer:
                     "(ポジションなしでSL/TP注文が残存)"
                 )
 
+            # Phase 86: 「ポジションあり SL注文なし」検出（致命的）
+            # bitbank API実値で、ポジション数量 vs stop注文数量を比較
+            pos_total = sum(float(p.get("amount", 0)) for p in (self._cached_positions or []))
+            sl_total = sum(
+                float(o.get("amount", 0))
+                for o in active_orders
+                if o.get("type") in ("stop", "stop_limit")
+            )
+            if pos_total > 0 and sl_total < pos_total * 0.95:
+                self.result.missing_sl_detected = True
+                self.result.missing_sl_position_amount = pos_total
+                self.result.missing_sl_order_amount = sl_total
+                self.logger.critical(
+                    f"🚨 Phase 86: ポジションあり SL未設置検出！ "
+                    f"ポジ合計 {pos_total:.4f} BTC > SL注文合計 {sl_total:.4f} BTC "
+                    f"(SL率 {sl_total / pos_total * 100:.1f}%)"
+                )
+
             self.logger.info(
                 f"ポジション状態取得完了 - ポジション: {self.result.open_position_count}件, "
                 f"未約定注文: {self.result.pending_order_count}件"
@@ -1423,6 +1450,35 @@ class LiveAnalyzer:
 
             if not period_trades:
                 return None
+
+            # Phase 86: API実態ベースの Maker/Taker 集計（エントリーのみ）
+            entry_maker = 0
+            entry_taker = 0
+            for t in period_trades:
+                info = t.get("info", {})
+                pos_side = info.get("position_side")
+                side = info.get("side")
+                is_entry = (pos_side == "long" and side == "buy") or (
+                    pos_side == "short" and side == "sell"
+                )
+                if not is_entry:
+                    continue
+                mt = info.get("maker_taker", "")
+                if mt == "maker":
+                    entry_maker += 1
+                elif mt == "taker":
+                    entry_taker += 1
+            total_entry_with_mt = entry_maker + entry_taker
+            if total_entry_with_mt > 0:
+                self.result.api_entry_maker_count = entry_maker
+                self.result.api_entry_taker_count = entry_taker
+                self.result.api_entry_taker_rate = entry_taker / total_entry_with_mt * 100
+                if self.result.api_entry_taker_rate > 70.0:
+                    self.result.high_taker_rate_warning = True
+                    self.logger.warning(
+                        f"⚠️ Phase 86: Takerエントリー率高 {self.result.api_entry_taker_rate:.1f}% "
+                        f"(maker {entry_maker} / taker {entry_taker})"
+                    )
 
             # order_id別に集約（部分約定を1注文にまとめる）
             from collections import defaultdict
@@ -2746,6 +2802,7 @@ class LiveReportGenerator:
 def determine_exit_code(
     infra_result: InfrastructureCheckResult,
     bot_result: BotFunctionCheckResult,
+    live_result: Optional["LiveAnalysisResult"] = None,
 ) -> int:
     """終了コードを決定
 
@@ -2761,6 +2818,14 @@ def determine_exit_code(
     # Silent Failure検出（最重要）
     if bot_result.signal_count > 0 and bot_result.order_count == 0:
         return 1
+
+    # Phase 86: ポジあり SL未設置検出（致命的）
+    if live_result and getattr(live_result, "missing_sl_detected", False):
+        return 1
+
+    # Phase 86: Takerエントリー率高（要注意）
+    if live_result and getattr(live_result, "high_taker_rate_warning", False):
+        total_warning += 1
 
     if total_critical >= 2:
         return 1
@@ -2865,7 +2930,7 @@ async def main():
             print(f"   SL超過事後検出: {bot_result.sl_breach_postcheck}回")
             print(f"   緊急成行決済: {bot_result.emergency_market_close}回")
 
-        exit_code = determine_exit_code(infra_result, bot_result)
+        exit_code = determine_exit_code(infra_result, bot_result, live_result=None)
         status_map = {
             0: "🟢 正常",
             1: "💀 致命的問題",
@@ -3177,7 +3242,7 @@ async def main():
             good = sum(1 for a in completed if TradeAnalysisRecorder.evaluate_decision(a) == "good")
             print(f"   判断正解率: {good}/{len(completed)} ({good / len(completed) * 100:.0f}%)")
 
-    exit_code = determine_exit_code(infra_result, bot_result)
+    exit_code = determine_exit_code(infra_result, bot_result, live_result=result)
     status_map = {
         0: "🟢 正常",
         1: "💀 致命的問題 - 即座対応必須",
@@ -3185,6 +3250,18 @@ async def main():
         3: "🟡 監視継続 - 軽微な問題",
     }
     print(f"\n🎯 最終判定: {status_map.get(exit_code, '不明')}")
+
+    # Phase 86: missing_sl / taker率 警告サマリー
+    if getattr(result, "missing_sl_detected", False):
+        print(
+            f"\n🚨 Phase 86: SL未設置検出 - ポジ {result.missing_sl_position_amount:.4f} BTC "
+            f"> SL注文 {result.missing_sl_order_amount:.4f} BTC（致命的）"
+        )
+    if getattr(result, "high_taker_rate_warning", False):
+        print(
+            f"\n⚠️ Phase 86: Takerエントリー率高 {result.api_entry_taker_rate:.1f}% "
+            f"(Maker {result.api_entry_maker_count} / Taker {result.api_entry_taker_count})"
+        )
     print("=" * 60)
 
     if args.exit_code:

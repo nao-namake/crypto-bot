@@ -110,7 +110,8 @@ class TPSLConfig:
     VERIFICATION_REBUILD = "tp_sl_verification.rebuild_on_missing"
     VERIFICATION_DEFAULT_REGIME = "tp_sl_verification.default_regime"
     CHECK_INTERVAL = "tp_sl_check.interval_seconds"
-    ORPHAN_SCAN_INTERVAL = "orphan_scan.interval_seconds"
+    # Phase 86: position_management 配下に移動（yamlと整合）
+    ORPHAN_SCAN_INTERVAL = "position_management.orphan_scan.interval_seconds"
     AUTO_DETECTION = "tp_sl_auto_detection"
 
     # === 共通パス ===

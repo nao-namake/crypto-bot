@@ -115,6 +115,7 @@
 | **83** | **TP1000/SL500/floor撤廃+包括バグ修正** | **2026/4/24-5/8** | **CMFReversal ImportError修正・SL距離下限0.7%強制→撤廃・TP1000/SL500(RR2.0:1)・ML再学習35,036件・包括バグ修正13件** | [詳細](Phase_83.md) |
 | **84** | **エントリー機会拡大** | **2026/5/10** | **ML閾値yaml化(0.55→0.65)・同方向制限1→2・ADXTrendStrength強トレンド継続順張り(ADX≥30+DI差≥8、DIクロス不要)** | [詳細](Phase_84.md) |
 | **85** | **レジーム別TP/SL再構築** | **2026/5/11** | **sl_simulation.py手数料加算バグ発見・真の運用シミュ106件で全シナリオ赤字判明・tight TP1500/SL2000+floor0.7%・normal TP500/SL1500・trending全停止・同方向1ロールバック** | [詳細](Phase_85.md) |
+| **86** | **TP/SL/Entryアーキテクチャ根本再構築** | **2026/5/12** | **TPSLCalculator単一実装(4箇所分散解消)・TP entry_fee加算バグ修正・bitbank API wrapper強化(trigger_price検証+配置後確認)・Atomic Entry緊急成行決済・起動時SL自動修復・分析スクリプトAPI実態検証** | [詳細](Phase_86.md) |
 
 ---
 
