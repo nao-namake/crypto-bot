@@ -1,13 +1,6 @@
 """Phase 87 Stage 3: SL未設置検出（detect_missing_sl）テスト"""
 
-import sys
-from pathlib import Path
-
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-from scripts.analysis.lib.sl_validators import MissingSLResult, detect_missing_sl  # noqa: E402
+from src.analysis.lib.sl_validators import MissingSLResult, detect_missing_sl
 
 
 class TestDetectMissingSL:

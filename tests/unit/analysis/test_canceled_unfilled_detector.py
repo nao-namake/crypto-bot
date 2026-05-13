@@ -1,13 +1,6 @@
 """Phase 87 Stage 3: detect_canceled_unfilled テスト"""
 
-import sys
-from pathlib import Path
-
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
-from scripts.analysis.lib.canceled_unfilled_detector import (  # noqa: E402
+from src.analysis.lib.canceled_unfilled_detector import (
     CanceledUnfilledEvent,
     detect_canceled_unfilled,
 )
