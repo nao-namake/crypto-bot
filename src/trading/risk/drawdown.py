@@ -239,6 +239,23 @@ class DrawdownManager:
         # 状態保存
         self._save_state()
 
+    def set_emergency_stop(self, reason: str) -> None:
+        """
+        Phase 87 Stage 2-R1: 緊急停止状態へ遷移
+
+        サーキットブレーカー（C4 MLHealthMonitor 等）からの呼び出しで、
+        TradingStatus を EMERGENCY_STOP に切り替え状態を永続化する。
+        cooldown と異なり時刻ベースの自動解除はせず、手動介入が必要。
+
+        Args:
+            reason: 緊急停止の理由（ログ・永続化に記録）
+        """
+        if self.trading_status == TradingStatus.EMERGENCY_STOP:
+            return  # 既に緊急停止中（重複ログ抑制）
+        self.trading_status = TradingStatus.EMERGENCY_STOP
+        self.logger.critical(f"🚨🚨 Phase 87 Stage 2-R1: 緊急停止状態へ遷移 - reason={reason}")
+        self._save_state()
+
     def _exit_cooldown(self) -> None:
         """クールダウン解除"""
         self.logger.info("クールダウン解除、取引再開")

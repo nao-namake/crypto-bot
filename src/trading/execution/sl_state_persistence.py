@@ -71,11 +71,20 @@ class SLStatePersistence:
                 "sl_placed_at": sl_placed_at or now_iso,
                 "saved_at": now_iso,
             }
-            self.persistence.save(self.COLLECTION, side, data)
-            self.logger.info(
-                f"Phase 68.4/H4: SL永続化保存 - {side} ID={sl_order_id}, "
-                f"price={sl_price:.0f}, amount={amount:.4f}"
-            )
+            # Phase 87 Stage 2-R2: 戻り値検証で silent failure 解消
+            saved = self.persistence.save(self.COLLECTION, side, data)
+            if saved:
+                self.logger.info(
+                    f"Phase 68.4/H4: SL永続化保存 - {side} ID={sl_order_id}, "
+                    f"price={sl_price:.0f}, amount={amount:.4f}"
+                )
+            else:
+                # Firestore + ローカル fallback 両方失敗 → SL永続化が機能不全
+                self.logger.critical(
+                    f"🚨🚨 Phase 87 Stage 2-R2: SL永続化完全失敗 - "
+                    f"{side} ID={sl_order_id}, price={sl_price:.0f}円。"
+                    f"Container再起動時にSL注文IDが消失する可能性。手動確認推奨。"
+                )
         except Exception as e:
             self.logger.error(f"Phase 68.4/H4: SL永続化保存エラー: {e}")
 

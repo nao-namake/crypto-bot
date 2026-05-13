@@ -254,3 +254,37 @@ class TestSLStatePersistencePlacedAt:
         new_persistence = SLStatePersistence(state_path=persistence.state_path)
         state = new_persistence.load()
         assert state["sell"]["sl_placed_at"] == placed_at
+
+
+class TestPhase87Stage2R2SaveReturnValue:
+    """Phase 87 Stage 2-R2: persistence.save() の戻り値検証 + silent failure 解消"""
+
+    def test_save_failure_logs_critical(self, persistence, caplog):
+        """persistence.save が False を返したら critical ログ"""
+        import logging
+
+        # persistence.save を False を返す mock に差替
+        persistence.persistence.save = MagicMock(return_value=False)
+
+        with caplog.at_level(logging.CRITICAL):
+            persistence.save("buy", "abc123", 13900000.0, 0.015)
+
+        # critical メッセージが含まれる
+        assert any(
+            "Phase 87 Stage 2-R2" in record.message and "SL永続化完全失敗" in record.message
+            for record in caplog.records
+            if record.levelno >= logging.CRITICAL
+        )
+
+    def test_save_success_logs_info_only(self, persistence, caplog):
+        """persistence.save が True を返したら critical ログは出ない"""
+        import logging
+
+        persistence.persistence.save = MagicMock(return_value=True)
+
+        with caplog.at_level(logging.CRITICAL):
+            persistence.save("buy", "abc123", 13900000.0, 0.015)
+
+        # critical は0件
+        critical_records = [r for r in caplog.records if r.levelno >= logging.CRITICAL]
+        assert len(critical_records) == 0

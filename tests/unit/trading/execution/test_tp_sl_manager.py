@@ -1798,3 +1798,38 @@ class TestPhase87H3StopLimit:
         call_kwargs = h3_mock_client.create_stop_loss_order.call_args.kwargs
         expected_limit = 13900000.0 * (1 - 0.015)
         assert call_kwargs["limit_price"] == pytest.approx(expected_limit, rel=1e-9)
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_unknown_order_type_emits_warning(
+        self, mock_threshold, tp_sl_manager, h3_mock_client, caplog
+    ):
+        """Phase 87 Stage 2-R3: 想定外 order_type は warning ログを出力"""
+        import logging
+
+        sl_config = {
+            "enabled": True,
+            "order_type": "limit",  # 想定外
+        }
+        mock_threshold.side_effect = lambda key, default=None: (
+            sl_config if str(key) == "position_management.stop_loss" else default
+        )
+
+        with caplog.at_level(logging.WARNING):
+            await tp_sl_manager.place_stop_loss(
+                side="buy",
+                amount=0.015,
+                entry_price=14000000.0,
+                stop_loss_price=13900000.0,
+                symbol="BTC/JPY",
+                bitbank_client=h3_mock_client,
+            )
+
+        assert any(
+            "Phase 87 Stage 2-R3" in r.message and "想定外の sl_order_type" in r.message
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+        )
+        # silent fall-through なので limit_price=None で続行
+        call_kwargs = h3_mock_client.create_stop_loss_order.call_args.kwargs
+        assert call_kwargs["limit_price"] is None

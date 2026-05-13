@@ -346,6 +346,13 @@ class TPSLManager:
                 f"📐 Phase 87 H3: stop_limit + slippage_buffer={slippage * 100:.1f}% "
                 f"(stop={stop_loss_price:.0f}円, limit={limit_price:.0f}円)"
             )
+        elif sl_order_type != "stop":
+            # Phase 87 Stage 2-R3: 想定外の order_type を silent fall-through させない
+            self.logger.warning(
+                f"⚠️ Phase 87 Stage 2-R3: 想定外の sl_order_type='{sl_order_type}' "
+                f"(期待: 'stop' or 'stop_limit')。limit_price=None で続行します。"
+                f" thresholds.yaml の position_management.stop_loss.order_type を確認してください。"
+            )
 
         # SL注文配置（Phase 65.5: asyncio.to_threadでラップ）
         sl_order = await asyncio.to_thread(

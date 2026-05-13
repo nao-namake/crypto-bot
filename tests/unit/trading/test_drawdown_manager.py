@@ -357,3 +357,44 @@ def test_realistic_trading_scenario():
     stats = manager.get_drawdown_statistics()
     assert stats["trading_allowed"] == False
     assert stats["consecutive_losses"] == 3
+
+
+class TestPhase87Stage2R1EmergencyStop:
+    """Phase 87 Stage 2-R1: set_emergency_stop() のテスト"""
+
+    def setup_method(self):
+        from src.trading.risk.drawdown import DrawdownManager, TradingStatus
+
+        self.TradingStatus = TradingStatus
+        self.temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+        self.temp_file.close()
+        self.manager = DrawdownManager(
+            max_drawdown_ratio=0.20,
+            consecutive_loss_limit=5,
+            cooldown_hours=6,
+            config={"persistence": {"local_path": self.temp_file.name}},
+            mode="backtest",
+        )
+
+    def teardown_method(self):
+        try:
+            Path(self.temp_file.name).unlink()
+        except OSError:
+            pass
+
+    def test_set_emergency_stop_transitions(self):
+        """ACTIVE → EMERGENCY_STOP へ遷移"""
+        assert self.manager.trading_status == self.TradingStatus.ACTIVE
+        self.manager.set_emergency_stop("ml_consecutive_failures=3")
+        assert self.manager.trading_status == self.TradingStatus.EMERGENCY_STOP
+
+    def test_set_emergency_stop_blocks_trading(self):
+        """EMERGENCY_STOP では check_trading_allowed=False"""
+        self.manager.set_emergency_stop("test")
+        assert self.manager.check_trading_allowed() is False
+
+    def test_set_emergency_stop_idempotent(self):
+        """既に EMERGENCY_STOP の状態で再度呼んでも例外なし"""
+        self.manager.set_emergency_stop("first")
+        self.manager.set_emergency_stop("second")
+        assert self.manager.trading_status == self.TradingStatus.EMERGENCY_STOP

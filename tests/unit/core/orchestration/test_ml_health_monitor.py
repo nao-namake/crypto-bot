@@ -89,3 +89,34 @@ class TestMLHealthMonitor:
         assert m.consecutive_failures == 1
         m.record_failure("y")
         assert m.should_emergency_stop() is True
+
+
+class TestPhase87Stage2R4ThresholdConfig:
+    """Phase 87 Stage 2-R4: threshold が config 経由で読まれる"""
+
+    def test_threshold_from_config_when_none(self, persistence, monkeypatch):
+        """threshold=None なら get_threshold("ml.health.consecutive_failure_threshold", 3) が使われる"""
+
+        def fake_get_threshold(key, default=None):
+            if key == "ml.health.consecutive_failure_threshold":
+                return 7
+            return default
+
+        monkeypatch.setattr("src.core.config.get_threshold", fake_get_threshold, raising=False)
+        m = MLHealthMonitor(persistence=persistence, threshold=None, auto_load=False)
+        assert m.threshold == 7
+
+    def test_explicit_threshold_overrides_config(self, persistence):
+        """明示的 threshold 引数が config より優先される"""
+        m = MLHealthMonitor(persistence=persistence, threshold=10, auto_load=False)
+        assert m.threshold == 10
+
+    def test_fallback_to_default_on_config_error(self, persistence, monkeypatch):
+        """get_threshold が例外を投げても DEFAULT_THRESHOLD にフォールバック"""
+
+        def broken_get_threshold(*args, **kwargs):
+            raise RuntimeError("config load error")
+
+        monkeypatch.setattr("src.core.config.get_threshold", broken_get_threshold, raising=False)
+        m = MLHealthMonitor(persistence=persistence, threshold=None, auto_load=False)
+        assert m.threshold == MLHealthMonitor.DEFAULT_THRESHOLD

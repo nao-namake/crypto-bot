@@ -439,6 +439,20 @@ class TradingCycleManager:
                 ml_predictions_array = self.orchestrator.ml_service.predict(main_features_for_ml)
                 ml_probabilities = self.orchestrator.ml_service.predict_proba(main_features_for_ml)
 
+                # Phase 87 Stage 2-R1 (C4 閉ループ): ML サーキットブレーカー判定
+                # ml_service.ml_health_monitor が連続失敗閾値に到達したら EMERGENCY_STOP へ
+                ml_health = getattr(self.orchestrator.ml_service, "ml_health_monitor", None)
+                if ml_health is not None and ml_health.should_emergency_stop():
+                    drawdown_mgr = getattr(
+                        getattr(self.orchestrator, "risk_manager", None),
+                        "drawdown_manager",
+                        None,
+                    )
+                    if drawdown_mgr is not None:
+                        drawdown_mgr.set_emergency_stop(
+                            f"ml_consecutive_failures={ml_health.consecutive_failures}"
+                        )
+
                 # 最新の予測値と実際の信頼度を使用
                 if len(ml_predictions_array) > 0 and len(ml_probabilities) > 0:
                     # Phase 87 C2: predicted_class_proba 統一（旧 np.max 廃止）

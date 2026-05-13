@@ -132,6 +132,9 @@ ml:
     #   normal (TP500/SL1500、名目RR 0.33:1、実RR 0.16:1) → 採算ライン勝率 86%
     # tight中心の運用なので閾値0.65のままで失敗確率65%超のみ拒否（過剰防衛回避）
     high_confidence_failure_threshold: 0.65
+  # Phase 87 Stage 2-R4: ML サーキットブレーカー閾値（C4 MLHealthMonitor）
+  health:
+    consecutive_failure_threshold: 3  # 連続 N 回 predict/predict_proba 失敗で EMERGENCY_STOP 候補
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3

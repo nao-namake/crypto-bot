@@ -38,10 +38,21 @@ class MLHealthMonitor:
         """
         Args:
             persistence: FirestoreStateClient（テスト用に外部注入可能）
-            threshold: 連続失敗回数の閾値（デフォルト 3）
+            threshold: 連続失敗回数の閾値（None なら thresholds.yaml から取得、
+                デフォルト 3）
             auto_load: True なら __init__ で既存状態をロード
         """
         self.logger = get_logger()
+        # Phase 87 Stage 2-R4: threshold を thresholds.yaml から取得（config 化）
+        if threshold is None:
+            try:
+                from ..config import get_threshold
+
+                threshold = get_threshold(
+                    "ml.health.consecutive_failure_threshold", self.DEFAULT_THRESHOLD
+                )
+            except Exception:
+                threshold = self.DEFAULT_THRESHOLD
         self.threshold = int(threshold or self.DEFAULT_THRESHOLD)
         self.consecutive_failures: int = 0
         self.last_failure_at: Optional[str] = None
