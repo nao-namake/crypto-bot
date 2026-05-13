@@ -34,6 +34,8 @@ cache_dir = ".cache/pytest"
 python_files = ["test_*.py", "*_e2e.py"]
 # asyncio 用のデフォルト fixture loop scope を function に固定
 asyncio_default_fixture_loop_scope = "function"
+# Phase 87 Stage 3: scripts.* パッケージのテストのためにプロジェクトルートを sys.path に
+pythonpath = ["."]
 addopts = [
     "--strict-markers",
     "--strict-config",
