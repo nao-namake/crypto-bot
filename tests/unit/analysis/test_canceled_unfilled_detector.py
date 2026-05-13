@@ -83,3 +83,20 @@ class TestDetectCanceledUnfilled:
         assert events[0].emergency_close_executed is False
         assert events[1].emergency_close_executed is True
         assert events[2].failure_reason == "timeout_24h"
+
+    def test_none_logs_returns_empty(self):
+        """None 入力でクラッシュしない"""
+        assert detect_canceled_unfilled(None) == []
+
+    def test_dict_without_text_ignored(self):
+        """text payload がない dict ログは無視"""
+        logs = [{"timestamp": "2026-05-14T05:00:00Z"}]
+        assert detect_canceled_unfilled(logs) == []
+
+    def test_malformed_log_with_no_reason_field(self):
+        """reason= 等のフィールドが欠落していても crash しない"""
+        logs = ["🚨 Phase 87 C5: SL異常検出"]
+        events = detect_canceled_unfilled(logs)
+        assert len(events) == 1
+        # reason は extract できないため "unknown" fallback
+        assert events[0].failure_reason == "unknown"

@@ -196,3 +196,32 @@ class TestResultType:
         assert isinstance(r.thresholds_used, dict)
         assert isinstance(r.reason, str)
         assert r.regime == "tight_range"
+
+
+class TestEdgeCases:
+    """Phase 87 Stage 3-R G: エッジケース"""
+
+    @patch("src.core.orchestration.quality_filter.get_threshold")
+    def test_ml_pred_float_one_treated_as_int_one(self, mock_get):
+        """ml_prediction=1.0 (float) でも accept 判定が動作"""
+        mock_get.side_effect = _make_thresholds_mock(accept=0.58)
+        qf = QualityFilter()
+        r = qf.evaluate(ml_prediction=1.0, ml_confidence=0.70)
+        # 1.0 == 1 は True
+        assert r.verdict == "accept"
+
+    @patch("src.core.orchestration.quality_filter.get_threshold")
+    def test_negative_confidence_treated_as_reject(self, mock_get):
+        """confidence が負値（理論上ないが）reject に降る"""
+        mock_get.side_effect = _make_thresholds_mock(reject=0.42)
+        qf = QualityFilter()
+        r = qf.evaluate(ml_prediction=1, ml_confidence=-0.1)
+        assert r.verdict == "reject"
+
+    @patch("src.core.orchestration.quality_filter.get_threshold")
+    def test_confidence_zero_treated_as_reject(self, mock_get):
+        """confidence=0 は reject_threshold 未満で reject"""
+        mock_get.side_effect = _make_thresholds_mock(reject=0.42)
+        qf = QualityFilter()
+        r = qf.evaluate(ml_prediction=1, ml_confidence=0.0)
+        assert r.verdict == "reject"

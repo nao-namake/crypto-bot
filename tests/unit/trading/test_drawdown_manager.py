@@ -198,14 +198,13 @@ class TestDrawdownManager:
             mock_datetime.now.return_value = future_time
 
             # Phase 87 H8: クールダウン期間終了で RECOVERY_TESTING へ（即ACTIVEではない）
-            # check_trading_allowed は RECOVERY_TESTING でも False（trading_status != ACTIVE）
-            # ※既存仕様維持: RECOVERY_TESTING 中の取引可否判定は上位層で別途扱う
+            # Phase 87 Stage 3-R C: RECOVERY_TESTING も取引許可（サイズ縮小で検証取引）
             allowed = self.manager.check_trading_allowed()
             # Phase 87 H8: RECOVERY_TESTING へ遷移、consecutive_losses は維持
             assert self.manager.trading_status == TradingStatus.RECOVERY_TESTING
             assert self.manager.consecutive_losses == 5  # 維持されることを確認
-            # ACTIVE ではないので allowed=False（既存 check_trading_allowed は ACTIVE のみ True）
-            assert allowed is False
+            # Stage 3-R C: RECOVERY_TESTING でも True（小サイズ取引が許可される）
+            assert allowed is True
 
     def test_drawdown_statistics(self):
         """ドローダウン統計情報テスト."""

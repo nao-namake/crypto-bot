@@ -84,3 +84,9 @@ class TestDetectMissingSL:
         orders = [{"type": "stop", "side": "sell", "amount": 0.01}]
         result = detect_missing_sl(positions, orders)
         assert result.coverage_ratio == 0.5
+
+    def test_none_positions_and_orders(self):
+        """None 入力でクラッシュしない"""
+        result = detect_missing_sl(positions=None, orders=None)
+        assert result.detected is False
+        assert result.position_amount == 0.0

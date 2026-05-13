@@ -1253,21 +1253,33 @@ class BacktestRunner(BaseRunner):
             _, confidence = get_predicted_class_proba(probabilities[current_index])
             prediction = int(predictions[current_index])
 
-            # Phase 87 Stage 3 H10: バックテストでも QualityFilter 判定を適用
+            # Phase 87 Stage 3 H10 + Stage 3-R A: バックテストでも QualityFilter 判定を適用
             # ライブと同じ評価軸でエントリー可否を決定（verdict=reject で取引拒否）
-            # regime はバックテスト時の market_regime_classifier 結果に依存するが、
-            # ここでは ml_mode と verdict 情報を ml_prediction dict に含めるのみ。
-            # 実際の reject 適用は _integrate_ml_with_strategy 経由（ライブと同経路）。
+            # Stage 3-R A: regime は market_regime_classifier.classify() の結果を使用
+            # （旧実装は "unknown" 固定で regime_thresholds が反映されない問題があった）
+            regime = "unknown"
+            try:
+                if main_timeframe in current_market_data:
+                    main_features = current_market_data[main_timeframe]
+                    if main_features is not None and not main_features.empty:
+                        regime_type = self.regime_classifier.classify(main_features)
+                        regime = regime_type.value
+            except Exception as regime_err:
+                self.logger.debug(
+                    f"Phase 87 Stage 3-R A: backtest regime 分類失敗、unknown 使用: {regime_err}"
+                )
+
             ml_mode = get_threshold("ml.mode", "direction")
             ml_prediction_payload = {
                 "prediction": prediction,
                 "confidence": confidence,
                 "ml_mode": ml_mode,
+                "regime": regime,  # Stage 3-R A: regime をペイロードに含める
             }
             if ml_mode == "quality_filter":
                 try:
                     qf = QualityFilter(regime_aware=True)
-                    qf_result = qf.evaluate(prediction, confidence, regime="unknown")
+                    qf_result = qf.evaluate(prediction, confidence, regime=regime)
                     ml_prediction_payload["quality_verdict"] = qf_result.verdict
                     ml_prediction_payload["adjusted_confidence_factor"] = (
                         qf_result.adjusted_confidence_factor

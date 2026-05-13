@@ -227,7 +227,9 @@ class DrawdownManager:
         if self.cooldown_until and now >= self.cooldown_until:
             self._exit_cooldown()
 
-        return self.trading_status == TradingStatus.ACTIVE
+        # Phase 87 Stage 3-R C: RECOVERY_TESTING も取引許可（サイズは
+        # get_position_size_multiplier() で 0.5 倍に縮小される設計）
+        return self.trading_status in (TradingStatus.ACTIVE, TradingStatus.RECOVERY_TESTING)
 
     def _enter_cooldown(self, status: TradingStatus, current_time=None) -> None:
         """
@@ -582,8 +584,9 @@ class DrawdownManager:
                 self.cooldown_until = datetime.fromisoformat(cooldown_until_str)
 
             # Phase 87 Stage 3 H8: 段階的復帰カウンタ復元（後方互換: 旧 state には存在しない）
-            self.recovery_win_streak = int(state.get("recovery_win_streak", 0) or 0)
-            self.recovery_failure_count = int(state.get("recovery_failure_count", 0) or 0)
+            # Stage 3-R E: 冗長な `or 0` 削除（state.get(..., 0) で十分）
+            self.recovery_win_streak = int(state.get("recovery_win_streak", 0))
+            self.recovery_failure_count = int(state.get("recovery_failure_count", 0))
 
         except Exception as e:
             self.logger.error(f"状態復元エラー: {e}")
