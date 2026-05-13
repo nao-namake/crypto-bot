@@ -182,7 +182,7 @@ class TestDrawdownManager:
         assert self.manager.check_trading_allowed() == False
 
     def test_cooldown_period(self):
-        """クールダウン期間テスト."""
+        """クールダウン期間テスト. (Phase 87 H8: 即 ACTIVE → RECOVERY_TESTING 経由に変更)"""
         self.manager.initialize_balance(1000000)
 
         # 連続損失で停止
@@ -197,11 +197,15 @@ class TestDrawdownManager:
         with patch("src.trading.risk.drawdown.datetime") as mock_datetime:
             mock_datetime.now.return_value = future_time
 
-            # クールダウン期間終了で自動復帰
+            # Phase 87 H8: クールダウン期間終了で RECOVERY_TESTING へ（即ACTIVEではない）
+            # check_trading_allowed は RECOVERY_TESTING でも False（trading_status != ACTIVE）
+            # ※既存仕様維持: RECOVERY_TESTING 中の取引可否判定は上位層で別途扱う
             allowed = self.manager.check_trading_allowed()
-            assert allowed == True
-            assert self.manager.trading_status == TradingStatus.ACTIVE
-            assert self.manager.consecutive_losses == 0  # リセット確認
+            # Phase 87 H8: RECOVERY_TESTING へ遷移、consecutive_losses は維持
+            assert self.manager.trading_status == TradingStatus.RECOVERY_TESTING
+            assert self.manager.consecutive_losses == 5  # 維持されることを確認
+            # ACTIVE ではないので allowed=False（既存 check_trading_allowed は ACTIVE のみ True）
+            assert allowed is False
 
     def test_drawdown_statistics(self):
         """ドローダウン統計情報テスト."""
@@ -397,4 +401,125 @@ class TestPhase87Stage2R1EmergencyStop:
         """既に EMERGENCY_STOP の状態で再度呼んでも例外なし"""
         self.manager.set_emergency_stop("first")
         self.manager.set_emergency_stop("second")
+        assert self.manager.trading_status == self.TradingStatus.EMERGENCY_STOP
+
+
+class TestPhase87Stage3H8RecoveryTesting:
+    """Phase 87 Stage 3 H8: RECOVERY_TESTING + 無限ループ防止"""
+
+    def setup_method(self):
+        from src.trading.risk.drawdown import DrawdownManager, TradingStatus
+
+        self.TradingStatus = TradingStatus
+        self.temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+        self.temp_file.close()
+        self.manager = DrawdownManager(
+            max_drawdown_ratio=0.20,
+            consecutive_loss_limit=5,
+            cooldown_hours=6,
+            config={"persistence": {"local_path": self.temp_file.name}},
+            mode="backtest",
+        )
+        self.manager.initialize_balance(1000000)
+
+    def teardown_method(self):
+        try:
+            Path(self.temp_file.name).unlink()
+        except OSError:
+            pass
+
+    def _enter_recovery_testing(self):
+        """RECOVERY_TESTING 状態に遷移させるヘルパー"""
+        self.manager.trading_status = self.TradingStatus.RECOVERY_TESTING
+        self.manager.consecutive_losses = 5
+        self.manager.recovery_win_streak = 0
+        self.manager.recovery_failure_count = 0
+
+    def test_recovery_two_wins_returns_active(self):
+        """2連勝で ACTIVE 復帰 + consecutive_losses リセット"""
+        self._enter_recovery_testing()
+        self.manager.record_recovery_trade(100)
+        assert self.manager.trading_status == self.TradingStatus.RECOVERY_TESTING
+        self.manager.record_recovery_trade(200)
+        assert self.manager.trading_status == self.TradingStatus.ACTIVE
+        assert self.manager.consecutive_losses == 0
+        assert self.manager.recovery_win_streak == 0
+        assert self.manager.recovery_failure_count == 0
+
+    def test_recovery_loss_re_cooldown(self):
+        """1勝後の損失で win_streak リセット + 再 cooldown"""
+        self._enter_recovery_testing()
+        self.manager.record_recovery_trade(100)
+        assert self.manager.recovery_win_streak == 1
+        # 損失 → 再 cooldown
+        self.manager.record_recovery_trade(-50)
+        assert self.manager.recovery_win_streak == 0
+        assert self.manager.recovery_failure_count == 1
+        # PAUSED_CONSECUTIVE_LOSS に遷移
+        assert self.manager.trading_status == self.TradingStatus.PAUSED_CONSECUTIVE_LOSS
+
+    def test_recovery_position_size_half(self):
+        """RECOVERY_TESTING 中はポジションサイズ倍率が 0.5 固定"""
+        self._enter_recovery_testing()
+        assert self.manager.get_position_size_multiplier() == 0.5
+
+    def test_record_trade_result_delegates_to_recovery(self):
+        """RECOVERY_TESTING 中に record_trade_result を呼ぶと record_recovery_trade に委譲"""
+        self._enter_recovery_testing()
+        self.manager.record_trade_result(100, "test")
+        # win_streak が増えることで record_recovery_trade が呼ばれたことを確認
+        assert self.manager.recovery_win_streak == 1
+
+    def test_recovery_state_persistence(self):
+        """recovery_win_streak / recovery_failure_count が save/load される (mode=live モック)"""
+        from src.trading.risk.drawdown import DrawdownManager
+
+        # mode='paper' に変更（_save_state/_load_state が動作する）
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
+        tmp.close()
+        mgr1 = DrawdownManager(
+            max_drawdown_ratio=0.2,
+            consecutive_loss_limit=5,
+            cooldown_hours=6,
+            config={"persistence": {"local_path": tmp.name}},
+            mode="paper",
+        )
+        mgr1.recovery_win_streak = 3
+        mgr1.recovery_failure_count = 1
+        mgr1._save_state()
+
+        # 別インスタンスで復元
+        mgr2 = DrawdownManager(
+            max_drawdown_ratio=0.2,
+            consecutive_loss_limit=5,
+            cooldown_hours=6,
+            config={"persistence": {"local_path": tmp.name}},
+            mode="paper",
+        )
+        assert mgr2.recovery_win_streak == 3
+        assert mgr2.recovery_failure_count == 1
+
+        try:
+            Path(tmp.name).unlink()
+        except OSError:
+            pass
+
+    def test_recovery_infinite_loop_emergency_stop(self):
+        """3回連続 recovery 失敗で EMERGENCY_STOP に遷移"""
+        self._enter_recovery_testing()
+        # 3回連続損失（各回で recovery_failure_count += 1）
+        # 1回目: failure_count=1 → PAUSED_CONSECUTIVE_LOSS
+        self.manager.record_recovery_trade(-50)
+        assert self.manager.recovery_failure_count == 1
+        # 再度 RECOVERY_TESTING に戻す（実運用では cooldown 解除で自動）
+        self._enter_recovery_testing()
+        self.manager.recovery_failure_count = 1  # 引き継ぎ
+        # 2回目: failure_count=2 → PAUSED_CONSECUTIVE_LOSS
+        self.manager.record_recovery_trade(-50)
+        assert self.manager.recovery_failure_count == 2
+        # 3回目: failure_count=3 → EMERGENCY_STOP
+        self._enter_recovery_testing()
+        self.manager.recovery_failure_count = 2
+        self.manager.record_recovery_trade(-50)
+        assert self.manager.recovery_failure_count == 3
         assert self.manager.trading_status == self.TradingStatus.EMERGENCY_STOP

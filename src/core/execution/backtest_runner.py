@@ -1248,14 +1248,36 @@ class BacktestRunner(BaseRunner):
 
             # 現在インデックスの予測値を取得（Phase 87 C2/H10: ヘルパー統一）
             from ...core.orchestration.ml_confidence import get_predicted_class_proba
+            from ...core.orchestration.quality_filter import QualityFilter
 
             _, confidence = get_predicted_class_proba(probabilities[current_index])
             prediction = int(predictions[current_index])
 
+            # Phase 87 Stage 3 H10: バックテストでも QualityFilter 判定を適用
+            # ライブと同じ評価軸でエントリー可否を決定（verdict=reject で取引拒否）
+            # regime はバックテスト時の market_regime_classifier 結果に依存するが、
+            # ここでは ml_mode と verdict 情報を ml_prediction dict に含めるのみ。
+            # 実際の reject 適用は _integrate_ml_with_strategy 経由（ライブと同経路）。
+            ml_mode = get_threshold("ml.mode", "direction")
+            ml_prediction_payload = {
+                "prediction": prediction,
+                "confidence": confidence,
+                "ml_mode": ml_mode,
+            }
+            if ml_mode == "quality_filter":
+                try:
+                    qf = QualityFilter(regime_aware=True)
+                    qf_result = qf.evaluate(prediction, confidence, regime="unknown")
+                    ml_prediction_payload["quality_verdict"] = qf_result.verdict
+                    ml_prediction_payload["adjusted_confidence_factor"] = (
+                        qf_result.adjusted_confidence_factor
+                    )
+                except Exception:
+                    # QualityFilter 初期化失敗時は素通し（バックテスト継続優先）
+                    pass
+
             # data_serviceにML予測を設定
-            self.orchestrator.data_service.set_backtest_ml_prediction(
-                {"prediction": prediction, "confidence": confidence}
-            )
+            self.orchestrator.data_service.set_backtest_ml_prediction(ml_prediction_payload)
 
     async def _set_simulated_time(self, timestamp: datetime):
         """シミュレーション時刻設定"""

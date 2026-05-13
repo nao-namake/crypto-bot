@@ -738,10 +738,10 @@ class TradingCycleManager:
                 self.logger.debug("ML統合無効 - 戦略シグナルをそのまま使用")
                 return strategy_signal
 
-            # Phase 73-D: 品質フィルタモード
+            # Phase 73-D: 品質フィルタモード（Phase 87 H6: regime 引数を渡す）
             ml_mode = ml_prediction.get("ml_mode", "direction")
             if ml_mode == "quality_filter":
-                return self._apply_quality_filter(ml_prediction, strategy_signal)
+                return self._apply_quality_filter(ml_prediction, strategy_signal, regime=regime)
 
             # Phase 61.5: 戦略信頼度の最低閾値チェック（異常低信頼度エントリー防止）
             min_strategy_confidence = get_threshold(
@@ -1239,122 +1239,58 @@ class TradingCycleManager:
         self,
         ml_prediction: dict,
         strategy_signal: "StrategySignal",
+        regime: str = "unknown",
     ) -> "StrategySignal":
         """
         Phase 73-D: 品質フィルタモード（メタラベリング）
+        Phase 87 Stage 3 H10/H6: QualityFilter 共通モジュール経由化 + regime 別閾値対応
 
         MLは方向を予測せず「この取引が成功するか」を判定。
         戦略が方向を100%決定し、MLはGo/No-Go判定のみ。
+        判定ロジックは src.core.orchestration.quality_filter.QualityFilter に集約。
 
-        - ML予測=1（高品質）+ 信頼度 >= accept_threshold → 戦略シグナルを通過
-        - ML予測=0（低品質）または信頼度 < reject_threshold → HOLDに変換
-        - 中間帯 → 信頼度を縮小
+        - ML予測=1 + 信頼度 >= accept_threshold → 戦略シグナルを通過
+        - ML予測=0 + 信頼度 >= high_conf_failure（または信頼度 < reject_threshold）→ HOLD化
+        - 中間帯 → 信頼度を uncertain_penalty 倍に縮小
+        - Phase 87 H6: regime 別閾値（tight/normal/trending）対応
         """
-        from ...strategies.base.strategy_base import StrategySignal
+        from ..orchestration.quality_filter import QualityFilter, apply_to_signal
 
         ml_confidence = ml_prediction.get("confidence", 0.0)
         ml_pred = ml_prediction.get("prediction", 0)
 
-        accept_threshold = get_threshold("ml.quality_filter.accept_threshold", 0.60)
-        reject_threshold = get_threshold("ml.quality_filter.reject_threshold", 0.40)
-        uncertain_penalty = get_threshold("ml.quality_filter.uncertain_penalty", 0.5)
-        # Phase 84: 旧ハードコード0.55を yaml化、デフォルト0.65に緩和
-        # 失敗予測の確信度閾値（max(p_0, p_1)が >= この値で確信失敗とみなしてHOLD化）
-        high_conf_failure = get_threshold(
-            "ml.quality_filter.high_confidence_failure_threshold", 0.65
-        )
-
-        strategy_action = strategy_signal.action
-        strategy_confidence = strategy_signal.confidence
-
-        # holdシグナルはそのまま通過（品質判定不要）
-        if strategy_action in ("hold", "none", ""):
+        # 非取引シグナルは判定不要で即返却
+        if strategy_signal.action in ("hold", "none", ""):
             return strategy_signal
 
-        # 判定
-        if ml_pred == 1 and ml_confidence >= accept_threshold:
-            # 高品質 → 戦略シグナルをそのまま通過
+        # QualityFilter で純粋判定（StrategySignal 非依存）
+        qf = QualityFilter(regime_aware=True)
+        result = qf.evaluate(ml_pred, ml_confidence, regime=regime)
+
+        # ログ出力（既存の Phase 73-D ログ文言を維持しつつ regime 情報を追加）
+        if result.verdict == "accept":
             self.logger.info(
-                f"✅ Phase 73-D: 品質フィルタ通過 - "
-                f"{strategy_action.upper()} 信頼度={ml_confidence:.3f} "
-                f"(>={accept_threshold})"
+                f"✅ Phase 73-D/87-H10: 品質フィルタ通過 - "
+                f"{strategy_signal.action.upper()} 信頼度={ml_confidence:.3f} "
+                f"(>={result.thresholds_used['accept_threshold']:.3f}) regime={regime}"
             )
-            return strategy_signal
-
-        elif (
-            ml_pred == 0 and ml_confidence >= high_conf_failure
-        ) or ml_confidence < reject_threshold:
-            # 低品質 → HOLDに変換
-            # Phase 84 注釈（Phase 83C 注釈を訂正）:
-            # メタラベリングでは prediction=0 が「失敗(SL hit)」、1 が「成功(TP hit)」を示す。
-            # confidence は max(p_0, p_1) = 「最も確実なクラスの確率」。
-            # 条件1 (ml_pred==0 and ml_confidence>=high_conf_failure 例:0.65):
-            #   class 0(失敗) が argmax + 失敗確率が high_conf_failure 以上
-            #   = モデルが「失敗を強く確信」している場合のみ拒否
-            #   旧ハードコード0.55では失敗確率55%以上で拒否 → 過剰防衛
-            #   yaml化+デフォルト0.65に緩和 → 失敗確信55-65%は通過（成功確率35-45%）
-            # Phase 85 注記: TP/SLレジーム別化に伴い採算ラインも変動:
-            #   tight (TP1500/SL2000、実RR 0.81:1) → 採算55% / 実証67.9%で余裕
-            #   normal (TP500/SL1500、実RR 0.16:1) → 採算86% / 実証75%でやや厳しい
-            # 条件2 (ml_confidence < reject_threshold):
-            #   max(p) < reject_threshold (0.42) — 二値分類で max(p) は通常>=0.5 のため稀
+        elif result.verdict == "reject":
             self.logger.warning(
-                f"🚫 Phase 73-D: 品質フィルタ拒否 - "
-                f"{strategy_action.upper()}→HOLD "
+                f"🚫 Phase 73-D/87-H10: 品質フィルタ拒否 - "
+                f"{strategy_signal.action.upper()}→HOLD "
                 f"(ML={ml_pred}, 信頼度={ml_confidence:.3f}, "
-                f"閾値={reject_threshold})"
+                f"reject_th={result.thresholds_used['reject_threshold']:.3f}, "
+                f"regime={regime})"
             )
-            return StrategySignal(
-                strategy_name=strategy_signal.strategy_name,
-                timestamp=strategy_signal.timestamp,
-                action="hold",
-                confidence=strategy_confidence * 0.1,
-                strength=0.0,
-                current_price=strategy_signal.current_price,
-                entry_price=strategy_signal.entry_price,
-                stop_loss=None,
-                take_profit=None,
-                position_size=strategy_signal.position_size,
-                risk_ratio=strategy_signal.risk_ratio,
-                indicators=strategy_signal.indicators,
-                reason=f"Phase 73-D: 品質フィルタ拒否 (ML={ml_pred}, conf={ml_confidence:.3f})",
-                metadata={
-                    **(strategy_signal.metadata or {}),
-                    "quality_filtered": True,
-                    "original_action": strategy_action,
-                    "ml_quality_score": ml_confidence,
-                },
+        else:  # uncertain
+            self.logger.info(
+                f"📊 Phase 73-D/87-H10: 品質フィルタ中間 - "
+                f"{strategy_signal.action.upper()} 信頼度縮小 "
+                f"factor={result.adjusted_confidence_factor} "
+                f"(ML={ml_pred}, conf={ml_confidence:.3f}, regime={regime})"
             )
 
-        else:
-            # 中間帯 → 信頼度を縮小して通過
-            adjusted_confidence = strategy_confidence * uncertain_penalty
-            self.logger.info(
-                f"📊 Phase 73-D: 品質フィルタ中間 - "
-                f"{strategy_action.upper()} 信頼度縮小 "
-                f"{strategy_confidence:.3f}→{adjusted_confidence:.3f} "
-                f"(ML={ml_pred}, conf={ml_confidence:.3f})"
-            )
-            return StrategySignal(
-                strategy_name=strategy_signal.strategy_name,
-                timestamp=strategy_signal.timestamp,
-                action=strategy_action,
-                confidence=adjusted_confidence,
-                strength=strategy_signal.strength,
-                current_price=strategy_signal.current_price,
-                entry_price=strategy_signal.entry_price,
-                stop_loss=strategy_signal.stop_loss,
-                take_profit=strategy_signal.take_profit,
-                position_size=strategy_signal.position_size,
-                risk_ratio=strategy_signal.risk_ratio,
-                indicators=strategy_signal.indicators,
-                reason=strategy_signal.reason,
-                metadata={
-                    **(strategy_signal.metadata or {}),
-                    "quality_uncertain": True,
-                    "ml_quality_score": ml_confidence,
-                },
-            )
+        return apply_to_signal(result, strategy_signal)
 
     def _apply_signal_consistency_check(self, trade_evaluation):
         """

@@ -34,7 +34,7 @@ def _make_manager():
 class TestPhase84QualityFilter:
     """Phase 84: 失敗高確信閾値 yaml化"""
 
-    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    @patch("src.core.orchestration.quality_filter.get_threshold")
     def test_default_threshold_is_065(self, mock_get):
         """デフォルト値は 0.65（旧0.55から緩和）"""
         thresholds = {
@@ -57,7 +57,7 @@ class TestPhase84QualityFilter:
             result.action != "hold"
         ), f"失敗確率0.60 (旧閾値0.55では拒否、新閾値0.65では通過) で hold 変換された: {result.action}"
 
-    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    @patch("src.core.orchestration.quality_filter.get_threshold")
     def test_high_failure_confidence_still_rejected(self, mock_get):
         """失敗確率 0.65以上は引き続き拒否（過剰防衛は維持）"""
         thresholds = {
@@ -78,7 +78,7 @@ class TestPhase84QualityFilter:
             result.action == "hold"
         ), f"失敗確率0.808 (新閾値0.65以上) は拒否されるはず: {result.action}"
 
-    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    @patch("src.core.orchestration.quality_filter.get_threshold")
     def test_yaml_override_threshold(self, mock_get):
         """yaml で 0.50 等にオーバーライド可能（より厳しく）"""
         thresholds = {
@@ -99,7 +99,7 @@ class TestPhase84QualityFilter:
             result.action == "hold"
         ), f"yaml 0.50 設定で失敗確率0.55 は拒否されるはず: {result.action}"
 
-    @patch("src.core.services.trading_cycle_manager.get_threshold")
+    @patch("src.core.orchestration.quality_filter.get_threshold")
     def test_legacy_055_threshold_passes_058(self, mock_get):
         """旧ハードコード0.55の挙動: 失敗確率0.58 は拒否されていた（新閾値0.65なら通過）"""
         # まず旧挙動を再現（high_conf_failure=0.55）

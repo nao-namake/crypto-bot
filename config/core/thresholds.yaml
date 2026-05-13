@@ -132,6 +132,22 @@ ml:
     #   normal (TP500/SL1500、名目RR 0.33:1、実RR 0.16:1) → 採算ライン勝率 86%
     # tight中心の運用なので閾値0.65のままで失敗確率65%超のみ拒否（過剰防衛回避）
     high_confidence_failure_threshold: 0.65
+    # Phase 87 Stage 3 H6: レジーム別品質フィルタ閾値（採算ライン勝率に応じた差別化）
+    # ルックアップ: regime_thresholds.<regime>.<key> → quality_filter.<key>（フォールバック）
+    # 未定義レジーム（high_volatility 等）は global 値を継承
+    regime_thresholds:
+      tight_range:
+        accept_threshold: 0.55   # 採算55%↑のため厳格化（0.58→0.55）
+        reject_threshold: 0.45
+        high_confidence_failure_threshold: 0.60
+      normal_range:
+        accept_threshold: 0.85   # 採算86%のため通過を絞る（0.58→0.85）
+        reject_threshold: 0.40
+        high_confidence_failure_threshold: 0.70
+      trending:
+        accept_threshold: 0.50   # Phase 85 でエントリー停止だが将来復活時のため定義
+        reject_threshold: 0.40
+        high_confidence_failure_threshold: 0.60
   # Phase 87 Stage 2-R4: ML サーキットブレーカー閾値（C4 MLHealthMonitor）
   health:
     consecutive_failure_threshold: 3  # 連続 N 回 predict/predict_proba 失敗で EMERGENCY_STOP 候補
@@ -596,6 +612,11 @@ risk:
     consecutive_loss_limit: 8
     cooldown_hours: 6
     fallback_balance: 11000.0
+    # Phase 87 Stage 3 H8: 段階的復帰（RECOVERY_TESTING）設定
+    # クールダウン解除後、サイズ縮小で検証取引 → 連勝で ACTIVE 復帰
+    recovery_required_wins: 2          # 連勝必要回数（ACTIVE 復帰条件）
+    recovery_position_multiplier: 0.5  # RECOVERY 中のポジションサイズ倍率
+    max_recovery_failures: 3           # 3回連続 recovery 失敗で EMERGENCY_STOP（無限ループ防止）
     persistence:
       local_path: data/drawdown_state.json
       gcs_bucket: crypto-bot-state

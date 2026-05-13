@@ -26,6 +26,8 @@ class TradingStatus(Enum):
     PAUSED_DRAWDOWN = "paused_drawdown"
     PAUSED_CONSECUTIVE_LOSS = "paused_consecutive_loss"
     EMERGENCY_STOP = "emergency_stop"
+    # Phase 87 Stage 3 H8: 段階的復帰中（クールダウン解除直後・小サイズで検証取引）
+    RECOVERY_TESTING = "recovery_testing"
 
 
 @dataclass
@@ -91,6 +93,13 @@ class DrawdownManager:
         self.cooldown_until: Optional[datetime] = None
         self.trade_history: List[TradeRecord] = []
 
+        # Phase 87 Stage 3 H8: 段階的復帰用カウンタ
+        # recovery_win_streak: RECOVERY_TESTING 中の連勝数（required_wins 到達で ACTIVE 復帰）
+        # recovery_failure_count: cooldown→RECOVERY_TESTING→cooldown のループ回数
+        #   max_recovery_failures 回到達で EMERGENCY_STOP（無限ループ防止）
+        self.recovery_win_streak: int = 0
+        self.recovery_failure_count: int = 0
+
         self.logger = get_logger()
 
         # 状態永続化設定
@@ -136,6 +145,7 @@ class DrawdownManager:
     ) -> None:
         """
         取引結果記録（Phase 52.2: バックテスト時刻対応）
+        Phase 87 Stage 3 H8: RECOVERY_TESTING 状態時は record_recovery_trade に委譲
 
         Args:
             profit_loss: 損益（正値=利益、負値=損失）
@@ -144,6 +154,10 @@ class DrawdownManager:
                          None時はdatetime.now()使用（本番モード）。
                          バックテスト時は取引発生時刻を指定。
         """
+        # Phase 87 H8: 段階的復帰中は専用ロジックへ委譲
+        if self.trading_status == TradingStatus.RECOVERY_TESTING:
+            return self.record_recovery_trade(profit_loss, current_time=current_time)
+
         try:
             # Phase 52.2: 基準時刻決定（本番時は現在時刻、バックテスト時は指定時刻）
             now = current_time if current_time is not None else datetime.now()
@@ -239,6 +253,66 @@ class DrawdownManager:
         # 状態保存
         self._save_state()
 
+    def record_recovery_trade(self, profit_loss: float, current_time=None) -> None:
+        """
+        Phase 87 Stage 3 H8: RECOVERY_TESTING 中の取引結果記録
+
+        - 利益: recovery_win_streak += 1 → required_wins 到達で ACTIVE 復帰
+                + consecutive_losses=0 + recovery_failure_count=0 リセット
+        - 損失: recovery_win_streak=0、recovery_failure_count += 1
+                → 即 cooldown 再開（PAUSED_CONSECUTIVE_LOSS）
+                → max_recovery_failures 到達で EMERGENCY_STOP（無限ループ防止）
+
+        Args:
+            profit_loss: 損益（正値=利益、負値=損失）
+            current_time: 取引時刻
+        """
+        try:
+            now = current_time if current_time is not None else datetime.now()
+            required_wins = int(get_threshold("risk.drawdown_manager.recovery_required_wins", 2))
+            max_failures = int(get_threshold("risk.drawdown_manager.max_recovery_failures", 3))
+
+            # 取引履歴に追加（既存 record_trade_result と同等の記録）
+            self.trade_history.append(
+                TradeRecord(timestamp=now, profit_loss=profit_loss, strategy="recovery")
+            )
+
+            if profit_loss > 0:
+                self.recovery_win_streak += 1
+                self.logger.info(
+                    f"✅ Phase 87 H8: RECOVERY 勝利 "
+                    f"({self.recovery_win_streak}/{required_wins})"
+                )
+                if self.recovery_win_streak >= required_wins:
+                    # 完全復帰
+                    self.logger.info(
+                        f"🟢 Phase 87 H8: RECOVERY_TESTING → ACTIVE 復帰 "
+                        f"(連勝={self.recovery_win_streak}件)"
+                    )
+                    self.trading_status = TradingStatus.ACTIVE
+                    self.consecutive_losses = 0
+                    self.recovery_win_streak = 0
+                    self.recovery_failure_count = 0
+            else:
+                # 損失 → 再 cooldown
+                self.recovery_win_streak = 0
+                self.recovery_failure_count += 1
+                self.logger.warning(
+                    f"🚫 Phase 87 H8: RECOVERY 失敗 "
+                    f"(failure_count={self.recovery_failure_count}/{max_failures}) → 再cooldown"
+                )
+
+                if self.recovery_failure_count >= max_failures:
+                    # 無限ループ防止: 連続失敗で EMERGENCY_STOP
+                    self.set_emergency_stop(f"recovery_loop_{self.recovery_failure_count}times")
+                else:
+                    # 通常の再cooldown
+                    self._enter_cooldown(TradingStatus.PAUSED_CONSECUTIVE_LOSS, current_time=now)
+
+            self._save_state()
+        except Exception as e:
+            self.logger.error(f"Phase 87 H8: record_recovery_trade エラー: {e}")
+
     def set_emergency_stop(self, reason: str) -> None:
         """
         Phase 87 Stage 2-R1: 緊急停止状態へ遷移
@@ -257,11 +331,22 @@ class DrawdownManager:
         self._save_state()
 
     def _exit_cooldown(self) -> None:
-        """クールダウン解除"""
-        self.logger.info("クールダウン解除、取引再開")
-        self.trading_status = TradingStatus.ACTIVE
+        """クールダウン解除（Phase 87 Stage 3 H8: 段階的復帰へ）
+
+        旧実装は即 ACTIVE + consecutive_losses=0 リセット → 連敗からの即時フル復帰だった。
+        Phase 87 H8 では RECOVERY_TESTING 状態を経由し、小サイズで取引検証してから
+        ACTIVE に戻る設計に変更。
+        - trading_status: RECOVERY_TESTING
+        - consecutive_losses: 維持（recovery 失敗時の判定材料）
+        - recovery_win_streak: 0 リセット（新しい検証セッションの開始）
+        """
+        self.trading_status = TradingStatus.RECOVERY_TESTING
         self.cooldown_until = None
-        self.consecutive_losses = 0
+        self.recovery_win_streak = 0
+        self.logger.info(
+            f"クールダウン解除→Phase 87 H8: RECOVERY_TESTING 開始 "
+            f"(連敗={self.consecutive_losses}件保持、サイズ縮小で検証取引へ)"
+        )
 
         # 状態保存
         self._save_state()
@@ -348,6 +433,7 @@ class DrawdownManager:
     def get_position_size_multiplier(self) -> float:
         """
         Phase 70: 連敗に応じたポジションサイズ縮小倍率
+        Phase 87 Stage 3 H8: RECOVERY_TESTING 中は固定縮小（デフォルト 0.5）
 
         - 連敗5回: 50%
         - 連敗6回: 40%
@@ -359,6 +445,13 @@ class DrawdownManager:
         Returns:
             float: ポジションサイズ倍率（0.0-1.0）
         """
+        # Phase 87 H8: RECOVERY_TESTING 中は連敗カウントによらず固定倍率
+        if self.trading_status == TradingStatus.RECOVERY_TESTING:
+            recovery_multiplier = float(
+                get_threshold("risk.drawdown_manager.recovery_position_multiplier", 0.5)
+            )
+            return recovery_multiplier
+
         if self.consecutive_losses >= 8:
             multiplier = 0.0
         elif self.consecutive_losses >= 7:
@@ -418,6 +511,9 @@ class DrawdownManager:
                 "cooldown_until": (
                     self.cooldown_until.isoformat() if self.cooldown_until else None
                 ),
+                # Phase 87 Stage 3 H8: 段階的復帰カウンタ
+                "recovery_win_streak": self.recovery_win_streak,
+                "recovery_failure_count": self.recovery_failure_count,
                 "last_updated": datetime.now().isoformat(),
             }
 
@@ -484,6 +580,10 @@ class DrawdownManager:
             cooldown_until_str = state.get("cooldown_until")
             if cooldown_until_str:
                 self.cooldown_until = datetime.fromisoformat(cooldown_until_str)
+
+            # Phase 87 Stage 3 H8: 段階的復帰カウンタ復元（後方互換: 旧 state には存在しない）
+            self.recovery_win_streak = int(state.get("recovery_win_streak", 0) or 0)
+            self.recovery_failure_count = int(state.get("recovery_failure_count", 0) or 0)
 
         except Exception as e:
             self.logger.error(f"状態復元エラー: {e}")
