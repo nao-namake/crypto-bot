@@ -1667,3 +1667,134 @@ class TestPhase87C3TPMakerSafeCancel:
         # last_order_id は None のまま（id=None 応答→例外→last_order_id=None維持）
         # → cancel_order は呼ばれない（_safe_cancel の早期 return）
         mock_client.cancel_order.assert_not_called()
+
+
+# ========================================
+# Phase 87 H3: stop_limit + slippage_buffer 二重防衛
+# ========================================
+
+
+class TestPhase87H3StopLimit:
+    """place_stop_loss で order_type='stop_limit' 時に slippage_buffer 0.008 で
+    limit_price が正しく計算されることを検証"""
+
+    @pytest.fixture
+    def h3_mock_client(self):
+        client = MagicMock()
+        client.create_stop_loss_order = MagicMock(
+            return_value={"id": "sl_test_001", "price": 13800000}
+        )
+        return client
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_stop_limit_buy_side_sets_limit_below_trigger(
+        self, mock_threshold, tp_sl_manager, h3_mock_client
+    ):
+        """BUY ポジション (sell SL) → limit_price は trigger より低い"""
+        sl_config = {
+            "enabled": True,
+            "order_type": "stop_limit",
+            "slippage_buffer": 0.008,
+        }
+        mock_threshold.side_effect = lambda key, default=None: (
+            sl_config if str(key) == "position_management.stop_loss" else default
+        )
+
+        await tp_sl_manager.place_stop_loss(
+            side="buy",
+            amount=0.015,
+            entry_price=14000000.0,
+            stop_loss_price=13900000.0,
+            symbol="BTC/JPY",
+            bitbank_client=h3_mock_client,
+        )
+
+        call_kwargs = h3_mock_client.create_stop_loss_order.call_args.kwargs
+        assert call_kwargs["order_type"] == "stop_limit"
+        expected_limit = 13900000.0 * (1 - 0.008)
+        assert call_kwargs["limit_price"] == pytest.approx(expected_limit, rel=1e-9)
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_stop_limit_sell_side_sets_limit_above_trigger(
+        self, mock_threshold, tp_sl_manager, h3_mock_client
+    ):
+        """SELL ポジション (buy SL) → limit_price は trigger より高い"""
+        sl_config = {
+            "enabled": True,
+            "order_type": "stop_limit",
+            "slippage_buffer": 0.008,
+        }
+        mock_threshold.side_effect = lambda key, default=None: (
+            sl_config if str(key) == "position_management.stop_loss" else default
+        )
+
+        await tp_sl_manager.place_stop_loss(
+            side="sell",
+            amount=0.015,
+            entry_price=14000000.0,
+            stop_loss_price=14100000.0,
+            symbol="BTC/JPY",
+            bitbank_client=h3_mock_client,
+        )
+
+        call_kwargs = h3_mock_client.create_stop_loss_order.call_args.kwargs
+        assert call_kwargs["order_type"] == "stop_limit"
+        expected_limit = 14100000.0 * (1 + 0.008)
+        assert call_kwargs["limit_price"] == pytest.approx(expected_limit, rel=1e-9)
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_stop_type_keeps_limit_price_none(
+        self, mock_threshold, tp_sl_manager, h3_mock_client
+    ):
+        """order_type='stop' （デフォルト）なら limit_price は None"""
+        sl_config = {
+            "enabled": True,
+            "order_type": "stop",
+        }
+        mock_threshold.side_effect = lambda key, default=None: (
+            sl_config if str(key) == "position_management.stop_loss" else default
+        )
+
+        await tp_sl_manager.place_stop_loss(
+            side="buy",
+            amount=0.015,
+            entry_price=14000000.0,
+            stop_loss_price=13900000.0,
+            symbol="BTC/JPY",
+            bitbank_client=h3_mock_client,
+        )
+
+        call_kwargs = h3_mock_client.create_stop_loss_order.call_args.kwargs
+        assert call_kwargs["order_type"] == "stop"
+        assert call_kwargs["limit_price"] is None
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_stop_limit_custom_slippage_buffer(
+        self, mock_threshold, tp_sl_manager, h3_mock_client
+    ):
+        """slippage_buffer のカスタム値が反映される"""
+        sl_config = {
+            "enabled": True,
+            "order_type": "stop_limit",
+            "slippage_buffer": 0.015,
+        }
+        mock_threshold.side_effect = lambda key, default=None: (
+            sl_config if str(key) == "position_management.stop_loss" else default
+        )
+
+        await tp_sl_manager.place_stop_loss(
+            side="buy",
+            amount=0.015,
+            entry_price=14000000.0,
+            stop_loss_price=13900000.0,
+            symbol="BTC/JPY",
+            bitbank_client=h3_mock_client,
+        )
+
+        call_kwargs = h3_mock_client.create_stop_loss_order.call_args.kwargs
+        expected_limit = 13900000.0 * (1 - 0.015)
+        assert call_kwargs["limit_price"] == pytest.approx(expected_limit, rel=1e-9)

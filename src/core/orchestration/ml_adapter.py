@@ -48,6 +48,31 @@ class MLServiceAdapter:
         self.is_fitted = self.loader.is_fitted
         self.current_feature_count = None  # Phase 50.8: 現在のモデルの特徴量数
 
+        # Phase 87 C4: MLHealthMonitor（DummyModel サーキットブレーカー）
+        try:
+            from .ml_health_monitor import MLHealthMonitor
+
+            self.ml_health_monitor = MLHealthMonitor()
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 87 C4: MLHealthMonitor 初期化失敗: {e}")
+            self.ml_health_monitor = None
+
+    def _record_ml_failure(self, reason: str) -> None:
+        """Phase 87 C4: ML 予測失敗を MLHealthMonitor に記録"""
+        if self.ml_health_monitor is not None:
+            try:
+                self.ml_health_monitor.record_failure(reason)
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 87 C4: record_failure error: {e}")
+
+    def _reset_ml_health(self) -> None:
+        """Phase 87 C4: ML 予測成功時に MLHealthMonitor をリセット"""
+        if self.ml_health_monitor is not None:
+            try:
+                self.ml_health_monitor.reset_on_success()
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 87 C4: reset_on_success error: {e}")
+
     def predict(
         self, X: Union[pd.DataFrame, np.ndarray], use_confidence: bool = True
     ) -> np.ndarray:
@@ -70,15 +95,22 @@ class MLServiceAdapter:
                 hasattr(self.model, "predict")
                 and "use_confidence" in self.model.predict.__code__.co_varnames
             ):
-                return self.model.predict(X, use_confidence=use_confidence)
+                result = self.model.predict(X, use_confidence=use_confidence)
             else:
-                return self.model.predict(X)
+                result = self.model.predict(X)
+            # Phase 87 C4: 成功時はサーキットブレーカーをリセット
+            self._reset_ml_health()
+            return result
 
         except Exception as e:
             self.logger.error(f"予測エラー: {e}")
             # エラー時はダミーモデルにフォールバック
             if self.model_type != "DummyModel":
-                self.logger.warning("エラーによりダミーモデルにフォールバック")
+                # Phase 87 C4: critical 格上げ + サーキットブレーカー記録
+                self.logger.critical(
+                    f"🚨 Phase 87 C4: predict エラーによりダミーモデルにフォールバック: {e}"
+                )
+                self._record_ml_failure(f"predict_error: {e}")
                 dummy_model = DummyModel()
                 return dummy_model.predict(X)
             else:
@@ -98,11 +130,17 @@ class MLServiceAdapter:
             raise ValueError("モデルが学習されていません")
 
         try:
-            return self.model.predict_proba(X)
+            result = self.model.predict_proba(X)
+            self._reset_ml_health()
+            return result
         except Exception as e:
             self.logger.error(f"確率予測エラー: {e}")
             if self.model_type != "DummyModel":
-                self.logger.warning("確率予測エラーによりダミーモデルにフォールバック")
+                # Phase 87 C4: critical 格上げ + サーキットブレーカー記録
+                self.logger.critical(
+                    f"🚨 Phase 87 C4: predict_proba エラーによりダミーモデルにフォールバック: {e}"
+                )
+                self._record_ml_failure(f"predict_proba_error: {e}")
                 dummy_model = DummyModel()
                 return dummy_model.predict_proba(X)
             else:

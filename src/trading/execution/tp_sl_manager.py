@@ -328,9 +328,24 @@ class TPSLManager:
                 f"ダスト/微小ポジションまたは計算バグの可能性。"
             )
 
-        # Phase 81: stop（成行）専用のため limit_price は常にNone
+        # Phase 87 H3: stop_limit 時の slippage_buffer 二重防衛
+        # Phase 81: stop（成行）専用設計から拡張。order_type=stop_limit 時のみ limit_price 計算
+        # Phase 78/80 ジレンマ完全解決: 通常時 stop_limit で確実約定 + 価格急変時の
+        # CANCELED_UNFILLED は SLMonitor (C1/C5) で検出して緊急成行決済
         sl_order_type = sl_config.get("order_type", "stop")
         limit_price = None
+        if sl_order_type == "stop_limit":
+            slippage = float(sl_config.get("slippage_buffer", 0.008))
+            if side.lower() == "buy":
+                # BUY ポジション → sell SL → limit_price は stop_loss_price より低く
+                limit_price = stop_loss_price * (1 - slippage)
+            else:
+                # SELL ポジション → buy SL → limit_price は stop_loss_price より高く
+                limit_price = stop_loss_price * (1 + slippage)
+            self.logger.info(
+                f"📐 Phase 87 H3: stop_limit + slippage_buffer={slippage * 100:.1f}% "
+                f"(stop={stop_loss_price:.0f}円, limit={limit_price:.0f}円)"
+            )
 
         # SL注文配置（Phase 65.5: asyncio.to_threadでラップ）
         sl_order = await asyncio.to_thread(

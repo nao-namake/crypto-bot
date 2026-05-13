@@ -99,6 +99,19 @@ class DrawdownManager:
         self.gcs_bucket = persistence_config.get("gcs_bucket")
         self.gcs_path = persistence_config.get("gcs_path")
 
+        # Phase 87 H5: Firestore 永続化（Cloud Run 再起動時の連敗カウント保護）
+        # バックテスト時は無効、ライブ/ペーパー時のみ初期化
+        self.firestore_client = None
+        if mode != "backtest":
+            try:
+                from ...core.persistence import FirestoreStateClient  # type: ignore
+
+                self.firestore_client = FirestoreStateClient(
+                    local_fallback_dir=os.path.dirname(self.local_state_path) or "data"
+                )
+            except Exception as e:
+                self.logger.warning(f"Phase 87 H5: FirestoreStateClient init failed: {e}")
+
         # 状態復元
         self._load_state()
 
@@ -373,7 +386,7 @@ class DrawdownManager:
         }
 
     def _save_state(self) -> None:
-        """状態保存（ローカル + GCS）"""
+        """状態保存（Phase 87 H5: Firestore 優先・ローカル JSON はフォールバック）"""
         try:
             # バックテストモードでは保存しない
             if self.mode == "backtest":
@@ -391,29 +404,57 @@ class DrawdownManager:
                 "last_updated": datetime.now().isoformat(),
             }
 
-            # ローカル保存
-            os.makedirs(os.path.dirname(self.local_state_path), exist_ok=True)
-            with open(self.local_state_path, "w") as f:
-                json.dump(state, f, indent=2)
+            # Phase 87 H5: Firestore に優先保存（Cloud Run ephemeral FS から保護）
+            saved_to_firestore = False
+            if self.firestore_client is not None and self.firestore_client.enabled:
+                try:
+                    self.firestore_client.save("drawdown_state", "main", state)
+                    saved_to_firestore = True
+                    self.logger.debug("Phase 87 H5: Firestore に状態保存完了")
+                except Exception as e:
+                    self.logger.warning(f"Phase 87 H5: Firestore save 失敗: {e}")
 
-            self.logger.debug(f"状態保存完了: {self.local_state_path}")
+            # ローカル保存（Firestore 不通時のフォールバック + バックアップ）
+            # 既存ローカル形式（flat state）を維持してテスト互換
+            if not saved_to_firestore:
+                os.makedirs(os.path.dirname(self.local_state_path), exist_ok=True)
+                with open(self.local_state_path, "w") as f:
+                    json.dump(state, f, indent=2)
+                self.logger.debug(f"状態保存完了（ローカル）: {self.local_state_path}")
 
         except Exception as e:
             self.logger.error(f"状態保存エラー: {e}")
 
     def _load_state(self) -> None:
-        """状態復元（ローカル読み込み）"""
+        """状態復元（Phase 87 H5: Firestore 優先・ローカル JSON はフォールバック）"""
         try:
             # バックテストモードでは復元しない
             if self.mode == "backtest":
                 return
 
-            if not os.path.exists(self.local_state_path):
-                self.logger.info("状態ファイル未存在、新規作成")
-                return
+            state = None
 
-            with open(self.local_state_path, "r") as f:
-                state = json.load(f)
+            # Phase 87 H5: Firestore から優先復元
+            if self.firestore_client is not None and self.firestore_client.enabled:
+                try:
+                    state = self.firestore_client.load("drawdown_state", "main")
+                    if state:
+                        self.logger.info("Phase 87 H5: Firestore から状態復元成功")
+                except Exception as e:
+                    self.logger.warning(f"Phase 87 H5: Firestore load 失敗: {e}")
+
+            # ローカルフォールバック
+            if state is None:
+                if not os.path.exists(self.local_state_path):
+                    self.logger.info("状態ファイル未存在、新規作成")
+                    return
+
+                with open(self.local_state_path, "r") as f:
+                    state = json.load(f)
+                self.logger.info(f"状態復元完了（ローカル）: {self.local_state_path}")
+
+            if not state:
+                return
 
             self.initial_balance = state.get("initial_balance", 10000.0)
             self.peak_balance = state.get("peak_balance", 10000.0)
@@ -426,8 +467,6 @@ class DrawdownManager:
             cooldown_until_str = state.get("cooldown_until")
             if cooldown_until_str:
                 self.cooldown_until = datetime.fromisoformat(cooldown_until_str)
-
-            self.logger.info(f"状態復元完了: {self.local_state_path}")
 
         except Exception as e:
             self.logger.error(f"状態復元エラー: {e}")

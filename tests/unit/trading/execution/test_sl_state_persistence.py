@@ -89,19 +89,20 @@ class TestSLStatePersistence:
         persistence.save("buy", "123", 10000000.0, 0.001)
 
     def test_clear_error_handling(self, persistence):
-        """クリア時のエラーハンドリング（write失敗）"""
+        """クリア時のエラーハンドリング（Phase 87 H4: persistence.delete 失敗）"""
         persistence.save("buy", "123", 10000000.0, 0.001)
-        # Make state_path read-only dir to cause write error
-        original_write = persistence._write
-        persistence._write = MagicMock(side_effect=PermissionError("read-only"))
+        # Phase 87 H4: 内部実装が FirestoreStateClient 経由になったため、
+        # persistence.delete を mock してエラーを再現
+        original_delete = persistence.persistence.delete
+        persistence.persistence.delete = MagicMock(side_effect=PermissionError("read-only"))
         # Should not raise, just log error
         persistence.clear("buy")
-        persistence._write = original_write
+        persistence.persistence.delete = original_delete
 
     def test_verify_with_no_order_id_in_state(self, persistence):
-        """sl_order_idがない状態データ"""
-        # Write state without sl_order_id
-        persistence._write({"buy": {"sl_price": 10000000.0}})
+        """sl_order_idがない状態データ（Phase 87 H4: persistence.save を直接呼ぶ）"""
+        # Phase 87 H4: 内部は FirestoreStateClient 経由なので save 直接呼ぶ
+        persistence.persistence.save("sl_state", "buy", {"sl_price": 10000000.0})
         mock_client = MagicMock()
         result = persistence.verify_with_api("buy", mock_client)
         assert result is None

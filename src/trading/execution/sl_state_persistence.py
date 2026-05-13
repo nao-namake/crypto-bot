@@ -1,31 +1,49 @@
 """
-SL注文IDのローカルファイル永続化 - Phase 68.4
+SL注文IDの永続化 - Phase 68.4 (Phase 87 H4 で内部実装を Firestore 化)
 
 bitbankのstop_limit注文はトリガー価格到達前にINACTIVE状態となり、
 fetch_active_orders（ccxt fetch_open_orders）に返されない。
 Container再起動でVP（インメモリ）が消失すると、SL order IDも喪失し、
 BotがSLを「存在しない」と誤判定する問題を解決する。
 
-drawdown.pyの_save_state/_load_stateパターンを参考に、
-SL注文IDをローカルJSONファイルに永続化する。
+Phase 87 H4: ローカルJSON（Cloud Run ephemeral FSで消失）→ Firestore へ。
+外部APIシグネチャ（save/load/clear/verify_with_api）は完全維持。
+Firestore 不通時は自動的にローカル JSON へフォールバック。
 """
 
-import json
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from ...core.logger import get_logger
+from ...core.persistence import FirestoreStateClient
 
 
 class SLStatePersistence:
-    """SL注文IDのローカルファイル永続化（INACTIVE SL対策）"""
+    """SL注文IDの永続化（INACTIVE SL対策 / Phase 87 H4: Firestore化）"""
 
     DEFAULT_STATE_PATH = "data/sl_state.json"
+    COLLECTION = "sl_state"  # Phase 87 H4: Firestore コレクション名
 
-    def __init__(self, state_path: str = None):
+    def __init__(
+        self,
+        state_path: Optional[str] = None,
+        persistence: Optional[FirestoreStateClient] = None,
+    ):
+        """
+        Args:
+            state_path: ローカル JSON フォールバックのパス（後方互換）。
+                親ディレクトリが FirestoreStateClient の local_fallback_dir になる。
+            persistence: テスト用に FirestoreStateClient を外部注入可能。
+        """
         self.state_path = state_path or self.DEFAULT_STATE_PATH
         self.logger = get_logger()
+
+        if persistence is not None:
+            self.persistence = persistence
+        else:
+            local_dir = os.path.dirname(self.state_path) or "data"
+            self.persistence = FirestoreStateClient(local_fallback_dir=local_dir)
 
     def save(
         self,
@@ -45,22 +63,21 @@ class SLStatePersistence:
             sl_placed_at: SL配置時刻ISO文字列（Phase 69.6: タイムアウト計算用）
         """
         try:
-            state = self._load_raw()
             now_iso = datetime.now(timezone.utc).isoformat()
-            state[side] = {
+            data = {
                 "sl_order_id": str(sl_order_id),
                 "sl_price": sl_price,
                 "amount": amount,
                 "sl_placed_at": sl_placed_at or now_iso,
                 "saved_at": now_iso,
             }
-            self._write(state)
+            self.persistence.save(self.COLLECTION, side, data)
             self.logger.info(
-                f"Phase 68.4: SL永続化保存 - {side} ID={sl_order_id}, "
+                f"Phase 68.4/H4: SL永続化保存 - {side} ID={sl_order_id}, "
                 f"price={sl_price:.0f}, amount={amount:.4f}"
             )
         except Exception as e:
-            self.logger.error(f"Phase 68.4: SL永続化保存エラー: {e}")
+            self.logger.error(f"Phase 68.4/H4: SL永続化保存エラー: {e}")
 
     def load(self) -> Dict[str, Any]:
         """起動時に読み込み
@@ -68,7 +85,11 @@ class SLStatePersistence:
         Returns:
             Dict: {"buy": {...}, "sell": {...}} or {}
         """
-        return self._load_raw()
+        try:
+            return self.persistence.load_collection(self.COLLECTION)
+        except Exception as e:
+            self.logger.warning(f"Phase 68.4/H4: SL永続化読み込みエラー: {e}")
+            return {}
 
     def clear(self, side: str) -> None:
         """ポジション決済時にクリア
@@ -77,13 +98,10 @@ class SLStatePersistence:
             side: エントリーサイド (buy/sell)
         """
         try:
-            state = self._load_raw()
-            if side in state:
-                del state[side]
-                self._write(state)
-                self.logger.info(f"Phase 68.4: SL永続化クリア - {side}")
+            self.persistence.delete(self.COLLECTION, side)
+            self.logger.info(f"Phase 68.4/H4: SL永続化クリア - {side}")
         except Exception as e:
-            self.logger.error(f"Phase 68.4: SL永続化クリアエラー: {e}")
+            self.logger.error(f"Phase 68.4/H4: SL永続化クリアエラー: {e}")
 
     def verify_with_api(
         self, side: str, bitbank_client: Any, symbol: str = "BTC/JPY"
@@ -102,8 +120,7 @@ class SLStatePersistence:
             有効なSL注文IDまたはNone
         """
         try:
-            state = self._load_raw()
-            sl_info = state.get(side)
+            sl_info = self.persistence.load(self.COLLECTION, side)
             if not sl_info:
                 return None
 
@@ -145,19 +162,3 @@ class SLStatePersistence:
             else:
                 self.logger.warning(f"Phase 68.4: 永続化SL検証エラー: {e}")
             return None
-
-    def _load_raw(self) -> Dict[str, Any]:
-        """JSONファイル読み込み"""
-        try:
-            if not os.path.exists(self.state_path):
-                return {}
-            with open(self.state_path, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-
-    def _write(self, state: Dict[str, Any]) -> None:
-        """JSONファイル書き込み"""
-        os.makedirs(os.path.dirname(self.state_path), exist_ok=True)
-        with open(self.state_path, "w") as f:
-            json.dump(state, f, indent=2)
