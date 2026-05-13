@@ -441,11 +441,14 @@ class TradingCycleManager:
 
                 # 最新の予測値と実際の信頼度を使用
                 if len(ml_predictions_array) > 0 and len(ml_probabilities) > 0:
-                    prediction = int(ml_predictions_array[-1])
-                    # 最大確率を信頼度として使用（実際MLモデルの出力）
-                    import numpy as np
+                    # Phase 87 C2: predicted_class_proba 統一（旧 np.max 廃止）
+                    from ..orchestration.ml_confidence import get_predicted_class_proba
 
-                    confidence = float(np.max(ml_probabilities[-1]))
+                    _, confidence = get_predicted_class_proba(ml_probabilities)
+                    # ml_predictions_array は ml_service.predict() の出力
+                    # （理論上 argmax(probabilities) と一致する）
+                    prediction = int(ml_predictions_array[-1])
+                    import numpy as np  # n_classes 算出で利用
 
                     # Phase 73-D: クラス数に応じた動的ラベルマッピング
                     n_classes = len(ml_probabilities[-1])

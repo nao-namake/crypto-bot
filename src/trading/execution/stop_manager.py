@@ -19,6 +19,7 @@ from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ...data.bitbank_client import BitbankClient
 from ..core import ExecutionMode, ExecutionResult, OrderStatus
+from .sl_monitor import SLMonitor
 from .sl_state_persistence import SLStatePersistence
 from .tp_sl_config import TPSLConfig
 
@@ -34,6 +35,14 @@ class StopManager:
         """StopManager初期化"""
         self.logger = get_logger()
         self.sl_persistence = SLStatePersistence()
+
+        # Phase 87 H1: SL 24h タイムアウト判定用
+        self.sl_monitor = SLMonitor(
+            logger=self.logger,
+            sl_persistence=self.sl_persistence,
+            dry_run=bool(get_threshold("position_management.stop_loss.sl_monitor.dry_run", True)),
+            timeout_hours=int(get_threshold("position_management.stop_loss.timeout_hours", 24)),
+        )
 
         # Phase 69.7: 取引判断の事後分析記録
         self.trade_analysis_recorder = None
@@ -660,6 +669,35 @@ class StopManager:
             # ポジションがない場合は何もしない
             if not virtual_positions:
                 return None
+
+            # Phase 87 H1: SL 24h タイムアウト判定（API消費ゼロの軽量チェック）
+            # 24h超過SLは流動性枯渇等で約定リスクが高いため緊急成行決済する
+            # bitbank_client=None は dry_run/backtest/paper モード時に発生し得るため
+            # ここで早期スキップする（実発注に必要な API クライアントが無い文脈）
+            if bitbank_client is not None:
+                positions_to_close = []
+                for vpos in list(virtual_positions):
+                    if self.sl_monitor._is_timed_out(vpos.get("sl_placed_at")):
+                        self.logger.critical(
+                            f"🚨 Phase 87 H1: SL 24h超過検出 - "
+                            f"side={vpos.get('side')}, amount={vpos.get('amount', 0):.6f} BTC, "
+                            f"sl_placed_at={vpos.get('sl_placed_at')}"
+                        )
+                        try:
+                            await self.sl_monitor.emergency_market_close(
+                                entry_side=vpos.get("side", ""),
+                                amount=float(vpos.get("amount", 0.0)),
+                                reason=f"sl_timeout_{self.sl_monitor.timeout_hours}h",
+                                bitbank_client=bitbank_client,
+                            )
+                            positions_to_close.append(vpos)
+                        except Exception as timeout_err:
+                            self.logger.critical(
+                                f"🚨🚨 Phase 87 H1: タイムアウト緊急決済失敗: {timeout_err}"
+                            )
+                for vpos in positions_to_close:
+                    if vpos in virtual_positions:
+                        virtual_positions.remove(vpos)
 
             # 現在価格取得
             current_price = await self._get_current_price(bitbank_client)

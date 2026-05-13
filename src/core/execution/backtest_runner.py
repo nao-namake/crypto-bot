@@ -680,8 +680,15 @@ class BacktestRunner(BaseRunner):
                                             main_timeframe
                                         ]["probabilities"]
                                         if i < len(predictions):
+                                            # Phase 87 C2/H10: ヘルパー化（ライブ整合）
+                                            from ...core.orchestration.ml_confidence import (
+                                                get_predicted_class_proba,
+                                            )
+
+                                            _, ml_confidence = get_predicted_class_proba(
+                                                probabilities[i]
+                                            )
                                             ml_prediction = int(predictions[i])
-                                            ml_confidence = float(np.max(probabilities[i]))
 
                                     # Phase 59.3: 調整済み信頼度を取得（positionから）
                                     adjusted_confidence = position.get(
@@ -1239,9 +1246,11 @@ class BacktestRunner(BaseRunner):
             predictions = self.precomputed_ml_predictions[main_timeframe]["predictions"]
             probabilities = self.precomputed_ml_predictions[main_timeframe]["probabilities"]
 
-            # 現在インデックスの予測値を取得
+            # 現在インデックスの予測値を取得（Phase 87 C2/H10: ヘルパー統一）
+            from ...core.orchestration.ml_confidence import get_predicted_class_proba
+
+            _, confidence = get_predicted_class_proba(probabilities[current_index])
             prediction = int(predictions[current_index])
-            confidence = float(np.max(probabilities[current_index]))
 
             # data_serviceにML予測を設定
             self.orchestrator.data_service.set_backtest_ml_prediction(

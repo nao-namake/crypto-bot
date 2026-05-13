@@ -3483,3 +3483,110 @@ class TestPhase692SiblingVPCleanup:
 
         # エラーがあっても決済自体は成功
         assert result.success is True
+
+
+# ========================================
+# Phase 87 H1: SL 24h タイムアウト判定テスト
+# ========================================
+
+
+class TestPhase87H1Timeout:
+    """check_stop_conditions が sl_placed_at の 24h 超過を検出して VP を削除することを検証"""
+
+    @pytest.fixture
+    def stop_manager_with_short_timeout(self):
+        """timeout_hours を短くした StopManager（テスト高速化）"""
+        from unittest.mock import AsyncMock as _AsyncMock
+
+        mgr = StopManager()
+        # timeout_hours は既存設定を継承するが、emergency_market_close を AsyncMock 化
+        mgr.sl_monitor.emergency_market_close = _AsyncMock(
+            return_value={"order_id": "close-h1", "dry_run": True, "reason": "x"}
+        )
+        return mgr
+
+    @pytest.fixture
+    def safe_bitbank_client(self):
+        """SL 未到達価格 (14M円) を返す sync Mock 込み bitbank client。
+
+        `_get_current_price` は `asyncio.to_thread(bitbank_client.fetch_ticker, ...)` 経由で
+        呼ぶため、`fetch_ticker` は **sync Mock** にする必要がある（AsyncMock だと
+        coroutine が await されずフォールバック価格 16.5M に切替される）。
+        """
+        client = MagicMock()
+        client.fetch_ticker = Mock(return_value={"last": 14000000.0})
+        client.fetch_positions = AsyncMock(return_value=[])
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+        client.fetch_active_orders = Mock(return_value=[])
+        client.cancel_order = AsyncMock()
+        return client
+
+    @pytest.mark.asyncio
+    async def test_check_stop_conditions_timeout_24h_removes_vp(
+        self, stop_manager_with_short_timeout, safe_bitbank_client
+    ):
+        """sl_placed_at が 25h 前の VP に対し emergency_market_close が呼ばれ、VP が削除される"""
+        old_iso = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
+        vp_timeout = {
+            "order_id": "vp1",
+            "side": "buy",
+            "amount": 0.01,
+            "price": 14000000.0,
+            # 14M円の現在価格 (safe_bitbank_client) より低い SL (13.7M) で SL未到達
+            "stop_loss": 13700000.0,
+            "take_profit": 14300000.0,
+            "timestamp": datetime.now(),
+            "sl_placed_at": old_iso,
+        }
+        virtual_positions = [vp_timeout]
+
+        await stop_manager_with_short_timeout.check_stop_conditions(
+            virtual_positions=virtual_positions,
+            bitbank_client=safe_bitbank_client,
+            mode="live",
+            executed_trades=0,
+            session_pnl=0.0,
+        )
+
+        # emergency_market_close が呼ばれた
+        stop_manager_with_short_timeout.sl_monitor.emergency_market_close.assert_called_once()
+        call_kwargs = (
+            stop_manager_with_short_timeout.sl_monitor.emergency_market_close.call_args.kwargs
+        )
+        assert call_kwargs["entry_side"] == "buy"
+        assert call_kwargs["amount"] == 0.01
+        assert call_kwargs["reason"].startswith("sl_timeout_")
+        # VP が削除されている（H1 で除外された後、後続 TP/SL チェックの対象外）
+        assert vp_timeout not in virtual_positions
+
+    @pytest.mark.asyncio
+    async def test_check_stop_conditions_no_timeout_keeps_vp(
+        self, stop_manager_with_short_timeout, safe_bitbank_client
+    ):
+        """sl_placed_at が 1h 前の VP は H1 トリガーされず、VP は残る"""
+        recent_iso = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        vp_fresh = {
+            "order_id": "vp_fresh",
+            "side": "buy",
+            "amount": 0.02,
+            "price": 14000000.0,
+            # 14M円の現在価格 (safe_bitbank_client) より低い SL (13.7M) で SL未到達
+            "stop_loss": 13700000.0,
+            "take_profit": 14300000.0,
+            "timestamp": datetime.now(),
+            "sl_placed_at": recent_iso,
+        }
+        virtual_positions = [vp_fresh]
+
+        await stop_manager_with_short_timeout.check_stop_conditions(
+            virtual_positions=virtual_positions,
+            bitbank_client=safe_bitbank_client,
+            mode="live",
+            executed_trades=0,
+            session_pnl=0.0,
+        )
+
+        # H1 タイムアウトでは emergency_market_close は呼ばれない
+        stop_manager_with_short_timeout.sl_monitor.emergency_market_close.assert_not_called()
+        # VP は残る
+        assert vp_fresh in virtual_positions

@@ -17,6 +17,9 @@ from ..core.config.feature_manager import get_feature_categories, get_feature_na
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
 
+# Phase 87 H7: 共有定数（silent failure 防止）
+from .constants import EXPECTED_FEATURE_COUNT, STRATEGY_COUNT
+
 # 特徴量リスト（一元化対応）
 OPTIMIZED_FEATURES = get_feature_names()
 
@@ -93,7 +96,7 @@ class FeatureGenerator:
             result_df = self._convert_to_dataframe(market_data)
             self.computed_features.clear()
             result_df = self._run_feature_pipeline(result_df, strategy_signals)
-            self._validate_feature_generation(result_df, expected_count=37)
+            self._validate_feature_generation(result_df, expected_count=EXPECTED_FEATURE_COUNT)
             return result_df
 
         except Exception as e:
@@ -437,18 +440,29 @@ class FeatureGenerator:
         strategy_internal_names = self._get_strategy_signal_feature_names()
         num_strategies = len(strategy_internal_names)
 
+        # Phase 87 H9: 戦略数アサーション（実装ミス・設定ミス検出）
+        if num_strategies != STRATEGY_COUNT:
+            self.logger.critical(
+                f"🚨 Phase 87 H9: 戦略数不一致 (expected={STRATEGY_COUNT}, got={num_strategies}). "
+                f"thresholds.yaml の strategies セクションを確認してください。"
+            )
+            raise DataProcessingError(
+                f"戦略数不一致: expected={STRATEGY_COUNT}, got={num_strategies}"
+            )
+
         added_count = 0
 
         # Phase 50.1: strategy_signals=Noneの場合も処理を継続（0埋め）
+        # Phase 87 H9: ライブ運用で None ならシグナル取得失敗の可能性 → warning に格上げ
         if not strategy_signals:
-            self.logger.debug(
-                f"戦略シグナル特徴量: strategy_signals未提供 → {num_strategies}個を0.0で生成（確実）"
+            self.logger.warning(
+                f"⚠️ Phase 87 H9: strategy_signals 未提供 → "
+                f"{num_strategies}個を0.0で生成（バックテスト事前計算なら正常、ライブなら異常）"
             )
             # 全戦略を0.0で追加
             for internal_name, feature_name in strategy_internal_names.items():
                 result_df[feature_name] = 0.0
                 self.computed_features.add(feature_name)
-            self.logger.debug(f"戦略シグナル特徴量生成完了: {num_strategies}個（0埋め）")
             return result_df
 
         # strategy_signalsが提供されている場合
@@ -789,13 +803,15 @@ class FeatureGenerator:
                 df[feature] = df[feature].fillna(0)
         return df
 
-    def _validate_feature_generation(self, df: pd.DataFrame, expected_count: int = 37) -> None:
+    def _validate_feature_generation(
+        self, df: pd.DataFrame, expected_count: int = EXPECTED_FEATURE_COUNT
+    ) -> None:
         """
-        特徴量完全確認・検証 - Phase 51.7 Day 7: 37特徴量
+        特徴量完全確認・検証 - Phase 51.7 Day 7: 37特徴量 / Phase 87 H7: critical格上げ
 
         Args:
             df: 検証対象DataFrame
-            expected_count: 期待特徴量数（59）
+            expected_count: 期待特徴量数（デフォルト EXPECTED_FEATURE_COUNT=37）
         """
         generated_features = [col for col in OPTIMIZED_FEATURES if col in df.columns]
         missing_features = [col for col in OPTIMIZED_FEATURES if col not in df.columns]
@@ -859,12 +875,15 @@ class FeatureGenerator:
         )
 
         if missing_features:
-            self.logger.warning(
-                f"特徴量不足検出: {missing_features} ({len(missing_features)}個不足)"
+            # Phase 87 H7: 不足あり時は critical ログ（silent failure 防止）
+            self.logger.critical(
+                f"🚨 Phase 87 H7: 特徴量不足検出 "
+                f"({total_generated}/{expected_count}個生成・{len(missing_features)}個不足): "
+                f"{missing_features}"
             )
 
         if total_generated == expected_count:
-            self.logger.info(f"37特徴量完全生成成功")
+            self.logger.info(f"{expected_count}特徴量完全生成成功")
 
     def get_feature_info(self) -> Dict[str, Any]:
         """特徴量情報取得"""

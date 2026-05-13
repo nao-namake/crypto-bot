@@ -718,7 +718,13 @@ position_management:
   stop_loss:
     enabled: true
     order_type: stop  # Phase 80: stop_limit→stop ロールバック（Phase 69.8の教訓を再確認）
-    slippage_buffer: 0.008  # Phase 80: 0.005→0.008 ロールバック
+    slippage_buffer: 0.008  # Phase 80: 0.005→0.008 ロールバック / Phase 87 H3: stop_limit時の二重防衛用
+    # Phase 87 H1: SL配置からのタイムアウト（24h超過SLは流動性枯渇懸念で強制成行決済）
+    timeout_hours: 24
+    # Phase 87 C1/C5: SL CANCELED_UNFILLED 検出 + 緊急成行決済
+    sl_monitor:
+      enabled: true
+      dry_run: true  # 初期投入時はログのみ。誤発火0件確認後 false へ切替
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007
     override_strategy_sl: false

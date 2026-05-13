@@ -10,6 +10,7 @@ Phase 64: stop_manager.pyから移動したTP/SL配置メソッドのテスト
 - calculate_recovery_tp_sl_prices(): Phase 64.4 復旧用TP/SL価格計算
 """
 
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -1506,3 +1507,163 @@ class TestPhase82DustDetection:
                 amount=0.0001,
                 avg_price=11321161.0,
             )
+
+
+# ========================================
+# Phase 87 C5: 5分ループ内 SL health check 連携テスト
+# Phase 87 C3: TP Maker timeout cancel 強化
+# ========================================
+
+
+class TestPhase87C5HealthCheckIntegration:
+    """ensure_tp_sl_for_existing_positions が CANCELED_UNFILLED 検出時に
+    sl_monitor.emergency_market_close を起動して VP を削除することを検証"""
+
+    @pytest.fixture
+    def tp_sl_manager_with_mock_sl_monitor(self):
+        from unittest.mock import AsyncMock as _AsyncMock
+
+        mgr = TPSLManager()
+        # sl_monitor.emergency_market_close を AsyncMock 化
+        mgr.sl_monitor.emergency_market_close = _AsyncMock(
+            return_value={"order_id": "close-c5", "dry_run": True, "reason": "x"}
+        )
+        return mgr
+
+    @pytest.mark.asyncio
+    async def test_ensure_tp_sl_health_check_triggers_emergency(
+        self, tp_sl_manager_with_mock_sl_monitor
+    ):
+        """CANCELED_UNFILLED の SL を持つ VP が emergency_market_close で削除される"""
+        from datetime import timezone
+
+        mgr = tp_sl_manager_with_mock_sl_monitor
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+        vp_unhealthy = {
+            "order_id": "vp_canceled",
+            "side": "buy",
+            "amount": 0.015,
+            "price": 14000000.0,
+            "sl_order_id": "sl_canceled_id",
+            "sl_placed_at": recent,
+        }
+        virtual_positions = [vp_unhealthy]
+
+        # bitbank_client: fetch_order で CANCELED_UNFILLED ステータスを返す
+        mock_client = MagicMock()
+        mock_client.fetch_order = MagicMock(return_value={"info": {"status": "CANCELED_UNFILLED"}})
+        # margin_positions は空（後続処理に進まないようにする）
+        mock_client.fetch_margin_positions = MagicMock(return_value=[])
+
+        await mgr.ensure_tp_sl_for_existing_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # emergency_market_close が呼ばれた
+        mgr.sl_monitor.emergency_market_close.assert_called_once()
+        call_kwargs = mgr.sl_monitor.emergency_market_close.call_args.kwargs
+        assert call_kwargs["entry_side"] == "buy"
+        assert call_kwargs["amount"] == 0.015
+        assert "canceled_unfilled" in call_kwargs["reason"]
+        # VP が削除されている
+        assert vp_unhealthy not in virtual_positions
+
+
+class TestPhase87C3TPMakerSafeCancel:
+    """TP Maker timeout / final_failure 時の _safe_cancel 経路を検証"""
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_place_tp_maker_safe_cancel_on_timeout(self, mock_threshold, tp_sl_manager):
+        """retry に進む間に timeout 経過 → _safe_cancel が呼ばれる経路を検証。
+
+        post_only キャンセルを受けても retry loop の冒頭で timeout 判定が走る。
+        last_order_id は None のまま（post_only キャンセル時にクリアされる）なので
+        cancel_order は呼ばれないが、_safe_cancel ロジック自体は実行される（safe）。
+        """
+        from src.core.exceptions import PostOnlyCancelledException
+
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit": {
+                "enabled": True,
+                "maker_strategy": {
+                    "enabled": True,
+                    "max_retries": 3,
+                    "retry_interval_ms": 600,  # 0.6s × 3 = 1.8s 程度
+                    "timeout_seconds": 1,  # 1秒で timeout
+                    "fallback_to_native": False,
+                },
+            },
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        # 毎回 PostOnly キャンセル → last_order_id は None になる
+        mock_client.create_take_profit_order = Mock(
+            side_effect=PostOnlyCancelledException("post_only cancelled")
+        )
+        mock_client.cancel_order = Mock()
+
+        result = await tp_sl_manager._place_tp_maker(
+            side="buy",
+            amount=0.001,
+            take_profit_price=14100000.0,
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+            config={
+                "max_retries": 3,
+                "retry_interval_ms": 600,
+                "timeout_seconds": 1,
+            },
+        )
+
+        # timeout で None 返却
+        assert result is None
+        # PostOnly cancel 時は bitbank が既に消しているので cancel_order は呼ばれない
+        mock_client.cancel_order.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_place_tp_maker_safe_cancel_on_final_failure(self, mock_threshold, tp_sl_manager):
+        """create_take_profit_order が `{"id": None}` を返す異常応答時、
+        例外パス → _safe_cancel(None, retry_*) → final_failure → None 返却"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.take_profit": {
+                "enabled": True,
+                "maker_strategy": {
+                    "enabled": True,
+                    "max_retries": 2,
+                    "retry_interval_ms": 10,
+                    "timeout_seconds": 10,
+                    "fallback_to_native": False,
+                },
+            },
+        }.get(key, default)
+
+        mock_client = MagicMock()
+        # 毎回 id=None の異常応答（bitbank API の予期しないレスポンス）
+        mock_client.create_take_profit_order = Mock(return_value={"id": None})
+        mock_client.cancel_order = Mock()
+
+        result = await tp_sl_manager._place_tp_maker(
+            side="sell",
+            amount=0.002,
+            take_profit_price=13900000.0,
+            symbol="BTC/JPY",
+            bitbank_client=mock_client,
+            config={
+                "max_retries": 2,
+                "retry_interval_ms": 10,
+                "timeout_seconds": 10,
+            },
+        )
+
+        # 全 attempt 失敗で None 返却
+        assert result is None
+        # create_take_profit_order が max_retries 回呼ばれた
+        assert mock_client.create_take_profit_order.call_count == 2
+        # last_order_id は None のまま（id=None 応答→例外→last_order_id=None維持）
+        # → cancel_order は呼ばれない（_safe_cancel の早期 return）
+        mock_client.cancel_order.assert_not_called()

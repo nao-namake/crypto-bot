@@ -4,13 +4,16 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | 86（TP/SL/Entryアーキテクチャ根本再構築）デプロイ完了 |
-| **直前の作業** | Phase 86: TPSLCalculator単一実装・bitbank API wrapper強化・Atomic Entry緊急成行決済・起動時SL自動修復 |
-| **次の予定** | 24-48h観測 `python3 scripts/live/standard_analysis.py --hours 24` で新検出機能(missing_sl/Taker率)とPhase 86挙動を確認 |
-| **最新成果** | デプロイ後現ポジ0.015BTC@12,840,001へSL自動配置成功(trigger=12,732,347, 0.838%) / TPもentry_fee加算で12,952,841に再配置(0.879%) |
-| **最終更新** | 2026年5月12日 06:00 JST |
+| **現在Phase** | **Phase 87 Stage 1 + Stage 1-R 実装完了**（ローカル）→ デプロイ待ち / Stage 2-3 未着手 |
+| **直前の作業** | Stage 1 で C1/C2/C3/C5/H1/H2/H7/H9 (8項目) 実装、Stage 1-R で連携テスト16件・docstring補強・数値同一性検証を追加。`checks.sh` 全PASS（2122 tests, cov 74.14%） |
+| **次の予定** | (1) Phase 87 Stage 1 をコミット・本番デプロイ・48-72h dry_run 観察 → (2) `dry_run: false` 切替 → (3) Stage 2 (Firestore永続化: H3/H4/H5/C4) 着手 → (4) Stage 3 (H6/H8/H10/分析共通化) |
+| **直近インシデント** | 2026-05-12 10:41:10 SL stop注文がトリガー発火後 CANCELED_UNFILLED で約定失敗、6時間以上裸ポジション放置（bitbank fetch_order で確定） |
+| **Stage 1 成果** | `SLMonitor` 新規実装（CANCELED_UNFILLED/EXPIRED/REJECTED/timeout_24h 検出 + dry_run付き緊急成行決済）、ML信頼度を `predicted_class_proba` 統一、TP Maker `_safe_cancel`、起動時SL欠損サイレント失敗解消、EXPECTED_FEATURE_COUNT 共有定数化、6戦略アサート |
+| **Phase 87 残作業** | C4 (DummyModel CB) / H3 (stop_limit+slippage) / H4 (SL Firestore) / H5 (Drawdown Firestore) / H6 (品質フィルタレジーム別) / H8 (RECOVERY_TESTING) / H10 (E2E整合性) / 分析スクリプト共通化 |
+| **最終更新** | 2026年5月13日 - Phase 87 Stage 1+1-R 実装完了 |
 
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`docs/開発履歴/Phase_82.md`、`docs/開発履歴/Phase_83.md`、`docs/開発履歴/Phase_84.md`、`docs/開発履歴/Phase_85.md`、`docs/開発履歴/Phase_86.md`（最新）
+> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-nifty-pizza.md`
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_87.md`
 
 ---
 
@@ -26,13 +29,13 @@
 |------|-----|
 | **対象** | bitbank信用取引・BTC/JPY専用 |
 | **稼働** | 24時間（GCP Cloud Run）・5分間隔 |
-| **月額コスト** | 700-900円 |
+| **月額コスト** | **現状: 約3,000円**（min_instances=1 常時稼働分が主因）/ Phase 88 I3 完了後の目標: **300-500円** |
 | **証拠金** | 50万円 |
-| **年利目標** | 10%（DD 10%許容） |
+| **年利目標** | 10% (Phase 88 まで) / Phase 89-91 で **15-18%** / Phase 92 で **17-20%**（DD 10%許容） |
 | **戦略数** | 6戦略（レンジ型4 + トレンド型2、CMFReversalがDonchianChannel置換） |
-| **特徴量数** | 37特徴量（Phase 77: SHAP+Forward Selectionで最適化） |
-| **MLモデル** | ProductionEnsemble（LGB40%/XGB40%/RF20%） |
-| **ML方式** | メタラベリング（取引品質フィルタ: Go/No-Go判定） |
+| **特徴量数** | 37特徴量（Phase 77: SHAP+Forward Selection）→ Phase 89: 47-50 → Phase 91: 50-55 |
+| **MLモデル** | ProductionEnsemble（LGB40%/XGB40%/RF20%）→ Phase 90: + N-BEATS 軽量版 |
+| **ML方式** | メタラベリング（品質フィルタ Go/No-Go）+ Phase 90: HMM レジーム検出補強 + LLM センチメント |
 
 ---
 

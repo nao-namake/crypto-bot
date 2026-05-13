@@ -878,3 +878,86 @@ class TestPhase6515TakeProfitTypeDetection:
         assert len(virtual_positions) == 1
         assert virtual_positions[0]["tp_order_id"] == "existing"
         assert virtual_positions[0]["sl_order_id"] == "existing"
+
+
+# ========================================
+# Phase 87 H2: 起動時SL欠損サイレント失敗修正テスト
+# ========================================
+
+
+class TestPhase87H2EmergencyClose:
+    """Phase 87 H2: emergency_sl_order={"id": None} / 例外時に
+    sl_monitor.emergency_market_close が呼ばれることを検証"""
+
+    @pytest.fixture
+    def restorer(self):
+        return PositionRestorer()
+
+    async def test_restore_positions_emergency_close_on_empty_sl_id(self, restorer):
+        """create_stop_loss_order が {"id": None} を返したら emergency_market_close 起動"""
+        from unittest.mock import AsyncMock
+
+        avg_price = 12_840_001.0
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.015, "average_price": avg_price}]
+        )
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
+        # 緊急SL配置: order_id 空のレスポンス（bitbank の異常応答シミュレーション）
+        mock_client.create_stop_loss_order = MagicMock(return_value={"id": None})
+
+        # sl_monitor.emergency_market_close を AsyncMock 化（呼び出し検証用）
+        restorer.sl_monitor.emergency_market_close = AsyncMock(
+            return_value={"order_id": "emergency_close_1", "dry_run": False, "reason": "x"}
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # emergency_market_close が呼ばれたことを検証
+        restorer.sl_monitor.emergency_market_close.assert_called_once()
+        call_kwargs = restorer.sl_monitor.emergency_market_close.call_args.kwargs
+        assert call_kwargs["entry_side"] == "buy"  # long → buy
+        assert call_kwargs["amount"] == 0.015
+        assert call_kwargs["reason"] == "startup_sl_placement_empty_id"
+
+    async def test_restore_positions_emergency_close_on_exception(self, restorer):
+        """create_stop_loss_order が例外を投げたら emergency_market_close 起動"""
+        from unittest.mock import AsyncMock
+
+        avg_price = 12_840_001.0
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "short", "amount": 0.02, "average_price": avg_price}]
+        )
+        mock_client.fetch_active_orders = MagicMock(return_value=[])
+        # 緊急SL配置: 例外発生
+        mock_client.create_stop_loss_order = MagicMock(
+            side_effect=RuntimeError("bitbank API error 50061")
+        )
+
+        restorer.sl_monitor.emergency_market_close = AsyncMock(
+            return_value={"order_id": "emergency_close_2", "dry_run": False, "reason": "x"}
+        )
+
+        virtual_positions = []
+        await restorer.restore_positions_from_api(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            position_tracker=MagicMock(),
+            mode="live",
+        )
+
+        # except 分岐から emergency_market_close 呼ばれる
+        restorer.sl_monitor.emergency_market_close.assert_called_once()
+        call_kwargs = restorer.sl_monitor.emergency_market_close.call_args.kwargs
+        assert call_kwargs["entry_side"] == "sell"  # short → sell
+        assert call_kwargs["amount"] == 0.02
+        assert call_kwargs["reason"] == "startup_sl_placement_exception"

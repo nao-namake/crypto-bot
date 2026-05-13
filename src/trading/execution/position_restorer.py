@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from ...core.config import get_threshold
 from ...core.logger import get_logger
 from ...data.bitbank_client import BitbankClient
+from .sl_monitor import SLMonitor
 from .sl_state_persistence import SLStatePersistence
 from .tp_sl_config import TPSLConfig
 
@@ -28,6 +29,13 @@ class PositionRestorer:
         self.logger = get_logger()
         self._last_orphan_scan_time: Optional[datetime] = None
         self.sl_persistence = SLStatePersistence()
+        # Phase 87 H2: 緊急SL配置失敗時のフォールバック用
+        self.sl_monitor = SLMonitor(
+            logger=self.logger,
+            sl_persistence=self.sl_persistence,
+            dry_run=bool(get_threshold("position_management.stop_loss.sl_monitor.dry_run", True)),
+            timeout_hours=int(get_threshold("position_management.stop_loss.timeout_hours", 24)),
+        )
 
     # ========================================
     # Phase 65.5: 共通ヘルパー
@@ -285,11 +293,38 @@ class PositionRestorer:
                                 )
                             except Exception:
                                 pass
+                        else:
+                            # Phase 87 H2: order_id 空のサイレント失敗対応
+                            self.logger.critical(
+                                f"🚨🚨 Phase 87 H2: 起動時緊急SL配置で order_id 空 "
+                                f"(API応答={emergency_sl_order}) - 緊急成行決済へ"
+                            )
+                            await self.sl_monitor.emergency_market_close(
+                                entry_side=entry_side,
+                                amount=pos_amount,
+                                reason="startup_sl_placement_empty_id",
+                                bitbank_client=bitbank_client,
+                                symbol="BTC/JPY",
+                            )
                     except Exception as emergency_err:
+                        # Phase 87 H2: 例外時もサイレント終了せず緊急成行決済
                         self.logger.critical(
-                            f"🚨🚨 Phase 86: 緊急SL配置失敗 - 手動介入必要! "
+                            f"🚨🚨 Phase 87 H2: 起動時緊急SL配置で例外 - 緊急成行決済へ "
                             f"error={emergency_err}, {pos_side} {pos_amount:.4f} BTC"
                         )
+                        try:
+                            await self.sl_monitor.emergency_market_close(
+                                entry_side=entry_side,
+                                amount=pos_amount,
+                                reason="startup_sl_placement_exception",
+                                bitbank_client=bitbank_client,
+                                symbol="BTC/JPY",
+                            )
+                        except Exception as close_err:
+                            self.logger.critical(
+                                f"🚨🚨 Phase 87 H2: 緊急成行決済も失敗 - 手動介入必要! "
+                                f"error={close_err}"
+                            )
 
                 virtual_positions.append(
                     {

@@ -21,6 +21,7 @@ from ...core.exceptions import CryptoBotError, TradingError
 from ...core.logger import get_logger
 from ...data.bitbank_client import BitbankClient
 from ..core import ExecutionResult, TradeEvaluation
+from .sl_monitor import SLMonitor
 from .sl_state_persistence import SLStatePersistence
 from .tp_sl_config import TPSLConfig
 
@@ -33,6 +34,14 @@ class TPSLManager:
         self._pending_verifications: List[Dict[str, Any]] = []
         self._last_tp_sl_check_time: Optional[datetime] = None
         self.sl_persistence = SLStatePersistence()
+
+        # Phase 87 C5: SL CANCELED_UNFILLED 検出 + 緊急成行決済（5分ループ統合）
+        self.sl_monitor = SLMonitor(
+            logger=self.logger,
+            sl_persistence=self.sl_persistence,
+            dry_run=bool(get_threshold("position_management.stop_loss.sl_monitor.dry_run", True)),
+            timeout_hours=int(get_threshold("position_management.stop_loss.timeout_hours", 24)),
+        )
 
     # ========================================
     # Phase 64: 個別TP/SL配置メソッド（stop_manager.pyから移動）
@@ -129,10 +138,31 @@ class TPSLManager:
         timeout = config.get("timeout_seconds", 10)
 
         start = dt_cls.now()
+        # Phase 87 C3: タイムアウト/リトライ時の確実キャンセル用に最後の order_id を保持
+        last_order_id: Optional[str] = None
+
+        async def _safe_cancel(order_id: Optional[str], context: str) -> None:
+            """残存 TP Maker 注文を確実にキャンセル（重複TP配置防止）"""
+            if not order_id:
+                return
+            try:
+                await asyncio.to_thread(bitbank_client.cancel_order, str(order_id), symbol)
+                self.logger.info(
+                    f"✅ Phase 87 C3: TP Maker残注文キャンセル成功 "
+                    f"(context={context}, ID={order_id})"
+                )
+            except Exception as cancel_err:
+                # 既に約定済み・キャンセル済みの可能性 → warning にとどめる
+                self.logger.warning(
+                    f"⚠️ Phase 87 C3: TP Maker残注文キャンセル失敗 "
+                    f"(context={context}, ID={order_id}): {cancel_err}"
+                )
 
         for attempt in range(max_retries):
             if (dt_cls.now() - start).total_seconds() >= timeout:
                 self.logger.warning(f"⏰ Phase 62.10: TP Makerタイムアウト - {timeout}秒経過")
+                # Phase 87 C3: timeout 時も最後の order_id を確実キャンセル
+                await _safe_cancel(last_order_id, "timeout")
                 return None
 
             try:
@@ -150,6 +180,9 @@ class TPSLManager:
                 if not order_id:
                     raise Exception(f"TP Maker注文配置失敗（order_idが空）: API応答={tp_order}")
 
+                # 配置成功 → 旧 order_id を更新（成功時はそのまま返却するので保持不要）
+                last_order_id = str(order_id)
+
                 self.logger.info(
                     f"✅ Phase 62.10: TP Maker配置成功 - "
                     f"ID: {order_id}, 価格: {take_profit_price:.0f}円, "
@@ -158,19 +191,26 @@ class TPSLManager:
                 return {"order_id": order_id, "price": take_profit_price}
 
             except PostOnlyCancelledException:
+                # post_only キャンセルは bitbank 側で完結しているため last_order_id はクリア
+                last_order_id = None
                 self.logger.info(
                     f"📡 Phase 62.10: TP post_onlyキャンセル "
                     f"（試行{attempt + 1}/{max_retries}）"
                 )
             except Exception as e:
+                # 配置途中の失敗 → 残存注文が存在する可能性 → 念のためキャンセル試行
                 self.logger.warning(
                     f"⚠️ Phase 62.10: TP Makerエラー " f"（試行{attempt + 1}/{max_retries}）: {e}"
                 )
+                await _safe_cancel(last_order_id, f"retry_{attempt + 1}")
+                last_order_id = None
 
             if attempt < max_retries - 1:
                 await asyncio.sleep(retry_interval)
 
         self.logger.warning(f"⚠️ Phase 62.10: TP Maker全{max_retries}回失敗")
+        # Phase 87 C3: 全試行失敗時も最終キャンセル
+        await _safe_cancel(last_order_id, "final_failure")
         return None
 
     async def _place_tp_native(
@@ -480,6 +520,53 @@ class TPSLManager:
             return
 
         try:
+            # Phase 87 C5: 各VPのSL health check（CANCELED_UNFILLED/EXPIRED/REJECTED 検出）
+            # 5分間隔で呼ばれる ensure_tp_sl_for_existing_positions に統合し、
+            # API消費を抑えつつ全VPを個別検証する。
+            if virtual_positions:
+                positions_to_close: List[Dict[str, Any]] = []
+                for vp in list(virtual_positions):
+                    sl_order_id = vp.get("sl_order_id")
+                    if not sl_order_id:
+                        continue  # SL未配置VPは後続のカバレッジ検証で再配置
+                    try:
+                        health = await self.sl_monitor.check_sl_health(
+                            sl_order_id=str(sl_order_id),
+                            sl_placed_at_iso=vp.get("sl_placed_at"),
+                            bitbank_client=bitbank_client,
+                        )
+                    except Exception as health_err:
+                        self.logger.warning(
+                            f"⚠️ Phase 87 C5: SL health check 失敗 "
+                            f"(ID={sl_order_id}): {health_err}"
+                        )
+                        continue
+
+                    if not health.requires_emergency_close:
+                        continue
+
+                    self.logger.critical(
+                        f"🚨 Phase 87 C5: SL異常検出 - reason={health.failure_reason}, "
+                        f"side={vp.get('side')}, "
+                        f"amount={float(vp.get('amount') or 0):.6f} BTC, "
+                        f"sl_order_id={sl_order_id}"
+                    )
+                    try:
+                        await self.sl_monitor.emergency_market_close(
+                            entry_side=vp.get("side", ""),
+                            amount=float(vp.get("amount") or 0.0),
+                            reason=f"c5_{health.failure_reason}",
+                            bitbank_client=bitbank_client,
+                        )
+                        positions_to_close.append(vp)
+                    except Exception as close_err:
+                        self.logger.critical(
+                            f"🚨🚨 Phase 87 C5: 緊急成行決済失敗 - 手動介入必要: {close_err}"
+                        )
+                for vp in positions_to_close:
+                    if vp in virtual_positions:
+                        virtual_positions.remove(vp)
+
             # Step 1: 信用建玉情報取得
             margin_positions = await bitbank_client.fetch_margin_positions("BTC/JPY")
 
