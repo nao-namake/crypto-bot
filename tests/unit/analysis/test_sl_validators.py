@@ -1,6 +1,6 @@
 """Phase 87 Stage 3: SL未設置検出（detect_missing_sl）テスト"""
 
-from src.analysis.lib.sl_validators import MissingSLResult, detect_missing_sl
+from src.analysis.common.sl_validators import MissingSLResult, detect_missing_sl
 
 
 class TestDetectMissingSL:

@@ -1,6 +1,6 @@
 """Phase 87 Stage 3: detect_canceled_unfilled テスト"""
 
-from src.analysis.lib.canceled_unfilled_detector import (
+from src.analysis.common.canceled_unfilled_detector import (
     CanceledUnfilledEvent,
     detect_canceled_unfilled,
 )
