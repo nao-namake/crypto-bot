@@ -1,0 +1,58 @@
+# Phase 88 L3: Cloud Run 用 Docker イメージから不要なファイルを除外
+# 目的: イメージサイズ削減 + cold start 短縮 + 秘密情報の混入防止
+
+# Python キャッシュ
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# テスト・カバレッジ成果物
+.pytest_cache
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+tests/
+
+# Git / CI
+.git
+.gitignore
+.github
+
+# 仮想環境
+.venv
+venv/
+env/
+
+# ドキュメント類（ランタイム不要）
+*.md
+docs/
+README.md
+CLAUDE.md
+
+# ローカル開発ログ・データ
+logs/
+data/*.db
+data/*.log
+
+# state ファイルは Firestore fallback 用に残す（Phase 87 H4）
+!data/sl_state.json
+!data/ml_health.json
+!data/orderbook
+
+# シークレット（防御的・絶対に Docker に混入させない）
+.env
+config/secrets/.env
+config/secrets/*.json
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# バックアップ・モデル旧版
+*.pkl.bak
+*.bak
