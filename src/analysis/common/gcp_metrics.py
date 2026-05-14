@@ -28,6 +28,7 @@ import json
 import subprocess
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote, urlencode
 
 # Cloud Run のメモリ制限（Phase 88 R-Hc で 768Mi 確定）
 MEMORY_LIMIT_MIB = 768.0
@@ -37,6 +38,11 @@ _GCLOUD_TIMEOUT = 60
 
 DEFAULT_SERVICE = "crypto-bot-service-prod"
 DEFAULT_REGION = "asia-northeast1"
+
+# Cloud Monitoring REST API endpoint
+# 注意: gcloud CLI には `monitoring time-series list` サブコマンドが存在しないため、
+# REST API + access token で直接取得する（curl 経由）。
+_MONITORING_API_BASE = "https://monitoring.googleapis.com/v3/projects"
 
 
 def _since_iso(hours: int) -> str:
@@ -136,28 +142,65 @@ def _fetch_logging_payloads(
 # ========================================================================
 
 
+def _get_project_id() -> Optional[str]:
+    """`gcloud config get-value project` でアクティブな project_id を取得。"""
+    out = _run_subprocess(["gcloud", "config", "get-value", "project"])
+    if not out:
+        return None
+    pid = out.strip()
+    return pid or None
+
+
+def _get_access_token() -> Optional[str]:
+    """`gcloud auth print-access-token` で OAuth access token を取得。"""
+    out = _run_subprocess(["gcloud", "auth", "print-access-token"])
+    if not out:
+        return None
+    token = out.strip()
+    return token or None
+
+
 def _run_gcloud_monitoring(filter_expr: str, hours: int) -> List[Dict[str, Any]]:
-    """gcloud monitoring time-series list を JSON で取得。エラー時は []。"""
+    """Cloud Monitoring REST API でメトリクス time-series を JSON 取得。
+
+    gcloud CLI には `monitoring time-series list` サブコマンドが存在しないため、
+    REST API (`https://monitoring.googleapis.com/v3/projects/{pid}/timeSeries`) を
+    curl で直接呼び出す。エラー時は []。
+    """
+    project_id = _get_project_id()
+    if not project_id:
+        return []
+    token = _get_access_token()
+    if not token:
+        return []
+
     start_iso = _since_iso(hours)
     end_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    params = {
+        "filter": filter_expr,
+        "interval.startTime": start_iso,
+        "interval.endTime": end_iso,
+    }
+    # URL-encode（filter 内のスペース・引用符を安全にエンコード）
+    qs = urlencode(params, quote_via=quote)
+    url = f"{_MONITORING_API_BASE}/{project_id}/timeSeries?{qs}"
+
     out = _run_subprocess(
         [
-            "gcloud",
-            "monitoring",
-            "time-series",
-            "list",
-            f"--filter={filter_expr}",
-            f"--interval-start-time={start_iso}",
-            f"--interval-end-time={end_iso}",
-            "--format=json",
-        ]
+            "curl",
+            "-s",
+            "-H",
+            f"Authorization: Bearer {token}",
+            url,
+        ],
+        timeout=_GCLOUD_TIMEOUT,
     )
     if not out:
         return []
     try:
         data = json.loads(out)
-        if isinstance(data, list):
-            return data
+        if isinstance(data, dict):
+            return data.get("timeSeries", []) or []
         return []
     except json.JSONDecodeError:
         return []

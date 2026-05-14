@@ -24,6 +24,22 @@ def mock_subprocess_run():
         yield mock_run
 
 
+@pytest.fixture
+def mock_gcloud_auth():
+    """REST API 経路用: project_id と access_token を固定値に mock"""
+    with (
+        patch(
+            "src.analysis.common.gcp_metrics._get_project_id",
+            return_value="test-project",
+        ),
+        patch(
+            "src.analysis.common.gcp_metrics._get_access_token",
+            return_value="test-token",
+        ),
+    ):
+        yield
+
+
 def _make_completed(stdout: str, returncode: int = 0) -> MagicMock:
     m = MagicMock()
     m.stdout = stdout
@@ -58,55 +74,84 @@ class TestRunGcloudLoggingCount:
 
 
 class TestFetchMemoryPercentiles:
-    """fetch_memory_percentiles: P50/P95/P99 計算のテスト"""
+    """fetch_memory_percentiles: P50/P95/P99 計算のテスト
 
-    def test_no_data_returns_unavailable(self, mock_subprocess_run):
-        mock_subprocess_run.return_value = _make_completed("[]")
+    REST API は `{"timeSeries": [...]}` 形式で返す。
+    mock_gcloud_auth で project_id / access_token を固定値にし、
+    mock_subprocess_run で curl のレスポンスのみ mock する。
+    """
+
+    def test_no_data_returns_unavailable(self, mock_subprocess_run, mock_gcloud_auth):
+        mock_subprocess_run.return_value = _make_completed('{"timeSeries": []}')
         result = gcp_metrics.fetch_memory_percentiles(hours=24)
         assert result["available"] is False
         assert result["reason"] == "no_data"
         assert result["memory_limit_mib"] == 768.0
 
-    def test_percentile_calculation(self, mock_subprocess_run):
-        # 比率 0.5, 0.6, 0.7, 0.8, 0.9 (5 points)
-        series_json = json.dumps(
-            [
-                {
-                    "points": [
-                        {"value": {"doubleValue": 0.5}},
-                        {"value": {"doubleValue": 0.6}},
-                        {"value": {"doubleValue": 0.7}},
-                        {"value": {"doubleValue": 0.8}},
-                        {"value": {"doubleValue": 0.9}},
-                    ]
-                }
-            ]
+    def test_percentile_calculation(self, mock_subprocess_run, mock_gcloud_auth):
+        # 比率 0.5, 0.6, 0.7, 0.8, 0.9 (5 points) - REST API 形式
+        response_json = json.dumps(
+            {
+                "timeSeries": [
+                    {
+                        "points": [
+                            {"value": {"doubleValue": 0.5}},
+                            {"value": {"doubleValue": 0.6}},
+                            {"value": {"doubleValue": 0.7}},
+                            {"value": {"doubleValue": 0.8}},
+                            {"value": {"doubleValue": 0.9}},
+                        ]
+                    }
+                ]
+            }
         )
-        mock_subprocess_run.return_value = _make_completed(series_json)
+        mock_subprocess_run.return_value = _make_completed(response_json)
         result = gcp_metrics.fetch_memory_percentiles(hours=24)
         assert result["available"] is True
         assert result["sample_count"] == 5
-        # P50 は中央値 0.7、P95 / P99 は 0.9 寄り、max は 0.9
+        # P50 は中央値 0.7、max は 0.9
         assert result["max_ratio"] == 0.9
         # 0.9 * 768 = 691.2 MiB
         assert result["max_mib"] == 691.2
 
-    def test_high_memory_triggers_warning_verdict(self, mock_subprocess_run):
-        series_json = json.dumps(
-            [
-                {
-                    "points": [
-                        {"value": {"doubleValue": 0.88}},
-                        {"value": {"doubleValue": 0.89}},
-                        {"value": {"doubleValue": 0.90}},
-                    ]
-                }
-            ]
+    def test_high_memory_triggers_critical_verdict(self, mock_subprocess_run, mock_gcloud_auth):
+        # 最大値が 0.95 以上 → CRITICAL
+        response_json = json.dumps(
+            {
+                "timeSeries": [
+                    {
+                        "points": [
+                            {"value": {"doubleValue": 0.88}},
+                            {"value": {"doubleValue": 0.96}},
+                            {"value": {"doubleValue": 0.98}},
+                        ]
+                    }
+                ]
+            }
         )
-        mock_subprocess_run.return_value = _make_completed(series_json)
+        mock_subprocess_run.return_value = _make_completed(response_json)
         result = gcp_metrics.fetch_memory_percentiles(hours=24)
-        # P95 が 0.85 以上 → WARNING
-        assert "WARNING" in result["verdict"]
+        # max が 0.95 以上 → CRITICAL
+        assert "CRITICAL" in result["verdict"]
+
+    def test_distribution_value_mean_is_used(self, mock_subprocess_run, mock_gcloud_auth):
+        """Cloud Run memory utilizations は distributionValue 型で返ってくる"""
+        response_json = json.dumps(
+            {
+                "timeSeries": [
+                    {
+                        "points": [
+                            {"value": {"distributionValue": {"mean": 0.7}}},
+                            {"value": {"distributionValue": {"mean": 0.8}}},
+                        ]
+                    }
+                ]
+            }
+        )
+        mock_subprocess_run.return_value = _make_completed(response_json)
+        result = gcp_metrics.fetch_memory_percentiles(hours=24)
+        assert result["available"] is True
+        assert result["sample_count"] == 2
 
 
 class TestCountOomIncidents:
@@ -191,12 +236,18 @@ class TestCountM5GcsBackupEvents:
 class TestRunGcloudMonitoringJsonParse:
     """_run_gcloud_monitoring の JSON parse エラー耐性"""
 
-    def test_invalid_json_returns_empty(self, mock_subprocess_run):
+    def test_invalid_json_returns_empty(self, mock_subprocess_run, mock_gcloud_auth):
         mock_subprocess_run.return_value = _make_completed("not json {{{")
         result = gcp_metrics._run_gcloud_monitoring("filter", hours=24)
         assert result == []
 
-    def test_non_zero_returncode_returns_empty(self, mock_subprocess_run):
+    def test_non_zero_returncode_returns_empty(self, mock_subprocess_run, mock_gcloud_auth):
         mock_subprocess_run.return_value = _make_completed("", returncode=1)
         result = gcp_metrics._run_gcloud_monitoring("filter", hours=24)
+        assert result == []
+
+    def test_no_project_id_returns_empty(self, mock_subprocess_run):
+        """project_id 取得失敗 → REST API 呼ばずに空 list"""
+        with patch("src.analysis.common.gcp_metrics._get_project_id", return_value=None):
+            result = gcp_metrics._run_gcloud_monitoring("filter", hours=24)
         assert result == []
