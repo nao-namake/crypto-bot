@@ -74,6 +74,10 @@ class TradingAnomalyDetector:
             api_latency_critical_ms
             or get_threshold("risk.anomaly_detector.api_latency_critical", 3.0) * 1000
         )
+        # Phase 88 M4 候補: 時間帯別 Z スコア閾値（深夜 2.5 / 日中 3.0）
+        # 効果見積もり: 誤検知率の最適化のみ（取引機会・収益への直接効果は限定的）
+        # トリガー条件: 90日分のスパイク検出ログを分析して時間帯別誤検知率を実測後に判断
+        # → Phase 89 候補（OFI 特徴量・WebSocket 化と同時に異常検知ロジックを刷新）
         self.price_spike_zscore_threshold = price_spike_zscore_threshold or get_threshold(
             "risk.anomaly_detector.price_spike_zscore_threshold", 3.0
         )

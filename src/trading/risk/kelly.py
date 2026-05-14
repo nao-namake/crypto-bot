@@ -216,7 +216,12 @@ class KellyCriterion:
             losses = [abs(trade.profit_loss) for trade in filtered_trades if not trade.is_win]
 
             if not wins or not losses:
-                self.logger.warning("勝ち取引または負け取引がありません")
+                # Phase 88 M1: ゼロサイズ理由を明示（critical 格上げで通知レベル統一）
+                self.logger.critical(
+                    f"🚨 Phase 88 M1: Kelly計算不能 - "
+                    f"全取引{len(filtered_trades)}件のうち勝ち={len(wins)}件、負け={len(losses)}件。"
+                    f"勝敗どちらかが0件のため Kelly比率を算出できず None 返却（呼び元はデフォルトサイズ使用）"
+                )
                 return None
 
             win_rate = len(wins) / len(filtered_trades)

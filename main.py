@@ -226,9 +226,9 @@ def parse_arguments():
 
     parser.add_argument(
         "--mode",
-        choices=["backtest", "paper", "live"],
+        choices=["backtest", "paper", "live", "trigger"],
         default="paper",
-        help="動作モード (default: paper)",
+        help="動作モード (default: paper, Phase 88 I3: trigger=Cloud Run + Cloud Scheduler 駆動)",
     )
     parser.add_argument(
         "--config",
@@ -246,6 +246,23 @@ async def main():
 
     # 1. 引数解析
     args = parse_arguments()
+
+    # Phase 88 I3: trigger モードはローカル開発用 uvicorn 起動
+    # 本番 (Cloud Run) では docker-entrypoint.sh が直接 uvicorn を exec するため
+    # 通常はこの分岐を通らない（MODE=trigger 環境変数のみ設定される）
+    if args.mode == "trigger":
+        import uvicorn
+
+        port = int(os.environ.get("PORT", 8080))
+        print(f"⚡ Phase 88 I3: trigger モード - uvicorn を起動 (port={port})")
+        uvicorn.run(
+            "src.core.orchestration.trigger_server:app",
+            host="0.0.0.0",
+            port=port,
+            workers=1,
+            log_level=os.environ.get("UVICORN_LOG_LEVEL", "warning"),
+        )
+        return
 
     # 2. 基本設定読み込み（モード設定一元化対応）
     try:

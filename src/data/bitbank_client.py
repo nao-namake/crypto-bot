@@ -78,13 +78,15 @@ class BitbankClient:
             self._backtest_mode = False
 
         # ccxt Bitbank エクスチェンジ初期化
+        # Phase 88 M2: rateLimit を thresholds.yaml 参照に統一（ハードコード 200 解消）
+        ccxt_rate_limit_ms = int(get_threshold("exchange.ccxt_rate_limit_ms", 200))
         try:
             self.exchange = ccxt.bitbank(
                 {
                     "apiKey": self.api_key,
                     "secret": self.api_secret,
                     "sandbox": False,  # 本番環境
-                    "rateLimit": 200,  # Phase 65: 1000→200ms（bitbank APIは秒間制限ベース・5回/秒に収まる）
+                    "rateLimit": ccxt_rate_limit_ms,  # Phase 88 M2: 設定参照（bitbank APIは秒間制限ベース・5回/秒に収まる）
                     "enableRateLimit": True,
                     "timeout": 30000,  # 30秒タイムアウト
                 }
@@ -590,6 +592,10 @@ class BitbankClient:
     def fetch_ticker(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
         """
         ティッカー情報取得
+
+        Phase 88 I5 候補: 同一 symbol への高頻度呼び出しを 60-120 秒メモリキャッシュ化
+        することで Egress を月 ¥20-50 削減可能。ただし新規キャッシュ層構築が必要なため
+        Phase 89 のキャッシュ機構整備（OFI 特徴量導入時の WebSocket 化）と同時実施予定。
 
         Args:
             symbol: 通貨ペア

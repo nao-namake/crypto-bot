@@ -517,6 +517,106 @@ class TPSLManager:
         return None  # 到達不能（安全のため残す）
 
     # ========================================
+    # Phase 88 H11: 孤児SL注文の検出・キャンセル
+    # ========================================
+
+    async def _detect_and_cancel_orphan_sl(
+        self,
+        margin_positions: List[Dict[str, Any]],
+        active_orders: List[Dict[str, Any]],
+        bitbank_client: BitbankClient,
+    ) -> None:
+        """
+        Phase 88 H11: 孤児SL注文（ポジション無しで残存）を検出してキャンセル。
+
+        2026-05-14 09:05 BUYポジ TP約定後の SL cancel が bitbank 70004
+        (transaction currently suspended) で失敗し12時間孤児SL放置事案の再発防止。
+
+        bitbank 70004 対応:
+        - 即時 3 回リトライ（指数バックオフ 1s/2s/4s）
+        - 全失敗時は次の 5 分サイクルで再試行（無限ループ回避）
+        """
+        config = get_threshold("position_management.stop_loss.orphan_scan", {})
+        if not config.get("enabled", True):
+            return
+
+        has_long = any(
+            p.get("side") == "long" and float(p.get("amount") or 0) > 0 for p in margin_positions
+        )
+        has_short = any(
+            p.get("side") == "short" and float(p.get("amount") or 0) > 0 for p in margin_positions
+        )
+
+        orphan_orders: List[Dict[str, Any]] = []
+        for o in active_orders:
+            if o.get("type") not in ("stop", "stop_limit"):
+                continue
+            side = o.get("side")
+            # sell SL = long ポジ用 / buy SL = short ポジ用
+            if side == "sell" and not has_long:
+                orphan_orders.append(o)
+            elif side == "buy" and not has_short:
+                orphan_orders.append(o)
+
+        if not orphan_orders:
+            return
+
+        self.logger.critical(
+            f"🚨 Phase 88 H11: 孤児SL注文検出 - {len(orphan_orders)}件: "
+            f"{[o.get('id') for o in orphan_orders]}"
+        )
+
+        max_retries = int(config.get("cancel_max_retries", 3))
+        base_delay = float(config.get("cancel_base_delay_seconds", 1.0))
+
+        for order in orphan_orders:
+            order_id = str(order.get("id", ""))
+            if not order_id:
+                continue
+            await self._cancel_with_exponential_backoff(
+                order_id, bitbank_client, max_retries, base_delay
+            )
+
+    async def _cancel_with_exponential_backoff(
+        self,
+        order_id: str,
+        bitbank_client: BitbankClient,
+        max_retries: int,
+        base_delay: float,
+    ) -> bool:
+        """
+        Phase 88 H11: 指数バックオフでキャンセル試行。
+
+        bitbank エラー 70004 (transaction currently suspended) 等の一時的エラー対応。
+        3回失敗時は critical ログのみ・次の 5分サイクルで再試行（呼び元委譲）。
+        """
+        for attempt in range(max_retries):
+            try:
+                await asyncio.to_thread(bitbank_client.cancel_order, order_id, "BTC/JPY")
+                self.logger.info(
+                    f"✅ Phase 88 H11: 孤児SLキャンセル成功 "
+                    f"(ID={order_id}, 試行{attempt + 1}/{max_retries})"
+                )
+                return True
+            except Exception as e:
+                err_msg = str(e)
+                is_70004 = "70004" in err_msg or "suspended" in err_msg.lower()
+                self.logger.warning(
+                    f"⚠️ Phase 88 H11: 孤児SLキャンセル失敗 "
+                    f"(ID={order_id}, 試行{attempt + 1}/{max_retries}, "
+                    f"is_70004={is_70004}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    # 指数バックオフ: 1s, 2s, 4s
+                    await asyncio.sleep(base_delay * (2**attempt))
+
+        self.logger.critical(
+            f"🚨 Phase 88 H11: 孤児SL全{max_retries}回キャンセル失敗 "
+            f"(ID={order_id}) - 次の5分サイクルで再試行"
+        )
+        return False
+
+    # ========================================
     # 既存ポジションTP/SL確保
     # ========================================
 
@@ -658,6 +758,11 @@ class TPSLManager:
                 and o.get("type") in ("stop", "stop_limit")
                 and _is_sl_price_valid(o, short_avg_price)
             )
+
+            # Phase 88 H11: 孤児SL検出（ポジション無し + stop/stop_limit 注文残存）
+            # margin_positions と active_orders 取得直後に実行することで、
+            # TP/SL カバレッジ計算より先に孤児SLをキャンセルし、二重カウントを防ぐ
+            await self._detect_and_cancel_orphan_sl(margin_positions, active_orders, bitbank_client)
 
             # Phase 65.15: active_ordersのorder IDセットを収集（二重カウント防止）
             active_order_ids = {str(o.get("id", "")) for o in active_orders}

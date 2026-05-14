@@ -2,24 +2,25 @@
 
 bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run 24時間稼働）
 
-[![Tests](https://img.shields.io/badge/tests-2122%20passing-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-74.14%25-green)](tests/)
-[![Phase](https://img.shields.io/badge/Phase%2087%20Stage%201-Implemented-blue)](docs/開発履歴/Phase_87.md)
-[![Next](https://img.shields.io/badge/Stage%202%2F3-Pending-orange)](docs/開発計画/ToDo.md)
+[![Tests](https://img.shields.io/badge/tests-2200%2B%20passing-success)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-74%25%2B-green)](tests/)
+[![Phase 87](https://img.shields.io/badge/Phase%2087-AllStages%20Complete-success)](docs/開発履歴/Phase_87.md)
+[![Phase 88](https://img.shields.io/badge/Phase%2088-Planning-blue)](docs/開発計画/ToDo.md)
 
 ---
 
 ## 現在の状態
 
-**Phase 87 Stage 1 + Stage 1-R 実装完了**（ローカル）→ デプロイ待ち / Stage 2-3 未着手
+**Phase 87 全 Stage 完了・本番デプロイ済（2026-05-14）→ Phase 88 着手予定**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 87 Stage 1: SLMonitor 新規実装（CANCELED_UNFILLED/EXPIRED/REJECTED/24h timeout 検出 + dry_run付き緊急成行決済）、ML信頼度 predicted_class_proba 統一、TP Maker _safe_cancel、起動時SL欠損サイレント失敗解消、EXPECTED_FEATURE_COUNT 共有定数化 |
-| 直近インシデント | 2026-05-12 SL stop注文が CANCELED_UNFILLED で約定失敗（6時間裸ポジ放置）→ Phase 87 Stage 1 で構造的に防止 |
-| 次の予定 | (1) Stage 1 デプロイ + 48-72h dry_run 観察 → (2) `dry_run: false` 切替 → (3) Stage 2 (Firestore 永続化 H3/H4/H5/C4) → (4) Stage 3 (H6/H8/H10/分析共通化) |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_87.md](docs/開発履歴/Phase_87.md) |
-| 最終更新 | 2026年5月13日 |
+| 最新成果 | Phase 87 全 Stage（Critical 5 + High 10）完了。SL消失検出層(SLMonitor) + Firestore永続化(H4/H5) + DummyModel CB(C4) + 品質フィルタ共通化(H10) + 段階復帰(H8) + レジーム別閾値(H6) + 分析共通lib |
+| 実機検証 | 12h観測で勝率100% (2勝0敗) +¥1,500、H6レジーム別閾値・H4 Firestore動作確認済（5/13 -¥5,216 → 5/14 +¥1,500 = +¥6,716改善） |
+| 直近インシデント | 2026-05-14 09:05 BUYポジ TP決済後に SL残存（bitbank 70004エラー）→ 手動キャンセル済。**Phase 88 H11 で再発防止予定** |
+| 次の予定 | Phase 88 P0 (I1+I2 即時削減) → P1 (H11孤児SL + I3 min=0化 + L2/L3) → P2 (I4/I5/M5) → P3 (軽微改善)。月額 ¥3,000 → ¥300-500 目標 |
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_87.md](docs/開発履歴/Phase_87.md) / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 88 GCP仕様反映版） |
+| 最終更新 | 2026年5月15日 - Phase 88 計画策定完了 |
 
 ---
 
@@ -138,35 +139,43 @@ models/production/  # MLモデル（週次更新）
 
 ---
 
-## Phase 87/88 計画概要（Stage 1 実装完了 / 残作業あり）
+## Phase 87/88 計画概要
 
 9エージェント並列調査で **全28欠陥** を確定。決済システム再構築 + 運用基盤強化 + GCPコスト削減を統合実施。
 
-### Phase 87 Stage 1 + Stage 1-R ✅ 実装完了（2026-05-13）
+### Phase 87 全 Stage ✅ 完了（2026-05-14 本番デプロイ済）
 
-**🔴 Critical (4/5 完了)**:
+Critical 5 + High 10 を全完了。SL消失インシデント（2026-05-12）を構造的に防止する仕組みを確立。
+
+**🔴 Critical (5/5 完了 ✅)**:
 - ✅ C1: SL CANCELED_UNFILLED 検出（SLMonitor 新規実装）
-- ✅ C2: ML信頼度を `predicted_class_proba` に修正
+- ✅ C2: ML信頼度を `predicted_class_proba` に統一
 - ✅ C3: TP Maker タイムアウト時の自動キャンセル（_safe_cancel）
-- ⏳ C4: DummyModel サーキットブレーカー（Stage 2 で実装予定）
+- ✅ C4: DummyModel サーキットブレーカー（MLHealthMonitor、3回連続失敗で EMERGENCY_STOP）
 - ✅ C5: 5分ループ内 SL health check
 
-**🟠 High (4/10 完了)**: ✅ H1 (24h timeout) / ✅ H2 (起動時SL失敗) / ✅ H7 (特徴量定数) / ✅ H9 (戦略アサート)
+**🟠 High (10/10 完了 ✅)**:
+- ✅ H1 (SL 24h timeout) / H2 (起動時SL失敗) / H3 (stop_limit+slippage 二重防衛) / H4 (SL Firestore永続化) / H5 (Drawdown Firestore永続化)
+- ✅ H6 (品質フィルタ レジーム別閾値: tight 0.55 / normal 0.75 / trending 0.50) / H7 (特徴量定数) / H8 (RECOVERY_TESTING 段階復帰) / H9 (6戦略アサート) / H10 (品質フィルタ共通モジュール化)
+- ✅ 補強: src/analysis/common/（sl_validators / canceled_unfilled_detector / tp_sl_helpers）
 
-**残作業 (Stage 2/3 で実施)**:
-- Stage 2: H3 (stop_limit+slippage 二重防衛) / H4 (SL Firestore永続化) / H5 (Drawdown Firestore永続化) / C4 (DummyModel CB)
-- Stage 3: H6 (品質フィルタレジーム別) / H8 (RECOVERY_TESTING) / H10 (バックテストvsライブ E2E整合性) / 分析スクリプト共通化
+**実機検証**: 5/13 24h: 勝率25% -¥5,216 → 5/14 12h: 勝率100% +¥1,500（+¥6,716改善）
 
-### Phase 88（運用基盤・クリーンアップ・GCPコスト削減・2-3週間）
+### Phase 88（GCPコスト削減 + 孤児SL再発防止 + クリーンアップ・2-3週間）
 
-**💰 Infrastructure 5件（月額3,000円 → 300-500円）**:
-- I1: Cloud Logging WARNING化（-100~200円）
-- I2: Artifact Registry リテンション（-20~50円）
-- I3: min_instances=0 + Cloud Scheduler（**-2,400円**、要 Phase 87 H4-5）
-- I4: メモリ 1GB → 512MB（-150円）
-- I5: bitbank API キャッシュ徹底（-20~50円）
+**詳細プラン**: `~/.claude/plans/phase-iterative-biscuit.md`（GCP 仕様 Web 調査反映版）
 
-**🟡 Medium 5件 + 🟢 Low 3件**: Kelly理由明示、APIレート制限統一、TP/SL丸め、異常検知時間帯別、税務SQLite GCS化、Dead code約500行一掃 ほか
+**💰 Infrastructure 5件（月額¥3,000 → ¥300-500 目標）**:
+- I1: Cloud Logging WARNING化（-¥100~200/月、実効ほぼゼロだが防御的に実施）
+- I2: Artifact Registry リテンション（30日以上削除・最新10件保持、-¥20~50/月）
+- I3: min_instances=0 + Cloud Scheduler（**-¥2,400/月想定**、Flask /trigger endpoint + OIDC認証）
+- I4: メモリ 1GiB → 512MiB（-¥150/月、ペーパー稼働で <400MB 確認後）
+- I5: bitbank API キャッシュ徹底（-¥20~50/月、Egress 削減）
+
+**🟠 High 1件**:
+- H11: 孤児SL注文の再発防止（5分ループ検出 + 指数バックオフ + bitbank 70004 ハンドリング）
+
+**🟡 Medium 5件 + 🟢 Low 3件**: Kelly理由明示(M1)、APIレート制限統一(M2)、TP/SL丸め(M3)、異常検知時間帯別(M4)、税務SQLite GCS化(M5)、Phase XXX コメント整理(L1)、README/CLAUDE同期(L2)、Dead code約500行一掃(L3)
 
 ### Phase 89-92 中長期計画（Webリサーチ統合）
 
@@ -188,7 +197,7 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 | **取引所API** | ccxt（bitbank信用取引対応） |
 | **データ処理** | pandas / numpy |
 | **機械学習** | scikit-learn / XGBoost / LightGBM |
-| **インフラ** | GCP Cloud Run / Secret Manager / Artifact Registry / **Firestore (Phase 87 H4-5)** / **Cloud Scheduler (Phase 88 I3)** |
+| **インフラ** | GCP Cloud Run / Secret Manager / Artifact Registry / Firestore (Phase 87 H4-5) / Cloud Scheduler (Phase 88 I3 予定) / Cloud Storage (Phase 88 M5 予定) |
 | **CI/CD** | GitHub Actions（自動テスト・週次ML学習・デプロイ） |
 | **品質管理** | pytest / coverage 75%+ / flake8 / black / isort |
 
@@ -200,9 +209,9 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 - **[ToDo.md](docs/開発計画/ToDo.md)**: 開発計画・Phase 87/88 詳細・Phase 89-92 中長期計画
 - **[統合運用ガイド](docs/運用ガイド/統合運用ガイド.md)**: デプロイ・監視・トラブル対応
 - **[開発履歴サマリー](docs/開発履歴/SUMMARY.md)**: Phase 1-77総括
-- **[Phase 87](docs/開発履歴/Phase_87.md)**: Stage 1+1-R 実装記録（最新）
+- **[Phase 87](docs/開発履歴/Phase_87.md)**: 全 Stage 実装記録（Critical 5 + High 10 達成）
 - **[Phase 86](docs/開発履歴/Phase_86.md)**: TP/SL/Entry 根本再構築
-- **詳細プラン**: `~/.claude/plans/phase-nifty-pizza.md`（Phase 87 Stage 1/1-R/2/3 + 89-92 完全版）
+- **詳細プラン**: `~/.claude/plans/phase-iterative-biscuit.md`（Phase 88 詳細設計・GCP仕様 Web 調査反映版）
 
 ---
 
@@ -212,4 +221,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年5月13日 - Phase 87 Stage 1+Stage 1-R 実装完了（残作業: Stage 2 Firestore永続化 / Stage 3 品質向上）
+**最終更新**: 2026年5月15日 - Phase 87 全 Stage 完了・本番デプロイ済 / Phase 88 計画策定完了（GCP仕様 Web 調査反映版・着手予定）

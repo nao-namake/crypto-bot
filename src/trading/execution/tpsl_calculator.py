@@ -13,8 +13,16 @@ Phase 86: TP/SL 計算の単一実装
 すべてのTP/SL計算箇所（strategy_utils, tp_sl_manager, risk/manager,
 position_restorer 等）は本クラスを使用する。
 
+Phase 88 M3: 価格丸めポリシー
+- 本実装は Python の float 演算をそのまま使用し、明示的な round / Decimal を行わない。
+- bitbank API は内部で価格刻み（BTC/JPY は 1 円単位）に丸める。クライアント側の事前
+  丸めは逆に「片端切り捨て」による TP/SL 距離の意図せぬ縮小を生むためあえて避ける。
+- Python 3 の組み込み round() は banker's rounding (ROUND_HALF_EVEN) なので、もし将来
+  クライアント側で丸めを追加する場合は ROUND_HALF_UP の Decimal を使うこと。
+
 修正履歴:
 - Phase 86: 新規作成（TP entry_fee加算欠落バグ、SL floor非対称の根本修正）
+- Phase 88 M3: 価格丸めポリシーを docstring に明文化
 """
 
 from typing import Tuple

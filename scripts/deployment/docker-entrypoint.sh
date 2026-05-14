@@ -182,9 +182,24 @@ elif [ "$MODE" = "paper" ]; then
         exit 1
     fi
     
+elif [ "$MODE" = "trigger" ]; then
+    echo "⚡ Phase 88 I3: trigger モード（Cloud Run + Cloud Scheduler 駆動）"
+    echo "  FastAPI(uvicorn) で /trigger / /health を提供"
+    echo "  リクエスト処理中のみ CPU 課金 → idle 時間はメモリのみ課金"
+
+    # uvicorn を直接 exec で起動（バックグラウンドにせず、PID 1 として Cloud Run シグナルを受ける）
+    # --workers 1: concurrency=1 と整合（並行取引サイクル防止）
+    # --timeout-keep-alive 30: Cloud Scheduler の attempt-deadline 600s と整合
+    exec uvicorn src.core.orchestration.trigger_server:app \
+        --host 0.0.0.0 \
+        --port "${PORT:-8080}" \
+        --workers 1 \
+        --timeout-keep-alive 30 \
+        --log-level "${UVICORN_LOG_LEVEL:-warning}"
+
 else
     echo "🧪 テスト・開発モード（シンプル起動）"
-    
+
     # 直接起動（テスト・デバッグ用）
     exec "$@"
 fi

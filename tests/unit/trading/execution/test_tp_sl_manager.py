@@ -1833,3 +1833,177 @@ class TestPhase87H3StopLimit:
         # silent fall-through なので limit_price=None で続行
         call_kwargs = h3_mock_client.create_stop_loss_order.call_args.kwargs
         assert call_kwargs["limit_price"] is None
+
+
+class TestPhase88H11OrphanSL:
+    """
+    Phase 88 H11: 孤児SL注文（ポジション無しで残存）検出 + bitbank 70004 リトライ。
+
+    背景: 2026-05-14 09:05 BUYポジ TP約定後の SL cancel が
+    bitbank 70004 (transaction currently suspended) で失敗し12時間放置事案の再発防止。
+    """
+
+    @pytest.fixture
+    def h11_mock_client(self):
+        client = MagicMock()
+        client.cancel_order = MagicMock()
+        return client
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_orphan_detected_when_no_position(
+        self, mock_threshold, tp_sl_manager, h11_mock_client, caplog
+    ):
+        """Phase 88 H11: long ポジ無し + sell stop 注文 → 検出 + キャンセル"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_scan"
+            else default
+        )
+
+        margin_positions = []  # ポジション無し
+        active_orders = [{"id": "orphan-123", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        with caplog.at_level(logging.CRITICAL):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions, active_orders, h11_mock_client
+            )
+
+        h11_mock_client.cancel_order.assert_called_once_with("orphan-123", "BTC/JPY")
+        assert any(
+            "Phase 88 H11: 孤児SL注文検出" in r.message
+            for r in caplog.records
+            if r.levelno == logging.CRITICAL
+        )
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_no_orphan_when_position_exists(
+        self, mock_threshold, tp_sl_manager, h11_mock_client
+    ):
+        """Phase 88 H11: long ポジあり + sell stop 注文 → 正常SL扱い（孤児ではない）"""
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_scan"
+            else default
+        )
+
+        margin_positions = [{"side": "long", "amount": 0.015}]
+        active_orders = [{"id": "valid-sl-123", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        await tp_sl_manager._detect_and_cancel_orphan_sl(
+            margin_positions, active_orders, h11_mock_client
+        )
+
+        h11_mock_client.cancel_order.assert_not_called()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_70004_retry_succeeds_on_second_attempt(
+        self, mock_threshold, tp_sl_manager, h11_mock_client, caplog
+    ):
+        """Phase 88 H11: 70004 で1回失敗 → 2回目成功"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_scan"
+            else default
+        )
+
+        h11_mock_client.cancel_order.side_effect = [
+            Exception("bitbank error 70004: transaction currently suspended"),
+            None,  # 2回目成功
+        ]
+
+        margin_positions = []
+        active_orders = [{"id": "70004-target", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        # Phase 88 H11: INFO (成功ログ) + WARNING (失敗ログ) + CRITICAL (孤児検出ログ) 全て捕捉する
+        with caplog.at_level(logging.INFO):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions, active_orders, h11_mock_client
+            )
+
+        assert h11_mock_client.cancel_order.call_count == 2
+        # 70004 検出ログ
+        assert any(
+            "is_70004=True" in r.message for r in caplog.records if r.levelno == logging.WARNING
+        )
+        # 最終成功ログ
+        assert any(
+            "孤児SLキャンセル成功" in r.message for r in caplog.records if r.levelno == logging.INFO
+        )
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_70004_three_failures_logs_critical(
+        self, mock_threshold, tp_sl_manager, h11_mock_client, caplog
+    ):
+        """Phase 88 H11: 3回連続失敗 → critical ログのみ（次サイクル委譲）"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_scan"
+            else default
+        )
+
+        h11_mock_client.cancel_order.side_effect = Exception(
+            "bitbank error 70004: transaction currently suspended"
+        )
+
+        margin_positions = []
+        active_orders = [{"id": "persistent-fail", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        with caplog.at_level(logging.CRITICAL):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions, active_orders, h11_mock_client
+            )
+
+        assert h11_mock_client.cancel_order.call_count == 3
+        assert any(
+            "孤児SL全3回キャンセル失敗" in r.message and "次の5分サイクル" in r.message
+            for r in caplog.records
+            if r.levelno == logging.CRITICAL
+        )
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_orphan_scan_disabled_skips_detection(
+        self, mock_threshold, tp_sl_manager, h11_mock_client
+    ):
+        """Phase 88 H11: enabled=False で何もしない"""
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": False}
+            if str(key) == "position_management.stop_loss.orphan_scan"
+            else default
+        )
+
+        margin_positions = []
+        active_orders = [{"id": "orphan", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        await tp_sl_manager._detect_and_cancel_orphan_sl(
+            margin_positions, active_orders, h11_mock_client
+        )
+
+        h11_mock_client.cancel_order.assert_not_called()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_short_position_orphan_buy_stop(
+        self, mock_threshold, tp_sl_manager, h11_mock_client
+    ):
+        """Phase 88 H11: short ポジ無し + buy stop 注文 → 孤児として検出"""
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_scan"
+            else default
+        )
+
+        margin_positions = []
+        active_orders = [
+            {"id": "short-orphan", "type": "stop_limit", "side": "buy", "amount": 0.01}
+        ]
+
+        await tp_sl_manager._detect_and_cancel_orphan_sl(
+            margin_positions, active_orders, h11_mock_client
+        )
+
+        h11_mock_client.cancel_order.assert_called_once_with("short-orphan", "BTC/JPY")

@@ -323,12 +323,14 @@ jobs:
           echo "📊 デプロイモード: $DEPLOY_MODE"
           
           # Phase 16-B統一設定（本番モード固定・設定一元化対応）
+          # Phase 88 I4: メモリ 1Gi → 512Mi（ペーパー稼働で <400MB 確認後の削減）
+          # Phase 88 I3: MIN_INSTANCES 1 → 0、TIMEOUT 3600 → 600（Cloud Scheduler 駆動）
           SERVICE_SUFFIX=""
-          MEMORY="1Gi"
+          MEMORY="512Mi"
           CPU="1"
-          MIN_INSTANCES="1"
+          MIN_INSTANCES="0"
           MAX_INSTANCES="2"
-          TIMEOUT="3600"
+          TIMEOUT="600"
           DEPLOY_MODE="live"
           echo "📋 本番モード（ライブトレード）"
           
@@ -355,11 +357,11 @@ jobs:
             --max-instances="$MAX_INSTANCES" \
             --concurrency=1 \
             --timeout="$TIMEOUT" \
-            --allow-unauthenticated \
-            --set-env-vars="MODE=$DEPLOY_MODE,LOG_LEVEL=INFO,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE" \
+            --set-env-vars="MODE=trigger,LOG_LEVEL=WARNING,DEPLOY_MODE=$DEPLOY_MODE,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE" \
             --set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:6" \
+            --no-allow-unauthenticated \
             --port=8080 \
-            --revision-suffix="unified-system-$(date +%m%d-%H%M)" \
+            --revision-suffix="phase88-trigger-$(date +%m%d-%H%M)" \
             $TRAFFIC_FLAG
           
           # 本番トラフィック移行

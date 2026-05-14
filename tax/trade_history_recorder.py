@@ -3,6 +3,10 @@
 
 SQLiteベースの取引履歴永続化システム。
 エントリー・エグジット・TP/SL発動を記録し、確定申告用データを保存。
+
+Phase 88 M5: GCS バックアップ統合
+- 起動時に GCS からローカル DB を復元（Cloud Run min=0 で ephemeral FS 消失対策）
+- 各 record_trade() 直後に GCS へバックアップ（5秒 SIGTERM 猶予に間に合う）
 """
 
 import sqlite3
@@ -12,20 +16,27 @@ from typing import Optional
 
 from src.core.logger import get_logger
 
+try:
+    from tax.gcs_persistence import GCSTaxBackup
+except Exception:
+    GCSTaxBackup = None  # type: ignore
+
 
 class TradeHistoryRecorder:
     """
     取引履歴記録システム
 
     SQLiteデータベースに取引履歴を永続化し、確定申告用データを提供。
+    Phase 88 M5: GCS バックアップ統合済み。
     """
 
-    def __init__(self, db_path: str = "tax/trade_history.db"):
+    def __init__(self, db_path: str = "tax/trade_history.db", enable_gcs_backup: bool = True):
         """
         TradeHistoryRecorder初期化
 
         Args:
             db_path: SQLiteデータベースファイルパス（デフォルト: tax/trade_history.db）
+            enable_gcs_backup: Phase 88 M5: GCS バックアップを有効化（Cloud Run 環境推奨）
         """
         self.logger = get_logger()
         self.db_path = Path(db_path)
@@ -33,7 +44,19 @@ class TradeHistoryRecorder:
         # データベースディレクトリ作成
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # データベース初期化
+        # Phase 88 M5: GCS バックアップ初期化 + 起動時 restore（DB 初期化より前に実施）
+        self.gcs_backup: Optional["GCSTaxBackup"] = None
+        if enable_gcs_backup and GCSTaxBackup is not None:
+            try:
+                self.gcs_backup = GCSTaxBackup(local_path=str(self.db_path))
+                if self.gcs_backup.enabled:
+                    self.gcs_backup.restore()
+                    self.gcs_backup.register_atexit_backup()
+            except Exception as e:
+                self.logger.warning(f"⚠️ Phase 88 M5: GCS バックアップ初期化失敗: {e}")
+                self.gcs_backup = None
+
+        # データベース初期化（GCS restore 後に行うことで既存スキーマと整合）
         self._init_database()
 
         self.logger.info(f"✅ TradeHistoryRecorder初期化完了: {self.db_path}")
@@ -138,6 +161,14 @@ class TradeHistoryRecorder:
             f"📝 取引記録保存: ID={record_id}, type={trade_type}, side={side}, "
             f"amount={amount:.8f} BTC, price={price:.0f}円{slippage_info}"
         )
+
+        # Phase 88 M5: 記録直後に GCS へ同期バックアップ（5秒 SIGTERM 猶予に備える）
+        if self.gcs_backup is not None and self.gcs_backup.enabled:
+            try:
+                self.gcs_backup.backup()
+            except Exception as e:
+                # バックアップ失敗は記録自体には影響させない
+                self.logger.warning(f"⚠️ Phase 88 M5: GCS backup 失敗（記録は成功）: {e}")
 
         return record_id
 

@@ -1432,18 +1432,3 @@ class ExecutionService:
                 self.session_pnl,
             )
         return None
-
-    # Phase 64: _calculate_tp_sl_for_live_trade は tp_sl_manager.py (TPSLManager) に移動
-
-    # Phase 64: _place_tp_with_retry / _place_sl_with_retry / _cleanup_old_tp_sl_before_entry は
-    # 呼び出し元で直接 tp_sl_manager のメソッドを呼び出すようにインライン化
-
-    # Phase 64: _rollback_entry は
-    # tp_sl_manager.py (TPSLManager) に移動
-
-    # Phase 64: _execute_maker_order / _wait_for_maker_fill は
-    # order_strategy.py (OrderStrategy) に移動
-
-    # Phase 64: _schedule_tp_sl_verification / _process_pending_verifications /
-    # _periodic_tp_sl_check / _scan_orphan_positions は
-    # 呼び出し元で直接 tp_sl_manager / position_restorer のメソッドを呼び出すようにインライン化

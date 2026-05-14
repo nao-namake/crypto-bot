@@ -14,7 +14,11 @@ exchange:
   name: bitbank
   symbol: BTC/JPY
   leverage: 1.0
-  rate_limit_ms: 35000
+  rate_limit_ms: 35000              # 内部 rate limiter のバースト保護間隔（35秒）
+  # Phase 88 M2: ccxt の Bitbank rateLimit パラメータ（リクエスト間最低待機 ms）。
+  # bitbank 公式上限 5req/sec → 200ms (= 5 req/sec) で安全マージン無し、
+  # 余裕を持たせるなら 250ms (= 4 req/sec) 推奨。
+  ccxt_rate_limit_ms: 200
   timeout_ms: 120000
   retries: 5
   ssl_verify: true
@@ -750,6 +754,14 @@ position_management:
     sl_monitor:
       enabled: true
       dry_run: true  # 初期投入時はログのみ。誤発火0件確認後 false へ切替
+    # Phase 88 H11: 孤児SL注文（ポジション無しで残存）の検出・自動キャンセル
+    # 2026-05-14 09:05 BUYポジ TP約定後の SL cancel が bitbank 70004 で失敗 → 12時間孤児SL放置
+    # 対策: 指数バックオフ 1s/2s/4s でキャンセル試行、3回失敗時は次5分サイクルで再試行
+    # 注意: position_management.orphan_scan (孤児ポジション検出) とは別階層
+    orphan_scan:
+      enabled: true
+      cancel_max_retries: 3
+      cancel_base_delay_seconds: 1.0
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007
     override_strategy_sl: false

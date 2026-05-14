@@ -4,15 +4,15 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 87 Stage 1 + Stage 1-R 実装完了**（ローカル）→ デプロイ待ち / Stage 2-3 未着手 |
-| **直前の作業** | Stage 1 で C1/C2/C3/C5/H1/H2/H7/H9 (8項目) 実装、Stage 1-R で連携テスト16件・docstring補強・数値同一性検証を追加。`checks.sh` 全PASS（2122 tests, cov 74.14%） |
-| **次の予定** | (1) Phase 87 Stage 1 をコミット・本番デプロイ・48-72h dry_run 観察 → (2) `dry_run: false` 切替 → (3) Stage 2 (Firestore永続化: H3/H4/H5/C4) 着手 → (4) Stage 3 (H6/H8/H10/分析共通化) |
-| **直近インシデント** | 2026-05-12 10:41:10 SL stop注文がトリガー発火後 CANCELED_UNFILLED で約定失敗、6時間以上裸ポジション放置（bitbank fetch_order で確定） |
-| **Stage 1 成果** | `SLMonitor` 新規実装（CANCELED_UNFILLED/EXPIRED/REJECTED/timeout_24h 検出 + dry_run付き緊急成行決済）、ML信頼度を `predicted_class_proba` 統一、TP Maker `_safe_cancel`、起動時SL欠損サイレント失敗解消、EXPECTED_FEATURE_COUNT 共有定数化、6戦略アサート |
-| **Phase 87 残作業** | C4 (DummyModel CB) / H3 (stop_limit+slippage) / H4 (SL Firestore) / H5 (Drawdown Firestore) / H6 (品質フィルタレジーム別) / H8 (RECOVERY_TESTING) / H10 (E2E整合性) / 分析スクリプト共通化 |
-| **最終更新** | 2026年5月13日 - Phase 87 Stage 1+1-R 実装完了 |
+| **現在Phase** | **Phase 87 全 Stage 完了・本番デプロイ済（2026-05-14）→ Phase 88 着手予定** |
+| **直前の作業** | Phase 87 全 Stage（Critical 5 + High 10）完了。SL消失検出層 + Firestore永続化(H4/H5) + DummyModel CB(C4) + 品質フィルタ共通化(H10) + 段階復帰(H8) + レジーム別閾値(H6) + 分析共通lib。実機12h で勝率100% +¥1,500（5/13比 +¥6,716改善） |
+| **次の予定** | Phase 88 P0 (I1+I2 即時削減) → P1 (H11孤児SL + I3 min=0化 + L2/L3) → P2 (I4/I5/M5) → P3 (M1-M4+L1 軽微改善)。月額 ¥3,000 → ¥300-500 目標（83%削減） |
+| **直近インシデント** | 2026-05-14 09:05 BUYポジ TP決済後に SL残存（bitbank 70004「transaction currently suspended」エラー）→ 手動キャンセル済。**Phase 88 H11 で再発防止予定（指数バックオフ + 次サイクル委譲）** |
+| **Phase 87 達成** | Critical 5 + High 10 全完了。SLMonitor / Firestore永続化(H4/H5) / DummyModel CB(C4) / 品質フィルタ共通化(H10) / レジーム別閾値(tight 0.55 / normal 0.75 / trending 0.50) / RECOVERY_TESTING(H8) / 分析共通lib(src/analysis/common/) |
+| **Phase 88 残作業** | 💰 I1/I2/I3/I4/I5(GCPコスト) + 🟠 H11(孤児SL) + 🟡 M1-M5(機能改善) + 🟢 L1-L3(クリーンアップ)。詳細プラン: `~/.claude/plans/phase-iterative-biscuit.md` |
+| **最終更新** | 2026年5月15日 - Phase 88 計画策定完了（GCP仕様 Web 調査反映版）・着手予定 |
 
-> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-nifty-pizza.md`
+> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 88 詳細設計・GCP 仕様反映版）
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_87.md`
 
 ---
