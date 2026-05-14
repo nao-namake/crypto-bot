@@ -323,10 +323,12 @@ jobs:
           echo "📊 デプロイモード: $DEPLOY_MODE"
           
           # Phase 16-B統一設定（本番モード固定・設定一元化対応）
-          # Phase 88 I4: メモリ 1Gi → 512Mi（ペーパー稼働で <400MB 確認後の削減）
+          # Phase 88 I4 → Phase R-Hc: 1Gi → 512Mi 試行 → OOM 発生 (529-534MiB peak) → 768Mi 確定
+          #   2026-05-15 07:14 JST デプロイ後の lifespan 起動で Orchestrator/ML/BitbankClient
+          #   フルロード時に 512MiB を超過。Plan H_c の「24h 観察→OOM 出たら 768Mi」が即適用。
           # Phase 88 I3: MIN_INSTANCES 1 → 0、TIMEOUT 3600 → 600（Cloud Scheduler 駆動）
           SERVICE_SUFFIX=""
-          MEMORY="512Mi"
+          MEMORY="768Mi"
           CPU="1"
           MIN_INSTANCES="0"
           MAX_INSTANCES="2"
