@@ -661,7 +661,15 @@ class TestFeatureGeneratorSyncMethod:
             assert feature in result_df.columns, f"特徴量{feature}が不足"
 
     def test_generate_features_sync_with_strategy_signals(self, generator, sample_ohlcv_data):
-        """同期版特徴量生成 - 戦略シグナル付きテスト"""
+        """
+        同期版特徴量生成 - 戦略シグナル付きテスト
+
+        Phase R-Ha: _run_feature_pipeline は strategy_signals を引数に取るが、
+        Phase 77 設計（戦略シグナル特徴量は別経路で付与）に従い無視するように変更。
+        本テストは「strategy_signals を渡してもパイプラインが正常に動作する」ことを確認。
+        戦略シグナル特徴量の付与は trading_cycle_manager._add_strategy_signal_features
+        が responsible（feature_generator._add_strategy_signal_features を直接呼ぶ）。
+        """
         strategy_signals = {
             "ATRBased": {"action": "buy", "confidence": 0.7, "encoded": 0.7},
             "CMFReversal": {"action": "sell", "confidence": 0.6, "encoded": -0.6},
@@ -672,10 +680,13 @@ class TestFeatureGeneratorSyncMethod:
 
         assert isinstance(result_df, pd.DataFrame)
         assert len(result_df) == len(sample_ohlcv_data)
-
-        # 戦略シグナル特徴量が生成されているかチェック
-        assert "strategy_signal_ATRBased" in result_df.columns
-        assert "strategy_signal_CMFReversal" in result_df.columns
+        # Phase R-Ha: _run_feature_pipeline は strategy_signal_* を生成しなくなった
+        assert "strategy_signal_ATRBased" not in result_df.columns
+        assert "strategy_signal_CMFReversal" not in result_df.columns
+        # 基本特徴量は引き続き生成される
+        for feature in BASE_FEATURES:
+            if feature in result_df.columns:
+                assert result_df[feature].notna().any(), f"{feature}全てNaN"
 
     def test_generate_features_sync_error_handling(self, generator):
         """同期版特徴量生成エラーハンドリングテスト"""

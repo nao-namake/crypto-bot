@@ -61,7 +61,15 @@ class FeatureGenerator:
         result_df: pd.DataFrame,
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
     ) -> pd.DataFrame:
-        """共通特徴量生成パイプライン（37特徴量（Phase 77））"""
+        """共通特徴量生成パイプライン（37特徴量（Phase 77））
+
+        Phase R-Ha: 旧 L73 で `_add_strategy_signal_features(result_df, strategy_signals)` を
+        無条件に呼んでいたが、本パイプラインは常に strategy_signals=None で呼ばれるため
+        毎サイクル「H9 strategy_signals 未提供」警告が出ていた（誤検知）。
+        Phase 77 設計通り、戦略シグナル特徴量の付与は本パイプラインの責務ではなく、
+        trading_cycle_manager._add_strategy_signal_features() がパイプライン完了後に
+        正しい strategy_signals 付きで実行する。本パイプラインからは呼ばない。
+        """
         self._validate_required_columns(result_df)
         result_df = self._generate_basic_features(result_df)
         result_df = self._generate_technical_indicators(result_df)
@@ -70,7 +78,7 @@ class FeatureGenerator:
         result_df = self._generate_rolling_statistics(result_df)
         result_df = self._generate_interaction_features(result_df)
         result_df = self._generate_time_features(result_df)
-        result_df = self._add_strategy_signal_features(result_df, strategy_signals)
+        # Phase R-Ha: 旧呼び出しを削除。strategy_signals 引数は API 互換性のため残置（無視）
         result_df = self._handle_nan_values(result_df)
         return result_df
 
@@ -453,11 +461,13 @@ class FeatureGenerator:
         added_count = 0
 
         # Phase 50.1: strategy_signals=Noneの場合も処理を継続（0埋め）
-        # Phase 87 H9: ライブ運用で None ならシグナル取得失敗の可能性 → warning に格上げ
+        # Phase R-Ha: 旧 Phase 87 H9 警告は誤検知（_run_feature_pipeline から
+        # 自動的に None 付きで呼ばれていた）。今は呼び出し元が常に
+        # 正しい strategy_signals を渡す責務を持つ（trading_cycle_manager 経由）。
+        # それでも None で呼ばれる場合は単に 0 埋めで返す（旧テスト・後方互換用）。
         if not strategy_signals:
-            self.logger.warning(
-                f"⚠️ Phase 87 H9: strategy_signals 未提供 → "
-                f"{num_strategies}個を0.0で生成（バックテスト事前計算なら正常、ライブなら異常）"
+            self.logger.debug(
+                f"_add_strategy_signal_features: strategy_signals=None で {num_strategies}個を0.0で生成"
             )
             # 全戦略を0.0で追加
             for internal_name, feature_name in strategy_internal_names.items():

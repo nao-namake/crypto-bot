@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import atexit
 import os
+import sqlite3
 import threading
 from pathlib import Path
 from typing import Optional
@@ -104,8 +105,32 @@ class GCSTaxBackup:
             self.logger.error(f"❌ Phase 88 M5: GCS restore 失敗: {e}")
             return False
 
+    def _wal_checkpoint(self) -> None:
+        """
+        Phase R-Ma: SQLite WAL を .db 本体に統合してからアップロードする。
+
+        SQLite が `journal_mode=WAL` の場合、`trade_history.db` の他に
+        `trade_history.db-wal` / `.db-shm` が存在し、最新の取引は WAL 側にある
+        可能性が高い。`.db` 単体を upload すると GCS 上に古いスナップショットが
+        残り、次回 restore 時に取引記録が欠落する。
+
+        TRUNCATE モードで checkpoint することで:
+        - WAL 内のフレームを .db 本体にマージ
+        - WAL ファイルをサイズ 0 に切り詰める（restore 後の整合性最大化）
+        """
+        try:
+            with sqlite3.connect(str(self.local_path)) as conn:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except sqlite3.Error as e:
+            # WAL モードでなくても "no such pragma" 等は発生しない（PRAGMA は noop）
+            # ファイルが壊れている等の真の異常時のみ warning ログ
+            self.logger.warning(f"⚠️ Phase R-Ma: WAL checkpoint 失敗（continue）: {e}")
+
     def backup(self) -> bool:
         """ローカル DB を GCS へアップロード。取引記録直後と終了時に呼ぶ。
+
+        Phase R-Ma: upload 前に WAL checkpoint を実行し、最新の取引が
+        .db 本体に統合されている状態でアップロードする。
 
         Returns:
             True: アップロード成功 / False: GCS 不通 or ローカル DB 無し
@@ -115,6 +140,8 @@ class GCSTaxBackup:
         if not self.local_path.exists():
             return False
         try:
+            # Phase R-Ma: WAL → .db 統合（lock 取得前に実行・他スレッドの記録待機を最小化）
+            self._wal_checkpoint()
             blob = self.bucket.blob(self.object_key)
             with self._lock:
                 blob.upload_from_filename(str(self.local_path))

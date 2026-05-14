@@ -1858,7 +1858,7 @@ class TestPhase88H11OrphanSL:
 
         mock_threshold.side_effect = lambda key, default=None: (
             {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
-            if str(key) == "position_management.stop_loss.orphan_scan"
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
             else default
         )
 
@@ -1884,7 +1884,7 @@ class TestPhase88H11OrphanSL:
         """Phase 88 H11: long ポジあり + sell stop 注文 → 正常SL扱い（孤児ではない）"""
         mock_threshold.side_effect = lambda key, default=None: (
             {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
-            if str(key) == "position_management.stop_loss.orphan_scan"
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
             else default
         )
 
@@ -1906,7 +1906,7 @@ class TestPhase88H11OrphanSL:
 
         mock_threshold.side_effect = lambda key, default=None: (
             {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
-            if str(key) == "position_management.stop_loss.orphan_scan"
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
             else default
         )
 
@@ -1925,9 +1925,9 @@ class TestPhase88H11OrphanSL:
             )
 
         assert h11_mock_client.cancel_order.call_count == 2
-        # 70004 検出ログ
+        # 70004 はリトライ可能 whitelist に含まれる → リトライ可能ログ
         assert any(
-            "is_70004=True" in r.message for r in caplog.records if r.levelno == logging.WARNING
+            "リトライ可能" in r.message for r in caplog.records if r.levelno == logging.WARNING
         )
         # 最終成功ログ
         assert any(
@@ -1943,7 +1943,7 @@ class TestPhase88H11OrphanSL:
 
         mock_threshold.side_effect = lambda key, default=None: (
             {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
-            if str(key) == "position_management.stop_loss.orphan_scan"
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
             else default
         )
 
@@ -1973,7 +1973,7 @@ class TestPhase88H11OrphanSL:
         """Phase 88 H11: enabled=False で何もしない"""
         mock_threshold.side_effect = lambda key, default=None: (
             {"enabled": False}
-            if str(key) == "position_management.stop_loss.orphan_scan"
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
             else default
         )
 
@@ -1993,7 +1993,7 @@ class TestPhase88H11OrphanSL:
         """Phase 88 H11: short ポジ無し + buy stop 注文 → 孤児として検出"""
         mock_threshold.side_effect = lambda key, default=None: (
             {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
-            if str(key) == "position_management.stop_loss.orphan_scan"
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
             else default
         )
 
@@ -2007,3 +2007,198 @@ class TestPhase88H11OrphanSL:
         )
 
         h11_mock_client.cancel_order.assert_called_once_with("short-orphan", "BTC/JPY")
+
+
+class TestPhaseRC1NonRetryableImmediateAbort:
+    """Phase R-C1: リトライ可能 whitelist 外のエラーは即時中断する"""
+
+    @pytest.fixture
+    def mock_client(self):
+        client = MagicMock()
+        client.cancel_order = MagicMock()
+        return client
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_non_retryable_error_aborts_immediately(
+        self, mock_threshold, tp_sl_manager, mock_client, caplog
+    ):
+        """Phase R-C1: permission 不足等の恒久的エラーは 1 試行で中断"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+        # whitelist 外の永続的エラー
+        mock_client.cancel_order.side_effect = Exception("permission_denied: invalid api key")
+
+        margin_positions = []
+        active_orders = [{"id": "fatal-id", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        with caplog.at_level(logging.CRITICAL):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions, active_orders, mock_client
+            )
+
+        # 1 回だけ試行されて即時中断
+        assert mock_client.cancel_order.call_count == 1
+        assert any(
+            "リトライ不可エラー、即時中断" in r.message
+            for r in caplog.records
+            if r.levelno == logging.CRITICAL
+        )
+
+
+class TestPhaseRHbAmountBasedDetection:
+    """Phase R-Hb: 部分 VP / 過剰 SL の amount 比較ベース判定"""
+
+    @pytest.fixture
+    def mock_client(self):
+        client = MagicMock()
+        client.cancel_order = MagicMock()
+        return client
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_partial_long_with_matching_sl_not_orphan(
+        self, mock_threshold, tp_sl_manager, mock_client
+    ):
+        """Phase R-Hb: long 0.015 残存 + sell SL 0.015 → 孤児ではない（cancel しない）"""
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+
+        margin_positions = [{"side": "long", "amount": 0.015}]
+        active_orders = [{"id": "matching-sl", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        await tp_sl_manager._detect_and_cancel_orphan_sl(
+            margin_positions, active_orders, mock_client
+        )
+
+        mock_client.cancel_order.assert_not_called()
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_excess_sl_warning_only_no_cancel(
+        self, mock_threshold, tp_sl_manager, mock_client, caplog
+    ):
+        """Phase R-Hb: long 0.015 + SL 合計 0.025（過剰）→ 警告ログのみ、cancel しない"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+
+        margin_positions = [{"side": "long", "amount": 0.015}]
+        active_orders = [
+            {"id": "sl-1", "type": "stop", "side": "sell", "amount": 0.015},
+            {"id": "sl-2", "type": "stop", "side": "sell", "amount": 0.010},
+        ]
+
+        with caplog.at_level(logging.WARNING):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions, active_orders, mock_client
+            )
+
+        mock_client.cancel_order.assert_not_called()
+        assert any(
+            "sell SL 過剰検出" in r.message for r in caplog.records if r.levelno == logging.WARNING
+        )
+
+
+class TestPhaseRHeClosedOrderIdsSkip:
+    """Phase R-He: C5 で処理済の order id を H11 で重複処理しない"""
+
+    @pytest.fixture
+    def mock_client(self):
+        client = MagicMock()
+        client.cancel_order = MagicMock()
+        return client
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_closed_ids_are_excluded_from_orphan_candidates(
+        self, mock_threshold, tp_sl_manager, mock_client, caplog
+    ):
+        """Phase R-He: closed_order_ids に含まれる order id はキャンセル対象外"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+
+        margin_positions = []  # ポジション無し
+        active_orders = [
+            {"id": "already-closed", "type": "stop", "side": "sell", "amount": 0.015},
+        ]
+
+        with caplog.at_level(logging.INFO):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions,
+                active_orders,
+                mock_client,
+                closed_order_ids={"already-closed"},
+            )
+
+        mock_client.cancel_order.assert_not_called()
+        assert any(
+            "C5 で処理済 order を孤児候補から除外" in r.message
+            for r in caplog.records
+            if r.levelno == logging.INFO
+        )
+
+
+class TestPhaseRH11EdgeCases:
+    """Phase R-La: H11 の追加エッジケース"""
+
+    @pytest.fixture
+    def mock_client(self):
+        client = MagicMock()
+        client.cancel_order = MagicMock()
+        return client
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_empty_order_id_skipped(self, mock_threshold, tp_sl_manager, mock_client):
+        """Phase R-La: order_id が空文字の注文はキャンセル試行をスキップ"""
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+
+        margin_positions = []
+        active_orders = [
+            {"id": "", "type": "stop", "side": "sell", "amount": 0.015},
+            {"id": "valid-id", "type": "stop", "side": "sell", "amount": 0.015},
+        ]
+
+        await tp_sl_manager._detect_and_cancel_orphan_sl(
+            margin_positions, active_orders, mock_client
+        )
+
+        # 空 ID はスキップ、valid-id のみ cancel
+        mock_client.cancel_order.assert_called_once_with("valid-id", "BTC/JPY")
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_stop_limit_type_also_detected(self, mock_threshold, tp_sl_manager, mock_client):
+        """Phase R-La: stop_limit type も stop と同様に孤児検出対象"""
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+
+        margin_positions = []
+        active_orders = [
+            {"id": "sl-limit", "type": "stop_limit", "side": "sell", "amount": 0.015},
+        ]
+
+        await tp_sl_manager._detect_and_cancel_orphan_sl(
+            margin_positions, active_orders, mock_client
+        )
+
+        mock_client.cancel_order.assert_called_once_with("sl-limit", "BTC/JPY")

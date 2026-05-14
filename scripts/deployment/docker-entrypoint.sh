@@ -187,15 +187,23 @@ elif [ "$MODE" = "trigger" ]; then
     echo "  FastAPI(uvicorn) で /trigger / /health を提供"
     echo "  リクエスト処理中のみ CPU 課金 → idle 時間はメモリのみ課金"
 
-    # uvicorn を直接 exec で起動（バックグラウンドにせず、PID 1 として Cloud Run シグナルを受ける）
-    # --workers 1: concurrency=1 と整合（並行取引サイクル防止）
-    # --timeout-keep-alive 30: Cloud Scheduler の attempt-deadline 600s と整合
-    exec uvicorn src.core.orchestration.trigger_server:app \
+    # Phase R-Mc: SIGTERM ハンドリング
+    # Cloud Run のグレースフルシャットダウン（最大10秒猶予）に対応するため、
+    # uvicorn にも明示的にシグナルを転送して --timeout-graceful-shutdown を効かせる。
+    # M5 atexit backup（GCS upload 100-500ms）が確実に終わる時間を確保。
+    uvicorn src.core.orchestration.trigger_server:app \
         --host 0.0.0.0 \
         --port "${PORT:-8080}" \
         --workers 1 \
         --timeout-keep-alive 30 \
-        --log-level "${UVICORN_LOG_LEVEL:-warning}"
+        --timeout-graceful-shutdown 8 \
+        --log-level "${UVICORN_LOG_LEVEL:-warning}" &
+    UVICORN_PID=$!
+    echo "✅ uvicorn 起動完了 (PID=$UVICORN_PID)"
+
+    # Phase R-Mc: SIGTERM / SIGINT 受信時に uvicorn にもシグナルを送って graceful 終了
+    trap 'echo "🛑 Phase R-Mc: SIGTERM受信、uvicorn 終了処理"; kill -TERM $UVICORN_PID 2>/dev/null; wait $UVICORN_PID 2>/dev/null; exit 0' SIGTERM SIGINT
+    wait $UVICORN_PID
 
 else
     echo "🧪 テスト・開発モード（シンプル起動）"

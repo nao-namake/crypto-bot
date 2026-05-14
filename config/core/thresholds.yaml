@@ -757,11 +757,21 @@ position_management:
     # Phase 88 H11: 孤児SL注文（ポジション無しで残存）の検出・自動キャンセル
     # 2026-05-14 09:05 BUYポジ TP約定後の SL cancel が bitbank 70004 で失敗 → 12時間孤児SL放置
     # 対策: 指数バックオフ 1s/2s/4s でキャンセル試行、3回失敗時は次5分サイクルで再試行
-    # 注意: position_management.orphan_scan (孤児ポジション検出) とは別階層
-    orphan_scan:
+    # Phase R-C3: position_management.orphan_scan (孤児ポジション検出) との命名衝突解消のため
+    # orphan_scan → orphan_sl_order_scan にリネーム
+    orphan_sl_order_scan:
       enabled: true
       cancel_max_retries: 3
       cancel_base_delay_seconds: 1.0
+      # Phase R-C1: リトライ可能エラーの whitelist（小文字部分一致）。
+      # 70004=取引一時停止, suspended=同上, timeout/connection/rate=一時的ネットワーク・レート系。
+      # これら以外は即時中断（permission 不足・order id 不正等の恒久的エラーで無駄なリトライ防止）
+      retryable_patterns:
+        - "70004"
+        - "suspended"
+        - "timeout"
+        - "connection"
+        - "rate limit"
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007
     override_strategy_sl: false
