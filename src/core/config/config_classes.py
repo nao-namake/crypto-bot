@@ -26,6 +26,9 @@ class ExchangeConfig:
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
     rate_limit_ms: Optional[int] = None
+    # Phase 88 M2: ccxt の rateLimit パラメータ（リクエスト間最低待機 ms）
+    # bitbank_client.py から get_threshold("exchange.ccxt_rate_limit_ms", 200) で参照
+    ccxt_rate_limit_ms: Optional[int] = None
     timeout_ms: Optional[int] = None
     retries: Optional[int] = None
     ssl_verify: Optional[bool] = None
