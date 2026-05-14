@@ -2,17 +2,17 @@
 
 ## 現在の状態
 
-**Phase 87 Stage 1 + Stage 1-R 実装完了**（ローカル）→ デプロイ待ち / Stage 2-3 未着手
+**Phase 87 全 Stage 完了・本番デプロイ済（2026-05-14）→ Phase 88 着手予定**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 87 Stage 1: SLMonitor 新規実装・ML信頼度統一・TP Maker _safe_cancel・H1 24h timeout・H2 サイレント失敗解消・H7 特徴量定数化・H9 戦略アサート / Stage 1-R: 連携テスト16件・docstring補強・数値同一性検証 |
-| 品質ゲート | 2122 tests passed, カバレッジ 74.14%, flake8/isort/black 全PASS |
-| ML方式 | メタラベリング（品質フィルタ Go/No-Go、Triple Barrier） |
-| 特徴量 | 37特徴量（SHAP+Forward Selection最適化、LGB40%/XGB40%/RF20%） |
-| 直近インシデント | 2026-05-12 10:41:10 SL stop注文がトリガー発火後 CANCELED_UNFILLED で約定失敗、6時間以上裸ポジ放置 → **Phase 87 Stage 1 で構造的に防止** |
-| 次のアクション | (1) Stage 1 デプロイ + 48-72h dry_run 観察 → (2) `dry_run: false` 切替 → (3) Stage 2 (Firestore 永続化 H3/H4/H5/C4) → (4) Stage 3 (H6/H8/H10/分析共通化) |
-| 最終更新 | 2026年5月13日 - Phase 87 Stage 1+1-R 完了 |
+| 最新成果 | Phase 87 全 Stage 完了（Critical 5 + High 10 + 補強）。SL消失検出層・Firestore永続化・DummyModel CB・品質フィルタ共通モジュール化・段階復帰・分析共通lib 完成 |
+| 品質ゲート | 2200件超 tests passed, カバレッジ 74%+, flake8/isort/black 全PASS |
+| 実機動作確認 | 12h観測で勝率100% (2勝0敗) +¥1,500、H6レジーム別閾値・H4 Firestore動作確認済 |
+| 残課題 | (1) GCP月額 ¥3,000 → ¥300-500 削減 (2) 孤児SL再発防止 (3) Dead code/ドキュメント整理 |
+| 直近インシデント | 2026-05-14 09:05 BUYポジ→TP決済後に SL注文キャンセル失敗（70004エラー）で孤児SL残存。手動キャンセル済。**Phase 88 H11 で再発防止予定** |
+| 次のアクション | Phase 88 P0 (I1+I2 即時削減) → P1 (H11孤児SL + I3 min=0化 + L2/L3) → P2 (I4/I5/M5) → P3 (軽微改善) |
+| 最終更新 | 2026年5月15日 - Phase 88 計画策定完了 |
 
 ---
 
@@ -42,13 +42,28 @@
 
 ## 完了Phase
 
-### Phase 87 Stage 1 + Stage 1-R ✅（2026-05-13 ローカル実装完了）
-- **Critical 4件**: C1 SLMonitor 新規実装 / C2 ML信頼度 `predicted_class_proba` 統一 / C3 TP Maker `_safe_cancel` / C5 5分ループ内SL health check
-- **High 4件**: H1 SL 24h timeout 判定 / H2 起動時SL欠損サイレント失敗解消 / H7 EXPECTED_FEATURE_COUNT 共有定数化 / H9 6戦略シグナル完全性アサート
-- **Stage 1-R**: R1 統合連携テスト7件・R2 ml_confidenceエッジケース3件・R3 docstring補強3箇所・R4 数値同一性検証6件
-- **品質ゲート**: 2122 tests passed, カバレッジ 74.14%, flake8/isort/black PASS
-- **デプロイ前提**: `dry_run: true` 出荷 → 48-72h観察 → 誤発火0件確認後 `false` 切替
-- 詳細: `docs/開発履歴/Phase_87.md`
+### Phase 87 全 Stage 完了 ✅（2026-05-14 本番デプロイ済・全Critical 5 + High 10 達成）
+
+**Stage 1 + 1-R**: SL消失検出層構築（2026-05-13）
+- Critical 4件: C1 SLMonitor 新規・C2 ML信頼度 predicted_class_proba 統一・C3 TP Maker _safe_cancel・C5 5分ループ SL health check
+- High 4件: H1 SL 24h timeout・H2 起動時SL欠損サイレント失敗解消・H7 EXPECTED_FEATURE_COUNT 定数化・H9 6戦略アサート
+- Stage 1-R 補強: 統合連携テスト7件 + エッジケース3件 + docstring + 数値同一性検証6件
+
+**Stage 2 + 2-R**: 永続化基盤 + サーキットブレーカー（2026-05-14）
+- C4 DummyModel サーキットブレーカー（MLHealthMonitor、3回連続失敗で EMERGENCY_STOP）
+- H3 SL stop_limit + slippage_buffer 0.008 二重防衛（コード先行投入）
+- H4-H5 Firestore 永続化（SL状態 / DrawdownManager / MLHealth）
+- Stage 2-R 補強: C4 閉ループ完成 + silent failure 検知 + threshold config化
+
+**Stage 3 + 3-R**: 品質フィルタ共通化 + 段階復帰 + 分析共通lib（2026-05-14）
+- H10 QualityFilter モジュール（trading_cycle_manager と backtest_runner で同一判定）
+- H6 レジーム別品質フィルタ閾値（tight 0.55 / normal 0.75 / trending 0.50）
+- H8 RECOVERY_TESTING + 3回連続失敗で EMERGENCY_STOP（無限ループ防止）
+- src/analysis/common/ 新規（sl_validators / canceled_unfilled_detector / tp_sl_helpers）
+- Stage 3-R 補強: backtest regime 反映・normal_range 0.85→0.75 緩和・check_trading_allowed 修正
+
+**実機検証**: 5/13 24h: 勝率25% -¥5,216 → 5/14 12h: **勝率100% +¥1,500**（+¥6,716 改善）
+**詳細**: `docs/開発履歴/Phase_87.md`
 
 ### Phase 86: TP/SL/Entry根本再構築 ✅（2026-05-12 デプロイ）
 - TPSLCalculator 単一実装化（旧4箇所分散を解消）
@@ -87,7 +102,24 @@
 
 ---
 
-## 🔧 Phase 87 + 88 完全リファクタリング 計画
+## Phase 87 完了サマリ（全 Critical 5 + High 10 達成）
+
+9エージェント並列調査で確定した全23欠陥（C1-C5 + H1-H10 + M1-M5 + L1-L3 + I1-I5）のうち、
+**Critical 5 + High 10 を Phase 87 で完全達成**。Medium 5 + Low 3 + Infrastructure 5 は Phase 88 へ。
+
+| カテゴリ | 完了Phase | 状態 |
+|---------|----------|------|
+| 🔴 Critical 5件（C1-C5） | Phase 87 Stage 1-2 | ✅ 全完了 |
+| 🟠 High 10件（H1-H10） | Phase 87 Stage 1-3 | ✅ 全完了 |
+| 🟡 Medium 5件（M1-M5） | Phase 88 P3 / P2 | ⏳ 未着手 |
+| 🟢 Low 3件（L1-L3） | Phase 88 P1 / P3 | ⏳ 未着手 |
+| 💰 Infrastructure 5件（I1-I5） | Phase 88 P0-P2 | ⏳ 未着手 |
+
+詳細: `docs/開発履歴/Phase_87.md`
+
+---
+
+## 🔧 過去計画（Phase 87 + 88 完全リファクタリング・記録）
 
 ### 概要
 
@@ -297,139 +329,179 @@ confidence 計算の一貫性を統合テストで確認。
    - Phase 85 手数料修正適用
    - 共通ライブラリ使用
 
----
-
-## Phase 88 実装計画（2-3週間）
-
-### 💰 Infrastructure（GCPコスト削減・最優先）
-
-**目標**: 月額 GCP コスト **3,000円 → 約300-500円（83%削減）**
-
-#### I1 + I2: 即時削減（リスク低・Phase 88 着手と同時）
-
-```bash
-# I1: Cloud Logging レベル変更（-100~200円/月）
-gcloud run services update crypto-bot-service-prod \
-  --region=asia-northeast1 \
-  --update-env-vars=LOG_LEVEL=WARNING
-
-# I2: Artifact Registry リテンションポリシー（-20~50円/月）
-# 30日以上前の古いイメージを自動削除
-gcloud artifacts repositories set-cleanup-policies crypto-bot-repo \
-  --location=asia-northeast1 \
-  --policy=scripts/deployment/artifact-cleanup-policy.json
-```
-
-**前提条件**: なし
-**実施タイミング**: Phase 88 着手と同時、または Phase 87 完了直後に即時実施可能
-**リスク**: なし（DEBUG ログは必要時のみ一時的に戻せる）
-
-#### I3: min_instances=0 + Cloud Scheduler 起動（最大削減効果）
-
-```bash
-# 前提: Phase 87 H4-5 (Firestore永続化) 完了済みであること
-
-# Step 1: Cloud Scheduler ジョブ作成（5分間隔）
-gcloud scheduler jobs create http crypto-bot-trigger \
-  --location=asia-northeast1 \
-  --schedule="*/5 * * * *" \
-  --http-method=POST \
-  --uri=https://crypto-bot-service-prod-xxx.run.app/trigger \
-  --oidc-service-account-email=cloud-scheduler-sa@PROJECT.iam.gserviceaccount.com
-
-# Step 2: Cloud Run を on-demand 化
-gcloud run services update crypto-bot-service-prod \
-  --region=asia-northeast1 \
-  --min-instances=0 \
-  --max-instances=2 \
-  --timeout=300
-
-# Step 3: main.py に /trigger エンドポイントを追加（5分処理を1回実行）
-# 起動毎に：
-#   1. Firestore から状態復元（VP, ドローダウン, SL状態）
-#   2. 5分処理サイクル実行
-#   3. 状態を Firestore に保存
-#   4. プロセス終了
-```
-
-**削減効果**: **-2,400円/月**（Cloud Run 常時稼働分が0に）
-**前提条件**: **Phase 87 H4-5 (Firestore永続化) 完了必須**
-**リスク**: Cold start 5-10秒（5分間隔なら許容範囲）
-**コード変更**:
-- `main.py`: Cloud Scheduler 用 `/trigger` HTTP エンドポイント追加
-- `src/core/orchestration/`: 起動・終了ライフサイクル最適化
-- `tax/trade_history.db` 等のローカル状態は M5 (GCS化) 完了後に min=0 可能
-
-#### I4: Cloud Run メモリ最適化
-
-```bash
-# Phase 87 完了後（特徴量数37の安定化後）
-gcloud run services update crypto-bot-service-prod \
-  --region=asia-northeast1 \
-  --memory=512Mi \
-  --cpu=0.5
-```
-
-**削減効果**: **-150円/月**
-**前提条件**: Phase 87 完了、ML推論ピークメモリ確認
-**検証**: ペーパートレードで30分稼働し、メモリ使用量 < 400MB 確認
-
-#### I5: bitbank API キャッシュ徹底（Egress 削減）
-
-- `src/data/data_pipeline.py`: 既存キャッシュ TTL の見直し
-- 不要な再フェッチを排除
-- WebSocket 移行は Phase 91 で（Phase 88 では REST のキャッシュ強化のみ）
-
-**削減効果**: **-20~50円/月**
-
-#### 検証
-
-```bash
-# 削減前後のコスト比較
-gcloud billing accounts get-spend-information \
-  --account=<ACCOUNT_ID> \
-  --start-time=2026-05-01 \
-  --end-time=2026-05-31
-
-# Cloud Run 使用量確認
-gcloud monitoring time-series list \
-  --filter="metric.type=\"run.googleapis.com/container/cpu/allocation_time\"" \
-  --interval-start-time=2026-05-01T00:00:00Z
-```
+> 上記 Phase 87 計画詳細は **完了済**。記録として保持（実装内容は `docs/開発履歴/Phase_87.md`）。
 
 ---
 
-### Medium 対応
-- M1: Kelly基準のゼロサイズ理由を明示化
-- M2: bitbank API レート制限の hardcode を config 化
-- M3: TP/SL価格の丸め処理を明示化（TP下丸め・SL上丸め）
-- M4: 異常検知の時間帯別調整
-- M5: 税務 SQLite を GCS/Cloud SQL に移行（I3 の min=0 化の前提でもある）
+## Phase 88 実装計画（確定版・2026-05-15 策定）
 
-### Low / クリーンアップ
-- L1: Phase XXX コメント整理（Phase 88で統一）
-- L2: README.md を CLAUDE.md と整合
-- L3: Dead code 一括削除（約500行）
-  - executor.py:1436-1450 の「移動済み」コメント
-  - stop_manager.py:1600-1604 の「移動済み」コメント
-  - bitbank_client.py:1197-1219 stop_limit旧分岐（H3で再活用しない部分）
-  - 0byte DB ファイル（data/trades.db, data/live_trades.db, etc.）
-  - logs/orphan_sl_orders.json（Phase 59.6）
-  - data/sl_state.json（ローカル汚染）
-- .dockerignore 新規作成（防御）
+**目標**: GCP 月額コスト **¥3,000 → ¥300-500（83% 削減）** + 孤児SL再発防止 + 保守性向上
+**所要**: 2-3週間（P0-P3 段階実装）
+**前提**: Phase 87 全 Stage 完了済（Firestore永続化・SLMonitor 動作確認済）
 
-### 重複統合
-- TradeHistoryRecorder + TradeAnalysisRecorder 統合
-- TP/SL欠損検出 4経路 → 2経路
-- PositionRestorer → PositionTracker 経由化（カプセル化）
+### Phase 88 全項目（優先度別）
 
-### テストカバレッジ
-- test_sl_monitor.py（CANCELED_UNFILLED検出）
-- test_canceled_unfilled_recovery.py（E2E）
-- test_container_restart.py（VP復元、ドローダウン状態復元）
-- test_confidence_calculation.py（max vs predicted_class_proba）
-- test_tp_sl_manager.py:768 を tmp_path フィクスチャに変更
-- test_cloud_scheduler_trigger.py（Cloud Scheduler 起動シナリオ・I3用）
+#### P0: 即時実施（リスク低・1-2日）
+
+| ID | 内容 | 削減効果 | 実装ファイル |
+|----|------|---------|-------------|
+| **I1** | LOG_LEVEL `INFO` → `WARNING` | -¥100~200/月 | `.github/workflows/ci.yml:348-363` の env-vars |
+| **I2** | Artifact Registry リテンション（30日以上前のイメージ削除） | -¥20~50/月 | `scripts/deployment/artifact-cleanup-policy.json` 新規 |
+
+#### P1: 構造改善（1週目）
+
+| ID | 内容 | 効果 | 実装規模 |
+|----|------|------|---------|
+| **H11** ⭐ | 孤児SL注文の再発防止（5分ループ検出 + 指数バックオフキャンセル） | 運用安定化（5/14 09:05事案の再発防止） | ~50行 |
+| **I3** | min_instances=0 + Cloud Scheduler 起動 | **-¥2,400/月** | main.py に `/trigger` endpoint ~80行 |
+| **L3** | Dead code 削除（executor.py:1436-1450 等） | 保守性 | ~100行削除 |
+| **L2** | SUMMARY.md に Phase 83-87 追記 + Phase_88.md 新規 | ドキュメント整備 | ~200行追加 |
+
+#### P2: 機能改善（2週目）
+
+| ID | 内容 | 効果 |
+|----|------|------|
+| **M5** | 税務 SQLite を Firestore or GCS に永続化 | I3 (min=0) の前提クリア |
+| **I4** | メモリ 1Gi → 512Mi | -¥150/月 |
+| **I5** | bitbank API キャッシュ徹底（TTL見直し） | -¥20~50/月 (Egress) |
+
+#### P3: 軽微改善（3週目）
+
+| ID | 内容 |
+|----|------|
+| **M1** | Kelly基準のゼロサイズ理由を critical ログで明示 |
+| **M2** | bitbank API rate_limit を thresholds.yaml 参照に統一（200msハードコード解消） |
+| **M3** | TP/SL価格の丸め処理を明示化（コメント追加） |
+| **M4** | 異常検知の時間帯別 Z スコア閾値（深夜 2.5 / 日中 3.0） |
+| **L1** | Phase XXX コメント整理（一括スキャン + 古いものを削除） |
+
+---
+
+### Step 詳細
+
+#### Step 88-P0a: I1 LOG_LEVEL 切替（即時 -¥100~200/月）
+
+`.github/workflows/ci.yml:348-363` の `--update-env-vars` に `LOG_LEVEL=WARNING` を追加（現在 `INFO`）。
+**リスクゼロ**（必要時 INFO に戻せる）。
+
+#### Step 88-P0b: I2 Artifact Registry リテンション（即時 -¥20~50/月）
+
+新規 `scripts/deployment/artifact-cleanup-policy.json`:
+- 30日以上前のイメージ自動削除（`olderThan: "2592000s"`）
+- 最新タグ10件は保持（`mostRecentVersions.keepCount: 10`）
+
+適用: `gcloud artifacts repositories set-cleanup-policies crypto-bot-repo`
+
+#### Step 88-P1a: H11 孤児SL注文の再発防止（最重要）
+
+**背景**: 2026-05-14 09:05 TP約定後の SL キャンセル試行が bitbank エラー 70004（INACTIVE状態遷移中）で失敗し、12時間孤児SLとして残った。手動キャンセルで解決済。
+
+**修正**: `src/trading/execution/tp_sl_manager.py:ensure_tp_sl_for_existing_positions`
+
+既存の Phase 87 C5 health check ループ内に追加:
+- ポジション無し かつ stop/stop_limit 注文有り → 孤児SL検出
+- 指数バックオフ（1s/2s/4s）で cancel_order をリトライ
+- 70004 エラー時は次サイクル（5分後）で再試行
+
+**設定追加**: `config/core/thresholds.yaml`
+```yaml
+position_management.stop_loss.orphan_scan:
+  enabled: true
+  cancel_max_retries: 3
+  cancel_base_delay_seconds: 1.0
+```
+
+#### Step 88-P1b: I3 min_instances=0 + Cloud Scheduler（-¥2,400/月）
+
+**最大の変更**。`main.py` を「リクエスト駆動」に再構築:
+- Flask アプリ追加（`/trigger` endpoint + `/health` endpoint）
+- 既存の常時稼働モードは `MODE=continuous` で維持（ペーパー/開発用）
+- `MODE=trigger` で Cloud Run + Cloud Scheduler 連携
+
+Cloud Scheduler ジョブ作成（5分間隔）+ Cloud Run on-demand 化:
+```bash
+gcloud scheduler jobs create http crypto-bot-trigger ...
+gcloud run services update crypto-bot-service-prod --min-instances=0 --max-instances=2 --timeout=300
+```
+
+**検証ガード**: 起動時 Firestore 接続失敗で `EMERGENCY_STOP` に遷移
+
+#### Step 88-P1c: L3 Dead code 削除
+
+**削除対象**:
+- `src/trading/execution/executor.py:1436-1450` 移動済みコメント（15行）
+- `logs/orphan_sl_orders.json`（Phase 59.6・H11 で対応済）
+- `data/sl_state.json`（Phase 68.4・H4 で Firestore 化済）
+- 0byte DB ファイル: `data/trades.db`, `data/live_trades.db`
+- `.dockerignore` 新規作成（防御的）
+
+**保留**: `src/data/bitbank_client.py:1197-1219` stop_limit フォールバック（Phase 87 H3 で再活用される可能性）
+
+#### Step 88-P1d: L2 ドキュメント整備
+
+- `docs/開発履歴/SUMMARY.md`: Phase 83-87 サマリー追加（~200行）
+- `docs/開発履歴/Phase_88.md` 新規（Phase 88 完了後）
+- `CLAUDE.md` / `README.md` のしおり更新
+
+#### Step 88-P2: I4 / I5 / M5
+
+**I4 (メモリ 1Gi → 512Mi)**: ペーパー30分稼働で <400MB 確認後に変更
+**I5 (API キャッシュ徹底)**: `src/data/data_cache.py` の TTL 60s → 120s、重複呼び出し排除
+**M5 (税務SQLite Firestore化)**: `tax/trade_history.db` を Firestore コレクション `tax_history` に移行（既存データマイグレーションスクリプト作成）
+
+#### Step 88-P3: M1-M4 / L1 軽微改善
+
+---
+
+### Phase 88 リスクと緩和策
+
+| 順位 | リスク | 緩和策 |
+|------|--------|--------|
+| **高** | I3 Cold start レイテンシ → 5分間隔の取引機会逸失 | ステージング 1週間検証 |
+| **高** | I3 Firestore 接続失敗時の取引判断ミス | 起動時失敗で EMERGENCY_STOP に遷移するガード |
+| **中** | H11 cancel リトライで bitbank API レート制限抵触 | 3回失敗時は記録のみ、次サイクルで再試行 |
+| **中** | M5 税務DB移行で既存データ消失 | バックアップ後にマイグレーション、ステージング先行 |
+| **低** | I4 メモリ 512Mi で OOM | ペーパー30分稼働で確認、問題あれば 1Gi に戻す |
+| **低** | L3 Dead code 削除で参照エラー | 削除前 grep 確認、テストカバレッジ維持 |
+
+---
+
+### Phase 88 検証手順
+
+```bash
+# 共通: 品質チェック
+bash scripts/testing/checks.sh
+
+# P0 検証
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1 \
+  --format="value(spec.template.spec.containers[0].env)" | grep LOG_LEVEL
+
+# P1 検証
+gcloud logging read 'resource.type=cloud_run_revision AND textPayload=~"Phase 88 H11"' --limit=20
+gcloud scheduler jobs list --location=asia-northeast1
+
+# コスト削減効果
+gcloud billing accounts get-spend-information --account=<ACCOUNT_ID> ...
+```
+
+**期待値**: Before ¥3,000/月 → After ¥300-500/月（**83% 削減**）
+
+---
+
+### Phase 88 想定スケジュール
+
+| 段階 | 期間 | 内容 | 削減効果 |
+|------|------|------|---------|
+| **P0** | Day 1-2 | I1 + I2 即時削減 | -¥120~250/月 |
+| **P1** | Day 3-9 | H11 + I3 + L2/L3 | -¥2,400/月 |
+| **P2** | Day 10-15 | I4 + I5 + M5 | -¥170/月 |
+| **P3** | Day 16-21 | M1-M4 + L1 | 保守性向上 |
+
+→ **Phase 88 完了目標**: 着手から約 21 日（3週間）
+
+完了後、Phase 89 (Webリサーチ統合: Purged K-Fold + Fractional Kelly + OFI + Funding Rate) へ進む。
+
+詳細プラン: `~/.claude/plans/phase-nifty-pizza.md`
 
 ---
 
