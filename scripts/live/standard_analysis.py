@@ -117,6 +117,11 @@ class InfrastructureCheckResult:
     phase70_2_fixed_sl_count: int = 0  # 固定金額SL適用ログ
     phase49_16_tp_sl_count: int = 0  # TP/SL確定総数
 
+    # Phase 87/88 動作確認カバレッジ拡充（gcp_metrics.py 経由で収集）
+    # キー: memory_metrics / oom_incidents / cold_start / trigger_health
+    #       / h11_orphan_sl / m5_gcs_backup / recovery_testing / quality_filter_regime
+    phase87_88_metrics: Dict[str, Any] = field(default_factory=dict)
+
     # スコア
     normal_checks: int = 0
     warning_issues: int = 0
@@ -127,9 +132,10 @@ class InfrastructureCheckResult:
 class InfrastructureChecker:
     """インフラ基盤診断クラス"""
 
-    def __init__(self, logger, hours: int = 24):
+    def __init__(self, logger, hours: int = 24, include_metrics: bool = True):
         self.logger = logger
         self.hours = hours
+        self.include_metrics = include_metrics  # Phase 87/88 動作確認カバレッジ
         self.result = InfrastructureCheckResult()
         self.log_since_time = self._get_log_since_time()
         self.deploy_time = self._get_deploy_time()  # レポート表示用のみ
@@ -244,6 +250,10 @@ class InfrastructureChecker:
         self._check_position_restore()
         self._check_trade_blocking_errors()
         self._check_phase83c_anomalies()  # Phase 83C: 新警告ログ追跡
+
+        # Phase 87/88 動作確認カバレッジ拡充（--no-metrics で skip 可）
+        if self.include_metrics:
+            self._check_phase88_memory_and_trigger()
 
         # 総合スコア計算
         self.result.total_score = (
@@ -505,6 +515,64 @@ class InfrastructureChecker:
             )
             self.result.warning_issues += 1
 
+    # =========================================================================
+    # Phase 87/88 動作確認カバレッジ拡充（gcp_metrics 経由）
+    # =========================================================================
+
+    def _check_phase88_memory_and_trigger(self):
+        """Phase 88 I4 メモリ 768MiB / I3 Cloud Scheduler trigger / OOM の確認。
+
+        gcp_metrics.py の wrapper を呼んで Cloud Monitoring + Logging からメトリクス
+        を取得し、result.phase87_88_metrics に格納する。
+
+        - I4 メモリ percentiles（P50/P95/P99）
+        - I4 OOM 発生件数
+        - I3 cold start 回数・レイテンシ
+        - I3 /trigger 成功・失敗・平均レイテンシ
+        """
+        self.logger.info("💾 Phase 88 I4 メモリ + I3 trigger 監視")
+        try:
+            from src.analysis.common.gcp_metrics import (
+                count_oom_incidents,
+                fetch_cold_start_stats,
+                fetch_memory_percentiles,
+                fetch_trigger_endpoint_stats,
+            )
+
+            metrics = self.result.phase87_88_metrics
+            metrics["memory_metrics"] = fetch_memory_percentiles(hours=self.hours)
+            metrics["oom_incidents"] = count_oom_incidents(hours=self.hours)
+            metrics["cold_start"] = fetch_cold_start_stats(hours=self.hours)
+            metrics["trigger_health"] = fetch_trigger_endpoint_stats(hours=self.hours)
+
+            # 主要 verdict をログ出力（簡易）
+            mem = metrics["memory_metrics"]
+            oom = metrics["oom_incidents"]
+            if mem.get("available"):
+                self.logger.info(
+                    f"  📊 メモリ: P95={mem.get('p95_mib')}MiB / 768MiB "
+                    f"({mem.get('p95_ratio', 0) * 100:.1f}%) verdict={mem.get('verdict')}"
+                )
+            else:
+                self.logger.warning("  ⚠️ メモリ metric 取得失敗（gcloud auth or metric 未蓄積）")
+            if oom["count"] > 0:
+                self.logger.critical(
+                    f"  🚨 Phase 88 I4: OOM 発生 {oom['count']}件 - 直近: {oom['last_occurrence']}"
+                )
+                self.result.critical_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+            trig = metrics["trigger_health"]
+            if trig.get("failure_count", 0) > 0:
+                self.logger.warning(f"  ⚠️ Phase 88 I3: /trigger 失敗 {trig['failure_count']} 件")
+                self.result.warning_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 87/88 メトリクス取得失敗: {e}")
+
 
 # =============================================================================
 # Bot機能診断（check_bot_functions.sh 移植）
@@ -629,6 +697,10 @@ class BotFunctionChecker:
         self._check_phase65_2_logs()  # Phase 65.2: GCPログ動作確認
         self._check_entry_execution()  # Phase 67.4/67.5: エントリー実行フロー
         self._check_tp_sl_management()  # Phase 67.4/67.5/64.12: TP/SL管理
+
+        # Phase 87/88 動作確認カバレッジ拡充（include_metrics=True 時）
+        if self.infra_checker.include_metrics:
+            self._check_phase87_88_features()
 
         # 総合スコア計算
         self.result.total_score = (
@@ -1093,6 +1165,59 @@ class BotFunctionChecker:
         self.result.emergency_market_close = self._count_logs(
             'textPayload:"Phase 64.12: SL超過検出" OR textPayload:"緊急成行決済"', 10
         )
+
+    # =========================================================================
+    # Phase 87/88 動作確認カバレッジ拡充（H11 / M5 / H8 / H6 / I3 lifespan）
+    # =========================================================================
+
+    def _check_phase87_88_features(self):
+        """Phase 87/88 で実装した機能の動作確認を gcp_metrics 経由で実行。
+
+        - H11 孤児SL検出（Phase 88）: 検出回数 + 70004 リトライ可否
+        - M5 GCS バックアップ（Phase 88）: restore / backup 成否
+        - H8 RECOVERY_TESTING（Phase 87）: 連敗保護→testing→復帰 遷移
+        - H6 レジーム別品質フィルタ（Phase 87）: tight / normal / trending の承認/拒否
+        """
+        self.logger.info("🔍 Phase 87/88 機能カバレッジ確認")
+        try:
+            from src.analysis.common.gcp_metrics import (
+                count_h11_orphan_sl_events,
+                count_m5_gcs_backup_events,
+                count_quality_filter_regime_outcomes,
+                count_recovery_testing_transitions,
+            )
+
+            metrics = self.infra_checker.result.phase87_88_metrics
+            metrics["h11_orphan_sl"] = count_h11_orphan_sl_events(hours=self.infra_checker.hours)
+            metrics["m5_gcs_backup"] = count_m5_gcs_backup_events(hours=self.infra_checker.hours)
+            metrics["recovery_testing"] = count_recovery_testing_transitions(
+                hours=self.infra_checker.hours
+            )
+            metrics["quality_filter_regime"] = count_quality_filter_regime_outcomes(
+                hours=self.infra_checker.hours
+            )
+
+            # スコア反映: H11 で孤児検出時は warning（取引精度には影響しないが運用注視）
+            h11 = metrics["h11_orphan_sl"]
+            if h11["detected"] > 0:
+                self.logger.warning(
+                    f"  ⚠️ Phase 88 H11: 孤児SL {h11['detected']} 件検出 "
+                    f"(成功 {h11['cancel_success']} / 全失敗 {h11['exhausted_retries']})"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+            # M5 backup 失敗は critical
+            m5 = metrics["m5_gcs_backup"]
+            if m5["backup_failure"] > 0:
+                self.logger.critical(f"  🚨 Phase 88 M5: GCS backup 失敗 {m5['backup_failure']} 件")
+                self.result.critical_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 87/88 機能カバレッジ確認失敗: {e}")
 
 
 @dataclass
@@ -2854,6 +2979,14 @@ async def main():
         action="store_true",
         help="簡易チェック（GCPログのみ、API呼び出しなし）",
     )
+    parser.add_argument(
+        "--no-metrics",
+        action="store_true",
+        help=(
+            "Phase 87/88 動作確認カバレッジ拡充（メモリ・OOM・/trigger・H11・M5）を skip。"
+            " gcloud monitoring 呼び出し 5-10 秒分の遅延を避けたい場合に指定。"
+        ),
+    )
     args = parser.parse_args()
 
     logger = get_logger()
@@ -2863,7 +2996,9 @@ async def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # インフラ基盤診断（常に実行）
-    infra_checker = InfrastructureChecker(logger, hours=args.hours)
+    # Phase 87/88: --no-metrics で gcloud monitoring 呼び出しを opt-out
+    include_metrics = not args.no_metrics
+    infra_checker = InfrastructureChecker(logger, hours=args.hours, include_metrics=include_metrics)
     infra_result = infra_checker.check()
 
     # Bot機能診断（常に実行）
@@ -3451,7 +3586,129 @@ def _generate_diagnostic_markdown(
         ]
     )
 
+    # Phase 87/88 動作確認カバレッジ拡充セクション
+    lines.extend(_generate_phase87_88_markdown(infra_result))
+
     return "\n".join(lines)
+
+
+def _generate_phase87_88_markdown(infra_result: InfrastructureCheckResult) -> List[str]:
+    """Phase 87/88 動作確認カバレッジセクションを Markdown 配列で返す。
+
+    infra_result.phase87_88_metrics に格納された gcp_metrics 結果を整形。
+    --no-metrics 時は phase87_88_metrics が空 dict のため、空セクション or skip 表記。
+    """
+    metrics = infra_result.phase87_88_metrics
+    if not metrics:
+        return [
+            "",
+            "---",
+            "",
+            "## Phase 87/88 機能カバレッジ",
+            "",
+            "_（--no-metrics で skip / または取得失敗）_",
+            "",
+        ]
+
+    lines = ["", "---", "", "## Phase 87/88 機能カバレッジ", ""]
+
+    # I4 メモリ（最重要）
+    mem = metrics.get("memory_metrics", {})
+    oom = metrics.get("oom_incidents", {})
+    lines.extend(["### 💾 Phase 88 I4: メモリ 768MiB 効果（最重要）", ""])
+    if mem.get("available"):
+        lines.extend(
+            [
+                "| 項目 | 値 | 768MiB 比率 |",
+                "|------|------|-------------|",
+                f"| P50 | {mem.get('p50_mib')} MiB | {mem.get('p50_ratio', 0) * 100:.1f}% |",
+                f"| P95 | {mem.get('p95_mib')} MiB | {mem.get('p95_ratio', 0) * 100:.1f}% |",
+                f"| P99 | {mem.get('p99_mib')} MiB | {mem.get('p99_ratio', 0) * 100:.1f}% |",
+                f"| 最大観測値 | {mem.get('max_mib')} MiB | {mem.get('max_ratio', 0) * 100:.1f}% |",
+                f"| Verdict | **{mem.get('verdict')}** | サンプル {mem.get('sample_count')} 点 |",
+                "",
+            ]
+        )
+    else:
+        lines.append(f"_メモリメトリクス取得失敗: {mem.get('reason', 'unknown')}_\n")
+    lines.extend(
+        [
+            f"**OOM 24h**: {oom.get('count', 0)} 件 / Verdict: {oom.get('verdict', '-')}",
+            "",
+        ]
+    )
+
+    # I3 trigger / cold start
+    trig = metrics.get("trigger_health", {})
+    cs = metrics.get("cold_start", {})
+    lines.extend(["### ⚡ Phase 88 I3: Cloud Scheduler + lifespan", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| /trigger 成功 | {trig.get('success_count', 0)} 回 |",
+            f"| /trigger 失敗 | {trig.get('failure_count', 0)} 回 |",
+            f"| /trigger 平均レイテンシ | {trig.get('avg_latency_ms', '-')} ms |",
+            f"| cold start 回数 | {cs.get('count', 0)} |",
+            f"| cold start 平均 | {cs.get('avg_ms', '-')} ms (P95: {cs.get('p95_ms', '-')}) |",
+            f"| Verdict | {trig.get('verdict', '-')} |",
+            "",
+        ]
+    )
+
+    # H11 孤児SL
+    h11 = metrics.get("h11_orphan_sl", {})
+    lines.extend(["### 🚨 Phase 88 H11: 孤児SL検出", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| 孤児SL検出 | {h11.get('detected', 0)} 件 |",
+            f"| キャンセル成功 | {h11.get('cancel_success', 0)} |",
+            f"| リトライ可能失敗 | {h11.get('retryable_fail_attempts', 0)} |",
+            f"| 非retryable 即時中断 | {h11.get('non_retryable_abort', 0)} |",
+            f"| 全リトライ失敗 | {h11.get('exhausted_retries', 0)} |",
+            f"| Verdict | {h11.get('verdict', '-')} |",
+            "",
+        ]
+    )
+
+    # M5 GCS バックアップ
+    m5 = metrics.get("m5_gcs_backup", {})
+    lines.extend(["### 💾 Phase 88 M5: 税務 GCS バックアップ", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| 初期化成功 | {m5.get('init_success', 0)} 回 |",
+            f"| restore 成功 | {m5.get('restore_success', 0)} 回 |",
+            f"| backup 失敗 | {m5.get('backup_failure', 0)} 回 |",
+            f"| WAL checkpoint 警告 | {m5.get('wal_checkpoint_warning', 0)} 回 |",
+            f"| Verdict | {m5.get('verdict', '-')} |",
+            "",
+        ]
+    )
+
+    # H8 RECOVERY_TESTING + H6 レジーム別
+    rt = metrics.get("recovery_testing", {})
+    qf = metrics.get("quality_filter_regime", {})
+    lines.extend(["### 🔄 Phase 87 補強カバレッジ（H8 / H6）", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| H8: RECOVERY_TESTING 入り | {rt.get('entered_testing', 0)} |",
+            f"| H8: RECOVERY 完了 | {rt.get('recovered', 0)} |",
+            f"| H8: EMERGENCY_STOP | {rt.get('emergency_stop', 0)} |",
+            "",
+        ]
+    )
+    for regime in ("tight_range", "normal_range", "trending"):
+        r = qf.get(regime, {})
+        lines.append(f"- H6 {regime}: 承認 {r.get('approved', 0)} / 拒否 {r.get('rejected', 0)}")
+    lines.append("")
+
+    return lines
 
 
 if __name__ == "__main__":

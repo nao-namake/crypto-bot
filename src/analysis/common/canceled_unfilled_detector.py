@@ -3,12 +3,14 @@
 Phase 87 C1 (SLMonitor) は本番で CANCELED_UNFILLED を検出すると critical ログに
 「Phase 87 C1: SL異常検出」「Phase 87 C1: 緊急成行決済発動」を出力する。
 本モジュールは事後分析（standard_analysis.py）でこれらのログを集計する。
+
+Phase 88 H11: 孤児SL注文（ポジション無しで残存）の検出ログも本モジュールで集計する。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 
 @dataclass
@@ -143,3 +145,59 @@ def _extract_field(text: str, key: str, terminator: str) -> Optional[str]:
     end_positions = [p for p in end_positions if p != -1]
     end = min(end_positions) if end_positions else len(text)
     return text[start:end].strip()
+
+
+def detect_h11_orphan_sl_events(gcp_logs: Iterable[Any]) -> Dict[str, Any]:
+    """Phase 88 H11: 孤児SL注文の検出・キャンセル結果をログから集計する。
+
+    対象ログパターン:
+        - "Phase 88 H11: 孤児SL注文検出 - N件"
+        - "Phase 88 H11: 孤児SLキャンセル成功"
+        - "Phase 88 H11: 孤児SLキャンセル失敗（リトライ可能）"
+        - "Phase 88 H11: リトライ不可エラー、即時中断"
+        - "Phase 88 H11: 孤児SL全N回キャンセル失敗"
+        - "Phase 88 H11: long ポジ用 sell SL 過剰検出" / "short ポジ用 buy SL 過剰検出"
+
+    Args:
+        gcp_logs: 各要素が dict (gcloud logging read --format=json) or str
+
+    Returns:
+        Dict: 集計結果（検出/成功/失敗/即時中断/過剰検出のカウント）
+    """
+    detected = 0
+    cancel_success = 0
+    retryable_fail = 0
+    non_retryable_abort = 0
+    exhausted_retries = 0
+    excess_warning = 0
+    raw_critical_logs: List[str] = []
+
+    for entry in gcp_logs or []:
+        text = _extract_text(entry)
+        if not text:
+            continue
+        if "Phase 88 H11: 孤児SL注文検出" in text:
+            detected += 1
+            raw_critical_logs.append(text)
+        elif "Phase 88 H11: 孤児SLキャンセル成功" in text:
+            cancel_success += 1
+        elif "Phase 88 H11" in text and "リトライ可能" in text:
+            retryable_fail += 1
+        elif "Phase 88 H11: リトライ不可エラー、即時中断" in text:
+            non_retryable_abort += 1
+            raw_critical_logs.append(text)
+        elif "Phase 88 H11: 孤児SL全" in text and "回キャンセル失敗" in text:
+            exhausted_retries += 1
+            raw_critical_logs.append(text)
+        elif "Phase 88 H11" in text and "SL 過剰検出" in text:
+            excess_warning += 1
+
+    return {
+        "detected": detected,
+        "cancel_success": cancel_success,
+        "retryable_fail_attempts": retryable_fail,
+        "non_retryable_abort": non_retryable_abort,
+        "exhausted_retries": exhausted_retries,
+        "excess_sl_warning": excess_warning,
+        "critical_raw_logs": raw_critical_logs[:5],  # 上位 5 件のみ保持
+    }
