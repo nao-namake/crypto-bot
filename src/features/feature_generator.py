@@ -100,8 +100,8 @@ class FeatureGenerator:
     def _load_cross_asset_history(self) -> None:
         """Phase 89 H3: cross_asset history を pickle から復元（再起動跨ぎ保持）."""
         try:
-            from pathlib import Path
             import pickle
+            from pathlib import Path
 
             path = Path(self.CROSS_ASSET_HISTORY_PATH)
             if not path.exists():
@@ -127,9 +127,9 @@ class FeatureGenerator:
         失敗は warning のみで例外を投げない（shutdown 経路を妨げない）。
         """
         try:
+            import pickle
             from datetime import datetime, timezone
             from pathlib import Path
-            import pickle
 
             path = Path(self.CROSS_ASSET_HISTORY_PATH)
             path.parent.mkdir(parents=True, exist_ok=True)

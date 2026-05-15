@@ -34,11 +34,13 @@ from lightgbm import LGBMClassifier
 from optuna.samplers import TPESampler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from sklearn.model_selection import TimeSeriesSplit  # noqa: F401  # Phase 89-β: kept for backward compatibility
+from sklearn.model_selection import (  # noqa: F401  # Phase 89-β: kept for backward compatibility
+    TimeSeriesSplit,
+)
+from xgboost import XGBClassifier
 
 # Phase 89-β: Purged K-Fold（時系列リーク防止・embargo 付き）
 from src.ml.cv.purged_kfold import PurgedKFold
-from xgboost import XGBClassifier
 
 # プロジェクトルートをPythonパスに追加（scripts/ml -> bot）
 project_root = Path(__file__).parent.parent.parent

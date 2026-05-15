@@ -396,8 +396,9 @@ async def create_trading_orchestrator(
         # Phase 89 C6: HMM レジーム分類器のオプショナル load
         hmm_classifier = None
         try:
-            from ..services.hmm_regime_classifier import HMMRegimeClassifier, has_hmmlearn
             from pathlib import Path
+
+            from ..services.hmm_regime_classifier import HMMRegimeClassifier, has_hmmlearn
 
             hmm_path = Path("models/regime/hmm_3state.pkl")
             if has_hmmlearn() and hmm_path.exists():
