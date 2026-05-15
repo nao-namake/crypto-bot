@@ -540,8 +540,14 @@ class TestFeatureGeneratorPrivateMethods:
         # 特徴量生成後の検証メソッドを呼び出し
         generator._validate_feature_generation(result_df)
 
-        # Phase 77: 37 ML特徴量 + 戦略用補助指標（ML未使用だがDataFrame上に存在）
-        assert 37 <= len(generator.computed_features) <= 50
+        # Phase 89-γ: 52 ML特徴量 + 戦略用補助指標（ML未使用だがDataFrame上に存在）
+        from src.features.constants import EXPECTED_FEATURE_COUNT
+
+        assert (
+            EXPECTED_FEATURE_COUNT
+            <= len(generator.computed_features)
+            <= EXPECTED_FEATURE_COUNT + 15
+        )
 
         # すべてのOPTIMIZED_FEATURESが含まれているかチェック
         for feature in BASE_FEATURES:
@@ -1284,3 +1290,104 @@ class TestATRRatioCalculation:
         assert all(v > 0 for v in atr_ratio)
         # ATR比率は小さい値（1%程度）
         assert all(v < 0.02 for v in atr_ratio)
+
+
+class TestFeatureCacheIntegration:
+    """Phase 89-α Stage 2: FeatureCache 統合テスト"""
+
+    @pytest.fixture(autouse=True)
+    def _reset_cache(self):
+        """各テストでキャッシュをリセット."""
+        from src.features.feature_cache import reset_feature_cache
+
+        reset_feature_cache()
+        yield
+        reset_feature_cache()
+
+    @pytest.fixture
+    def generator(self):
+        """FeatureGenerator インスタンス"""
+        return FeatureGenerator()
+
+    @pytest.fixture
+    def sample_ohlcv_data(self):
+        """サンプルOHLCVデータ（決定論的）."""
+        np.random.seed(42)
+        n_periods = 100
+        idx = pd.date_range("2026-01-01", periods=n_periods, freq="15min")
+        base_price = 5000000
+        prices = [base_price]
+        for _ in range(n_periods - 1):
+            prices.append(prices[-1] * (1 + np.random.normal(0, 0.01)))
+        return pd.DataFrame(
+            {
+                "open": prices,
+                "high": [p * 1.005 for p in prices],
+                "low": [p * 0.995 for p in prices],
+                "close": prices,
+                "volume": np.random.lognormal(7, 0.3, n_periods),
+            },
+            index=idx,
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_features_caches_result(self, generator, sample_ohlcv_data):
+        """Phase 89-α Stage 2: generate_features の結果がキャッシュされる."""
+        from src.features.feature_cache import get_feature_cache
+
+        cache = get_feature_cache()
+        cache.clear()
+
+        await generator.generate_features(sample_ohlcv_data)
+
+        # 初回呼び出しでキャッシュにエントリが追加される
+        assert len(cache) >= 1
+        stats = cache.stats()
+        assert stats["misses"] == 1
+
+    @pytest.mark.asyncio
+    async def test_generate_features_cache_hit_skips_pipeline(self, generator, sample_ohlcv_data):
+        """Phase 89-α Stage 2: 2 回目はキャッシュヒットして pipeline 不実行."""
+        from unittest.mock import patch
+
+        from src.features.feature_cache import get_feature_cache
+
+        cache = get_feature_cache()
+        cache.clear()
+
+        # 初回（pipeline 実行）
+        result1 = await generator.generate_features(sample_ohlcv_data)
+
+        # 2 回目: pipeline を mock しても結果が返り、mock は呼ばれないこと
+        with patch.object(
+            generator, "_run_feature_pipeline", wraps=generator._run_feature_pipeline
+        ) as mock_pipeline:
+            result2 = await generator.generate_features(sample_ohlcv_data)
+            mock_pipeline.assert_not_called()
+
+        # 結果は同じ（コピーで返る）
+        pd.testing.assert_frame_equal(result1, result2)
+        stats = cache.stats()
+        assert stats["hits"] >= 1
+
+    def test_generate_features_sync_skips_cache_in_backtest_mode(
+        self, generator, sample_ohlcv_data
+    ):
+        """Phase 89-α Stage 2: BACKTEST_MODE=true の時、sync 版はキャッシュを使わない."""
+        import os
+        from unittest.mock import patch
+
+        from src.features.feature_cache import get_feature_cache
+
+        cache = get_feature_cache()
+        cache.clear()
+
+        with patch.dict(os.environ, {"BACKTEST_MODE": "true"}):
+            generator.generate_features_sync(sample_ohlcv_data)
+            generator.generate_features_sync(sample_ohlcv_data)
+
+        # キャッシュは触らない
+        stats = cache.stats()
+        assert stats["hits"] == 0
+        assert stats["misses"] == 0
+        assert len(cache) == 0

@@ -73,9 +73,7 @@ class MLHealthMonitor:
             self._drift_window = int(_gt("ml.drift.window_size", 200))
             self._drift_ks_alpha = float(_gt("ml.drift.ks_alpha", 0.01))
             self._drift_consecutive_threshold = int(_gt("ml.drift.consecutive_threshold", 3))
-            self._drift_significant_feature_min = int(
-                _gt("ml.drift.significant_feature_min", 3)
-            )
+            self._drift_significant_feature_min = int(_gt("ml.drift.significant_feature_min", 3))
             self._drift_auto_retraining = bool(_gt("ml.drift.enable_auto_retraining", True))
         except Exception:
             self._drift_window = 200

@@ -43,6 +43,7 @@ class MarketRegimeClassifier:
         ema_period: int = 20,
         ema_lookback: int = 5,
         price_range_lookback: int = 20,
+        hmm_classifier: Optional[object] = None,
     ):
         """
         初期化
@@ -52,12 +53,46 @@ class MarketRegimeClassifier:
             ema_period: EMA期間
             ema_lookback: EMA傾き計算参照期間
             price_range_lookback: 価格変動率計算参照期間
+            hmm_classifier: Phase 89-γ: HMMRegimeClassifier（オプショナル DI）
         """
         self.logger = get_logger()
         self.bb_period = bb_period
         self.ema_period = ema_period
         self.ema_lookback = ema_lookback
         self.price_range_lookback = price_range_lookback
+        # Phase 89-γ: HMM 加重統合（None なら従来 4 段階分類のみ動作）
+        self.hmm_classifier = hmm_classifier
+
+    def get_hmm_state_probabilities(self, df: pd.DataFrame) -> dict:
+        """Phase 89-γ: HMM 状態確率を取得（hmm_classifier が無ければ uniform）.
+
+        Returns:
+            {"hmm_state_bear_prob": float, "hmm_state_sideways_prob": float,
+             "hmm_state_bull_prob": float}
+        """
+        n_states = 3
+        if self.hmm_classifier is None or len(df) == 0:
+            return {
+                "hmm_state_bear_prob": 1.0 / n_states,
+                "hmm_state_sideways_prob": 1.0 / n_states,
+                "hmm_state_bull_prob": 1.0 / n_states,
+            }
+        try:
+            probas = self.hmm_classifier.predict_proba(df.tail(1))
+            if probas.shape != (1, n_states):
+                raise ValueError(f"unexpected HMM shape: {probas.shape}")
+            return {
+                "hmm_state_bear_prob": float(probas[0, 0]),
+                "hmm_state_sideways_prob": float(probas[0, 1]),
+                "hmm_state_bull_prob": float(probas[0, 2]),
+            }
+        except Exception as e:
+            self.logger.warning(f"Phase 89-γ HMM 取得失敗 → uniform fallback: {e}")
+            return {
+                "hmm_state_bear_prob": 1.0 / n_states,
+                "hmm_state_sideways_prob": 1.0 / n_states,
+                "hmm_state_bull_prob": 1.0 / n_states,
+            }
 
     def classify(self, df: pd.DataFrame) -> RegimeType:
         """

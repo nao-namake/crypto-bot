@@ -248,9 +248,7 @@ class NewSystemMLModelCreator:
                     "(3 モデル ensemble で続行・重み 0.85 正規化)"
                 )
         except Exception as nbeats_err:
-            self.logger.warning(
-                f"Phase 89 C4: N-BEATS 初期化失敗（3 モデルで続行）: {nbeats_err}"
-            )
+            self.logger.warning(f"Phase 89 C4: N-BEATS 初期化失敗（3 モデルで続行）: {nbeats_err}")
 
     async def _load_real_historical_data(self, days: int) -> pd.DataFrame:
         """

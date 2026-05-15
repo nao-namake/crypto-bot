@@ -58,7 +58,7 @@ python3 tax/scripts/generate_tax_report.py \
 ### **確定申告ワークフロー**（Phase 47完了版）
 ```bash
 # プロジェクトルートから実行
-cd /Users/nao/Desktop/bot
+cd /Users/nao/Developer/active/bitbank-btc-bot
 
 # ========================================
 # Step 1: 取引履歴CSV出力

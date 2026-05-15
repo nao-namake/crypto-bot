@@ -21,6 +21,14 @@ def __getattr__(name):
         from .feature_generator import OPTIMIZED_FEATURES
 
         return OPTIMIZED_FEATURES
+    elif name == "FeatureCache":
+        from .feature_cache import FeatureCache
+
+        return FeatureCache
+    elif name == "get_feature_cache":
+        from .feature_cache import get_feature_cache
+
+        return get_feature_cache
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -28,4 +36,6 @@ __all__ = [
     "FeatureGenerator",  # Phase 50.9完了クラス
     "OPTIMIZED_FEATURES",
     "FEATURE_CATEGORIES",
+    "FeatureCache",  # Phase 89-α Stage 2
+    "get_feature_cache",  # Phase 89-α Stage 2
 ]

@@ -355,9 +355,7 @@ class KellyCriterion:
                     max_order_size = get_threshold("production.max_order_size", 0.03)
                     # Phase 89 H7: 連敗段階での safety_factor で縮小（0 連敗=1.0, 8連敗=0.0）
                     adjusted_size = max(fixed_initial_size * fallback_safety, 0.0)
-                    fixed_initial_size = min(
-                        adjusted_size, max_order_size, self.max_position_ratio
-                    )
+                    fixed_initial_size = min(adjusted_size, max_order_size, self.max_position_ratio)
 
                     if consecutive_losses >= 3:
                         self.logger.warning(

@@ -288,3 +288,219 @@ Phase 89-α (コスト削減) 完了後、Phase 89-β/γ/δ に進む:
 - `~/.claude/plans/phase-iterative-biscuit.md`: 詳細プラン（GCP 仕様 Web 調査結果含む）
 - `docs/開発履歴/Phase_88.md`: 前 Phase の記録
 - `src/analysis/common/gcp_metrics.py`: Phase 88 で実装したメトリクス取得 wrapper（Stage 1 効果測定に使用）
+
+---
+
+# Phase 89-α Stage 2 / 89-β / 89-γ / 89-δ 全実装記録（2026-05-15）
+
+**期間**: 2026-05-15
+**状態**: コード実装＋テスト追加完了 / ML 再学習・実機検証は別タスク
+**plan**: `~/.claude/plans/phase-binary-fox.md`
+
+## 目的
+
+Phase 89-α Stage 1+3（コスト削減）完了後、4 ヶ月稼働で月数万円マイナス確定状態のため、**勝率向上を緊急課題**として 89-α Stage 2 + 89-β/γ/δ を連続実装。追加課金ゼロ・コード変更＋テスト追加までを一括で完了し、最後に手動 ML 再学習 1 回で本番デプロイ可能な状態にする。
+
+## 累積メトリクス
+
+| Phase | 特徴量数 | 追加カテゴリ | ML モデル数 | テスト追加 |
+|-------|---------|--------------|--------------|----------|
+| 起点（Phase 87-88 直後） | 37 | - | 3 (LGB/XGB/RF) | - |
+| **89-α Stage 2** | 37 | - | 3 | +15 |
+| **89-β** | 47 | funding/sentiment/microstructure/macro_lite | 3 | +40 |
+| **89-γ** | 52 | microstructure_advanced (VPIN+HMM) | 4 (+N-BEATS) | +35 |
+| **89-δ** | 55 | cross_asset (BTC-ETH) | 4 | +22 |
+| **完了状態** | **55** | **+6 新カテゴリ** | **4** | **+112** |
+
+## Phase 89-α Stage 2: 特徴量生成キャッシュ最適化
+
+**目的**: Stage 1 gating 通過後の重い処理サイクル（特徴量計算 + ML 予測）の重複計算を排除。
+
+**追加・修正**:
+- 新規 `src/features/feature_cache.py`（180 行・LRU + TTL・スレッドセーフ）
+- `src/features/feature_generator.py` の `generate_features()` / `generate_features_sync()` にキャッシュ層
+- `config/core/thresholds.yaml` に `features.cache: { enabled, max_size, ttl_seconds }` 追加
+- BACKTEST_MODE=true で自動無効化（時系列誤ヒット防止）
+- `_restore_computed_features_from_df()` でキャッシュヒット時の `computed_features` 整合性維持
+
+**テスト**: 12 件（`test_feature_cache.py`）+ 3 件（`test_feature_generator.py` の `TestFeatureCacheIntegration`）
+
+## Phase 89-β: Fractional Kelly + 特徴量 37→47 + Purged K-Fold + Drift 検出
+
+**目的**: 連敗時の損失加速防止 + 外部マクロ情報導入 + 時系列リーク対策 + 分布ドリフト検知。
+
+**Fractional Kelly**:
+- `src/trading/risk/kelly.py:_get_dynamic_safety_factor(consecutive_losses)` 追加
+- 連敗段階 × multiplier: 0連敗=1.0 / 3=0.7 / 5=0.4 / 7=0.2 / 8以上=0.0
+- base safety_factor (config: 0.7) × multiplier = 最終 safety
+- `manager.py` で `drawdown_manager.consecutive_losses` を渡し、二重縮小時に warning ログ
+- `config/core/thresholds.yaml:risk.kelly_criterion.dynamic_safety_multiplier` セクション追加
+
+**特徴量拡張 +10（37→47）**:
+- 新規 `src/data/external_api_client.py`（250 行・aiohttp + 5分 TTL キャッシュ + fail-open）
+  - `fetch_funding_rate()` (Binance BTCUSDT 永続契約 8h 平均)
+  - `fetch_fear_greed_index()` (Alternative.me Fear & Greed 0-100 → 0.0-1.0)
+- `src/features/feature_generator.py` に `_add_external_features()` 追加
+  - funding (1): funding_rate_8h_avg
+  - sentiment (1): fear_greed_index
+  - microstructure (3): ofi_top5 / bid_ask_imbalance / depth_ratio（Phase 89-δ で WebSocket と本実装。本 Phase は 0/1.0 fill）
+  - macro_lite (5): btc_dominance_change / usdjpy_change / nikkei_change_proxy / btc_realized_vol_24h（close 列から計算）/ btc_funding_premium
+
+**Purged K-Fold**:
+- 新規 `src/ml/cv/purged_kfold.py`（150 行・Lopez de Prado 2018 準拠・embargo 付き）
+- `scripts/ml/create_ml_models.py` の `TimeSeriesSplit(n_splits=3/5)` を `PurgedKFold(embargo_pct=0.01)` に置換
+- mlfinlab 非採用（商用・重い）→ 独自軽量実装
+
+**Drift 検出**:
+- `src/core/orchestration/ml_health_monitor.py` に `record_feature_distribution()` / `_detect_drift_with_ks()` 追加
+- scipy `ks_2samp` で reference vs recent buffer を比較・p-value<0.01 で drift 判定
+- 連続 3 回 drift で `should_emergency_stop` 条件に OR 統合
+- `src/core/services/trading_cycle_manager.py:113` で ML 予測直後に `record_feature_distribution(main_features.tail(50))` 呼び出し
+
+**ファイル整合性**: `constants.py 47` / `feature_order.json 47` / `feature_manager category_order` / `model-training.yml MIN_FEATURE_COUNT=47`
+
+**テスト**: 40 件
+- `test_kelly_dynamic_safety.py` 8 件
+- `test_external_api_client.py` 10 件
+- `test_external_features.py` 8 件（funding/fear_greed/macro/OFI 0 fill）
+- `test_purged_kfold.py` 8 件
+- `test_ml_health_monitor.py::TestPhase89BetaDriftDetection` 6 件
+
+## Phase 89-γ: N-BEATS + HMM + VPIN + Auto Retraining（47→52）
+
+**目的**: 時系列予測モデル追加 + 確率的レジーム検出 + 出来高ベース informed flow 検知 + 自動再学習トリガ。
+
+**N-BEATS**:
+- 新規 `src/ml/nbeats.py`（350 行・Pure PyTorch・stacks=2/blocks=3/hidden=64）
+- 新規 `src/ml/nbeats_predictor.py`（150 行・sklearn 互換・fit/predict/predict_proba）
+- `src/ml/ensemble.py` の `default_weights` を 4 モデル化（LGB/XGB/RF/N-BEATS = 0.34/0.34/0.17/0.15）
+- `config/core/thresholds.yaml:ensemble.weights` に 4 モデル重み追加
+- CPU 推論 < 50ms / sample・GPU 不要
+
+**HMM レジーム検出**:
+- 新規 `src/core/services/hmm_regime_classifier.py`（3 状態 Gaussian HMM・bear/sideways/bull）
+- 入力: returns_1, atr_14, volume_ratio
+- `src/core/services/market_regime_classifier.py` に `get_hmm_state_probabilities()` 追加（既存 4 段階分類は維持・確率を補助として返す）
+
+**VPIN**:
+- `src/features/feature_generator.py:_calculate_vpin()` 追加（Easley-Lopez de Prado 2012 bulk classification・window 50・scipy.stats.norm.cdf 経由）
+- 新メソッド `_add_microstructure_advanced_features()` で +5 特徴量
+  - VPIN×3: vpin / vpin_ma20 / vpin_change
+  - HMM 状態確率×2: hmm_state_bear_prob / hmm_state_bull_prob（regime_classifier 注入時は実値、なければ 1/3 fill）
+
+**Auto Retraining trigger**:
+- `MLHealthMonitor.trigger_retraining()` 追加（GitHub Actions repository_dispatch API へ POST）
+- 24h クールダウン（Firestore に `last_retrain_trigger_at` 永続化）
+- 環境変数 `GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME` / `GITHUB_REPO_DISPATCH_TOKEN` 経由
+- `.github/workflows/model-training.yml` に `repository_dispatch: types: [ml-drift-detected]` 追加
+
+**依存追加**: `requirements.txt` に `torch>=2.0.0,<3.0.0` / `hmmlearn>=0.3.0,<1.0.0`
+
+**ファイル整合性**: `constants.py 52` / `feature_order.json 52` / `feature_manager` / `model-training.yml MIN_FEATURE_COUNT=52`
+
+**テスト**: 35 件
+- `test_nbeats.py` 16 件（block/classifier/predictor）
+- `test_hmm_regime_classifier.py` 8 件
+- `test_external_features.py` の VPIN/HMM 5 件
+- `test_ml_health_monitor.py::TestPhase89GammaAutoRetraining` 6 件
+
+## Phase 89-δ: WebSocket + BTC-ETH 相関 + マルチペア基盤（52→55）
+
+**目的**: REST polling latency 削減 + 追加マーケット情報（BTC-ETH 相関）+ マルチペア基盤導入。
+
+**WebSocket（独自実装）**:
+- 新規 `src/data/bitbank_websocket_client.py`（300 行・bitbank Public Stream・Socket.IO EIO=3 簡略実装）
+- subscribe: `ticker_btc_jpy` / `depth_diff_btc_jpy`
+- reconnect on close: exponential backoff (1s→2s→4s→...→最大 30s)
+- fail-open（接続失敗時は REST にフォールバック）
+- スレッドセーフ in-memory cache
+- ccxtpro は商用ライセンスのため **不採用**
+
+**bitbank_client WebSocket 統合（最小実装）**:
+- `src/data/bitbank_client.py` に `connect_websocket()` / `disconnect_websocket()` / `get_websocket_client()` / `get_primary_symbol()` 追加
+- 既存 70 箇所の `BTC/JPY` ハードコードは本 Phase でリファクタしない（後方互換・将来 Phase へ繰越）
+
+**BTC-ETH 相関 +3 特徴量**:
+- `src/data/external_api_client.py` に `fetch_eth_jpy_ticker()` 追加（bitbank Public API ETH/JPY ticker）
+- `src/features/feature_generator.py:_add_cross_asset_features()` 追加（+3 特徴量）
+  - eth_btc_price_ratio（ETH/JPY ÷ BTC/JPY）
+  - eth_btc_corr_24h（96 サンプル蓄積で rolling pearson r）
+  - eth_returns_15m（ETH 15m リターン）
+- 96 サンプル未満は uniform fallback
+
+**マルチペア基盤（最小実装）**:
+- `config/core/thresholds.yaml:exchange` に `primary_symbol / auxiliary_symbols` 追加（既存 `symbol` キーは alias で後方互換維持）
+- `bitbank_client.get_primary_symbol()` で `primary_symbol → symbol` の順で fallback
+
+**依存追加**: `requirements.txt` に `websockets>=12.0,<13.0`
+
+**ファイル整合性**: `constants.py 55` / `feature_order.json 55` / `feature_manager` / `model-training.yml MIN_FEATURE_COUNT=55`
+
+**テスト**: 22 件
+- `test_bitbank_websocket_client.py` 12 件（接続/parse/cache/thread safety/disconnect）
+- `test_external_features.py` の cross_asset 5 件
+- `test_bitbank_client_websocket.py` 5 件（primary_symbol/WebSocket lifecycle）
+
+## スコープ外（次の Phase へ繰越）
+
+| 項目 | 理由 |
+|------|------|
+| Maker エントリー強化 | `src/trading/execution/order_strategy.py:execute_maker_order` (Phase 62.9) が既に完備。実機 Maker 約定率データ取得後に判断 |
+| `bitbank_client.py` の 70 箇所 `BTC/JPY` ハードコード置換 | 影響範囲大・本 Phase は `primary_symbol` 経路新設のみ |
+| WebSocket cache の `fetch_ohlcv` 統合 | bitbank Public Stream の実機挙動確認後に判断 |
+| ML 再学習・本番デプロイ | ユーザー手動実施（手順は plan に記載） |
+
+## ML 再学習手順（ユーザー実施）
+
+```bash
+# 1. GitHub Actions 手動実行
+gh workflow run model-training.yml --ref main -f n_trials=50 -f dry_run=false
+
+# 2. 完了監視（約 10 分）
+gh run watch
+
+# 3. 新モデルの整合性確認
+python3 -c "
+import joblib
+m = joblib.load('models/production/ensemble_full.pkl')
+print('n_features_in_:', m.n_features_in_)
+assert m.n_features_in_ == 55
+"
+
+# 4. 本番デプロイ（push が CI トリガ）
+git push origin main
+```
+
+## 期待効果（plan 記載）
+
+| Phase 完了 | 年利 | DD | 期待値 |
+|------------|------|-----|--------|
+| 89-β | 12-13% | -20% | ほぼゼロ |
+| 89-γ | 14-16% | -18% | プラス側 |
+| 89-δ | **15-18%** | -15% | **月利 1-1.5%** |
+
+50 万円証拠金で月 ¥6,000-7,500 → 月数万円のマイナスから月数万円のプラスへ転換目標。
+
+## Critical Files（実装で触ったもの・抜粋）
+
+新規:
+- `src/features/feature_cache.py`
+- `src/data/external_api_client.py`
+- `src/data/bitbank_websocket_client.py`
+- `src/ml/cv/purged_kfold.py` + `src/ml/cv/__init__.py`
+- `src/ml/nbeats.py` + `src/ml/nbeats_predictor.py`
+- `src/core/services/hmm_regime_classifier.py`
+
+主要修正:
+- `src/features/feature_generator.py`（4 メソッド追加・パイプライン拡張）
+- `src/features/constants.py`（37 → 55）
+- `src/core/config/feature_manager.py`（category_order 拡張）
+- `src/trading/risk/kelly.py` / `manager.py`（Fractional Kelly）
+- `src/ml/ensemble.py`（4 モデル化）
+- `src/core/orchestration/ml_health_monitor.py`（Drift + Auto Retraining）
+- `src/core/services/market_regime_classifier.py`（HMM 統合）
+- `src/data/bitbank_client.py`（WebSocket wrapper + primary_symbol）
+- `config/core/thresholds.yaml`（features.cache + risk.kelly_criterion + ensemble.weights + exchange.primary_symbol + ml.drift）
+- `config/core/feature_order.json`（v8.0 → v8.3）
+- `.github/workflows/model-training.yml`（MIN_FEATURE_COUNT 50→55 + repository_dispatch トリガ）
+- `requirements.txt`（torch + hmmlearn + websockets 追加）

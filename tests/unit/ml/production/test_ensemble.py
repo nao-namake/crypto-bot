@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from src.features.constants import EXPECTED_FEATURE_COUNT
 from src.ml.ensemble import ProductionEnsemble
 
 
@@ -24,17 +25,17 @@ class TestProductionEnsemble:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
-        mock_lgbm.n_features_in_ = 37
+        mock_lgbm.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
-        mock_xgb.n_features_in_ = 37
+        mock_xgb.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
-        mock_rf.n_features_in_ = 37
+        mock_rf.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         return {
             "lightgbm": mock_lgbm,
@@ -44,8 +45,8 @@ class TestProductionEnsemble:
 
     @pytest.fixture
     def sample_data(self):
-        """37特徴量サンプルデータ作成"""
-        return np.random.random((3, 37))
+        """EXPECTED_FEATURE_COUNT サンプルデータ作成（Phase 89-β: 37→47）."""
+        return np.random.random((3, EXPECTED_FEATURE_COUNT))
 
     @pytest.fixture
     def ensemble(self, mock_models):
@@ -60,9 +61,9 @@ class TestProductionEnsemble:
         assert "lightgbm" in ensemble.models
         assert "xgboost" in ensemble.models
         assert "random_forest" in ensemble.models
-        assert ensemble.n_features_ == 37
+        assert ensemble.n_features_ == EXPECTED_FEATURE_COUNT
         assert ensemble.is_fitted is True
-        assert len(ensemble.feature_names) == 37
+        assert len(ensemble.feature_names) == EXPECTED_FEATURE_COUNT
         assert "close" in ensemble.feature_names
         assert "rsi_14" in ensemble.feature_names
 
@@ -111,24 +112,34 @@ class TestProductionEnsemble:
         assert info["type"] == "ProductionEnsemble"
         assert len(info["individual_models"]) == 3
         assert "lightgbm" in info["individual_models"]
-        assert info["n_features"] == 37
-        assert len(info["feature_names"]) == 37
+        assert info["n_features"] == EXPECTED_FEATURE_COUNT
+        assert len(info["feature_names"]) == EXPECTED_FEATURE_COUNT
         assert info["phase"] == "Phase 22"
         assert info["status"] == "production_ready"
         assert "weights" in info
 
     def test_update_weights_success(self, ensemble):
-        """重み更新成功テスト"""
+        """重み更新成功テスト（Phase 89-γ: 4 モデル化対応）.
+
+        update_weights は全体を再正規化（合計 1.0）するため、未指定モデルの
+        絶対値は変わるが、未指定モデル間の **比率** は維持される。
+        """
         new_weights = {"lightgbm": 0.5, "xgboost": 0.3}
-        original_rf_weight = ensemble.weights["random_forest"]
+        original_rf = ensemble.weights["random_forest"]
+        original_nbeats = ensemble.weights.get("nbeats")
 
         ensemble.update_weights(new_weights)
 
-        # 新しい重みが反映されている
+        # 指定モデルは新規値が反映
         assert ensemble.weights["lightgbm"] != 0.4
         assert ensemble.weights["xgboost"] != 0.4
-        # random_forestの重みは変更されていない（更新対象外）
-        assert ensemble.weights["random_forest"] == original_rf_weight
+        # 合計は 1.0
+        assert abs(sum(ensemble.weights.values()) - 1.0) < 1e-6
+        # 未指定モデルの比率維持（Phase 89-γ: 4 モデル化対応）
+        if original_nbeats and original_nbeats > 0:
+            old_ratio = original_rf / original_nbeats
+            new_ratio = ensemble.weights["random_forest"] / ensemble.weights["nbeats"]
+            assert abs(old_ratio - new_ratio) < 1e-6
 
     def test_update_weights_normalization(self, ensemble):
         """重み正規化テスト"""
@@ -183,11 +194,11 @@ class TestProductionEnsemble:
         mock_proba_model.predict_proba.return_value = np.array(
             [[0.7, 0.2, 0.1], [0.1, 0.8, 0.1], [0.1, 0.1, 0.8]]
         )
-        mock_proba_model.n_features_in_ = 37
+        mock_proba_model.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         mock_predict_only = MagicMock()
         mock_predict_only.predict.return_value = np.array([0, 1, 2])
-        mock_predict_only.n_features_in_ = 37
+        mock_predict_only.n_features_in_ = EXPECTED_FEATURE_COUNT
         del mock_predict_only.predict_proba
 
         models = {"proba_model": mock_proba_model, "predict_only": mock_predict_only}
@@ -201,7 +212,7 @@ class TestProductionEnsemble:
     def test_predict_proba_model_without_methods(self, sample_data):
         """予測メソッド完全なしエラーテスト"""
         mock_broken = MagicMock()
-        mock_broken.n_features_in_ = 37
+        mock_broken.n_features_in_ = EXPECTED_FEATURE_COUNT
         del mock_broken.predict
         del mock_broken.predict_proba
 
@@ -217,7 +228,7 @@ class TestProductionEnsemble:
 
         assert "ProductionEnsemble" in repr_str
         assert "models=3" in repr_str
-        assert "features=37" in repr_str
+        assert f"features={EXPECTED_FEATURE_COUNT}" in repr_str
         assert "weights=" in repr_str
 
     def test_pandas_dataframe_input(self, mock_models):
@@ -234,7 +245,9 @@ class TestProductionEnsemble:
             from src.core.config.feature_manager import get_feature_names
 
             feature_names = get_feature_names()
-            df_data = pd.DataFrame(np.random.random((2, 37)), columns=feature_names)
+            df_data = pd.DataFrame(
+                np.random.random((2, EXPECTED_FEATURE_COUNT)), columns=feature_names
+            )
 
             predictions = ensemble.predict(df_data)
             probabilities = ensemble.predict_proba(df_data)
@@ -251,16 +264,16 @@ class TestProductionEnsemble:
         mock_proba.predict_proba.return_value = np.array(
             [[0.3, 0.5, 0.2], [0.4, 0.4, 0.2], [0.1, 0.3, 0.6]]
         )
-        mock_proba.n_features_in_ = 37
+        mock_proba.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         mock_model1 = MagicMock()
         mock_model1.predict.return_value = np.array([1, 1, 0])
-        mock_model1.n_features_in_ = 37
+        mock_model1.n_features_in_ = EXPECTED_FEATURE_COUNT
         del mock_model1.predict_proba
 
         mock_model2 = MagicMock()
         mock_model2.predict.return_value = np.array([0, 0, 2])
-        mock_model2.n_features_in_ = 37
+        mock_model2.n_features_in_ = EXPECTED_FEATURE_COUNT
         del mock_model2.predict_proba
 
         models = {"proba": mock_proba, "model1": mock_model1, "model2": mock_model2}
@@ -283,17 +296,17 @@ class TestProductionEnsembleEdgeCases:
         mock_lgbm = MagicMock()
         mock_lgbm.predict.return_value = np.array([1, 0, 1])
         mock_lgbm.predict_proba.return_value = np.array([[0.2, 0.8], [0.7, 0.3], [0.1, 0.9]])
-        mock_lgbm.n_features_in_ = 37
+        mock_lgbm.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         mock_xgb = MagicMock()
         mock_xgb.predict.return_value = np.array([1, 1, 0])
         mock_xgb.predict_proba.return_value = np.array([[0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
-        mock_xgb.n_features_in_ = 37
+        mock_xgb.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         mock_rf = MagicMock()
         mock_rf.predict.return_value = np.array([0, 1, 1])
         mock_rf.predict_proba.return_value = np.array([[0.6, 0.4], [0.2, 0.8], [0.3, 0.7]])
-        mock_rf.n_features_in_ = 37
+        mock_rf.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         return {
             "lightgbm": mock_lgbm,
@@ -303,19 +316,19 @@ class TestProductionEnsembleEdgeCases:
 
     @pytest.fixture
     def sample_data(self):
-        """37特徴量サンプルデータ作成"""
-        return np.random.random((3, 37))
+        """EXPECTED_FEATURE_COUNT サンプルデータ作成（Phase 89-β: 37→47）."""
+        return np.random.random((3, EXPECTED_FEATURE_COUNT))
 
     def test_single_model_ensemble(self):
         """単一モデルアンサンブルテスト"""
         mock_single = MagicMock()
         mock_single.predict.return_value = np.array([1, 0])
         mock_single.predict_proba.return_value = np.array([[0.3, 0.7], [0.8, 0.2]])
-        mock_single.n_features_in_ = 37
+        mock_single.n_features_in_ = EXPECTED_FEATURE_COUNT
 
         ensemble = ProductionEnsemble({"single": mock_single})
 
-        data = np.random.random((2, 37))
+        data = np.random.random((2, EXPECTED_FEATURE_COUNT))
         predictions = ensemble.predict(data)
         probabilities = ensemble.predict_proba(data)
 
@@ -340,7 +353,7 @@ class TestProductionEnsembleEdgeCases:
         """大規模データセット性能テスト"""
         ensemble = ProductionEnsemble(mock_models)
 
-        large_data = np.random.random((1000, 37))
+        large_data = np.random.random((1000, EXPECTED_FEATURE_COUNT))
 
         for model in mock_models.values():
             model.predict.return_value = np.random.randint(0, 2, 1000)
@@ -355,10 +368,10 @@ class TestProductionEnsembleEdgeCases:
     def test_n_features_fallback(self):
         """_n_features属性フォールバック（n_features_in_がない場合）"""
         mock_model = MagicMock(spec=[])
-        mock_model._n_features = 37
+        mock_model._n_features = EXPECTED_FEATURE_COUNT
         mock_model.predict = MagicMock(return_value=np.array([1, 0]))
         mock_model.predict_proba = MagicMock(return_value=np.array([[0.3, 0.7], [0.8, 0.2]]))
         del mock_model.n_features_in_
 
         ensemble = ProductionEnsemble({"fallback": mock_model})
-        assert ensemble.n_features_ == 37
+        assert ensemble.n_features_ == EXPECTED_FEATURE_COUNT

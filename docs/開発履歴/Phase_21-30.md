@@ -93,7 +93,7 @@
 
 ## 📚 詳細情報
 
-Phase 21-30の各Phaseの詳細実装内容・技術的判断・品質保証については、元の開発履歴ファイル（`/Users/nao/Desktop/bot/docs/開発計画/開発履歴.md` の833-1421行）を参照してください。
+Phase 21-30の各Phaseの詳細実装内容・技術的判断・品質保証については、元の開発履歴ファイル（`/Users/nao/Developer/active/bitbank-btc-bot/docs/開発計画/開発履歴.md` の833-1421行）を参照してください。
 
 主要な実装ファイル：
 - `src/core/execution/backtest_runner.py` - 統合実行環境

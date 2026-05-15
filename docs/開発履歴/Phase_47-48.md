@@ -247,7 +247,7 @@ python scripts/tax/send_tax_notification.py --yearly --year 2025
 
 **ディレクトリ構成**:
 ```
-/Users/nao/Desktop/bot/
+/Users/nao/Developer/active/bitbank-btc-bot/
 ├── tax/                          # 税務システムディレクトリ
 │   ├── README.md                # 技術仕様・使用方法
 │   ├── __init__.py              # モジュール初期化
@@ -342,7 +342,7 @@ tax/*.txt
 - `.gitignore`: `tax/*.db`, `tax/*.csv`, `tax/*.txt` 除外
 
 **削除**:
-- `/Users/nao/Desktop/bot/data`: 空ディレクトリ削除
+- `/Users/nao/Developer/active/bitbank-btc-bot/data`: 空ディレクトリ削除
 
 **ドキュメント更新**:
 - `docs/開発計画/ToDo.md`: Phase 46完了反映・Phase 47-53未達成タスク記録

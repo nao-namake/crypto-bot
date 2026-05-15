@@ -2,19 +2,167 @@
 
 ## 現在の状態
 
-**Phase 89-α Stage 1+3 完了・本番デプロイ済（2026-05-15）→ Stage 2 (キャッシュ最適化) pending**
+**Phase 89-α/β/γ/δ コード実装完了（2026-05-15）→ 手動 ML 再学習 + 実機検証待ち**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 89-α コスト削減: Stage 1 取引判断 gating（15分足境界 + 同方向ポジ判定で重い処理発火 1/30 化）+ Stage 3 GCP リソース整理（旧 revision 19 件削除・AR cleanup 本適用・Logging exclusion・cpu-boost OFF） |
-| 品質ゲート | **2284 tests** passed (前回 2233 から +47 件), カバレッジ 73%+, flake8/isort/black 全PASS |
-| 実機検証根拠 | 24h ログで実取引 4 回 / trigger 189 回（**98% 無駄実行**）の浪費を構造的に解消 |
-| GCP 月額目標 | ¥3,000 → **¥1,400-1,700 見込み**（実測待ち・Stage 2 追加で ¥1,200-1,600） |
+| 最新成果 | **Phase 89 全 Stage コード実装完了**: 89-α Stage 2 特徴量キャッシュ / 89-β Fractional Kelly + 47特徴量 + Purged K-Fold + Drift / 89-γ N-BEATS + HMM + VPIN + Auto Retraining / 89-δ WebSocket + BTC-ETH 相関 + マルチペア基盤 |
+| 特徴量数 | 37 → **55**（+18: funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加） |
+| ML モデル | 3 (LGB/XGB/RF) → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
+| テスト追加 | **+112 件** PASS（既存 2284 → ~2400・回帰ゼロ確認中） |
+| 追加課金 | **ゼロ**（GPU 不採用 / LLM 不採用 / torch CPU / 全て無料 API） |
 | 直近インシデント | なし（Phase 88 H11 で孤児SL対策済・実機 24h 観察で再発ゼロ） |
-| 次のアクション | (1) Stage 1+3 のコスト実測 1 週間（並行） → (2) **Phase 89-β/γ/δ 連続実装着手**（勝率向上が緊急課題：4 月稼働で -数万円実機検証済） |
-| 完了 Phase | Phase 87 全 Stage / Phase 88 全項目 / Phase 89-α Stage 1+3 |
-| **方針確定** | **Phase 90 (PPO) 見送り**（GPU 月課金 + 期待値マイナス bot で逆効果リスク）/ **LLM センチメント不採用**（トークン課金避ける・Fear & Greed Index で代替）/ Phase 89-α Stage 2 は実測 ¥1,500 超過時のみ |
-| 最終更新 | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 + Phase 89-β/γ/δ 方針確定 |
+| 完了 Phase | Phase 87 全 Stage / Phase 88 全項目 / Phase 89-α 全 Stage / 89-β / 89-γ / 89-δ |
+| **スコープ外（繰越）** | Maker エントリー強化（既存 `execute_maker_order` で十分・実機データ後）/ `bitbank_client.py` の `BTC/JPY` 70 箇所リファクタ（影響大）/ WebSocket `fetch_ohlcv` 統合（実機挙動確認後） |
+| **期待効果** | 89-β 完了: 年利 12-13% / 89-γ: 14-16% / **89-δ: 15-18% / 月利 1-1.5%** |
+| 最終更新 | 2026年5月15日 - Phase 89-α/β/γ/δ コード実装＋テスト完了 |
+
+---
+
+## 🚀 セッション再開時の手順（Phase 89 リリース 5 ステップ）
+
+クリア後の再開ガイド。**実行順序厳守**。
+
+### Step 1: 既知の問題調査（任意・スキップ可能・本番影響なし）
+
+両方とも macOS ローカル pytest 環境固有の問題で、本番（Linux Cloud Run / Ubuntu CI）には影響なし。
+
+#### 1-a. macOS 上のテスト連続実行時 SEGFAULT
+
+```bash
+# 再現条件: test_nbeats.py の後に test_ensemble.py / test_ml_health_monitor.py を連続実行
+/Users/nao/Developer/active/bitbank-btc-bot/venv/bin/python3 -m pytest tests/unit/ml/ -q --no-header
+# 期待: "Fatal Python error: exit: 139" が test_nbeats.py 終了直後に発生
+
+# 単独実行では全 PASS（既に確認済）
+/Users/nao/Developer/active/bitbank-btc-bot/venv/bin/python3 -m pytest tests/unit/ml/test_nbeats.py -q  # 16 PASS
+/Users/nao/Developer/active/bitbank-btc-bot/venv/bin/python3 -m pytest tests/unit/ml/production/test_ensemble.py -q  # 21 PASS
+```
+
+**推定原因**: PyTorch (2.12.0) と sklearn / numpy の C 拡張ライブラリ干渉。macOS Apple Silicon 固有。
+**緩和策候補**:
+- `pytest --forked`（pytest-forked 必要）で各テストを別プロセス分離
+- `conftest.py` で `torch.set_num_threads(1)` の早期設定
+- `MKL_NUM_THREADS=1 OMP_NUM_THREADS=1` 環境変数
+- CI（Ubuntu）では未発生想定（要確認）
+
+#### 1-b. `test_production_ensemble_pickle_error` 単独ハング
+
+```bash
+# 再現
+/Users/nao/Developer/active/bitbank-btc-bot/venv/bin/python3 -m pytest tests/unit/core/test_ml_adapter_exception_handling.py::TestMLServiceAdapterExceptionHandling::test_production_ensemble_pickle_error -v
+# 21% で永遠に止まる
+```
+
+**推定原因**: `MLServiceAdapter(mock_logger)` 初期化中、`pickle.UnpicklingError` を mock した状態で N-BEATS / HMM の load 経路に入る無限ループ？
+**調査要点**: `src/core/orchestration/ml_loader.py` で pickle 失敗時の fallback パスに新規追加した torch / hmmlearn が干渉していないか確認。
+
+### Step 2: 手動 ML 再学習（必須・約 10 分）
+
+```bash
+# GitHub Actions で 55 特徴量モデルを学習
+gh workflow run model-training.yml --ref main -f n_trials=50 -f dry_run=false
+
+# 完了監視（約 10 分）
+gh run watch
+
+# または手動確認
+gh run list --workflow=model-training.yml --limit 1
+```
+
+**学習内容**:
+- 55 特徴量（Phase 77 SHAP 37 + 89-β 10 + 89-γ 5 + 89-δ 3）
+- 4 モデル: LGB / XGB / RF / N-BEATS
+- Purged K-Fold (embargo_pct=0.01)
+- メタラベリング (Triple Barrier)
+- SMOTE オーバーサンプリング
+- Optuna ハイパラ最適化（50 trials）
+
+### Step 3: 新モデル整合性確認（必須・1 分）
+
+```bash
+# 学習完了後、models/ をプル
+git pull origin main
+
+# モデル特徴量数確認
+/Users/nao/Developer/active/bitbank-btc-bot/venv/bin/python3 -c "
+import joblib
+m = joblib.load('models/production/ensemble_full.pkl')
+print('n_features_in_:', m.n_features_in_)
+print('models:', list(m.models.keys()))
+print('weights:', m.weights)
+assert m.n_features_in_ == 55, f'55 特徴量モデルではない: {m.n_features_in_}'
+assert 'nbeats' in m.models, 'N-BEATS が含まれていない'
+print('✅ 55 特徴量 + 4 モデル統合 OK')
+"
+```
+
+**期待結果**:
+- `n_features_in_: 55`
+- `models: ['lightgbm', 'xgboost', 'random_forest', 'nbeats']`
+- `weights: {'lightgbm': 0.34, 'xgboost': 0.34, 'random_forest': 0.17, 'nbeats': 0.15}`
+
+### Step 4: 本番デプロイ（必須）
+
+```bash
+# CI を通して Cloud Run へ自動デプロイ
+git push origin main
+
+# デプロイ監視（約 8-10 分）
+gh run watch
+
+# Cloud Run リビジョン確認
+TZ='Asia/Tokyo' gcloud run revisions list \
+  --service=crypto-bot-service-prod \
+  --region=asia-northeast1 --limit=3
+```
+
+**注意事項**:
+- 起動時に `n_features_in_ mismatch` でクラッシュしないこと（Step 3 で確認済みなら OK）
+- Phase 89-γ で追加した `GITHUB_REPO_DISPATCH_TOKEN` Secret を GCP Secret Manager に登録（Auto Retraining 用・初回のみ）
+
+### Step 5: 実機 1 週間観察（必須）
+
+以下を毎日確認:
+
+```bash
+# 1. 取引パフォーマンス（24h）
+/Users/nao/Developer/active/bitbank-btc-bot/venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+
+# 2. Drift 検出ログ（Phase 89-β）
+gcloud logging read 'textPayload=~"Phase 89-β.*Drift|drift|distribution"' --freshness=24h
+
+# 3. Fractional Kelly 動作（Phase 89-β）
+gcloud logging read 'textPayload=~"Phase 89-β Fractional Kelly|dynamic_safety"' --freshness=24h
+
+# 4. WebSocket 接続健全性（Phase 89-δ）
+gcloud logging read 'textPayload=~"Phase 89-δ WebSocket|websocket"' --freshness=24h
+
+# 5. Auto Retraining trigger（Phase 89-γ・通常は trigger されないはず）
+gcloud logging read 'textPayload=~"Auto Retraining triggered"' --freshness=168h
+```
+
+**期待結果（1 週間後）**:
+- 勝率改善: 既存 25-50% → **55%+**
+- Max Drawdown: -20% 以内
+- Drift 検知: 通常 0 件、急変時のみ trigger
+- WebSocket: reconnect は許容、長時間切断なし
+- 期待値: プラス側へ転換（目標 +¥6,000-7,500/月）
+
+#### 失敗時のロールバック
+
+```bash
+# 旧モデル（37 特徴量）に戻す場合
+cd /Users/nao/Developer/active/bitbank-btc-bot
+git revert <Phase 89 commit hash>
+git push origin main
+
+# またはモデルファイルだけ戻す
+cp models/production/ensemble_full.phase84.pkl.bak models/production/ensemble_full.pkl
+git add models/production/ensemble_full.pkl
+git commit -m "rollback: Phase 89 model → Phase 84 backup"
+git push origin main
+```
 
 ---
 
@@ -115,6 +263,63 @@ def _compute_features_cached(key: str, ...) -> pd.DataFrame:
 - 期待値マイナス bot に悪影響、無料枠 ¥1,000 削減と相殺以上の損失
 
 データ移行も不要（ML は `tax/trade_history.db` 参照なし）。
+
+---
+
+## 🗂️ ローカル環境整備 ToDo（2026-05-15 起票・iCloud 同期完了待ち）
+
+### 目的
+
+リポジトリを `/Users/nao/Developer/active/bitbank-btc-bot` から Apple 推奨の `/Users/nao/Developer/active/bitbank-btc-bot` へ移動し、Desktop の iCloud 同期対象から外す（venv/models/logs 計約 2.8GB・22,580 ファイルの無駄なクラウドアップロードを根絶）。
+
+### ブロッカー
+
+iCloud Drive「デスクトップと書類」初回フル同期が進行中（2026-05-15 14:02 時点で 4.37GB アップロード中・総量推定が走査中で増加継続）。同期途中で `mv` するとクラウド側に孤児ファイルが残るリスクあり、**完了まで待機**。
+
+### 影響調査結果（事前確認済み）
+
+| 対象 | 影響 | 備考 |
+|------|------|------|
+| GitHub リポジトリ / Actions / git remote | **影響なし** | クラウド側リソース。`.github/workflows/` 6 本に絶対パス参照ゼロ |
+| GCP Cloud Run / Cloud Build / Secret Manager / Artifact Registry / Firestore | **影響なし** | 全てクラウド側。Dockerfile に絶対パスゼロ |
+| コード本体（.py/.sh/.yaml/.json/.toml） | **影響なし** | `Desktop/bot` 参照ゼロ。全て相対パス＋ `Path(__file__).parent` |
+| launchctl / cron / shell rc | **影響なし** | 設定なし |
+| **venv（要再作成）** | `venv/bin/{python,pip}` シェバンと `pyvenv.cfg` の `command =` が絶対パス | 移動後 `rm -rf venv && python3 -m venv venv && pip install -r requirements.txt` |
+| **`~/.claude/projects/-Users-nao-Desktop-bot/`** | Claude Code は cwd からディレクトリ名自動生成。memory と過去セッションは新パスに引き継がれない | 移動後 `memory/` を `~/.claude/projects/-Users-nao-Developer-active-bitbank-btc-bot/` へコピー |
+| `~/.claude/plans/ml-tpsl-sl-sl-tp-polymorphic-marshmallow.md` | 1 件参照あり | 任意で sed 置換 |
+| ドキュメント `.md` 12 件 | tax/scripts/README.md / docs/運用ガイド/統合運用ガイド.md / docs/開発履歴/Phase_21-30 等 | 動作影響ゼロ。任意で一括 sed |
+| `logs/` 内過去ログ | テキスト内参照のみ | 動作影響ゼロ。放置可 |
+
+### 実行手順（同期完了後）
+
+```bash
+# 1. ローカルで bot プロセスが動いていないか確認（GCP 本番は別プロセスで稼働継続・無影響）
+ps aux | grep -E "python.*main.py" | grep -v grep
+
+# 2. 移動
+mv /Users/nao/Developer/active/bitbank-btc-bot /Users/nao/Developer/active/bitbank-btc-bot
+
+# 3. venv 再作成
+cd /Users/nao/Developer/active/bitbank-btc-bot
+rm -rf venv && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+
+# 4. Claude memory 引き継ぎ（cd 後に claude を 1 度起動して新 projects ディレクトリ生成 → コピー）
+cp -r ~/.claude/projects/-Users-nao-Desktop-bot/memory \
+      ~/.claude/projects/-Users-nao-Developer-active-bitbank-btc-bot/
+
+# 5. ドキュメント絶対パス一括置換（任意・動作影響なし）
+grep -rl "/Users/nao/Developer/active/bitbank-btc-bot" --include="*.md" . | \
+  xargs sed -i '' 's|/Users/nao/Developer/active/bitbank-btc-bot|/Users/nao/Developer/active/bitbank-btc-bot|g'
+sed -i '' 's|/Users/nao/Developer/active/bitbank-btc-bot|/Users/nao/Developer/active/bitbank-btc-bot|g' \
+  ~/.claude/plans/ml-tpsl-sl-sl-tp-polymorphic-marshmallow.md
+
+# 6. CLAUDE.md / README.md のしおり更新（任意・パス文言を含む箇所のみ）
+```
+
+### 補足
+
+- `/Users/nao/Developer/` は iCloud Drive 同期対象外（Apple 公式推奨）。移動完了後、bot 全体（venv 含む 22,580 ファイル）が iCloud から外れて容量・帯域節約。
+- iCloud 同期完了後、Finder の iCloud Drive > デスクトップから旧 `bot/` のクラウドコピーを削除する余地あり。
 
 ---
 

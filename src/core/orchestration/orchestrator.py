@@ -520,9 +520,13 @@ async def create_trading_orchestrator(
             tcm = getattr(orchestrator, "trading_cycle_manager", None)
             if tcm is not None and hasattr(tcm, "market_regime_classifier"):
                 tcm.market_regime_classifier = market_regime_classifier
-                logger.info("✅ Phase 89 C1: trading_cycle_manager の MarketRegimeClassifier 上書き注入")
+                logger.info(
+                    "✅ Phase 89 C1: trading_cycle_manager の MarketRegimeClassifier 上書き注入"
+                )
         except Exception as inject_err:
-            logger.warning(f"Phase 89 C1: regime_classifier 注入失敗（既存自己生成で続行）: {inject_err}")
+            logger.warning(
+                f"Phase 89 C1: regime_classifier 注入失敗（既存自己生成で続行）: {inject_err}"
+            )
 
         logger.info("🎉 TradingOrchestrator依存性組み立て完了")
         return orchestrator

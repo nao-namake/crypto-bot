@@ -103,6 +103,65 @@ class BitbankClient:
                 },
             )
 
+        # Phase 89-δ: WebSocket クライアント（遅延初期化・実機接続は connect_websocket() 呼び出し時）
+        self._ws_task = None
+        self._ws_client = None
+
+    # ========================================
+    # Phase 89-δ: WebSocket ライフサイクル（最小実装）
+    # ========================================
+
+    def get_primary_symbol(self) -> str:
+        """Phase 89-δ: thresholds.yaml の `exchange.primary_symbol` を返す（後方互換: 既存 `symbol` も参照）."""
+        return get_threshold(
+            "exchange.primary_symbol",
+            get_threshold("exchange.symbol", "BTC/JPY"),
+        )
+
+    def get_websocket_client(self):
+        """Phase 89-δ: WebSocket クライアントを取得（シングルトン）.
+
+        Returns:
+            BitbankWebSocketClient or None（websockets 未インストール時）
+        """
+        if self._ws_client is None:
+            try:
+                from .bitbank_websocket_client import get_bitbank_websocket_client
+
+                self._ws_client = get_bitbank_websocket_client()
+            except ImportError:
+                self.logger.warning("Phase 89-δ websockets 未インストール → WebSocket 無効")
+                return None
+        return self._ws_client
+
+    async def connect_websocket(self) -> bool:
+        """Phase 89-δ: WebSocket 接続を非同期で開始（既存 task があれば何もしない）.
+
+        Returns:
+            True: 接続タスク起動成功 / False: ライブラリ未インストール or 既起動
+        """
+        ws = self.get_websocket_client()
+        if ws is None:
+            return False
+        if self._ws_task is not None and not self._ws_task.done():
+            return False  # 既に起動中
+
+        self._ws_task = asyncio.create_task(ws.connect())
+        self.logger.info("Phase 89-δ WebSocket 接続タスク起動")
+        return True
+
+    async def disconnect_websocket(self) -> None:
+        """Phase 89-δ: WebSocket 接続停止."""
+        if self._ws_client is not None:
+            await self._ws_client.disconnect()
+        if self._ws_task is not None and not self._ws_task.done():
+            self._ws_task.cancel()
+            try:
+                await self._ws_task
+            except Exception:
+                pass
+        self._ws_task = None
+
     def test_connection(self) -> bool:
         """API接続テスト."""
         try:

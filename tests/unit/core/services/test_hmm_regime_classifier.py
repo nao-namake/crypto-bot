@@ -81,9 +81,7 @@ def test_predict_proba_before_fit_returns_uniform():
 def test_fit_offline_raises_on_insufficient_samples():
     """min_samples 未満で fit_offline は ValueError."""
     clf = HMMRegimeClassifier(n_states=3)
-    df = pd.DataFrame(
-        {"returns_1": [0.01] * 50, "atr_14": [0.01] * 50, "volume_ratio": [1.0] * 50}
-    )
+    df = pd.DataFrame({"returns_1": [0.01] * 50, "atr_14": [0.01] * 50, "volume_ratio": [1.0] * 50})
     with pytest.raises(ValueError, match="HMM 学習には最低"):
         clf.fit_offline(df, min_samples=100)
 

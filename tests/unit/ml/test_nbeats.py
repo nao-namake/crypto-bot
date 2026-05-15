@@ -41,9 +41,7 @@ class TestNBeatsClassifier:
 
     def test_n_blocks_total_equals_stacks_times_blocks(self):
         """blocks 総数 = n_stacks × n_blocks_per_stack."""
-        model = NBeatsClassifier(
-            n_features=10, n_stacks=3, n_blocks_per_stack=4, hidden_size=16
-        )
+        model = NBeatsClassifier(n_features=10, n_stacks=3, n_blocks_per_stack=4, hidden_size=16)
         assert len(model.blocks) == 12
 
     def test_forward_aggregates_block_outputs(self):

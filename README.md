@@ -2,26 +2,28 @@
 
 bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run 24時間稼働）
 
-[![Tests](https://img.shields.io/badge/tests-2280%2B%20passing-success)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2400%2B%20passing-success)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](tests/)
 [![Phase 87](https://img.shields.io/badge/Phase%2087-Complete-success)](docs/開発履歴/Phase_87.md)
 [![Phase 88](https://img.shields.io/badge/Phase%2088-Complete-success)](docs/開発履歴/Phase_88.md)
-[![Phase 89-α](https://img.shields.io/badge/Phase%2089--α-Stage%201%2B3%20Deployed-blue)](docs/開発履歴/Phase_89.md)
+[![Phase 89](https://img.shields.io/badge/Phase%2089--α%2Fβ%2Fγ%2Fδ-Code%20Complete-blue)](docs/開発履歴/Phase_89.md)
 
 ---
 
 ## 現在の状態
 
-**Phase 89-α Stage 1+3 完了・本番デプロイ済（2026-05-15）→ Stage 2 (キャッシュ最適化) pending**
+**Phase 89-α/β/γ/δ コード実装完了（2026-05-15）→ 手動 ML 再学習 + 実機検証待ち**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 89-α コスト削減: Stage 1 取引判断 gating（15分足完成境界 + 同方向ポジ判定で重い処理発火 1/30 化）+ Stage 3 GCP リソース整理（旧 revision 19 件削除・AR cleanup 本適用・Logging exclusion・cpu-boost OFF） |
-| 実機検証 | 24h ログで実取引 4 回 / trigger 189 回（98% 無駄実行）の浪費を構造的に解消 |
-| GCP 月額 | ¥3,000 → **¥1,400-1,700 見込み**（実測待ち・Stage 2 追加で ¥1,200-1,600） |
-| 次の予定 | (1) 1 週間コスト実測 → (2) 必要なら Stage 2 (OHLCV/特徴量/ML 予測キャッシュ層) → (3) Phase 89-β (Webリサーチ統合: Purged K-Fold + OFI + Fractional Kelly) |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 89-α コスト削減プラン） |
-| 最終更新 | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 |
+| 最新成果 | Phase 89 全 Stage コード実装完了: 89-α (gating + リソース整理 + 特徴量キャッシュ) / 89-β (Fractional Kelly + Purged K-Fold + Drift + 47特徴量) / 89-γ (N-BEATS + HMM + VPIN + 52特徴量) / 89-δ (WebSocket + BTC-ETH 相関 + マルチペア + 55特徴量) |
+| 特徴量数 | 37 → **55**（+18・6 カテゴリ追加） |
+| ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
+| テスト追加 | **+112 件 PASS**（既存 ~2280 → ~2400・追加課金ゼロ） |
+| 次の予定 | (1) 全体回帰テスト確認 → (2) 手動 ML 再学習 → (3) 新モデル `n_features_in_==55` 確認 → (4) 本番デプロイ → (5) 実機 1 週間観察 |
+| 期待効果 | 89-β: 年利 12-13% / 89-γ: 14-16% / **89-δ: 15-18% / 月利 1-1.5%** |
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/phase-binary-fox.md`（Phase 89-α/β/γ/δ 統合プラン） |
+| 最終更新 | 2026年5月15日 - Phase 89-α/β/γ/δ コード実装＋テスト完了 |
 
 ---
 

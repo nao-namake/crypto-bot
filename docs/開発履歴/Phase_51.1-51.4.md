@@ -846,7 +846,7 @@ def get_regime_weights(self) -> dict:
 
 **開始方法**:
 ```bash
-cd /Users/nao/Desktop/bot
+cd /Users/nao/Developer/active/bitbank-btc-bot
 python3 scripts/analysis/strategy_performance_analysis.py
 ```
 

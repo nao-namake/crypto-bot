@@ -109,8 +109,16 @@ class TradingCycleManager:
                     main_features, strategy_signals
                 )
 
-            # Phase 5: ML予測（Phase 77: 37特徴量対応）
+            # Phase 5: ML予測（Phase 77: 37特徴量対応 / Phase 89-β: 47特徴量）
             ml_prediction = await self._get_ml_prediction(main_features)
+
+            # Phase 89-β: Drift 検出（特徴量分布の急変を検知）
+            ml_health = getattr(self.orchestrator.ml_service, "ml_health_monitor", None)
+            if ml_health is not None and not main_features.empty:
+                try:
+                    ml_health.record_feature_distribution(main_features.tail(50))
+                except Exception as e:
+                    self.logger.warning(f"Phase 89-β drift 記録失敗（致命的でない）: {e}")
 
             # Phase 6: 追加情報取得（リスク管理のため）
             trading_info = await self._fetch_trading_info(market_data)

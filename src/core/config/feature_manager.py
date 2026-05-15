@@ -84,7 +84,7 @@ class FeatureManager:
             features = []
             categories = config["feature_categories"]
 
-            # 順序保証のためのカテゴリ順序 - Phase 77: 37特徴量最適化
+            # カテゴリ順序: Phase 77 (37) → 89-β (47) → 89-γ (52) → 89-δ (55)
             category_order = [
                 "basic",
                 "momentum",
@@ -97,6 +97,15 @@ class FeatureManager:
                 "rolling",
                 "interaction",
                 "time",
+                # Phase 89-β: 外部 API 派生 (+10)
+                "funding",
+                "sentiment",
+                "microstructure",
+                "macro_lite",
+                # Phase 89-γ: VPIN + HMM (+5)
+                "microstructure_advanced",
+                # Phase 89-δ: BTC-ETH 相関 (+3)
+                "cross_asset",
             ]
 
             for category in category_order:

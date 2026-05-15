@@ -4,18 +4,43 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 89-α Stage 1+3 完了・本番デプロイ済（2026-05-15）→ Stage 2 (キャッシュ最適化) pending** |
-| **直前の作業** | Phase 89-α コスト削減（Stage 1 取引判断 gating + Stage 3 GCP リソース整理）。15分足完成境界判定 + 同方向ポジ制限で重い処理発火を 1/30 に削減。GCP では Cloud Run 旧 revision 19 件削除・AR cleanup policy 本適用・Logging exclusion filter・--no-cpu-boost 設定 |
-| **次の予定** | (1) Stage 1+3 のコスト削減効果を 1 週間実測 → (2) 必要なら Stage 2 (OHLCV / 特徴量 / ML 予測キャッシュ層) 実装 → (3) Phase 89-β (Purged K-Fold + Fractional Kelly + OFI 等の Web リサーチ統合) 着手 |
+| **現在Phase** | **Phase 89-α/β/γ/δ コード実装完了（2026-05-15）→ 手動 ML 再学習 + 実機検証待ち** |
+| **直前の作業** | Phase 89-α Stage 2 (特徴量キャッシュ) / 89-β (Fractional Kelly + 特徴量 37→47 + Purged K-Fold + Drift 検出) / 89-γ (N-BEATS + HMM + VPIN + Auto Retraining + 52特徴量) / 89-δ (WebSocket + BTC-ETH 相関 + マルチペア基盤 + 55特徴量) を連続実装＋テスト +112 件追加 |
+| **次の予定** | (1) 全体回帰テスト確認 → (2) **手動 ML 再学習**（`gh workflow run model-training.yml`）→ (3) 新モデル `n_features_in_==55` 確認 → (4) 本番デプロイ（`git push`）→ (5) 実機 1 週間観察 |
 | **直近インシデント** | なし（Phase 88 H11 で孤児SL対策済・実機 24h 観察で再発ゼロ） |
-| **Phase 87 達成** | Critical 5 + High 10 全完了。SLMonitor / Firestore永続化(H4/H5) / DummyModel CB(C4) / 品質フィルタ共通化(H10) / レジーム別閾値(tight 0.55 / normal 0.75 / trending 0.50) / RECOVERY_TESTING(H8) / 分析共通lib |
-| **Phase 88 達成** | I1/I2/I3/I4 GCPコスト 4件 + H11 孤児SL + M1-M5 機能改善 + L1-L3 クリーンアップ。本番デプロイ + 包括バグレビュー反映 + Cloud Monitoring メトリクス取得 (gcp_metrics.py) 完了 |
-| **Phase 89-α 達成** | Stage 1 取引判断 gating (15分足境界 + 同方向ポジ判定で 1/30 削減) + Stage 3 GCP リソース整理 (revision/AR/Logging/cpu-boost)。Stage 2 (キャッシュ最適化) は実測後に判断 |
-| **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち）→ Stage 2 追加で ¥1,200-1,600 |
-| **最終更新** | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 |
+| **Phase 87 達成** | Critical 5 + High 10 全完了 |
+| **Phase 88 達成** | I1-I4 GCPコスト 4件 + H11 孤児SL + M1-M5 + L1-L3 |
+| **Phase 89-α 達成** | Stage 1 取引判断 gating + Stage 3 GCP リソース整理 + Stage 2 特徴量キャッシュ |
+| **Phase 89-β 達成** | Fractional Kelly 動的化（連敗段階 multiplier）+ 特徴量 37→47（funding/sentiment/microstructure/macro_lite）+ Purged K-Fold（embargo 付き）+ Drift 検出（KS テスト + ml_health_monitor 統合） |
+| **Phase 89-γ 達成** | N-BEATS 軽量版（Pure PyTorch・CPU 推論）+ 4 モデル化（LGB/XGB/RF/N-BEATS）+ HMM レジーム検出（3 状態 Gaussian）+ VPIN +3 + 特徴量 47→52 + Auto Retraining trigger（24h cooldown） |
+| **Phase 89-δ 達成** | bitbank Public WebSocket クライアント（独自実装・reconnect with backoff）+ BTC-ETH 相関 +3 特徴量（52→55）+ マルチペア基盤（primary_symbol/auxiliary_symbols・後方互換維持） |
+| **特徴量数** | 37 → **55**（+18: funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加） |
+| **ML モデル** | 3 → **4**（N-BEATS 追加） |
+| **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
+| **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
+| **最終更新** | 2026年5月15日 - Phase 89-α/β/γ/δ コード実装＋テスト完了 |
 
-> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 89-α コスト削減プラン・asia-northeast1 維持版）
+> **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
+> 5 ステップ: 既知の問題調査（任意）→ 手動 ML 再学習 → 整合性確認 → 本番デプロイ → 実機 1 週間観察
+>
+> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-binary-fox.md`（Phase 89-α/β/γ/δ 統合プラン）
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_89.md`
+
+---
+
+## 🚀 Phase 89 リリース完了 - 次の 5 アクション（再開ガイド）
+
+クリア後にこの 5 ステップを実行すれば Phase 89 リリース完了:
+
+| Step | アクション | 必須 | 時間 |
+|------|-----------|------|------|
+| 1 | **既知の問題調査**（macOS SEGFAULT / pickle ハング） | 任意 | - |
+| 2 | **手動 ML 再学習**: `gh workflow run model-training.yml --ref main -f n_trials=50` | 必須 | 10分 |
+| 3 | **新モデル整合性確認**: `joblib.load('models/production/ensemble_full.pkl').n_features_in_ == 55` | 必須 | 1分 |
+| 4 | **本番デプロイ**: `git push origin main` | 必須 | 10分 |
+| 5 | **実機 1 週間観察**: 勝率改善 + Drift 検知 + Auto Retraining trigger | 必須 | 7日 |
+
+詳細手順とロールバック手順: `docs/開発計画/ToDo.md` 「🚀 セッション再開時の手順」セクション
 
 ---
 

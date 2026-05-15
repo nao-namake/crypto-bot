@@ -243,9 +243,7 @@ def test_eth_returns_15m_uses_history_diff(base_df):
     """連続 2 回の eth 値で eth_returns_15m が (curr-prev)/prev になる."""
     gen = FeatureGenerator()
     # 1 回目: history に 250000 が積まれる
-    gen._add_cross_asset_features(
-        base_df.copy(), external_values={"eth_jpy_last": 250000.0}
-    )
+    gen._add_cross_asset_features(base_df.copy(), external_values={"eth_jpy_last": 250000.0})
     # 2 回目: history に 252500 (+1%) が積まれる
     result = gen._add_cross_asset_features(
         base_df.copy(), external_values={"eth_jpy_last": 252500.0}
@@ -259,10 +257,11 @@ def test_corr_zero_when_history_short(base_df):
     gen = FeatureGenerator()
     # 数回しか蓄積しない
     for _ in range(5):
-        gen._add_cross_asset_features(
-            base_df.copy(), external_values={"eth_jpy_last": 250000.0}
-        )
+        gen._add_cross_asset_features(base_df.copy(), external_values={"eth_jpy_last": 250000.0})
     # history 5 件 → 24 未満 → corr=0
-    assert gen._add_cross_asset_features(
-        base_df.copy(), external_values={"eth_jpy_last": 250000.0}
-    )["eth_btc_corr_24h"].iloc[0] == 0.0
+    assert (
+        gen._add_cross_asset_features(base_df.copy(), external_values={"eth_jpy_last": 250000.0})[
+            "eth_btc_corr_24h"
+        ].iloc[0]
+        == 0.0
+    )

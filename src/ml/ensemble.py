@@ -40,12 +40,15 @@ class ProductionEnsemble:
         self.logger = get_logger()
 
         # デフォルト重み（設定ファイルから取得）
+        # Phase 89-γ: N-BEATS 追加で 3 モデル → 4 モデル化
+        # （個別モデル辞書に nbeats を含めれば自動的に重みが適用される duck typing）
         default_weights = get_threshold(
             "ensemble.weights",
             {
-                "lightgbm": 0.4,
-                "xgboost": 0.4,
-                "random_forest": 0.2,
+                "lightgbm": 0.34,
+                "xgboost": 0.34,
+                "random_forest": 0.17,
+                "nbeats": 0.15,
             },
         )
         self.weights = default_weights

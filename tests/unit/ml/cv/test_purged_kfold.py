@@ -49,7 +49,10 @@ def test_embargo_excludes_neighboring_train_samples():
     test_end = test_idx.max()
     # embargo 範囲（前後 5 サンプル）には train が存在してはならない
     embargo_indices = np.concatenate(
-        [np.arange(max(0, test_start - 5), test_start), np.arange(test_end + 1, min(n, test_end + 6))]
+        [
+            np.arange(max(0, test_start - 5), test_start),
+            np.arange(test_end + 1, min(n, test_end + 6)),
+        ]
     )
     overlap = np.intersect1d(train_idx, embargo_indices)
     assert len(overlap) == 0

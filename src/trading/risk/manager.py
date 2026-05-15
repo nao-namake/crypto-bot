@@ -314,11 +314,22 @@ class IntegratedRiskManager:
                         )
 
                     # Kelly推奨値取得（Phase 54.9: タイムスタンプ渡し）
+                    # Phase 89-β: 連敗回数を渡して Fractional Kelly の動的縮小を有効化
                     kelly_result = self.kelly.calculate_from_history(
-                        reference_timestamp=reference_timestamp
+                        reference_timestamp=reference_timestamp,
+                        consecutive_losses=self.drawdown_manager.consecutive_losses,
                     )
                     if kelly_result:
                         kelly_recommendation = kelly_result.kelly_fraction
+                        # Phase 89-β: Kelly 動的縮小 × DrawdownManager 縮小 の二重適用を可視化
+                        if self.drawdown_manager.consecutive_losses >= 3 and size_multiplier < 1.0:
+                            self.logger.warning(
+                                "⚠️ Phase 89-β 二重縮小: Kelly Fractional + Drawdown multiplier "
+                                f"(連敗={self.drawdown_manager.consecutive_losses}, "
+                                f"drawdown_mult={size_multiplier:.2f}, "
+                                f"kelly={kelly_recommendation:.4f}) "
+                                "→ 過剰縮小の可能性に注意"
+                            )
 
                     # ストップロス・テイクプロフィット
                     if isinstance(strategy_signal, dict):

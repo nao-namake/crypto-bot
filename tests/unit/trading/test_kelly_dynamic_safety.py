@@ -78,9 +78,7 @@ def test_dynamic_factor_reflected_in_calculate_from_history(kelly):
     assert result_no_loss is not None
     assert result_five_loss is not None
     # 同じ Kelly fraction だが、5 連敗時の safety_adjusted は 0連敗時より小さい
-    assert result_no_loss.kelly_fraction == pytest.approx(
-        result_five_loss.kelly_fraction, abs=1e-6
-    )
+    assert result_no_loss.kelly_fraction == pytest.approx(result_five_loss.kelly_fraction, abs=1e-6)
     assert result_five_loss.safety_adjusted_fraction < result_no_loss.safety_adjusted_fraction
     # 0連敗: × 0.7 / 5連敗: × 0.28 → 比率は 0.4
     ratio = result_five_loss.safety_adjusted_fraction / result_no_loss.safety_adjusted_fraction
@@ -91,9 +89,7 @@ def test_calculate_optimal_size_passes_consecutive_losses(kelly):
     """calculate_optimal_size 経由でも consecutive_losses が calculate_from_history に伝播する."""
     _add_winning_history(kelly)
 
-    with patch.object(
-        kelly, "calculate_from_history", wraps=kelly.calculate_from_history
-    ) as spy:
+    with patch.object(kelly, "calculate_from_history", wraps=kelly.calculate_from_history) as spy:
         kelly.calculate_optimal_size(
             ml_confidence=0.7,
             strategy_name="test",
@@ -110,9 +106,9 @@ def test_dynamic_multiplier_table_overridable_via_config():
     custom_table = {"loss_0": 0.5, "loss_3": 0.4, "loss_5": 0.3, "loss_7": 0.2, "loss_8": 0.0}
     with patch(
         "src.trading.risk.kelly.get_threshold",
-        side_effect=lambda key, default=None: custom_table
-        if key == "risk.kelly_criterion.dynamic_safety_multiplier"
-        else default,
+        side_effect=lambda key, default=None: (
+            custom_table if key == "risk.kelly_criterion.dynamic_safety_multiplier" else default
+        ),
     ):
         # base safety_factor=1.0 × custom multiplier
         assert kelly._get_dynamic_safety_factor(0) == pytest.approx(0.5)

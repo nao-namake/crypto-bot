@@ -153,7 +153,7 @@
 
 #### 1. feature_generator.py修正（51特徴量対応）
 
-**ファイル**: `/Users/nao/Desktop/bot/src/features/feature_generator.py`
+**ファイル**: `/Users/nao/Developer/active/bitbank-btc-bot/src/features/feature_generator.py`
 
 ##### 削除実装（20特徴量）
 
@@ -314,7 +314,7 @@ data:
 
 #### 3. テスト追加（15個）
 
-**ファイル**: `/Users/nao/Desktop/bot/tests/unit/features/test_feature_generator.py`
+**ファイル**: `/Users/nao/Developer/active/bitbank-btc-bot/tests/unit/features/test_feature_generator.py`
 
 **新規テストクラス**: `TestPhase517Day2NewFeatures`
 
@@ -550,7 +550,7 @@ assert stoch_d_std < stoch_k_std
 
 #### 1. StrategyType定数追加
 
-**ファイル**: `/Users/nao/Desktop/bot/src/strategies/utils/strategy_utils.py`
+**ファイル**: `/Users/nao/Developer/active/bitbank-btc-bot/src/strategies/utils/strategy_utils.py`
 
 ```python
 class StrategyType:
@@ -567,7 +567,7 @@ class StrategyType:
 
 #### 2. BB Reversal戦略実装（約290行）
 
-**ファイル**: `/Users/nao/Desktop/bot/src/strategies/implementations/bb_reversal.py`（新規作成）
+**ファイル**: `/Users/nao/Developer/active/bitbank-btc-bot/src/strategies/implementations/bb_reversal.py`（新規作成）
 
 **戦略ロジック**:
 ```python
@@ -596,7 +596,7 @@ class BBReversalStrategy(StrategyBase):
 
 #### 3. thresholds.yaml設定追加
 
-**ファイル**: `/Users/nao/Desktop/bot/config/core/thresholds.yaml`
+**ファイル**: `/Users/nao/Developer/active/bitbank-btc-bot/config/core/thresholds.yaml`
 
 ```yaml
 strategies:
@@ -615,7 +615,7 @@ strategies:
 
 #### 4. ユニットテスト実装（18テスト・約350行）
 
-**ファイル**: `/Users/nao/Desktop/bot/tests/unit/strategies/implementations/test_bb_reversal.py`（新規作成）
+**ファイル**: `/Users/nao/Developer/active/bitbank-btc-bot/tests/unit/strategies/implementations/test_bb_reversal.py`（新規作成）
 
 **テストケース**:
 1. test_strategy_initialization - 戦略初期化テスト
