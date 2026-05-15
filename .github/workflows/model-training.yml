@@ -96,7 +96,11 @@ jobs:
             echo "🧪 ドライランモード"
           fi
 
+          # Phase 89 fix: --model full のみ学習（basic 廃止）
+          # 旧 both モード (full + basic) では 4 モデル × 2 セット = 8 モデル学習で 60 分超過
+          # full のみで Optuna 50 trials × 4 モデル + N-BEATS torch 学習が timeout 内に収まる
           python3 scripts/ml/create_ml_models.py \
+            --model full \
             --n-classes 3 \
             --threshold 0.005 \
             --use-smote \
