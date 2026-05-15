@@ -473,6 +473,105 @@
 
 ---
 
+## Phase 83-89 サマリ（2026年4月-5月）
+
+### Phase 83: 固定金額TP/SL + 信頼度別目標 ✅
+**期間**: 2026/4/16-5/8 / **詳細**: [Phase_83.md](Phase_83.md)
+
+| 変更 | 内容 |
+|------|------|
+| Phase 83A-2 / 83A-3 | 信頼度別TP/SL（低: 1,200/1,500円, 高: 1,500/2,000円）+ SL floor 0.7%強制 |
+| Phase 83B | floor撤廃試行（後にバグ判明） |
+| Phase 83C | sl_simulation.py 手数料加算バグ修正 + 包括バグ修正13項目（fail-fast含む） |
+
+**成果**: 信頼度別TP/SL確立、ML再学習(CV F1: LGB 0.602)、365日学習データ
+
+### Phase 84: 品質フィルタ調整 ✅
+**期間**: 2026/5/9-11 / **詳細**: [Phase_84.md](Phase_84.md)
+
+- `high_confidence_failure_threshold` ハードコード 0.55 → 0.65 設定化
+- confidence = max(p_0, p_1) 解釈に基づく閾値選定（ml_pred==0 + confidence=0.808 = 失敗確信 80% = 正常拒否）
+- ML再学習（4モデルアンサンブル）
+
+### Phase 85: レジーム別TP/SL再構築 + trending全停止 ✅
+**期間**: 2026/5/11 / **詳細**: [Phase_85.md](Phase_85.md)
+
+- **重大発見**: sl_simulation.py 手数料加算バグで「floor撤廃で勝率95.5%」が虚像と判明
+- 過去30日全エントリー106件のbitbank API実証 → **trending時は全シナリオ赤字**
+- レジーム別TP/SL: tight 1,500/2,000円 (勝率67.9% +362円/件✅), normal 500/1,500円, **trending エントリー停止**
+- SL floor 0.7% 復活、ML再学習 (LGB 0.602 / XGB 0.577 / RF 0.571)
+
+### Phase 86: TP/SL/Entry 根本再構築 ✅
+**期間**: 2026/5/11-12 / **詳細**: [Phase_86.md](Phase_86.md)
+
+- **TPSLCalculator 単一実装化**（旧4箇所分散を解消）
+- bitbank API wrapper 強化（trigger_price 必須検証、配置後3秒×3回ポーリング）
+- Atomic Entry 緊急成行決済（部分約定時のロールバック改善）
+- 起動時SL自動修復（position_restorer.py 内）
+- 5/12 デプロイ後の実機検証で現ポジへSL自動配置成功
+
+### Phase 87: SL消失検出層構築（Critical 5 + High 10） ✅
+**期間**: 2026/5/13-14 / **詳細**: [Phase_87.md](Phase_87.md)
+
+**契機**: 2026-05-12 10:41 SL stop注文 CANCELED_UNFILLED で6時間裸ポジ放置事案
+
+**達成内容**:
+- C1 SLMonitor 新規（CANCELED_UNFILLED/EXPIRED/REJECTED 検出 + 緊急成行決済）
+- C2 ML信頼度 `predicted_class_proba` 統一 / C3 TP Maker `_safe_cancel`
+- C4 DummyModel CB（MLHealthMonitor 3回連続失敗で EMERGENCY_STOP）
+- C5 5分ループSL health check / H1 SL 24h timeout
+- H2 起動時SL欠損サイレント失敗解消 / H3 stop_limit+slippage_buffer 0.008 二重防衛
+- H4-5 Firestore永続化（SL状態・DrawdownManager・MLHealth）
+- H6 レジーム別品質フィルタ閾値（tight 0.55 / normal 0.75 / trending 0.50）
+- H7 EXPECTED_FEATURE_COUNT 共有定数化 / H8 RECOVERY_TESTING 段階復帰
+- H9 6戦略アサート / H10 品質フィルタ共通モジュール化
+- 分析共通lib（src/analysis/common/: sl_validators / canceled_unfilled_detector / tp_sl_helpers）
+
+**実機検証**: 5/13 24h: -¥5,216 → 5/14 12h: +¥1,500（+¥6,716改善）
+
+### Phase 88: GCPコスト削減 + 包括バグ修正 + 分析カバレッジ拡充 ✅
+**期間**: 2026/5/14-15 / **詳細**: [Phase_88.md](Phase_88.md)
+
+**最初の実装**:
+- I1 LOG_LEVEL WARNING化 / I2 Artifact Registry cleanup policy / I3 min_instances=0 + Cloud Scheduler /trigger / I4 メモリ 1Gi→768Mi（OOM 即時発生で 512Mi 試行から切替）
+- H11 孤児SL検出（bitbank 70004 指数バックオフ + 次サイクル委譲）
+- M5 税務 SQLite を GCS バックアップ方式へ
+
+**包括バグレビュー後の修正（R1+R2 一括）**:
+- C1 H11 リトライ whitelist 化 / C2 attempt-deadline=660s（504回避） / C3 orphan_scan 命名衝突解消
+- H_a Phase 77 残骸削除（H9 警告誤検知の解消）/ H_b H11 部分VP amount比較 / H_d trigger_server lifespan化 / H_e H11 vs C5干渉対策
+- M_a M5 SQLite WAL checkpoint / M_b Firestore I/O 実体テスト / M_c SIGTERM trap
+
+**分析カバレッジ拡充**:
+- 新規 `src/analysis/common/gcp_metrics.py`（Cloud Monitoring REST API wrapper・9 関数）
+- `scripts/live/standard_analysis.py` に Phase 87/88 機能セクション追加（メモリ 768MiB / cold start / H11 / M5 / H6 / H8）
+- 12 件テスト追加
+
+**当初目標 ¥300-500/月 には届かず**（Cloud Run idle 15分問題 + 無料枠 asia 非対応）→ Phase 89 へ持ち越し
+
+### Phase 89-α: GCPコスト削減 再挑戦（Stage 1+3 完了・Stage 2 pending） ⏳
+**期間**: 2026/5/15 / **詳細**: [Phase_89.md](Phase_89.md)
+
+**実態把握** (24h ログ実測):
+- /trigger 189 回 / 実取引 4 回（6時間に1回）
+- **98% が「データ取得→特徴量→ML→ 取引しない」で CPU 浪費**
+
+**Stage 1: 取引判断 gating**（実装完了・デプロイ済）:
+- `/trigger` 入口で 200ms 以下の軽量判定：15 分足完成境界（00, 15, 30, 45 分±2分）外 or 両方向ポジ存在 → TP/SL 監視のみで早期 return
+- 重い処理発火: 月 8,640 → **月 2,880（1/3）**
+- 取引機会維持（戦略は15分足ベースのため）+ 安全機構（Phase 87 C5 + Phase 88 H11）完全維持
+
+**Stage 3: GCP リソース整理**（即時実施済）:
+- Cloud Run 旧 revision 19 件削除 / Artifact Registry cleanup policy 本適用 / Cloud Logging exclusion filter / `--no-cpu-boost` 明示
+
+**us-central1 移動は撤回**: bitbank 至近のアジアが望ましいユーザー指摘 + データ移行不要（ML は CSV 学習で `tax/trade_history.db` 非依存）
+
+**GCP 月額**: ¥3,000 → **¥1,400-1,700 見込み**（実測待ち・Stage 2 追加で ¥1,200-1,600）
+
+**Stage 2 (キャッシュ最適化)**: コスト実測後に判断（OHLCV / 特徴量 / ML 予測キャッシュ層）
+
+---
+
 ## 関連ドキュメント
 
 ### 運用ガイド
@@ -483,7 +582,10 @@
 ### 開発計画
 - [ToDo.md](../開発計画/ToDo.md) - 現在の開発計画
 
+### Phase 別詳細
+- [Phase_83.md](Phase_83.md) / [Phase_84.md](Phase_84.md) / [Phase_85.md](Phase_85.md) / [Phase_86.md](Phase_86.md) / [Phase_87.md](Phase_87.md) / [Phase_88.md](Phase_88.md) / [Phase_89.md](Phase_89.md)
+
 ---
 
-**最終更新**: 2026年4月16日
-**ステータス**: Phase 82（ゴーストポジション修正・SL調整・ML再学習完了・デプロイ待ち）
+**最終更新**: 2026年5月15日
+**ステータス**: Phase 89-α Stage 1+3 本番デプロイ済 / Stage 2 pending / Phase 89-β (Web リサーチ統合) 計画中

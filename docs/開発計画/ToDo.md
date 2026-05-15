@@ -11,9 +11,10 @@
 | 実機検証根拠 | 24h ログで実取引 4 回 / trigger 189 回（**98% 無駄実行**）の浪費を構造的に解消 |
 | GCP 月額目標 | ¥3,000 → **¥1,400-1,700 見込み**（実測待ち・Stage 2 追加で ¥1,200-1,600） |
 | 直近インシデント | なし（Phase 88 H11 で孤児SL対策済・実機 24h 観察で再発ゼロ） |
-| 次のアクション | (1) Stage 1+3 のコスト実測 1 週間 → (2) 必要なら Stage 2 (キャッシュ層) → (3) Phase 89-β (Webリサーチ統合: Purged K-Fold + OFI + Fractional Kelly) |
+| 次のアクション | (1) Stage 1+3 のコスト実測 1 週間（並行） → (2) **Phase 89-β/γ/δ 連続実装着手**（勝率向上が緊急課題：4 月稼働で -数万円実機検証済） |
 | 完了 Phase | Phase 87 全 Stage / Phase 88 全項目 / Phase 89-α Stage 1+3 |
-| 最終更新 | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 |
+| **方針確定** | **Phase 90 (PPO) 見送り**（GPU 月課金 + 期待値マイナス bot で逆効果リスク）/ **LLM センチメント不採用**（トークン課金避ける・Fear & Greed Index で代替）/ Phase 89-α Stage 2 は実測 ¥1,500 超過時のみ |
+| 最終更新 | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 + Phase 89-β/γ/δ 方針確定 |
 
 ---
 
@@ -40,11 +41,71 @@
 
 ### Stage 2: コード最適化（pending・実測後に判断）
 
-- OHLCV キャッシュキー: 時刻 → キャンドル番号ベース
-- 特徴量キャッシュ: 直前の DataFrame ハッシュ `@lru_cache`
-- ML 予測キャッシュ: 特徴量ベクトルハッシュ
+Stage 1+3 後のコスト実測が ¥1,500 を上回っている場合のみ実施。¥1,500 以下なら Phase 89-β を優先。
 
-**判断基準**: Stage 1+3 のコスト実測で目標 ¥1,500 を上回っている場合のみ実施。¥1,500 以下なら Phase 89-β (Web リサーチ統合) を優先。
+#### Stage 2-a: OHLCV キャッシュキー改善
+
+**対象**: `src/data/data_cache.py`
+
+| 項目 | 現状 | 改善後 |
+|------|------|------|
+| キャッシュキー | `{symbol}_{timeframe}_{start_time}_{limit}`（時刻依存） | `{symbol}_{timeframe}_{candle_id}`（キャンドル番号ベース） |
+| 5分間隔 trigger | 別キー生成 → 毎回 API 再取得 | 同 15分足キャンドル → 同一キー → キャッシュヒット |
+| 効果 | - | bitbank API 呼び出し -33%（月 8,640 → 5,760） |
+
+実装イメージ:
+```python
+def _candle_id(timestamp: datetime, timeframe: str) -> int:
+    """15 分足なら 00:00 ベースで candle 番号を返す（同 15分足は同 ID）"""
+    minutes_per_candle = {"15m": 15, "4h": 240}[timeframe]
+    epoch_min = int(timestamp.timestamp() // 60)
+    return epoch_min // minutes_per_candle
+```
+
+#### Stage 2-b: 特徴量キャッシュ
+
+**対象**: `src/features/feature_generator.py`
+
+- DataFrame のハッシュ（最終 timestamp + close 値の hash）をキーに `@lru_cache(maxsize=4)`
+- 同一 OHLCV に対する 37 特徴量計算を 1 回のみ
+- **想定削減**: 20-60ms / cycle
+
+実装イメージ:
+```python
+from functools import lru_cache
+
+def _features_key(df: pd.DataFrame) -> str:
+    return f"{df.index[-1].isoformat()}_{hash(tuple(df['close'].tail(50)))}"
+
+@lru_cache(maxsize=4)
+def _compute_features_cached(key: str, ...) -> pd.DataFrame:
+    ...
+```
+
+#### Stage 2-c: ML 予測キャッシュ
+
+**対象**: `src/ml/ensemble.py` or `src/core/orchestration/ml_adapter.py`
+
+- 特徴量ベクトル（37 個の float）のハッシュをキーに直前 1 件のみキャッシュ
+- 同一特徴量に対する 3 モデルアンサンブル予測を 1 回のみ
+- **想定削減**: 40-100ms / cycle
+
+#### テスト追加
+
+- `tests/unit/data/test_data_cache.py` に candle_id テスト 4-6 件
+- `tests/unit/features/test_feature_generator.py` に lru_cache 動作テスト 3-4 件
+- `tests/unit/ml/test_ensemble.py` に predict キャッシュテスト 3-4 件
+
+#### 効果見積もり
+
+| 指標 | Stage 1+3 後 | + Stage 2 後 |
+|------|------------|------------|
+| 1 サイクル所要時間（フル取引） | 7-15 秒 | **3-5 秒** |
+| 1 サイクル所要時間（monitor_only） | 1-3 秒 | 1-3 秒（変化なし） |
+| 月額 GCP | ¥1,400-1,700 | **¥1,200-1,600** |
+| 追加削減 | - | **-¥200-300/月** |
+
+**注意**: Stage 1 で重いサイクル数自体が 1/30 に減るため、Stage 2 の追加効果は限定的。
 
 ### us-central1 移動の撤回
 
@@ -54,6 +115,66 @@
 - 期待値マイナス bot に悪影響、無料枠 ¥1,000 削減と相殺以上の損失
 
 データ移行も不要（ML は `tax/trade_history.db` 参照なし）。
+
+---
+
+## 🎯 Phase 89-β/γ/δ 連続実装方針（2026-05-15 確定）
+
+### 背景
+
+- 4 月 1 ヶ月稼働で **-数万円**（実機検証で期待値マイナス確定）
+- ちまちま修正→検証ループでは状況改善の見込み薄
+- Phase 89-β/γ/δ を**累積実装** + 各 Phase 末で ML 再学習で一気に勝率向上を目指す
+
+### 確定方針
+
+| 項目 | 確定内容 |
+|------|---------|
+| **Phase 90 (PPO 強化学習)** | **見送り** |
+| **理由 1** | GPU 月 ¥500-1,000 の追加課金が必要（「追加課金なし」方針に反する） |
+| **理由 2** | 期待値マイナス bot で強化学習 = 誤った報酬信号で学習 → 損失加速リスク |
+| **理由 3** | 元計画でも「Sharpe 比 > 2.0 達成後の条件付き再検討」と明記済 |
+| **LLM センチメント (Phase 89-γ 当初候補)** | **不採用** |
+| **理由** | Claude API トークン課金（月 ¥30-150）が発生・使用量に左右される従量課金は予測不能 |
+| **代替** | **Fear & Greed Index**（alternative.me free API）で完全無料代替。シグナル精度 +5-10% は確保（LLM の +10-15% よりやや劣るが課金ゼロ） |
+
+### 実装オーダー
+
+```
+Week 1-2: Phase 89-β（Purged K-Fold + Fractional Kelly + OFI + Funding Rate + Fear & Greed + Drift Detection）
+  ↓ ML 再学習（47-50 特徴量へ拡張）+ 実機 1 週間観察
+Week 4-6: Phase 89-γ（N-BEATS 軽量版 + HMM レジーム + VPIN + Automated Retraining）
+                  ※ LLM センチメントは除外（Fear & Greed Index で代替済）
+  ↓ ML 再学習（4 モデルアンサンブル化）+ 実機 1 週間観察
+Week 8-10: Phase 89-δ（WebSocket depth stream + Maker 戦略実装化 + BTC-ETH 相関）
+  ↓ 実機 1 ヶ月観察
+完了判断: 期待値プラス + 月利 1% 達成
+```
+
+**期待効果**:
+- 89-β 完了: 年利 12-13% / Max DD -20% / 期待値ほぼゼロまで改善
+- 89-γ 完了: 年利 14-16% / 期待値プラス側へ
+- 89-δ 完了: **年利 15-18% / 月利 1-1.5%**
+
+50 万円証拠金で月 ¥6,000-7,500 → 月数万円のマイナスから**月数万円のプラス**へ転換目標
+
+### 追加課金確認（最終）
+
+| 候補 | 月額 | 採用 |
+|------|------|------|
+| Phase 89-β: OFI 特徴量（既存 `data/orderbook/` 活用） | ¥0 | ✅ |
+| Phase 89-β: Funding Rate（Binance 無料 API） | ¥0 | ✅ |
+| Phase 89-β: Fear & Greed（alternative.me 無料 API） | ¥0 | ✅ |
+| Phase 89-γ: N-BEATS（Cloud Run 内推論・GPU 不要） | ¥0 | ✅ |
+| Phase 89-γ: HMM（hmmlearn ローカル実行） | ¥0 | ✅ |
+| Phase 89-γ: VPIN（独自計算） | ¥0 | ✅ |
+| **Phase 89-γ: LLM センチメント** | ¥30-150 | **❌（Fear & Greed で代替）** |
+| Phase 89-δ: WebSocket（bitbank 無料） | ¥0 | ✅ |
+| Phase 89-δ: Maker 戦略強化（既存 API） | ¥0 | ✅ |
+| Phase 89-δ: BTC-ETH 相関（Binance 無料 API） | ¥0 | ✅ |
+| **Phase 90: PPO 強化学習** | GPU ¥500-1,000 | **❌（見送り確定）** |
+
+→ Phase 89-β/γ/δ 全実装で **追加課金ゼロ確定**
 
 ---
 
@@ -606,12 +727,18 @@ python3 scripts/live/standard_analysis.py --hours 24
 
 ---
 
-## Phase 89-92 中長期計画（Webリサーチ結果に基づく）
+## Phase 89-β/γ/δ 中長期計画（Webリサーチ結果に基づく）
 
 > **進め方（ユーザー確定方針）**:
-> - Phase 87/88 完了 → 都度 Phase 89+ を再計画
+> - Phase 87/88/89-α 完了 → 都度 Phase 89-β+ を再計画
 > - まず基盤を固め、安定動作を確認してから拡張
-> - Phase 92 (PPO 強化学習) は Phase 91 完了時の Sharpe比達成状況で再検討
+> - Phase 90 (PPO 強化学習) は Phase 89-δ 完了時の Sharpe比達成状況で再検討
+>
+> **Phase 89 内の進め方**:
+> - **89-α** (GCP コスト削減): Stage 1+3 完了済 / Stage 2 はコスト実測後判断
+> - **89-β** (シグナル品質向上): 89-α 完了後着手・即時効果
+> - **89-γ** (時系列予測 + センチメント): 89-β 完了後着手・中規模実装
+> - **89-δ** (マーケットマイクロ構造): 89-γ 完了後着手・WebSocket 等
 
 ### 背景
 
@@ -634,9 +761,11 @@ python3 scripts/live/standard_analysis.py --hours 24
 
 ---
 
-### Phase 89: シグナル品質向上（即時着手・月額0円・1ヶ月）
+### Phase 89-β: シグナル品質向上（即時着手・月額0円・1ヶ月）
 
-最も費用対効果が高く、現スケール（証拠金50万円・月額予算900円）で確実に効果が出る項目。
+**前提**: Phase 89-α (GCP コスト削減) Stage 1+3 完了済・コスト目標 ¥1,500 以下達成見込み
+
+最も費用対効果が高く、現スケール（証拠金50万円・月額予算 Phase 89-α 後 ¥1,200-1,700）で確実に効果が出る項目。
 
 #### P1 必須項目
 
@@ -672,7 +801,7 @@ python3 scripts/live/standard_analysis.py --hours 24
 
 ---
 
-### Phase 90: 時系列予測モデル + センチメント（2-3ヶ月・月額~300円）
+### Phase 89-γ: 時系列予測モデル + センチメント（2-3ヶ月・月額~300円）
 
 Cloud Run 環境（メモリ512MB）で動作可能な軽量最新技術。
 
@@ -681,10 +810,9 @@ Cloud Run 環境（メモリ512MB）で動作可能な軽量最新技術。
    - 既存 ProductionEnsemble に4つ目モデルとして追加
    - 工数: 4週間、効果: リターン +5-10%
 
-2. **LLM センチメント統合（Claude API）**
-   - ニュース記事の DK-CoT
-   - 月額 100-300円程度（予算内）
-   - 工数: 3週間、効果: シグナル精度 +10-15%
+2. ~~**LLM センチメント統合（Claude API）**~~ ❌ **不採用確定（2026-05-15）**
+   - トークン課金（月 ¥30-150）の従量課金がユーザー方針「追加課金なし」と矛盾
+   - **代替: Phase 89-β で Fear & Greed Index（無料 API）採用済** → シグナル精度 +5-10% 確保
 
 3. **HMM レジーム検出（4 → 3-5状態細分化）**
    - hmmlearn (Python) で Gaussian HMM
@@ -703,7 +831,7 @@ Cloud Run 環境（メモリ512MB）で動作可能な軽量最新技術。
 
 ---
 
-### Phase 91: マーケットマイクロ構造（オーダーブック活用・月額0円）
+### Phase 89-δ: マーケットマイクロ構造（オーダーブック活用・月額0円）
 
 1. **WebSocket depth stream 接続**
    - Bitbank `wss://stream.bitbank.cc/...`
@@ -727,40 +855,39 @@ Cloud Run 環境（メモリ512MB）で動作可能な軽量最新技術。
 
 ---
 
-### Phase 92: 高度化・条件付き実装（3ヶ月以上・Phase 91 完了後再検討）
+### ~~Phase 90: 高度化・条件付き実装~~ ❌ **見送り確定（2026-05-15）**
 
-**条件**: Phase 91 完了時 Sharpe比 > 2.0、3ヶ月ライブ取引で信頼性確認
+**見送り理由**:
+1. **GPU 追加課金 月 ¥500-1,000**（ユーザー方針「追加課金なし」と矛盾）
+2. PPO 強化学習は**期待値プラス bot 前提** — 現状期待値マイナス bot で学習すると誤った報酬信号で**損失加速リスク**
+3. 元計画でも「Sharpe 比 > 2.0 達成後の条件付き再検討」と明記 → Phase 89-δ 完了後に Sharpe 比達成していれば再考の余地
 
-1. **PPO 強化学習試験運用**（条件付き）
-   - FinRL ベース、限定 5% capital
-   - GPU 月500-1000円コスト
-   - 工数: 6-8週間、効果: 期待 +3-5%（不確実）
+**見送りでカバーできない領域**:
+- PPO で +3-5% / マルチペア +2-5% / Transformer +α
+- これらは「年利 17-20%」を目指す上振れシナリオで、Phase 89-δ で「年利 15-18%」達成すれば十分
 
-2. **マルチペア展開**
-   - BTC/JPY → + ETH/JPY、ADA/JPY
-   - 工数: 4-6週間、効果: リターン +2-5%
-
-3. **Transformer 本格導入**
-   - Autoformer / Informer
-   - Cloud Functions GPU 移行検討
-   - 工数: 8-12週間、リスク: 高
+**将来再検討する場合の条件**（参考・現時点では未定）:
+- Phase 89-δ 完了時に Sharpe 比 > 2.0 達成
+- 3 ヶ月実機で月利 1.5% 以上の安定運用
+- 追加課金許容のユーザー判断
 
 ---
 
-### 段階的導入ロードマップ
+### 段階的導入ロードマップ（2026-05-15 確定版）
 
 | 期間 | Phase | 内容 | 期待 Sharpe | 期待年利 |
 |------|-------|------|------------|--------|
-| Week 1-3 | **Phase 87** | 決済システム再構築（C1-C5, H1-H10） | 維持 | 維持 |
-| Week 4-6 | **Phase 88** | 運用基盤・クリーンアップ（M1-M5, L1-L3） | 1.5 | 10% (現状) |
-| Month 2-3 | **Phase 89** | シグナル品質向上 | 1.8-2.0 | 12-13% |
-| Month 4-6 | **Phase 90** | N-BEATS + LLM + HMM | 2.0-2.3 | 14-16% |
-| Month 7-9 | **Phase 91** | WebSocket + Maker戦略 + クロスアセット | 2.2-2.5 | 15-18% |
-| Month 10+ | **Phase 92** | PPO / マルチペア / Transformer（条件付き） | 2.3-2.8 | 17-20% |
+| Week 1-3 | **Phase 87** ✅ | 決済システム再構築（C1-C5, H1-H10） | 維持 | 維持 |
+| Week 4-6 | **Phase 88** ✅ | 運用基盤・クリーンアップ（M1-M5, L1-L3） | 1.5 | 10% (現状) |
+| Week 7 | **Phase 89-α** ⏳ | GCP コスト削減 (Stage 1+3 デプロイ済・Stage 2 pending) | 維持 | 維持 |
+| Week 8-9 | **Phase 89-β** | シグナル品質向上 (Purged K-Fold + Fractional Kelly + OFI + Funding + **Fear & Greed**) | 1.8-2.0 | 12-13% |
+| Week 10-12 | **Phase 89-γ** | N-BEATS + HMM + VPIN（~~LLM~~ 削除済・Fear & Greed で代替） | 2.0-2.3 | 14-16% |
+| Week 13-15 | **Phase 89-δ** | WebSocket + Maker戦略 + BTC-ETH 相関 | 2.2-2.5 | **15-18%** ⭐ 最終目標 |
+| ~~Month 10+~~ | ~~**Phase 90**~~ | ~~PPO / マルチペア / Transformer~~ | - | **見送り確定** |
 
 ---
 
-### Phase 89-92 で参照すべきオープンソース・論文
+### Phase 89-β/γ/δ で参照すべきオープンソース・論文
 
 - **Marcos Lopez de Prado**「Advances in Financial Machine Learning」（Triple Barrier、Purged K-Fold の原典）
 - **N-BEATS**: https://github.com/philipperemy/n-beats（軽量、Cloud Run動作可）
@@ -775,27 +902,30 @@ Cloud Run 環境（メモリ512MB）で動作可能な軽量最新技術。
 
 ### Phase 87/88 への影響（保持すべき設計）
 
-Phase 89-92 で追加される機能は、Phase 87/88 の以下の設計を**前提**として動作:
+Phase 89-β/γ/δ で追加される機能は、Phase 87/88 の以下の設計を**前提**として動作:
 - **Registry Pattern**: 新戦略・新ML モデルの追加が容易
 - **thresholds.yaml 一元化**: 新特徴量・新閾値もここで管理
 - **メタラベリング品質フィルタ**: 新モデルもメタラベリングで品質保証
 - **Firestore 永続化（Phase 87 H4-5）**: HMM 状態、Drift Detection 結果も永続化
 - **SLMonitor（Phase 87 P0a）**: 新戦略でも CANCELED_UNFILLED 検出が自動
 
-→ Phase 87/88 を「土台」として、Phase 89-92 は段階的に積み上げる構造
+→ Phase 87/88 を「土台」として、Phase 89-β/γ/δ は段階的に積み上げる構造
 
 ---
 
-### Phase 89-92 期待効果サマリー
+### Phase 89-β/γ/δ 期待効果サマリー（2026-05-15 確定版）
 
-| 項目 | Phase 88完了時 | Phase 89完了時 | Phase 90完了時 | Phase 91完了時 |
-|------|--------------|--------------|--------------|--------------|
-| 年利 | 10% | 12-13% | 14-16% | 15-18% |
-| Sharpe比 | 1.5 | 1.8-2.0 | 2.0-2.3 | 2.2-2.5 |
-| Max DD | 8-10% | 6-7% | 5-6% | 4-5% |
-| 特徴量数 | 37 | 47-50 | 50-55 | 55-60 |
-| 月額追加コスト | 0円 | 0円 | ~300円 | ~300円 |
+| 項目 | Phase 88完了時 | Phase 89-α 完了時 | Phase 89-β 完了時 | Phase 89-γ 完了時 | Phase 89-δ 完了時 |
+|------|--------------|------------------|------------------|------------------|------------------|
+| 年利 | 10% | 維持 | 12-13% | 14-16% | **15-18%** ⭐ |
+| Sharpe比 | 1.5 | 維持 | 1.8-2.0 | 2.0-2.3 | 2.2-2.5 |
+| Max DD | 8-10% | 維持 | 6-7% | 5-6% | 4-5% |
+| 特徴量数 | 37 | 37 | 47-50 (+OFI+Funding+Fear&Greed) | 50-55 (+HMM+VPIN) | 55-60 (+OFI多層+BTC-ETH 相関) |
+| **月額追加コスト** | **¥0** | **¥0** | **¥0**（無料 API のみ） | **¥0**（LLM 不採用） | **¥0** |
+| GCP 月額 | ¥3,000 | ¥1,400-1,700 | 同 | 同 | 同 |
+
+**Phase 90 (PPO 強化学習) は見送り確定** — GPU 課金 ¥500-1,000/月 + 期待値マイナス bot で逆効果リスクのため
 
 ---
 
-**最終更新**: 2026年5月13日 - Phase 87/88 + Phase 89-92 中長期計画（Webリサーチ統合版）策定
+**最終更新**: 2026年5月15日 - Phase 89-α Stage 1+3 デプロイ完了 + Phase 89-β/γ/δ 中長期計画
