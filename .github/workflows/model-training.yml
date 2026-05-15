@@ -30,11 +30,15 @@ on:
   schedule:
     - cron: '0 9 * * 0'
 
+  # Phase 89-γ: ドリフト検出時の自動再学習トリガ
+  repository_dispatch:
+    types: [ml-drift-detected]
+
 env:
   PROJECT_ID: my-crypto-bot-project
   REGION: asia-northeast1
   SERVICE_NAME: crypto-bot-service-prod
-  MIN_FEATURE_COUNT: 50
+  MIN_FEATURE_COUNT: 55
 
 jobs:
   model-training:
@@ -42,8 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    # scheduleまたはworkflow_dispatchのみ実行（pushトリガー完全除外）
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Phase 89 C5: repository_dispatch (ml-drift-detected) も実行対象
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
 
     permissions:
       contents: write
@@ -86,7 +90,7 @@ jobs:
           DRY_RUN=${{ github.event.inputs.dry_run || 'false' }}
 
           echo "🎯 モデル学習開始（${N_TRIALS}試行）"
-          echo "📊 37特徴量・メタラベリング"
+          echo "📊 55特徴量・メタラベリング (Phase 89-δ)"
 
           if [ "$DRY_RUN" = "true" ]; then
             echo "🧪 ドライランモード"
@@ -108,6 +112,16 @@ jobs:
             echo "❌ モデル学習失敗"
             exit 1
           fi
+
+      - name: Train HMM Regime Classifier
+        if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
+        run: |
+          echo "🧬 Phase 89 C6: HMM レジーム分類器学習開始"
+          python3 scripts/ml/train_hmm_regime.py --days 180 --symbol BTC/JPY || {
+            echo "⚠️ HMM 学習失敗（fail-open 設計で本番は uniform 1/3 動作）"
+            exit 0
+          }
+          ls -lh models/regime/ 2>/dev/null || echo "models/regime/ 未生成"
 
       - name: Model Validation
         if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
@@ -149,11 +163,12 @@ jobs:
             exit 0
           fi
 
-          git add models/production/ models/training/
+          # Phase 89 C6: HMM regime model も commit に含める
+          git add models/production/ models/training/ models/regime/ 2>/dev/null || git add models/production/ models/training/
 
           git commit -m "feat: MLモデル自動更新（週次再学習）" \
             -m "" \
-            -m "- 37特徴量メタラベリングML再学習" \
+            -m "- 55特徴量メタラベリングML再学習 (Phase 89-δ)" \
             -m "- 3クラス分類（SELL/HOLD/BUY）・閾値±0.5%" \
             -m "- Optuna最適化（${{ github.event.inputs.n_trials || '50' }}試行）" \
             -m "" \

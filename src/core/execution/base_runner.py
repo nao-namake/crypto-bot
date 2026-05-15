@@ -145,11 +145,34 @@ class BaseRunner(ABC):
             self.logger.error(f"❌ 最終統計保存エラー: {e}")
 
     async def _cleanup_resources(self):
-        """リソースクリーンアップ（共通処理）"""
+        """リソースクリーンアップ（共通処理）
+
+        Phase 89 H11: WebSocket クライアントの切断 + cross_asset history 永続化.
+        各サブクラスは super()._cleanup_resources() を呼んだ後に固有処理を行う。
+        """
         try:
-            # 共通リソースクリーンアップ
-            # （各サブクラスで必要に応じてオーバーライド）
-            pass
+            # Phase 89 H11: WebSocket クライアントを切断（SIGTERM 時のリソースリーク防止）
+            try:
+                bitbank_client = getattr(
+                    self.orchestrator.execution_service, "bitbank_client", None
+                )
+                if bitbank_client is not None and hasattr(bitbank_client, "disconnect_websocket"):
+                    await bitbank_client.disconnect_websocket()
+                    self.logger.info("✅ Phase 89 H11: WebSocket クライアント切断完了")
+            except Exception as ws_err:
+                self.logger.warning(f"Phase 89 H11: WebSocket 切断失敗（無視して続行）: {ws_err}")
+
+            # Phase 89 H3: cross_asset history を pickle 保存（再起動跨ぎ保持）
+            try:
+                feature_service = getattr(self.orchestrator, "feature_service", None)
+                if feature_service is not None and hasattr(
+                    feature_service, "save_cross_asset_history"
+                ):
+                    feature_service.save_cross_asset_history()
+            except Exception as save_err:
+                self.logger.warning(
+                    f"Phase 89 H3: cross_asset history 保存失敗（無視して続行）: {save_err}"
+                )
 
         except Exception as e:
             self.logger.error(f"❌ リソースクリーンアップエラー: {e}")

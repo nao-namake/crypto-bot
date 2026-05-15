@@ -258,12 +258,18 @@ class BacktestRunner(BaseRunner):
         try:
             import time
 
+            from ...data.external_api_client import get_external_api_client
             from ...features.feature_generator import FeatureGenerator
 
             self.logger.warning("🚀 特徴量事前計算開始（Phase 35最適化）")
             start_time = time.time()
 
-            feature_gen = FeatureGenerator()
+            # Phase 89 C2: backtest でも external_api_client / regime_classifier を DI
+            # （live と backtest の特徴量値乖離を防止）
+            feature_gen = FeatureGenerator(
+                external_api_client=get_external_api_client(),
+                regime_classifier=getattr(self, "regime_classifier", None),
+            )
 
             for timeframe, df in self.csv_data.items():
                 if df.empty:
@@ -338,7 +344,13 @@ class BacktestRunner(BaseRunner):
                 self.logger.warning("⚠️ メインタイムフレームデータが空です")
                 return
 
-            feature_gen = FeatureGenerator()
+            # Phase 89 C2: backtest でも external_api_client / regime_classifier を DI
+            from ...data.external_api_client import get_external_api_client
+
+            feature_gen = FeatureGenerator(
+                external_api_client=get_external_api_client(),
+                regime_classifier=getattr(self, "regime_classifier", None),
+            )
             total_rows = len(main_df)
 
             # 戦略シグナル特徴量の初期化（Phase 51.7 Day 7: 6戦略・設定駆動型）

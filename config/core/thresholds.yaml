@@ -12,7 +12,11 @@ mode_balances:
     description: バックテスト用初期残高（50万円）
 exchange:
   name: bitbank
-  symbol: BTC/JPY
+  symbol: BTC/JPY                # alias（既存 70 箇所参照との後方互換）
+  # Phase 89-δ: マルチペア基盤の最小実装（primary_symbol を新設・既存 symbol は維持）
+  primary_symbol: BTC/JPY
+  auxiliary_symbols:
+    - ETH/JPY                    # BTC-ETH 相関特徴量用
   leverage: 1.0
   rate_limit_ms: 35000              # 内部 rate limiter のバースト保護間隔（35秒）
   # Phase 88 M2: ccxt の Bitbank rateLimit パラメータ（リクエスト間最低待機 ms）。
@@ -36,6 +40,20 @@ data:
     max_size: 1000
     disk_cache: true
     retention_days: 90
+features:
+  cache:
+    enabled: true
+    max_size: 200
+    ttl_seconds: 600
+    log_interval_cycles: 100
+  # Phase 89-β: external features (Funding Rate / Fear & Greed / Macro)
+  external_api:
+    enabled: true
+    binance_funding_url: https://fapi.binance.com/fapi/v1/fundingRate
+    fear_greed_url: https://api.alternative.me/fng/
+    timeout_seconds: 5
+    cache_ttl_seconds: 300
+    fallback_on_error: 0.0
 cloud_run:
   memory: 1Gi
   cpu: 1
@@ -156,6 +174,14 @@ ml:
   # Phase 87 Stage 2-R4: ML サーキットブレーカー閾値（C4 MLHealthMonitor）
   health:
     consecutive_failure_threshold: 3  # 連続 N 回 predict/predict_proba 失敗で EMERGENCY_STOP 候補
+  # Phase 89-β / 89 H9: 特徴量分布 Drift 検出（KS テスト + Bonferroni 補正）
+  drift:
+    window_size: 200                    # reference 分布のサンプル数
+    ks_alpha: 0.01                      # 全体有意水準（Bonferroni で 1/n に補正される）
+    consecutive_threshold: 3            # 連続何サイクル drift で emergency_stop 候補
+    retrain_cooldown_hours: 24          # Auto Retraining のクールダウン（Phase 89-γ H10）
+    significant_feature_min: 3          # Bonferroni 補正後、何個の特徴量が有意なら drift 判定
+    enable_auto_retraining: true        # drift 連続検出時に repository_dispatch を発火するか
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3
@@ -552,6 +578,12 @@ ensemble:
   max_nan_ratio_target: 0.3
   min_training_samples: 50
   stacking_enabled: false
+  # Phase 89-γ: 4 モデル化（N-BEATS 追加）
+  weights:
+    lightgbm: 0.34
+    xgboost: 0.34
+    random_forest: 0.17
+    nbeats: 0.15
   meta_learner:
     type: lightgbm
     params:
@@ -632,6 +664,15 @@ risk:
     spread_critical_threshold: 0.005
     api_latency_warning: 5.0
     api_latency_critical: 10.0
+  # Phase 89-β: Fractional Kelly（連敗段階別 multiplier）
+  kelly_criterion:
+    safety_factor: 0.7
+    dynamic_safety_multiplier:
+      loss_0: 1.0   # 0連敗: base safety_factor (0.7) のまま
+      loss_3: 0.7   # 3連敗: 0.7 × 0.7 = 0.49
+      loss_5: 0.4   # 5連敗: 0.7 × 0.4 = 0.28
+      loss_7: 0.2   # 7連敗: 0.7 × 0.2 = 0.14
+      loss_8: 0.0   # 8連敗以上: 取引停止
   emergency_ratio: 0.005
   emergency_stop_ratio: 0.98
   fallback_max_ratio: 0.1

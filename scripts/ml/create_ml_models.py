@@ -34,7 +34,10 @@ from lightgbm import LGBMClassifier
 from optuna.samplers import TPESampler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from sklearn.model_selection import TimeSeriesSplit
+from sklearn.model_selection import TimeSeriesSplit  # noqa: F401  # Phase 89-β: kept for backward compatibility
+
+# Phase 89-β: Purged K-Fold（時系列リーク防止・embargo 付き）
+from src.ml.cv.purged_kfold import PurgedKFold
 from xgboost import XGBClassifier
 
 # プロジェクトルートをPythonパスに追加（scripts/ml -> bot）
@@ -216,6 +219,36 @@ class NewSystemMLModelCreator:
             "xgboost": XGBClassifier(**xgb_params),
             "random_forest": RandomForestClassifier(**rf_params),
         }
+
+        # Phase 89 C4: N-BEATS Predictor を 4 モデル目として組み込み
+        # （ensemble.weights["nbeats"]=0.15 が機能するための前提）
+        try:
+            from src.ml.nbeats import has_torch
+            from src.ml.nbeats_predictor import NBeatsPredictor
+
+            if has_torch():
+                self.models["nbeats"] = NBeatsPredictor(
+                    n_features=None,  # fit 時に検出
+                    n_classes=self.n_classes,
+                    n_stacks=2,
+                    n_blocks_per_stack=3,
+                    hidden_size=64,
+                    learning_rate=1e-3,
+                    n_epochs=50,
+                    batch_size=64,
+                    device="cpu",  # Cloud Run は CPU only
+                    random_state=42,
+                )
+                self.logger.info("✅ Phase 89 C4: N-BEATS Predictor 追加（4 モデル ensemble）")
+            else:
+                self.logger.warning(
+                    "Phase 89 C4: torch 未インストール → N-BEATS スキップ "
+                    "(3 モデル ensemble で続行・重み 0.85 正規化)"
+                )
+        except Exception as nbeats_err:
+            self.logger.warning(
+                f"Phase 89 C4: N-BEATS 初期化失敗（3 モデルで続行）: {nbeats_err}"
+            )
 
     async def _load_real_historical_data(self, days: int) -> pd.DataFrame:
         """
@@ -746,8 +779,8 @@ class NewSystemMLModelCreator:
 
         model = LGBMClassifier(**params)
 
-        # TimeSeriesSplit CV
-        tscv = TimeSeriesSplit(n_splits=3)
+        # Phase 89-β: Purged K-Fold（embargo 付き・時系列リーク防止）
+        tscv = PurgedKFold(n_splits=3, embargo_pct=0.01)
         scores = []
         for train_idx, val_idx in tscv.split(X_train):
             X_cv_train = X_train.iloc[train_idx]
@@ -795,8 +828,8 @@ class NewSystemMLModelCreator:
 
         model = XGBClassifier(**params)
 
-        # TimeSeriesSplit CV
-        tscv = TimeSeriesSplit(n_splits=3)
+        # Phase 89-β: Purged K-Fold（embargo 付き・時系列リーク防止）
+        tscv = PurgedKFold(n_splits=3, embargo_pct=0.01)
         scores = []
         for train_idx, val_idx in tscv.split(X_train):
             X_cv_train = X_train.iloc[train_idx]
@@ -828,8 +861,8 @@ class NewSystemMLModelCreator:
 
         model = RandomForestClassifier(**params)
 
-        # TimeSeriesSplit CV
-        tscv = TimeSeriesSplit(n_splits=3)
+        # Phase 89-β: Purged K-Fold（embargo 付き・時系列リーク防止）
+        tscv = PurgedKFold(n_splits=3, embargo_pct=0.01)
         scores = []
         for train_idx, val_idx in tscv.split(X_train):
             X_cv_train = X_train.iloc[train_idx]
@@ -965,9 +998,9 @@ class NewSystemMLModelCreator:
                     self.models[model_name].set_params(**optimal_params[model_name])
                     self.logger.info(f"✅ {model_name}: 最適パラメータ適用完了")
 
-        # Phase 39.3: TimeSeriesSplit n_splits=5 for Cross Validation
-        tscv = TimeSeriesSplit(n_splits=5)
-        self.logger.info("📊 Phase 39.3: TimeSeriesSplit n_splits=5 for CV")
+        # Phase 89-β: PurgedKFold n_splits=5 + embargo 1%（時系列リーク防止）
+        tscv = PurgedKFold(n_splits=5, embargo_pct=0.01)
+        self.logger.info("📊 Phase 89-β: PurgedKFold n_splits=5 + embargo 1% for CV")
 
         # Phase 39.4: XGBoost scale_pos_weight動的設定
         if self.n_classes == 2:

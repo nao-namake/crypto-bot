@@ -152,6 +152,25 @@ class TradingOrchestrator:
             # 各サービスの健全性チェック（軽量）
             await self.health_checker.check_all_services()
 
+            # Phase 89 C3: live / paper モードで WebSocket クライアントを起動（fail-open）
+            if self.config.mode in ("live", "paper"):
+                bitbank_client = getattr(self.execution_service, "bitbank_client", None)
+                if bitbank_client is not None and hasattr(bitbank_client, "connect_websocket"):
+                    try:
+                        connected = await bitbank_client.connect_websocket()
+                        if connected:
+                            self.logger.info(
+                                "✅ Phase 89-δ WebSocket 接続タスク起動完了（fail-open）"
+                            )
+                        else:
+                            self.logger.warning(
+                                "Phase 89-δ WebSocket 起動 False 戻り値 - REST 経路で運用継続"
+                            )
+                    except Exception as ws_err:
+                        self.logger.warning(
+                            f"Phase 89-δ WebSocket 接続失敗（REST 経路で続行）: {ws_err}"
+                        )
+
             self._initialized = True
             self.logger.info("🎉 TradingOrchestrator初期化確認完了")
             return True
@@ -368,9 +387,40 @@ async def create_trading_orchestrator(
         bitbank_client = BitbankClient()
         data_service = DataPipeline(client=bitbank_client)
 
-        # Phase 28-29最適化: 特徴量サービス（統合アダプター）
-        # FeatureGenerator統合クラスを使用
-        feature_service = FeatureGenerator()
+        # Phase 89 C1: external_api_client / regime_classifier を生成して DI
+        from ...data.external_api_client import get_external_api_client
+        from ..services.market_regime_classifier import MarketRegimeClassifier
+
+        external_api_client = get_external_api_client()
+
+        # Phase 89 C6: HMM レジーム分類器のオプショナル load
+        hmm_classifier = None
+        try:
+            from ..services.hmm_regime_classifier import HMMRegimeClassifier, has_hmmlearn
+            from pathlib import Path
+
+            hmm_path = Path("models/regime/hmm_3state.pkl")
+            if has_hmmlearn() and hmm_path.exists():
+                hmm_classifier = HMMRegimeClassifier()
+                hmm_classifier.load(str(hmm_path))
+                logger.info(f"✅ Phase 89 C6: HMM レジーム分類器 load 成功 ({hmm_path})")
+            elif not has_hmmlearn():
+                logger.info("Phase 89 C6: hmmlearn 未インストール → HMM 確率 uniform 1/3 で運用")
+            else:
+                logger.info(
+                    f"Phase 89 C6: HMM model 未存在 ({hmm_path}) → uniform 1/3 で運用。"
+                    f"scripts/ml/train_hmm_regime.py で学習可能。"
+                )
+        except Exception as hmm_err:
+            logger.warning(f"Phase 89 C6: HMM load 失敗（uniform 1/3 で fallback）: {hmm_err}")
+
+        market_regime_classifier = MarketRegimeClassifier(hmm_classifier=hmm_classifier)
+
+        # Phase 89 C1: FeatureGenerator に DI（永続 fail-open を解消）
+        feature_service = FeatureGenerator(
+            external_api_client=external_api_client,
+            regime_classifier=market_regime_classifier,
+        )
 
         # Phase 51.5-B: 動的戦略管理システム（StrategyLoader使用）
         strategy_service = StrategyManager()
@@ -462,6 +512,16 @@ async def create_trading_orchestrator(
             risk_service=risk_service,
             execution_service=execution_service,
         )
+
+        # Phase 89 C1: trading_cycle_manager 内の self.market_regime_classifier を
+        #   orchestrator スコープのインスタンス（HMM 込み）で上書き注入
+        try:
+            tcm = getattr(orchestrator, "trading_cycle_manager", None)
+            if tcm is not None and hasattr(tcm, "market_regime_classifier"):
+                tcm.market_regime_classifier = market_regime_classifier
+                logger.info("✅ Phase 89 C1: trading_cycle_manager の MarketRegimeClassifier 上書き注入")
+        except Exception as inject_err:
+            logger.warning(f"Phase 89 C1: regime_classifier 注入失敗（既存自己生成で続行）: {inject_err}")
 
         logger.info("🎉 TradingOrchestrator依存性組み立て完了")
         return orchestrator

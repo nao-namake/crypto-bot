@@ -3,7 +3,9 @@
 # Crypto Bot v61 - 本番環境最小依存関係（2026年1月更新）
 # Python 3.13対応・JST対応
 # Phase 61: 戦略分析・コードベース整理・レジーム判定最適化
+# Phase 89 H5: torch CPU wheel を強制（CUDA wheel で Cloud Run コンテナ肥大化回避）
 # ====================================================================
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 # --- 数値計算・データ処理基盤 ----------------------------------------
 numpy>=2.0.0            # 数値計算基盤・Python3.13対応・プリビルドwheel利用・高速インストール
@@ -38,6 +40,13 @@ pandas-ta>=0.3.14b0     # テクニカル指標計算・TA-Lib代替・本番必
 # --- 機械学習モデル（本番環境必須・互換性保証版）---------------------
 lightgbm>=4.5.0,<5.0.0  # LightGBM・アンサンブル学習・Python3.13対応・後方互換保証
 xgboost>=3.0.0,<4.0.0   # XGBoost・アンサンブル学習・Python3.13対応・既存モデル互換性保証
+
+# --- Phase 89-γ: N-BEATS + HMM レジーム検出 ----------------------------
+torch>=2.0.0,<3.0.0     # PyTorch CPU・N-BEATS 時系列予測モデル・Phase 89-γ
+hmmlearn>=0.3.0,<1.0.0  # Gaussian HMM レジーム検出・Phase 89-γ
+
+# --- Phase 89-δ: WebSocket Public Stream ------------------------------
+websockets>=12.0,<13.0  # bitbank Public WebSocket API 接続・Phase 89-δ
 
 # --- Phase 39.4-39.5: ML信頼度向上・最適化 --------------------------------
 imbalanced-learn>=0.11.0  # SMOTEオーバーサンプリング・クラス不均衡対策・Phase 39.4

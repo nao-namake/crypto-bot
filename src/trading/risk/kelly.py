@@ -90,6 +90,52 @@ class KellyCriterion:
         self.trade_history: List[TradeResult] = []
         self.logger = get_logger()
 
+    # Phase 89-β: Fractional Kelly 動的安全係数
+    def _get_dynamic_safety_factor(self, consecutive_losses: int) -> float:
+        """
+        連敗段階に応じた動的安全係数を返す（Phase 89-β: Fractional Kelly）
+
+        既存 safety_factor (config: risk.kelly_criterion.safety_factor, default 0.7) を base に、
+        連敗回数に応じて追加で縮小する multiplier を乗算した最終 safety_factor を返す。
+
+        連敗段階別 multiplier（thresholds.yaml で table 化）:
+            0連敗: 1.0    （base のまま）
+            3連敗: 0.7    （やや縮小）
+            5連敗: 0.4    （大きく縮小）
+            7連敗: 0.2    （極小）
+            8連敗以上: 0.0（取引停止）
+
+        Args:
+            consecutive_losses: 連敗回数
+
+        Returns:
+            最終 safety_factor (= base × multiplier、0.0-1.0 にクリップ)
+        """
+        table = get_threshold(
+            "risk.kelly_criterion.dynamic_safety_multiplier",
+            {"loss_0": 1.0, "loss_3": 0.7, "loss_5": 0.4, "loss_7": 0.2, "loss_8": 0.0},
+        )
+
+        if consecutive_losses >= 8:
+            multiplier = table.get("loss_8", 0.0)
+        elif consecutive_losses >= 7:
+            multiplier = table.get("loss_7", 0.2)
+        elif consecutive_losses >= 5:
+            multiplier = table.get("loss_5", 0.4)
+        elif consecutive_losses >= 3:
+            multiplier = table.get("loss_3", 0.7)
+        else:
+            multiplier = table.get("loss_0", 1.0)
+
+        final = max(0.0, min(1.0, self.safety_factor * multiplier))
+        if consecutive_losses >= 3:
+            self.logger.info(
+                f"Phase 89-β Fractional Kelly: 連敗={consecutive_losses}回 → "
+                f"safety_factor={self.safety_factor:.3f} × multiplier={multiplier:.3f} "
+                f"= {final:.3f}"
+            )
+        return final
+
     def add_trade_result(
         self,
         profit_loss: float,
@@ -164,6 +210,7 @@ class KellyCriterion:
         lookback_days: Optional[int] = None,
         strategy_filter: Optional[str] = None,
         reference_timestamp: Optional[datetime] = None,
+        consecutive_losses: int = 0,
     ) -> Optional[KellyCalculationResult]:
         """
         取引履歴からKelly値を計算
@@ -231,8 +278,9 @@ class KellyCriterion:
             # Kelly値計算
             kelly_fraction = self.calculate_kelly_fraction(win_rate, avg_win, avg_loss)
 
-            # 安全係数適用
-            safety_adjusted = kelly_fraction * self.safety_factor
+            # 安全係数適用（Phase 89-β: 連敗段階で動的縮小）
+            effective_safety = self._get_dynamic_safety_factor(consecutive_losses)
+            safety_adjusted = kelly_fraction * effective_safety
 
             # 最大ポジション制限適用
             recommended_size = min(safety_adjusted, self.max_position_ratio)
@@ -268,6 +316,7 @@ class KellyCriterion:
         strategy_name: str = "default",
         expected_return: Optional[float] = None,
         reference_timestamp: Optional[datetime] = None,
+        consecutive_losses: int = 0,
     ) -> float:
         """
         ML予測信頼度を考慮した最適ポジションサイズ計算
@@ -277,6 +326,7 @@ class KellyCriterion:
             strategy_name: 戦略名
             expected_return: 期待リターン（Noneの場合は履歴ベース）
             reference_timestamp: 基準時刻（バックテスト用、Noneの場合は現在時刻）
+            consecutive_losses: 連敗回数（Phase 89-β: Fractional Kelly 動的縮小用）
 
         Returns:
             推奨ポジションサイズ（最大3%制限済み）
@@ -286,13 +336,16 @@ class KellyCriterion:
             kelly_result = self.calculate_from_history(
                 strategy_filter=strategy_name,
                 reference_timestamp=reference_timestamp,
+                consecutive_losses=consecutive_losses,
             )
 
             if kelly_result is None:
                 # Phase 55.3: Kelly履歴不足時は合理的な初期値を使用
-                # 問題: min_trade_size(0.0001 BTC)を使うとmin()で採用され、ポジションが極小化
-                # 解決: initial_position_size(0.01 BTC)を使用し、動的サイジングがボトルネックになるように
+                # Phase 89 H7: fallback 経路にも Fractional Kelly safety_factor を適用
+                #   （連敗 8 回でも履歴不足なら通常サイズで取引してしまう抜け穴を塞ぐ）
                 trade_history_count = len(self.trade_history)
+                fallback_safety = self._get_dynamic_safety_factor(consecutive_losses)
+                min_trade_size = get_threshold("production.min_order_size", 0.0001)
 
                 if trade_history_count < self.min_trades_for_kelly:
                     # Phase 56: 履歴不足時は設定値を使用（フォールバック0.0005に修正）
@@ -300,21 +353,33 @@ class KellyCriterion:
 
                     # Phase 57.7: max_order_size・max_position_ratio両方で制限
                     max_order_size = get_threshold("production.max_order_size", 0.03)
+                    # Phase 89 H7: 連敗段階での safety_factor で縮小（0 連敗=1.0, 8連敗=0.0）
+                    adjusted_size = max(fixed_initial_size * fallback_safety, 0.0)
                     fixed_initial_size = min(
-                        fixed_initial_size, max_order_size, self.max_position_ratio
+                        adjusted_size, max_order_size, self.max_position_ratio
                     )
 
-                    self.logger.info(
-                        f"Kelly履歴不足({trade_history_count}<{self.min_trades_for_kelly})"
-                        f"、初期固定サイズ使用: {fixed_initial_size:.6f} BTC"
-                    )
+                    if consecutive_losses >= 3:
+                        self.logger.warning(
+                            f"Phase 89 H7: Kelly履歴不足({trade_history_count}<"
+                            f"{self.min_trades_for_kelly})・連敗={consecutive_losses}回 → "
+                            f"safety_factor={fallback_safety:.2f} 適用, "
+                            f"サイズ={fixed_initial_size:.6f} BTC"
+                        )
+                    else:
+                        self.logger.info(
+                            f"Kelly履歴不足({trade_history_count}<{self.min_trades_for_kelly})"
+                            f"、初期固定サイズ使用: {fixed_initial_size:.6f} BTC"
+                        )
                     return fixed_initial_size
                 else:
                     # 取引履歴があるがKelly計算エラーの場合
                     # Phase 56: フォールバック0.0005に修正
+                    # Phase 89 H7: safety_factor も乗算
                     base_initial_size = get_threshold("trading.initial_position_size", 0.0005)
-                    min_trade_size = get_threshold("production.min_order_size", 0.0001)
-                    conservative_size = max(base_initial_size * ml_confidence, min_trade_size)
+                    conservative_size = max(
+                        base_initial_size * ml_confidence * fallback_safety, min_trade_size
+                    )
 
                     # max_order_size制限チェック
                     # Phase 56.3: ログレベルをERROR→DEBUGに変更（正常動作のため）
@@ -327,7 +392,8 @@ class KellyCriterion:
                         conservative_size = max_order_size
 
                     self.logger.warning(
-                        f"Kelly計算エラー、保守的サイズ使用: {conservative_size:.6f}"
+                        f"Kelly計算エラー、保守的サイズ使用: {conservative_size:.6f} "
+                        f"(連敗={consecutive_losses}回, safety={fallback_safety:.2f})"
                     )
                     return min(conservative_size, self.max_position_ratio)
 

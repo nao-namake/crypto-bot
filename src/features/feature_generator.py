@@ -5,6 +5,7 @@ TechnicalIndicators、MarketAnomalyDetector、FeatureServiceAdapterを
 1つのクラスに統合。設定駆動型特徴量生成。
 """
 
+import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -14,11 +15,15 @@ from ..core.config import get_anomaly_config
 
 # Phase 38.4: 特徴量定義一元化（feature_managerから取得）
 from ..core.config.feature_manager import get_feature_categories, get_feature_names
+from ..core.config.threshold_manager import get_threshold
 from ..core.exceptions import DataProcessingError
 from ..core.logger import CryptoBotLogger, get_logger
 
 # Phase 87 H7: 共有定数（silent failure 防止）
 from .constants import EXPECTED_FEATURE_COUNT, STRATEGY_COUNT
+
+# Phase 89-α Stage 2: 特徴量キャッシュ
+from .feature_cache import FeatureCache, get_feature_cache
 
 # 特徴量リスト（一元化対応）
 OPTIMIZED_FEATURES = get_feature_names()
@@ -43,25 +48,112 @@ class FeatureGenerator:
     - NaN時は0埋め、strategy_signals=None時も6個を0.0で生成
     """
 
-    def __init__(self, lookback_period: Optional[int] = None) -> None:
+    # Phase 89 H3: cross_asset history を Cloud Run 再起動跨ぎで保持するパス
+    CROSS_ASSET_HISTORY_PATH = "data/runtime_state/cross_asset_history.pkl"
+
+    def __init__(
+        self,
+        lookback_period: Optional[int] = None,
+        external_api_client: Optional[Any] = None,
+        regime_classifier: Optional[Any] = None,
+    ) -> None:
         """
         初期化
 
         Args:
             lookback_period: 異常検知の参照期間
+            external_api_client: Phase 89-β: 外部 API クライアント（Funding/Fear&Greed 取得用）.
+                None の場合、外部 API 派生特徴量は 0 fill / fallback で生成される。
+            regime_classifier: Phase 89-γ: MarketRegimeClassifier（HMM 確率特徴量取得用）.
+                None の場合、HMM 状態確率は uniform (1/3) で生成される。
         """
         self.logger = get_logger()
         self.lookback_period = lookback_period or get_anomaly_config(
             "spike_detection.lookback_period", 20
         )
         self.computed_features = set()
+        # Phase 89-β: 外部 API クライアント（DI 経由・後方互換のため None 許容）
+        self.external_api_client = external_api_client
+        # Phase 89-γ: MarketRegimeClassifier（HMM 確率特徴量取得用）
+        self.regime_classifier = regime_classifier
+        # Phase 89-δ: ETH/JPY 価格履歴（96 サンプル蓄積で 24h pearson 計算）
+        from collections import deque
+
+        self._eth_history: deque = deque(maxlen=96)
+        self._btc_history: deque = deque(maxlen=96)
+
+        # Phase 89 H8: silent fallback を観測可能にする警告
+        if external_api_client is None:
+            self.logger.warning(
+                "⚠️ Phase 89-β/H8: external_api_client 未設定 → "
+                "funding_rate_8h_avg / fear_greed_index / eth_jpy_last は 0 fill 動作"
+            )
+        if regime_classifier is None:
+            self.logger.warning(
+                "⚠️ Phase 89-γ/H8: regime_classifier 未設定 → "
+                "hmm_state_bear_prob / hmm_state_bull_prob は uniform (1/3) 動作"
+            )
+
+        # Phase 89 H3: cross_asset history を pickle から復元（Cloud Run 再起動対応）
+        self._load_cross_asset_history()
+
+    def _load_cross_asset_history(self) -> None:
+        """Phase 89 H3: cross_asset history を pickle から復元（再起動跨ぎ保持）."""
+        try:
+            from pathlib import Path
+            import pickle
+
+            path = Path(self.CROSS_ASSET_HISTORY_PATH)
+            if not path.exists():
+                return
+            with path.open("rb") as f:
+                state = pickle.load(f)
+            btc_data = state.get("btc_history") or []
+            eth_data = state.get("eth_history") or []
+            self._btc_history.extend(btc_data[-96:])
+            self._eth_history.extend(eth_data[-96:])
+            self.logger.info(
+                f"Phase 89 H3: cross_asset history 復元 - "
+                f"btc={len(self._btc_history)}, eth={len(self._eth_history)} サンプル"
+            )
+        except Exception as e:
+            # 復元失敗は致命的でない（空 deque で開始するだけ）
+            self.logger.warning(f"Phase 89 H3: cross_asset history 復元失敗（空で開始）: {e}")
+
+    def save_cross_asset_history(self) -> None:
+        """Phase 89 H3: cross_asset history を pickle に保存（shutdown hook で呼び出し）.
+
+        Public method: orchestrator / runner の cleanup から呼ばれる。
+        失敗は warning のみで例外を投げない（shutdown 経路を妨げない）。
+        """
+        try:
+            from datetime import datetime, timezone
+            from pathlib import Path
+            import pickle
+
+            path = Path(self.CROSS_ASSET_HISTORY_PATH)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "btc_history": list(self._btc_history),
+                "eth_history": list(self._eth_history),
+                "saved_at": datetime.now(timezone.utc).isoformat(),
+            }
+            with path.open("wb") as f:
+                pickle.dump(payload, f)
+            self.logger.info(
+                f"Phase 89 H3: cross_asset history 保存完了 - "
+                f"btc={len(self._btc_history)}, eth={len(self._eth_history)} サンプル"
+            )
+        except Exception as e:
+            self.logger.warning(f"Phase 89 H3: cross_asset history 保存失敗: {e}")
 
     def _run_feature_pipeline(
         self,
         result_df: pd.DataFrame,
         strategy_signals: Optional[Dict[str, Dict[str, float]]] = None,
+        external_values: Optional[Dict[str, float]] = None,
     ) -> pd.DataFrame:
-        """共通特徴量生成パイプライン（37特徴量（Phase 77））
+        """共通特徴量生成パイプライン（37特徴量（Phase 77）→ 47特徴量（Phase 89-β））
 
         Phase R-Ha: 旧 L73 で `_add_strategy_signal_features(result_df, strategy_signals)` を
         無条件に呼んでいたが、本パイプラインは常に strategy_signals=None で呼ばれるため
@@ -69,6 +161,9 @@ class FeatureGenerator:
         Phase 77 設計通り、戦略シグナル特徴量の付与は本パイプラインの責務ではなく、
         trading_cycle_manager._add_strategy_signal_features() がパイプライン完了後に
         正しい strategy_signals 付きで実行する。本パイプラインからは呼ばない。
+
+        Phase 89-β: 外部 API 派生 +10 特徴量（funding/sentiment/microstructure/macro_lite）.
+        external_values が None の場合は 0 fill / fallback で生成される（fail-open 設計）。
         """
         self._validate_required_columns(result_df)
         result_df = self._generate_basic_features(result_df)
@@ -79,8 +174,239 @@ class FeatureGenerator:
         result_df = self._generate_interaction_features(result_df)
         result_df = self._generate_time_features(result_df)
         # Phase R-Ha: 旧呼び出しを削除。strategy_signals 引数は API 互換性のため残置（無視）
+        # Phase 89-β: 外部 API 派生特徴量 (+10)
+        result_df = self._add_external_features(result_df, external_values)
+        # Phase 89-γ: VPIN + HMM 状態確率 (+5)
+        result_df = self._add_microstructure_advanced_features(result_df)
+        # Phase 89-δ: BTC-ETH 相関 (+3)
+        result_df = self._add_cross_asset_features(result_df, external_values)
         result_df = self._handle_nan_values(result_df)
         return result_df
+
+    def _default_external_values(self) -> Dict[str, float]:
+        """Phase 89-β/δ: 外部 API 取得失敗時/未設定時の fallback 値."""
+        return {
+            "funding_rate_8h_avg": 0.0,
+            "fear_greed_index": 0.0,
+            # Phase 89-δ: ETH ticker fallback
+            "eth_jpy_last": 0.0,
+            "eth_jpy_volume": 0.0,
+        }
+
+    async def _fetch_external_values(self) -> Dict[str, float]:
+        """Phase 89-β/δ: external_api_client から非同期取得。失敗時 fallback."""
+        if self.external_api_client is None:
+            return self._default_external_values()
+        try:
+            funding = await self.external_api_client.fetch_funding_rate()
+            fear_greed = await self.external_api_client.fetch_fear_greed_index()
+            result = {
+                "funding_rate_8h_avg": funding,
+                "fear_greed_index": fear_greed,
+                "eth_jpy_last": 0.0,
+                "eth_jpy_volume": 0.0,
+            }
+            # Phase 89-δ: ETH/JPY ticker（メソッドがあれば取得・無ければスキップ）
+            if hasattr(self.external_api_client, "fetch_eth_jpy_ticker"):
+                try:
+                    eth = await self.external_api_client.fetch_eth_jpy_ticker()
+                    result["eth_jpy_last"] = float(eth.get("last", 0.0) or 0.0)
+                    result["eth_jpy_volume"] = float(eth.get("volume", 0.0) or 0.0)
+                except Exception as e:
+                    self.logger.warning(f"Phase 89-δ ETH ticker 取得失敗 → 0 fill: {e}")
+            return result
+        except Exception as e:
+            self.logger.warning(f"Phase 89-β/δ 外部 API 取得失敗 → fallback: {e}")
+            return self._default_external_values()
+
+    def _add_external_features(
+        self,
+        df: pd.DataFrame,
+        external_values: Optional[Dict[str, float]] = None,
+    ) -> pd.DataFrame:
+        """Phase 89-β: 外部 API 派生 +10 特徴量を追加.
+
+        - funding (1): funding_rate_8h_avg
+        - sentiment (1): fear_greed_index
+        - microstructure (3): ofi_top5 / bid_ask_imbalance / depth_ratio
+          ※ Phase 89-δ で WebSocket と同時に実数化。本 Phase は 0 fill (depth_ratio は neutral 1.0)
+        - macro_lite (5): btc_dominance_change / usdjpy_change / nikkei_change_proxy /
+                          btc_realized_vol_24h / btc_funding_premium
+          ※ btc_realized_vol_24h は close 列から計算可能、他は外部依存のため 0 fill
+        """
+        if external_values is None:
+            external_values = self._default_external_values()
+
+        funding = external_values.get("funding_rate_8h_avg", 0.0)
+        fear_greed = external_values.get("fear_greed_index", 0.0)
+
+        # funding / sentiment
+        df["funding_rate_8h_avg"] = funding
+        df["fear_greed_index"] = fear_greed
+
+        # microstructure (Phase 89-δ で WebSocket と同時に本実装)
+        df["ofi_top5"] = 0.0
+        df["bid_ask_imbalance"] = 0.0
+        df["depth_ratio"] = 1.0  # neutral（板の対称性 1.0）
+
+        # macro_lite
+        df["btc_dominance_change"] = 0.0
+        df["usdjpy_change"] = 0.0
+        df["nikkei_change_proxy"] = 0.0
+
+        # 24h 実現ボラ: 15m 足 96 本 = 24h
+        if "close" in df.columns and len(df) >= 24:
+            log_returns = np.log(df["close"] / df["close"].shift(1))
+            realized_vol = log_returns.rolling(window=96, min_periods=24).std() * np.sqrt(96)
+            df["btc_realized_vol_24h"] = realized_vol.fillna(0.0)
+        else:
+            df["btc_realized_vol_24h"] = 0.0
+
+        # funding premium = funding_rate を年率換算 (8h × 3 = 24h × 365 日)
+        df["btc_funding_premium"] = funding * 365 * 3 if funding != 0.0 else 0.0
+
+        # computed_features に登録
+        for name in (
+            "funding_rate_8h_avg",
+            "fear_greed_index",
+            "ofi_top5",
+            "bid_ask_imbalance",
+            "depth_ratio",
+            "btc_dominance_change",
+            "usdjpy_change",
+            "nikkei_change_proxy",
+            "btc_realized_vol_24h",
+            "btc_funding_premium",
+        ):
+            self.computed_features.add(name)
+
+        return df
+
+    def _calculate_vpin(self, df: pd.DataFrame, window: int = 50) -> pd.Series:
+        """Phase 89-γ: VPIN (Volume-synchronized Probability of Informed Trading).
+
+        Easley-Lopez de Prado 2012 bulk classification 方式:
+        - log return の標準正規 CDF で buy volume fraction を推定
+        - rolling window で |v_buy - v_sell| / total_volume を平均
+        """
+        if "close" not in df.columns or "volume" not in df.columns or len(df) < 2:
+            return pd.Series(0.5, index=df.index)
+        try:
+            from scipy.stats import norm
+        except ImportError:
+            return pd.Series(0.5, index=df.index)
+
+        # Phase 89 H6: window 未満のサンプルは中立値 0.5 で fill（初期 z 値極端化を回避）
+        if len(df) < window:
+            return pd.Series(0.5, index=df.index)
+
+        log_returns = np.log(df["close"] / df["close"].shift(1)).fillna(0)
+        # Phase 89 H6: min_periods=window に統一して初期バイアスを抑制
+        rolling_std = log_returns.rolling(window=window, min_periods=window).std()
+        rolling_std = rolling_std.bfill().fillna(1e-9)
+
+        z = log_returns / (rolling_std + 1e-9)
+        buy_frac = pd.Series(norm.cdf(z.values), index=df.index)
+
+        v_buy = df["volume"] * buy_frac
+        v_sell = df["volume"] * (1.0 - buy_frac)
+
+        imbalance = (v_buy - v_sell).abs()
+        vol_sum = df["volume"].rolling(window=window, min_periods=window).sum()
+        vpin = imbalance.rolling(window=window, min_periods=window).sum() / (vol_sum + 1e-9)
+        return vpin.fillna(0.5).clip(0.0, 1.0)
+
+    def _add_microstructure_advanced_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Phase 89-γ: VPIN×3 + HMM 状態確率×2 = +5 特徴量."""
+        # VPIN 系
+        vpin = self._calculate_vpin(df, window=50)
+        df["vpin"] = vpin
+        df["vpin_ma20"] = vpin.rolling(window=20, min_periods=1).mean()
+        df["vpin_change"] = vpin.diff().fillna(0.0)
+
+        # HMM 状態確率（regime_classifier 経由・None なら 1/3 fill）
+        if self.regime_classifier is not None and hasattr(
+            self.regime_classifier, "get_hmm_state_probabilities"
+        ):
+            try:
+                probs = self.regime_classifier.get_hmm_state_probabilities(df)
+                df["hmm_state_bear_prob"] = probs.get("hmm_state_bear_prob", 1.0 / 3)
+                df["hmm_state_bull_prob"] = probs.get("hmm_state_bull_prob", 1.0 / 3)
+            except Exception as e:
+                self.logger.warning(f"Phase 89-γ HMM 確率取得失敗 → uniform: {e}")
+                df["hmm_state_bear_prob"] = 1.0 / 3
+                df["hmm_state_bull_prob"] = 1.0 / 3
+        else:
+            df["hmm_state_bear_prob"] = 1.0 / 3
+            df["hmm_state_bull_prob"] = 1.0 / 3
+
+        for name in (
+            "vpin",
+            "vpin_ma20",
+            "vpin_change",
+            "hmm_state_bear_prob",
+            "hmm_state_bull_prob",
+        ):
+            self.computed_features.add(name)
+
+        return df
+
+    def _add_cross_asset_features(
+        self,
+        df: pd.DataFrame,
+        external_values: Optional[Dict[str, float]] = None,
+    ) -> pd.DataFrame:
+        """Phase 89-δ: BTC-ETH 相関特徴量 (+3).
+
+        Args:
+            df: 入力 DataFrame（close, volume 必須）
+            external_values: ETH/JPY ticker を含む辞書（無ければ 0 fill）
+
+        Returns 新規列:
+            - eth_btc_price_ratio: ETH/JPY ÷ BTC/JPY（先頭 0、ETH 不在時 0）
+            - eth_btc_corr_24h: 24h rolling pearson correlation（履歴 96 サンプル必要）
+            - eth_returns_15m: ETH/JPY 15m return（履歴蓄積後）
+        """
+        eth_last = 0.0
+        if external_values is not None:
+            eth_last = float(external_values.get("eth_jpy_last", 0.0) or 0.0)
+
+        # BTC 最新 close と ETH 最新 last を蓄積（履歴 96 サンプル）
+        btc_last = float(df["close"].iloc[-1]) if "close" in df.columns and len(df) > 0 else 0.0
+        if btc_last > 0 and eth_last > 0:
+            self._btc_history.append(btc_last)
+            self._eth_history.append(eth_last)
+
+        ratio = eth_last / btc_last if btc_last > 0 and eth_last > 0 else 0.0
+        df["eth_btc_price_ratio"] = ratio
+
+        # 24h pearson 相関（履歴 24 サンプル以上で計算可）
+        if len(self._btc_history) >= 24 and len(self._eth_history) >= 24:
+            btc_arr = np.asarray(self._btc_history, dtype=float)
+            eth_arr = np.asarray(self._eth_history, dtype=float)
+            try:
+                corr = float(np.corrcoef(btc_arr, eth_arr)[0, 1])
+                if not np.isfinite(corr):
+                    corr = 0.0
+            except Exception:
+                corr = 0.0
+        else:
+            corr = 0.0
+        df["eth_btc_corr_24h"] = corr
+
+        # ETH 15m return（履歴 2 サンプル以上で計算可）
+        if len(self._eth_history) >= 2:
+            prev = self._eth_history[-2]
+            curr = self._eth_history[-1]
+            eth_ret = (curr - prev) / prev if prev > 0 else 0.0
+        else:
+            eth_ret = 0.0
+        df["eth_returns_15m"] = eth_ret
+
+        for name in ("eth_btc_price_ratio", "eth_btc_corr_24h", "eth_returns_15m"):
+            self.computed_features.add(name)
+
+        return df
 
     async def generate_features(
         self,
@@ -89,6 +415,9 @@ class FeatureGenerator:
     ) -> pd.DataFrame:
         """
         統合特徴量生成処理（37特徴量: Phase 77）
+
+        Phase 89-α Stage 2: 入力 DataFrame のハッシュをキーに FeatureCache でメモ化。
+        同一サイクル内で同じ market_data から複数回呼ばれても重い計算を 1 回に削減。
 
         Args:
             market_data: 市場データ（DataFrame または dict）
@@ -103,8 +432,30 @@ class FeatureGenerator:
         try:
             result_df = self._convert_to_dataframe(market_data)
             self.computed_features.clear()
-            result_df = self._run_feature_pipeline(result_df, strategy_signals)
+
+            # Phase 89-α Stage 2: キャッシュ参照
+            cache = get_feature_cache()
+            cache_key: Optional[str] = None
+            if cache.enabled and strategy_signals is None:
+                # strategy_signals は呼び出し毎に変わり得るため、None 渡しの時のみキャッシュ対象
+                symbol = get_threshold("exchange.symbol", "BTC/JPY")
+                cache_key = FeatureCache.compute_key(symbol, "primary", result_df)
+                cached = cache.get(cache_key)
+                if cached is not None:
+                    self._restore_computed_features_from_df(cached)
+                    self._log_cache_stats_periodically(cache)
+                    return cached
+
+            # Phase 89-β: 外部 API 派生特徴量を事前取得
+            external_values = await self._fetch_external_values()
+
+            result_df = self._run_feature_pipeline(result_df, strategy_signals, external_values)
             self._validate_feature_generation(result_df, expected_count=EXPECTED_FEATURE_COUNT)
+
+            if cache.enabled and cache_key is not None:
+                cache.put(cache_key, result_df)
+                self._log_cache_stats_periodically(cache)
+
             return result_df
 
         except Exception as e:
@@ -119,6 +470,9 @@ class FeatureGenerator:
         """
         同期版特徴量生成（37特徴量・バックテスト事前計算用）
 
+        Phase 89-α Stage 2: BACKTEST_MODE=true の時はキャッシュ完全無効化。
+        バックテストは時系列スライス連続生成のため、誤ヒット防止。
+
         Args:
             df: OHLCVデータを含むDataFrame
             strategy_signals: 戦略シグナル辞書（オプション、None時は0埋め）
@@ -128,12 +482,55 @@ class FeatureGenerator:
         """
         try:
             result_df = df.copy()
+
+            # Phase 89-α Stage 2: バックテスト中はキャッシュ無効
+            backtest_mode = os.environ.get("BACKTEST_MODE", "").lower() == "true"
+            cache = get_feature_cache() if not backtest_mode else None
+            cache_key: Optional[str] = None
+
+            if cache is not None and cache.enabled and strategy_signals is None:
+                symbol = get_threshold("exchange.symbol", "BTC/JPY")
+                cache_key = FeatureCache.compute_key(symbol, "sync", result_df)
+                cached = cache.get(cache_key)
+                if cached is not None:
+                    return cached
+
             result_df = self._run_feature_pipeline(result_df, strategy_signals)
+
+            if cache is not None and cache.enabled and cache_key is not None:
+                cache.put(cache_key, result_df)
+
             return result_df
 
         except Exception as e:
             self.logger.error(f"同期版特徴量生成エラー: {e}")
             raise DataProcessingError(f"同期版特徴量生成失敗: {e}")
+
+    def _log_cache_stats_periodically(self, cache: FeatureCache) -> None:
+        """Phase 89-α Stage 2: N サイクル毎にキャッシュ統計を INFO ログ出力."""
+        stats = cache.stats()
+        total = stats["hits"] + stats["misses"]
+        if total <= 0:
+            return
+        interval = get_threshold("features.cache.log_interval_cycles", 100)
+        if interval <= 0 or total % interval != 0:
+            return
+        self.logger.info(
+            f"FeatureCache stats: hit_rate={stats['hit_rate_percent']}% "
+            f"(hits={stats['hits']}, misses={stats['misses']}, "
+            f"size={stats['size']}/{stats['max_size']}, "
+            f"evictions={stats['evictions']}, expirations={stats['expirations']})"
+        )
+
+    def _restore_computed_features_from_df(self, df: pd.DataFrame) -> None:
+        """Phase 89-α Stage 2: キャッシュヒット時に computed_features を DF 列から復元.
+
+        _run_feature_pipeline をスキップしたため computed_features が空になる問題を解消する。
+        OPTIMIZED_FEATURES のうち実際に DF に存在する列のみを登録。
+        """
+        for feature in OPTIMIZED_FEATURES:
+            if feature in df.columns:
+                self.computed_features.add(feature)
 
     def _convert_to_dataframe(self, market_data: Dict[str, Any]) -> pd.DataFrame:
         """市場データをDataFrameに変換（タイムフレーム辞書対応）"""
