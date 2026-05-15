@@ -39,12 +39,13 @@ from sklearn.model_selection import (  # noqa: F401  # Phase 89-β: kept for bac
 )
 from xgboost import XGBClassifier
 
-# Phase 89-β: Purged K-Fold（時系列リーク防止・embargo 付き）
-from src.ml.cv.purged_kfold import PurgedKFold
-
 # プロジェクトルートをPythonパスに追加（scripts/ml -> bot）
+# Phase 89-β fix: src.* import より前に sys.path.insert する必要がある
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
+
+# Phase 89-β: Purged K-Fold（時系列リーク防止・embargo 付き）
+from src.ml.cv.purged_kfold import PurgedKFold  # noqa: E402
 
 try:
     from src.backtest.scripts.collect_historical_csv import HistoricalDataCollector
