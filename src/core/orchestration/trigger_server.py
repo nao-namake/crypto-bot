@@ -224,7 +224,7 @@ def create_app() -> FastAPI:
         # gating NG → monitor_only で早期 return
         if gating is not None and not gating.allowed:
             if logger:
-                logger.info(
+                logger.warning(
                     f"⏭️ Phase 89-α Stage 1: フル取引判断スキップ "
                     f"(reason={gating.reason}, detail={gating.detail}) → monitor_only"
                 )
@@ -249,7 +249,7 @@ def create_app() -> FastAPI:
         # gating OK → フル取引サイクル
         try:
             if logger:
-                logger.info("🎯 Phase 89-α Stage 1: gating 通過 → フル取引サイクル開始")
+                logger.warning("🎯 Phase 89-α Stage 1: gating 通過 → フル取引サイクル開始")
             await orchestrator.run_trading_cycle()
             return {"status": "success", "cycle_completed": True}
         except Exception as e:
