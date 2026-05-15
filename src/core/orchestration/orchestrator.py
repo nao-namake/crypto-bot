@@ -228,6 +228,41 @@ class TradingOrchestrator:
             self.logger.critical(f"❌ 取引サイクル最上位エラー: {e}")
             raise CryptoBotError(f"取引サイクル最上位で予期しないエラー: {e}")
 
+    async def run_monitor_only(self) -> None:
+        """
+        Phase 89-α Stage 1: TP/SL 監視のみサイクル（取引判断スキップ時）
+
+        15 分足の完成境界外の trigger や既存ポジ ブロック時に呼ばれる軽量サイクル。
+        特徴量計算 / ML 予測 / 戦略評価 / 注文配置は **行わず**、以下のみ実行:
+        - Phase 87 C5: SL の CANCELED_UNFILLED 検出（5 分以内検出が設計目標）
+        - Phase 88 H11: 孤児SL注文の検出・キャンセル
+
+        所要時間目安: 1-3 秒（フルサイクル 7-15 秒の 1/5 以下）
+        """
+        try:
+            tp_sl_manager = getattr(self.execution_service, "tp_sl_manager", None)
+            bitbank_client = getattr(self.execution_service, "bitbank_client", None)
+            position_tracker = getattr(self.execution_service, "position_tracker", None)
+            mode = getattr(self.config, "mode", "paper")
+
+            if tp_sl_manager is None or bitbank_client is None:
+                self.logger.warning(
+                    "⚠️ Phase 89-α Stage 1: monitor_only - tp_sl_manager or bitbank_client 未注入。スキップ"
+                )
+                return
+
+            await tp_sl_manager.ensure_tp_sl_for_existing_positions(
+                virtual_positions=self.execution_service.virtual_positions,
+                bitbank_client=bitbank_client,
+                position_tracker=position_tracker,
+                mode=mode,
+            )
+        except CryptoBotError:
+            raise
+        except Exception as e:
+            self.logger.critical(f"❌ monitor_only サイクル最上位エラー: {e}")
+            raise CryptoBotError(f"monitor_only サイクル最上位で予期しないエラー: {e}")
+
     async def _run_backtest_mode(self) -> None:
         """
         バックテストモード実行（Phase 35: 高速化最適化）

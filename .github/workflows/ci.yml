@@ -362,8 +362,9 @@ jobs:
             --set-env-vars="MODE=trigger,LOG_LEVEL=WARNING,DEPLOY_MODE=$DEPLOY_MODE,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE" \
             --set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:6" \
             --no-allow-unauthenticated \
+            --no-cpu-boost \
             --port=8080 \
-            --revision-suffix="phase88-trigger-$(date +%m%d-%H%M)" \
+            --revision-suffix="phase89a-cost-opt-$(date +%m%d-%H%M)" \
             $TRAFFIC_FLAG
           
           # 本番トラフィック移行
