@@ -33,6 +33,11 @@ class ExchangeConfig:
     retries: Optional[int] = None
     ssl_verify: Optional[bool] = None
     api_version: Optional[str] = None
+    # Phase 89-δ: マルチペア基盤（symbol の alias として primary_symbol を導入）
+    # primary_symbol は symbol と同じ役割（BTC/JPY）。symbol が未設定の場合の fallback として使用。
+    # auxiliary_symbols は補助ペア（ETH/JPY 等）の将来拡張用。
+    primary_symbol: Optional[str] = None
+    auxiliary_symbols: Optional[List[str]] = None
 
 
 @dataclass
