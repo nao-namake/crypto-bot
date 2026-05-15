@@ -45,6 +45,9 @@ class SLStatePersistence:
             local_dir = os.path.dirname(self.state_path) or "data"
             self.persistence = FirestoreStateClient(local_fallback_dir=local_dir)
 
+    # Phase 89 C7: 実 order_id ではない placeholder 文字列（save 拒否対象）
+    PLACEHOLDER_ORDER_IDS = frozenset({"existing", "none", "null", "", "unknown"})
+
     def save(
         self,
         side: str,
@@ -62,6 +65,15 @@ class SLStatePersistence:
             amount: ポジション数量
             sl_placed_at: SL配置時刻ISO文字列（Phase 69.6: タイムアウト計算用）
         """
+        # Phase 89 C7: placeholder ID は永続化拒否（fetch_order が必ず失敗するため）
+        if str(sl_order_id).strip().lower() in self.PLACEHOLDER_ORDER_IDS:
+            self.logger.critical(
+                f"🚨 Phase 89 C7: SL永続化拒否 - placeholder ID 検出 "
+                f"(sl_order_id={sl_order_id!r}, side={side}, price={sl_price:.0f}円)。"
+                f"position_restorer 等で実 order_id が取得できていない可能性。手動確認推奨。"
+            )
+            return
+
         try:
             now_iso = datetime.now(timezone.utc).isoformat()
             data = {

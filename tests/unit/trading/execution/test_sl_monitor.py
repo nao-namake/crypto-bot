@@ -165,6 +165,86 @@ class TestCheckSLHealth:
         assert result.requires_emergency_close is False
 
 
+class TestPhase89C7PlaceholderAndPersistentFailure:
+    """Phase 89 C7: placeholder ID 検出 + fetch_order 連続失敗の緊急決済昇格"""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("placeholder", ["existing", "EXISTING", "Existing", " existing "])
+    async def test_placeholder_existing_triggers_emergency(self, placeholder):
+        """sl_order_id='existing' 等の placeholder は即時緊急決済判定"""
+        monitor = SLMonitor(logger=MagicMock())
+        # fetch_order が呼ばれてはいけない（placeholder 検出で即 return）
+        client = _make_client(raise_exc=AssertionError("fetch_order must not be called"))
+        result = await monitor.check_sl_health(placeholder, None, client)
+        assert result.is_healthy is False
+        assert result.failure_reason == "placeholder_id"
+        assert result.requires_emergency_close is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("placeholder", ["none", "null", "unknown"])
+    async def test_placeholder_other_keywords_triggers_emergency(self, placeholder):
+        """他の placeholder キーワードも検出"""
+        monitor = SLMonitor(logger=MagicMock())
+        client = _make_client(raise_exc=AssertionError("fetch_order must not be called"))
+        result = await monitor.check_sl_health(placeholder, None, client)
+        assert result.failure_reason == "placeholder_id"
+        assert result.requires_emergency_close is True
+
+    @pytest.mark.asyncio
+    async def test_fetch_error_single_returns_healthy(self):
+        """1 回の fetch_error では既存挙動どおり healthy 返却"""
+        monitor = SLMonitor(logger=MagicMock(), max_fetch_failures=3)
+        client = _make_client(raise_exc=RuntimeError("transient"))
+        result = await monitor.check_sl_health("OID-PERSIST", None, client)
+        assert result.is_healthy is True
+        assert result.failure_reason == "fetch_error"
+        assert monitor._fetch_failure_counts["OID-PERSIST"] == 1
+
+    @pytest.mark.asyncio
+    async def test_fetch_error_repeated_triggers_emergency(self):
+        """同一 ID で連続失敗 max_fetch_failures 回 → 緊急決済昇格"""
+        monitor = SLMonitor(logger=MagicMock(), max_fetch_failures=3)
+        client = _make_client(raise_exc=RuntimeError("API down"))
+
+        r1 = await monitor.check_sl_health("OID-FAIL", None, client)
+        r2 = await monitor.check_sl_health("OID-FAIL", None, client)
+        r3 = await monitor.check_sl_health("OID-FAIL", None, client)
+
+        assert r1.is_healthy is True
+        assert r2.is_healthy is True
+        assert r3.is_healthy is False
+        assert r3.failure_reason == "fetch_error_persistent"
+        assert r3.requires_emergency_close is True
+        # 緊急決済判定後はカウンタリセット（次回以降の重複発動防止）
+        assert "OID-FAIL" not in monitor._fetch_failure_counts
+
+    @pytest.mark.asyncio
+    async def test_fetch_success_resets_failure_counter(self):
+        """fetch_order 成功で連続失敗カウンタがリセット"""
+        monitor = SLMonitor(logger=MagicMock(), max_fetch_failures=3)
+        fail_client = _make_client(raise_exc=RuntimeError("transient"))
+        ok_client = _make_client({"info": {"status": "ACTIVE"}})
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+
+        await monitor.check_sl_health("OID-RESET", recent, fail_client)
+        await monitor.check_sl_health("OID-RESET", recent, fail_client)
+        assert monitor._fetch_failure_counts["OID-RESET"] == 2
+
+        result = await monitor.check_sl_health("OID-RESET", recent, ok_client)
+        assert result.is_healthy is True
+        assert "OID-RESET" not in monitor._fetch_failure_counts
+
+    @pytest.mark.asyncio
+    async def test_max_fetch_failures_configurable(self):
+        """max_fetch_failures=1 で 1 回目から緊急決済"""
+        monitor = SLMonitor(logger=MagicMock(), max_fetch_failures=1)
+        client = _make_client(raise_exc=RuntimeError("API down"))
+        result = await monitor.check_sl_health("OID-AGGRESSIVE", None, client)
+        assert result.is_healthy is False
+        assert result.failure_reason == "fetch_error_persistent"
+        assert result.requires_emergency_close is True
+
+
 # ============================================================
 # emergency_market_close
 # ============================================================

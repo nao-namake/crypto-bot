@@ -30,6 +30,12 @@ from ...core.logger import CryptoBotLogger, get_logger
 # 24h タイムアウトのデフォルト（thresholds.yaml から override 可能）
 DEFAULT_SL_TIMEOUT_HOURS: int = 24
 
+# Phase 89 C7: 実 order_id ではない placeholder 文字列
+PLACEHOLDER_ORDER_IDS: frozenset = frozenset({"existing", "none", "null", "unknown"})
+
+# Phase 89 C7: 同一 sl_order_id で fetch_order が連続失敗した時に緊急決済へ昇格する閾値
+DEFAULT_MAX_FETCH_FAILURES: int = 3
+
 
 @dataclass
 class SLHealthResult:
@@ -51,6 +57,7 @@ class SLMonitor:
         sl_persistence: Any = None,
         dry_run: bool = False,
         timeout_hours: int = DEFAULT_SL_TIMEOUT_HOURS,
+        max_fetch_failures: int = DEFAULT_MAX_FETCH_FAILURES,
     ) -> None:
         """
         Args:
@@ -58,11 +65,16 @@ class SLMonitor:
             sl_persistence: 緊急決済時に SL永続化レコードをクリアするための SLStatePersistence
             dry_run: True なら緊急成行決済を実発注せず critical ログのみ
             timeout_hours: SL配置からの強制決済タイムアウト（H1）
+            max_fetch_failures: 同一 sl_order_id で fetch_order が連続失敗した時に
+                緊急決済判定へ昇格する閾値（Phase 89 C7）
         """
         self.logger = logger or get_logger()
         self.sl_persistence = sl_persistence
         self.dry_run = dry_run
         self.timeout_hours = timeout_hours
+        # Phase 89 C7: sl_order_id ごとの fetch_order 連続失敗カウンタ
+        self.max_fetch_failures = max(1, int(max_fetch_failures))
+        self._fetch_failure_counts: Dict[str, int] = {}
 
     # ========================================
     # ステータス判定（純粋関数）
@@ -133,12 +145,46 @@ class SLMonitor:
                 requires_emergency_close=True,
             )
 
+        # Phase 89 C7: placeholder ID（"existing" 等）は即時緊急決済判定
+        # position_restorer 等で実 order_id が取得できなかった抜け穴を塞ぐ
+        if str(sl_order_id).strip().lower() in PLACEHOLDER_ORDER_IDS:
+            self.logger.critical(
+                f"🚨 Phase 89 C7: SL placeholder ID 検出 (sl_order_id={sl_order_id!r}) - "
+                f"実 order_id が取得できていないため SL の健全性確認不能。緊急決済判定。"
+            )
+            return SLHealthResult(
+                is_healthy=False,
+                failure_reason="placeholder_id",
+                requires_emergency_close=True,
+            )
+
         try:
             order = await asyncio.to_thread(bitbank_client.fetch_order, sl_order_id, symbol)
+            # 成功したら連続失敗カウンタをリセット
+            self._fetch_failure_counts.pop(str(sl_order_id), None)
         except Exception as e:
+            # Phase 89 C7: 連続失敗カウントが閾値に達したら緊急決済判定へ昇格
+            key = str(sl_order_id)
+            self._fetch_failure_counts[key] = self._fetch_failure_counts.get(key, 0) + 1
+            count = self._fetch_failure_counts[key]
+
+            if count >= self.max_fetch_failures:
+                self.logger.critical(
+                    f"🚨 Phase 89 C7: SL fetch_order 連続失敗 {count}/{self.max_fetch_failures} 回 - "
+                    f"ID={sl_order_id}, error={e}。SL 実態確認不能のため緊急決済判定。"
+                )
+                # カウンタをリセットして次回以降の誤発火を防ぐ
+                self._fetch_failure_counts.pop(key, None)
+                return SLHealthResult(
+                    is_healthy=False,
+                    failure_reason="fetch_error_persistent",
+                    requires_emergency_close=True,
+                )
+
             self.logger.warning(
                 f"⚠️ Phase 87 C1: SL fetch_order 失敗 - "
-                f"ID={sl_order_id}, error={e}（一時的なAPIエラーの可能性）"
+                f"ID={sl_order_id}, error={e}（{count}/{self.max_fetch_failures} 回・"
+                f"一時的なAPIエラーの可能性）"
             )
             return SLHealthResult(
                 is_healthy=True,  # 一時エラーで誤発火させない

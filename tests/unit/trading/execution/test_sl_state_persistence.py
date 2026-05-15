@@ -52,6 +52,15 @@ class TestSLStatePersistence:
         assert state["buy"]["sl_order_id"] == "222"
         assert state["buy"]["sl_price"] == 10500000.0
 
+    @pytest.mark.parametrize(
+        "placeholder", ["existing", "EXISTING", " existing ", "none", "null", "unknown", ""]
+    )
+    def test_save_rejects_placeholder_order_id(self, persistence, placeholder):
+        """Phase 89 C7: placeholder ID は save 拒否"""
+        persistence.save("buy", placeholder, 10000000.0, 0.001)
+        state = persistence.load()
+        assert "buy" not in state, f"placeholder={placeholder!r} should be rejected"
+
     def test_clear(self, persistence):
         """clearで指定サイドのみ削除"""
         persistence.save("buy", "111", 10000000.0, 0.001)

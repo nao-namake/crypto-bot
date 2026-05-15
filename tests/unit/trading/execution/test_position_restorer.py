@@ -874,10 +874,111 @@ class TestPhase6515TakeProfitTypeDetection:
             tp_sl_manager=MagicMock(),
         )
 
-        # TP/SL両方検出されて「既設置」判定される
+        # Phase 89 C7: TP/SL 両方検出されて「既設置」判定 + 実 order_id を保持
         assert len(virtual_positions) == 1
-        assert virtual_positions[0]["tp_order_id"] == "existing"
-        assert virtual_positions[0]["sl_order_id"] == "existing"
+        assert virtual_positions[0]["tp_order_id"] == "tp_native"
+        assert virtual_positions[0]["sl_order_id"] == "sl_001"
+
+
+# ========================================
+# Phase 89 C7: 孤児スキャンで実 order_id を保持（placeholder "existing" 廃止）
+# ========================================
+
+
+class TestPhase89C7OrphanScanRealOrderId:
+    """Phase 89 C7: 孤児スキャン時に "existing" placeholder ではなく実 order_id を保存"""
+
+    @pytest.fixture
+    def restorer(self):
+        return PositionRestorer()
+
+    async def test_orphan_scan_keeps_largest_amount_order_id(self, restorer):
+        """複数 SL 注文がある場合、最大 amount の注文 ID が選択される"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 10000000}]
+        )
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {"id": "tp_small", "side": "sell", "type": "limit", "amount": "0.004"},
+                {"id": "tp_main", "side": "sell", "type": "limit", "amount": "0.010"},
+                {"id": "sl_small", "side": "sell", "type": "stop", "amount": "0.003"},
+                {"id": "sl_main", "side": "sell", "type": "stop_limit", "amount": "0.010"},
+            ]
+        )
+
+        virtual_positions = []
+        restorer._last_orphan_scan_time = None
+        await restorer.scan_orphan_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            tp_sl_manager=MagicMock(),
+        )
+
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["tp_order_id"] == "tp_main"
+        assert virtual_positions[0]["sl_order_id"] == "sl_main"
+        # placeholder string が含まれていないこと
+        assert virtual_positions[0]["tp_order_id"] != "existing"
+        assert virtual_positions[0]["sl_order_id"] != "existing"
+
+    async def test_orphan_scan_short_side_picks_sl_real_id(self, restorer):
+        """SHORT ポジでも実 order_id が取得される"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "short", "amount": 0.02, "average_price": 10000000}]
+        )
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                {"id": "tp_short", "side": "buy", "type": "take_profit", "amount": "0.02"},
+                {"id": "sl_short", "side": "buy", "type": "stop", "amount": "0.02"},
+            ]
+        )
+
+        virtual_positions = []
+        restorer._last_orphan_scan_time = None
+        await restorer.scan_orphan_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            tp_sl_manager=MagicMock(),
+        )
+
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["tp_order_id"] == "tp_short"
+        assert virtual_positions[0]["sl_order_id"] == "sl_short"
+
+    async def test_orphan_scan_missing_id_keeps_none(self, restorer):
+        """active_orders で id 欠落時は None が入る（"existing" placeholder は使わない）"""
+        from unittest.mock import AsyncMock
+
+        mock_client = MagicMock()
+        mock_client.fetch_margin_positions = AsyncMock(
+            return_value=[{"side": "long", "amount": 0.01, "average_price": 10000000}]
+        )
+        mock_client.fetch_active_orders = MagicMock(
+            return_value=[
+                # id を欠いた異常な注文（実機の防御テスト）
+                {"side": "sell", "type": "limit", "amount": "0.01"},
+                {"side": "sell", "type": "stop_limit", "amount": "0.01"},
+            ]
+        )
+
+        virtual_positions = []
+        restorer._last_orphan_scan_time = None
+        await restorer.scan_orphan_positions(
+            virtual_positions=virtual_positions,
+            bitbank_client=mock_client,
+            tp_sl_manager=MagicMock(),
+        )
+
+        # virtual_positions には追加されるが、tp/sl_order_id は None（critical ログ済み）
+        assert len(virtual_positions) == 1
+        assert virtual_positions[0]["tp_order_id"] is None
+        assert virtual_positions[0]["sl_order_id"] is None
 
 
 # ========================================

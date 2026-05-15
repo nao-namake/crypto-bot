@@ -424,26 +424,50 @@ class PositionRestorer:
                 exit_side = "sell" if pos_side == "long" else "buy"
 
                 # Phase 65.15: None安全パターン + take_profit型TP判定
-                tp_total = sum(
-                    float(o.get("amount") or 0)
-                    for o in active_orders
+                # Phase 89 C7: 個別注文も保持して実 order_id を後段で取得可能にする
+                tp_orders = [
+                    o
+                    for o in (active_orders or [])
                     if o.get("side", "").lower() == exit_side
                     and o.get("type", "").lower() in ("limit", "take_profit")
-                )
-                sl_total = sum(
-                    float(o.get("amount") or 0)
-                    for o in active_orders
+                ]
+                sl_orders = [
+                    o
+                    for o in (active_orders or [])
                     if o.get("side", "").lower() == exit_side
                     and o.get("type", "").lower() in ("stop", "stop_limit")
-                )
+                ]
+                tp_total = sum(float(o.get("amount") or 0) for o in tp_orders)
+                sl_total = sum(float(o.get("amount") or 0) for o in sl_orders)
                 has_tp = tp_total >= pos_amount * 0.95
                 has_sl = sl_total >= pos_amount * 0.95
 
                 if has_tp and has_sl:
-                    self.logger.info(
-                        f"✅ Phase 63.3: 孤児ポジションにTP/SL既設置 - "
-                        f"side={pos_side}, amount={pos_amount} BTC"
+                    # Phase 89 C7: "existing" placeholder の代わりに実 order_id を取得
+                    # （最も amount が大きい注文の id を採用、複数分割時は最大カバレッジ注文）
+                    tp_order_id = (
+                        max(tp_orders, key=lambda o: float(o.get("amount") or 0)).get("id")
+                        if tp_orders
+                        else None
                     )
+                    sl_order_id = (
+                        max(sl_orders, key=lambda o: float(o.get("amount") or 0)).get("id")
+                        if sl_orders
+                        else None
+                    )
+                    if not sl_order_id or not tp_order_id:
+                        self.logger.critical(
+                            f"🚨 Phase 89 C7: 孤児ポジションのTP/SLカバレッジ充分だが "
+                            f"実 order_id 取得失敗 - side={pos_side}, "
+                            f"tp_id={tp_order_id!r}, sl_id={sl_order_id!r}。"
+                            f"次サイクルの sl_monitor.check_sl_health で緊急決済判定される。"
+                        )
+                    else:
+                        self.logger.info(
+                            f"✅ Phase 63.3 / Phase 89 C7: 孤児ポジションにTP/SL既設置 - "
+                            f"side={pos_side}, amount={pos_amount} BTC, "
+                            f"tp_id={tp_order_id}, sl_id={sl_order_id}"
+                        )
                     avg_price = float(pos.get("average_price") or pos.get("price") or 0)
                     orphan_entry = {
                         "order_id": f"orphan_{pos_side}_{int(now.timestamp())}",
@@ -453,8 +477,8 @@ class PositionRestorer:
                         "timestamp": now,
                         "take_profit": None,
                         "stop_loss": None,
-                        "tp_order_id": "existing",
-                        "sl_order_id": "existing",
+                        "tp_order_id": tp_order_id,
+                        "sl_order_id": sl_order_id,
                         "sl_placed_at": datetime.now(timezone.utc).isoformat(),
                     }
                     virtual_positions.append(orphan_entry)
