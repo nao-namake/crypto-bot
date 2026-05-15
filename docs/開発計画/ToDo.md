@@ -2,17 +2,58 @@
 
 ## 現在の状態
 
-**Phase 87 全 Stage 完了・本番デプロイ済（2026-05-14）→ Phase 88 着手予定**
+**Phase 89-α Stage 1+3 完了・本番デプロイ済（2026-05-15）→ Stage 2 (キャッシュ最適化) pending**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 87 全 Stage 完了（Critical 5 + High 10 + 補強）。SL消失検出層・Firestore永続化・DummyModel CB・品質フィルタ共通モジュール化・段階復帰・分析共通lib 完成 |
-| 品質ゲート | 2200件超 tests passed, カバレッジ 74%+, flake8/isort/black 全PASS |
-| 実機動作確認 | 12h観測で勝率100% (2勝0敗) +¥1,500、H6レジーム別閾値・H4 Firestore動作確認済 |
-| 残課題 | (1) GCP月額 ¥3,000 → ¥300-500 削減 (2) 孤児SL再発防止 (3) Dead code/ドキュメント整理 |
-| 直近インシデント | 2026-05-14 09:05 BUYポジ→TP決済後に SL注文キャンセル失敗（70004エラー）で孤児SL残存。手動キャンセル済。**Phase 88 H11 で再発防止予定** |
-| 次のアクション | Phase 88 P0 (I1+I2 即時削減) → P1 (H11孤児SL + I3 min=0化 + L2/L3) → P2 (I4/I5/M5) → P3 (軽微改善) |
-| 最終更新 | 2026年5月15日 - Phase 88 計画策定完了 |
+| 最新成果 | Phase 89-α コスト削減: Stage 1 取引判断 gating（15分足境界 + 同方向ポジ判定で重い処理発火 1/30 化）+ Stage 3 GCP リソース整理（旧 revision 19 件削除・AR cleanup 本適用・Logging exclusion・cpu-boost OFF） |
+| 品質ゲート | **2284 tests** passed (前回 2233 から +47 件), カバレッジ 73%+, flake8/isort/black 全PASS |
+| 実機検証根拠 | 24h ログで実取引 4 回 / trigger 189 回（**98% 無駄実行**）の浪費を構造的に解消 |
+| GCP 月額目標 | ¥3,000 → **¥1,400-1,700 見込み**（実測待ち・Stage 2 追加で ¥1,200-1,600） |
+| 直近インシデント | なし（Phase 88 H11 で孤児SL対策済・実機 24h 観察で再発ゼロ） |
+| 次のアクション | (1) Stage 1+3 のコスト実測 1 週間 → (2) 必要なら Stage 2 (キャッシュ層) → (3) Phase 89-β (Webリサーチ統合: Purged K-Fold + OFI + Fractional Kelly) |
+| 完了 Phase | Phase 87 全 Stage / Phase 88 全項目 / Phase 89-α Stage 1+3 |
+| 最終更新 | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 |
+
+---
+
+## Phase 89-α コスト削減プラン（最新・着手中）
+
+詳細プラン: `~/.claude/plans/phase-iterative-biscuit.md`
+実装記録: [docs/開発履歴/Phase_89.md](../開発履歴/Phase_89.md)
+
+### Stage 1: 取引判断 gating（実装完了・デプロイ済）
+
+5 分間隔 trigger で 15 分足完成境界（00, 15, 30, 45 分の ±2 分以内）外 or 既存両方向ポジ時は TP/SL 監視のみで早期 return。**取引機会は維持しつつ重い処理発火を 1/30 に削減**。
+
+実測根拠:
+- 5 分 trigger 189 回 / 24h
+- 実取引 4 回 / 24h
+- **98% が「データ取得→特徴量→ML→ 取引せず終了」で CPU 浪費**
+
+### Stage 3: GCP リソース整理（完了済・GCP コマンド）
+
+- Cloud Run 旧 revision 19 件削除
+- Artifact Registry cleanup policy 本適用（30 日以上削除）
+- Cloud Logging exclusion filter（INFO/DEBUG 除外）
+- `--no-cpu-boost` 明示（cold start +2-3 秒許容で削減）
+
+### Stage 2: コード最適化（pending・実測後に判断）
+
+- OHLCV キャッシュキー: 時刻 → キャンドル番号ベース
+- 特徴量キャッシュ: 直前の DataFrame ハッシュ `@lru_cache`
+- ML 予測キャッシュ: 特徴量ベクトルハッシュ
+
+**判断基準**: Stage 1+3 のコスト実測で目標 ¥1,500 を上回っている場合のみ実施。¥1,500 以下なら Phase 89-β (Web リサーチ統合) を優先。
+
+### us-central1 移動の撤回
+
+初版で Cloud Run 無料枠フル活用のため推奨したが撤回:
+- bitbank サーバー日本国内 → asia-northeast1 が RTT 5-20ms 最適
+- us-central1 だと累積 +400-750ms/cycle → スリッページ +0.01-0.02%/取引
+- 期待値マイナス bot に悪影響、無料枠 ¥1,000 削減と相殺以上の損失
+
+データ移行も不要（ML は `tax/trade_history.db` 参照なし）。
 
 ---
 

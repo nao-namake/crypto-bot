@@ -4,16 +4,18 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 87 全 Stage 完了・本番デプロイ済（2026-05-14）→ Phase 88 着手予定** |
-| **直前の作業** | Phase 87 全 Stage（Critical 5 + High 10）完了。SL消失検出層 + Firestore永続化(H4/H5) + DummyModel CB(C4) + 品質フィルタ共通化(H10) + 段階復帰(H8) + レジーム別閾値(H6) + 分析共通lib。実機12h で勝率100% +¥1,500（5/13比 +¥6,716改善） |
-| **次の予定** | Phase 88 P0 (I1+I2 即時削減) → P1 (H11孤児SL + I3 min=0化 + L2/L3) → P2 (I4/I5/M5) → P3 (M1-M4+L1 軽微改善)。月額 ¥3,000 → ¥300-500 目標（83%削減） |
-| **直近インシデント** | 2026-05-14 09:05 BUYポジ TP決済後に SL残存（bitbank 70004「transaction currently suspended」エラー）→ 手動キャンセル済。**Phase 88 H11 で再発防止予定（指数バックオフ + 次サイクル委譲）** |
-| **Phase 87 達成** | Critical 5 + High 10 全完了。SLMonitor / Firestore永続化(H4/H5) / DummyModel CB(C4) / 品質フィルタ共通化(H10) / レジーム別閾値(tight 0.55 / normal 0.75 / trending 0.50) / RECOVERY_TESTING(H8) / 分析共通lib(src/analysis/common/) |
-| **Phase 88 残作業** | 💰 I1/I2/I3/I4/I5(GCPコスト) + 🟠 H11(孤児SL) + 🟡 M1-M5(機能改善) + 🟢 L1-L3(クリーンアップ)。詳細プラン: `~/.claude/plans/phase-iterative-biscuit.md` |
-| **最終更新** | 2026年5月15日 - Phase 88 計画策定完了（GCP仕様 Web 調査反映版）・着手予定 |
+| **現在Phase** | **Phase 89-α Stage 1+3 完了・本番デプロイ済（2026-05-15）→ Stage 2 (キャッシュ最適化) pending** |
+| **直前の作業** | Phase 89-α コスト削減（Stage 1 取引判断 gating + Stage 3 GCP リソース整理）。15分足完成境界判定 + 同方向ポジ制限で重い処理発火を 1/30 に削減。GCP では Cloud Run 旧 revision 19 件削除・AR cleanup policy 本適用・Logging exclusion filter・--no-cpu-boost 設定 |
+| **次の予定** | (1) Stage 1+3 のコスト削減効果を 1 週間実測 → (2) 必要なら Stage 2 (OHLCV / 特徴量 / ML 予測キャッシュ層) 実装 → (3) Phase 89-β (Purged K-Fold + Fractional Kelly + OFI 等の Web リサーチ統合) 着手 |
+| **直近インシデント** | なし（Phase 88 H11 で孤児SL対策済・実機 24h 観察で再発ゼロ） |
+| **Phase 87 達成** | Critical 5 + High 10 全完了。SLMonitor / Firestore永続化(H4/H5) / DummyModel CB(C4) / 品質フィルタ共通化(H10) / レジーム別閾値(tight 0.55 / normal 0.75 / trending 0.50) / RECOVERY_TESTING(H8) / 分析共通lib |
+| **Phase 88 達成** | I1/I2/I3/I4 GCPコスト 4件 + H11 孤児SL + M1-M5 機能改善 + L1-L3 クリーンアップ。本番デプロイ + 包括バグレビュー反映 + Cloud Monitoring メトリクス取得 (gcp_metrics.py) 完了 |
+| **Phase 89-α 達成** | Stage 1 取引判断 gating (15分足境界 + 同方向ポジ判定で 1/30 削減) + Stage 3 GCP リソース整理 (revision/AR/Logging/cpu-boost)。Stage 2 (キャッシュ最適化) は実測後に判断 |
+| **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち）→ Stage 2 追加で ¥1,200-1,600 |
+| **最終更新** | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 |
 
-> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 88 詳細設計・GCP 仕様反映版）
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_87.md`
+> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 89-α コスト削減プラン・asia-northeast1 維持版）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_89.md`
 
 ---
 

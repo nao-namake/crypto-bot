@@ -2,25 +2,26 @@
 
 bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run 24時間稼働）
 
-[![Tests](https://img.shields.io/badge/tests-2200%2B%20passing-success)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-74%25%2B-green)](tests/)
-[![Phase 87](https://img.shields.io/badge/Phase%2087-AllStages%20Complete-success)](docs/開発履歴/Phase_87.md)
-[![Phase 88](https://img.shields.io/badge/Phase%2088-Planning-blue)](docs/開発計画/ToDo.md)
+[![Tests](https://img.shields.io/badge/tests-2280%2B%20passing-success)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](tests/)
+[![Phase 87](https://img.shields.io/badge/Phase%2087-Complete-success)](docs/開発履歴/Phase_87.md)
+[![Phase 88](https://img.shields.io/badge/Phase%2088-Complete-success)](docs/開発履歴/Phase_88.md)
+[![Phase 89-α](https://img.shields.io/badge/Phase%2089--α-Stage%201%2B3%20Deployed-blue)](docs/開発履歴/Phase_89.md)
 
 ---
 
 ## 現在の状態
 
-**Phase 87 全 Stage 完了・本番デプロイ済（2026-05-14）→ Phase 88 着手予定**
+**Phase 89-α Stage 1+3 完了・本番デプロイ済（2026-05-15）→ Stage 2 (キャッシュ最適化) pending**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 87 全 Stage（Critical 5 + High 10）完了。SL消失検出層(SLMonitor) + Firestore永続化(H4/H5) + DummyModel CB(C4) + 品質フィルタ共通化(H10) + 段階復帰(H8) + レジーム別閾値(H6) + 分析共通lib |
-| 実機検証 | 12h観測で勝率100% (2勝0敗) +¥1,500、H6レジーム別閾値・H4 Firestore動作確認済（5/13 -¥5,216 → 5/14 +¥1,500 = +¥6,716改善） |
-| 直近インシデント | 2026-05-14 09:05 BUYポジ TP決済後に SL残存（bitbank 70004エラー）→ 手動キャンセル済。**Phase 88 H11 で再発防止予定** |
-| 次の予定 | Phase 88 P0 (I1+I2 即時削減) → P1 (H11孤児SL + I3 min=0化 + L2/L3) → P2 (I4/I5/M5) → P3 (軽微改善)。月額 ¥3,000 → ¥300-500 目標 |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_87.md](docs/開発履歴/Phase_87.md) / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 88 GCP仕様反映版） |
-| 最終更新 | 2026年5月15日 - Phase 88 計画策定完了 |
+| 最新成果 | Phase 89-α コスト削減: Stage 1 取引判断 gating（15分足完成境界 + 同方向ポジ判定で重い処理発火 1/30 化）+ Stage 3 GCP リソース整理（旧 revision 19 件削除・AR cleanup 本適用・Logging exclusion・cpu-boost OFF） |
+| 実機検証 | 24h ログで実取引 4 回 / trigger 189 回（98% 無駄実行）の浪費を構造的に解消 |
+| GCP 月額 | ¥3,000 → **¥1,400-1,700 見込み**（実測待ち・Stage 2 追加で ¥1,200-1,600） |
+| 次の予定 | (1) 1 週間コスト実測 → (2) 必要なら Stage 2 (OHLCV/特徴量/ML 予測キャッシュ層) → (3) Phase 89-β (Webリサーチ統合: Purged K-Fold + OFI + Fractional Kelly) |
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/phase-iterative-biscuit.md`（Phase 89-α コスト削減プラン） |
+| 最終更新 | 2026年5月15日 - Phase 89-α Stage 1+3 本番デプロイ完了 |
 
 ---
 
