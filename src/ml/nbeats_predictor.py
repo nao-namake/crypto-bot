@@ -257,7 +257,7 @@ class NBeatsPredictor:
             # NB5: log_every ごとにログ出力
             if (epoch + 1) % self.log_every == 0 or epoch == 0:
                 self.logger.info(
-                    f"Phase 89 N-BEATS epoch {epoch+1}/{self.n_epochs}: "
+                    f"Phase 89 N-BEATS epoch {epoch + 1}/{self.n_epochs}: "
                     f"train_loss={train_loss:.4f}, val_loss={val_loss:.4f}, "
                     f"val_acc={val_accuracy:.4f}, val_conf_std={val_conf_std:.4f}"
                 )
@@ -273,7 +273,7 @@ class NBeatsPredictor:
                 patience_counter += 1
                 if patience_counter >= self.patience:
                     self.logger.info(
-                        f"Phase 89 N-BEATS EarlyStopping at epoch {epoch+1} "
+                        f"Phase 89 N-BEATS EarlyStopping at epoch {epoch + 1} "
                         f"(best={self.best_epoch}, best_val_loss={self.best_val_loss:.4f})"
                     )
                     break
