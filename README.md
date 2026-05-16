@@ -6,24 +6,25 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 [![Coverage](https://img.shields.io/badge/coverage-73%25%2B-green)](tests/)
 [![Phase 87](https://img.shields.io/badge/Phase%2087-Complete-success)](docs/開発履歴/Phase_87.md)
 [![Phase 88](https://img.shields.io/badge/Phase%2088-Complete-success)](docs/開発履歴/Phase_88.md)
-[![Phase 89](https://img.shields.io/badge/Phase%2089--α%2Fβ%2Fγ%2Fδ-Code%20Complete-blue)](docs/開発履歴/Phase_89.md)
+[![Phase 89](https://img.shields.io/badge/Phase%2089-Complete%20%26%20Deployed-success)](docs/開発履歴/Phase_89.md)
 
 ---
 
 ## 現在の状態
 
-**Phase 89-α/β/γ/δ コード実装完了（2026-05-15）→ 手動 ML 再学習 + 実機検証待ち**
+**Phase 89 全実装完了・本番デプロイ済（2026-05-16）→ 実機 1 週間観察フェーズ**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 89 全 Stage コード実装完了: 89-α (gating + リソース整理 + 特徴量キャッシュ) / 89-β (Fractional Kelly + Purged K-Fold + Drift + 47特徴量) / 89-γ (N-BEATS + HMM + VPIN + 52特徴量) / 89-δ (WebSocket + BTC-ETH 相関 + マルチペア + 55特徴量) |
+| 最新成果 | Phase 89 全実装完了: 89-α/β/γ/δ + 配線修正 (C1-C7・H1-H12) + N-BEATS 完全版 (NB1-NB9) + 分析スクリプト Phase 89 対応 |
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加） |
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| テスト追加 | **+112 件 PASS**（既存 ~2280 → ~2400・追加課金ゼロ） |
-| 次の予定 | (1) 全体回帰テスト確認 → (2) 手動 ML 再学習 → (3) 新モデル `n_features_in_==55` 確認 → (4) 本番デプロイ → (5) 実機 1 週間観察 |
-| 期待効果 | 89-β: 年利 12-13% / 89-γ: 14-16% / **89-δ: 15-18% / 月利 1-1.5%** |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/phase-binary-fox.md`（Phase 89-α/β/γ/δ 統合プラン） |
-| 最終更新 | 2026年5月15日 - Phase 89-α/β/γ/δ コード実装＋テスト完了 |
+| モデル性能 | LGB CV F1 0.612→**0.893** / XGB 0.583→**0.891** / RF 0.552→**0.820** / **N-BEATS 0.855**（Phase 84 比 +44-54%） |
+| N-BEATS 修復 | 故障版 acc 0.008・f1 0.0001・conf_std 2.98e-08 → 完全版 acc **0.896** / f1 **0.928** / conf_std **0.115**（400 万倍改善） |
+| 次の予定 | 実機 1 週間観察 → 結果次第で Phase 90 計画（LLM センチメント / Transformer / WebSocket microstructure 等） |
+| 期待効果 | 月期待損益 **+43,440 → +60,000-70,000 円見込み**（取引頻度 3-5 件/日 維持・質的改善） |
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/c-gleaming-ladybug.md`（Phase 89 修正 + N-BEATS 完全版プラン） |
+| 最終更新 | 2026年5月16日 - Phase 89 完全実装完了・実機観察フェーズ |
 
 ---
 

@@ -2,24 +2,68 @@
 
 ## 現在の状態
 
-**Phase 89-α/β/γ/δ コード実装完了（2026-05-15）→ 手動 ML 再学習 + 実機検証待ち**
+**Phase 89 全実装完了・本番デプロイ済（2026-05-16）→ 実機 1 週間観察フェーズ**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | **Phase 89 全 Stage コード実装完了**: 89-α Stage 2 特徴量キャッシュ / 89-β Fractional Kelly + 47特徴量 + Purged K-Fold + Drift / 89-γ N-BEATS + HMM + VPIN + Auto Retraining / 89-δ WebSocket + BTC-ETH 相関 + マルチペア基盤 |
-| 特徴量数 | 37 → **55**（+18: funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加） |
-| ML モデル | 3 (LGB/XGB/RF) → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| テスト追加 | **+112 件** PASS（既存 2284 → ~2400・回帰ゼロ確認中） |
+| 最新成果 | **Phase 89 完全実装完了**: 89-α/β/γ/δ + 配線修正 (C1-C7・H1-H12) + N-BEATS 完全版 (NB1-NB9) + 分析スクリプト Phase 89 対応 |
+| 特徴量数 | 37 → **55**（+18・6 カテゴリ追加） |
+| ML モデル | 3 → **4**（N-BEATS 追加・CV F1 0.855） |
+| モデル性能 | LGB CV F1 0.612→**0.893** / XGB 0.583→**0.891** / RF 0.552→**0.820** / N-BEATS 新規 **0.855**（Phase 84 比 +44-54%） |
+| N-BEATS 修復 | 故障版 acc 0.008・f1 0.0001・conf_std 2.98e-08 → 完全版 acc **0.896** / f1 **0.928** / conf_std **0.115**（400 万倍改善） |
+| テスト追加 | **+119 件** PASS（既存 2284 → 2403）|
 | 追加課金 | **ゼロ**（GPU 不採用 / LLM 不採用 / torch CPU / 全て無料 API） |
-| 直近インシデント | なし（Phase 88 H11 で孤児SL対策済・実機 24h 観察で再発ゼロ） |
-| 完了 Phase | Phase 87 全 Stage / Phase 88 全項目 / Phase 89-α 全 Stage / 89-β / 89-γ / 89-δ |
-| **スコープ外（繰越）** | Maker エントリー強化（既存 `execute_maker_order` で十分・実機データ後）/ `bitbank_client.py` の `BTC/JPY` 70 箇所リファクタ（影響大）/ WebSocket `fetch_ohlcv` 統合（実機挙動確認後） |
-| **期待効果** | 89-β 完了: 年利 12-13% / 89-γ: 14-16% / **89-δ: 15-18% / 月利 1-1.5%** |
-| 最終更新 | 2026年5月15日 - Phase 89-α/β/γ/δ コード実装＋テスト完了 |
+| 直近インシデント | C7 SL placeholder バグ発見・即時 hotfix で実機 SL 監視復旧（Phase 89 レビュー時に検出）|
+| 完了 Phase | Phase 87 / 88 / **89 全実装 + N-BEATS 完全版（本番稼働中）** |
+| **次の予定** | 実機 1 週間観察 → 結果次第で Phase 90 計画 |
+| **スコープ外（繰越）** | Maker エントリー強化 / `bitbank_client.py` BTC/JPY ハードコード 70 箇所 / WebSocket `fetch_ohlcv` 統合 / LLM センチメント / Transformer |
+| **期待効果** | 取引頻度 3-5 件/日 維持・**月期待損益 +43,440 → +60,000-70,000 円見込み**（質的改善） |
+| 最終更新 | 2026年5月16日 - Phase 89 完全実装完了・実機観察フェーズ |
 
 ---
 
-## 🚀 セッション再開時の手順（Phase 89 リリース 5 ステップ）
+## 🚀 セッション再開時の手順（Phase 89 観察フェーズ）
+
+Phase 89 は本番デプロイ完了済。次のセッションは観察結果の確認。
+
+### Step 1: 毎日チェック（5 分）
+
+```bash
+# ライブ運用 24h 分析（39 指標 + Phase 89 カバレッジ 5 セクション）
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+
+# 異常ログのスキャン
+gcloud logging read 'resource.type=cloud_run_revision AND severity>=ERROR' --freshness=24h --limit=20
+
+# SL placeholder 検出（期待: 0 件）
+gcloud logging read 'textPayload=~"Phase 89 C7: SL placeholder ID 検出|ID=existing"' --freshness=24h
+```
+
+### Step 2: 1 週間後の総合評価（30 分）
+
+```bash
+# 1 週間分析
+venv/bin/python3 scripts/live/standard_analysis.py --hours 168
+
+# 確認項目（docs/開発履歴/Phase_89.md 末尾「期待値 vs 警告水準」表参照）
+```
+
+### Step 3: 観察結果次第で Phase 90 計画
+
+- LLM センチメント（Twitter/News 感情）
+- Transformer 時系列予測（N-BEATS 置換 or 5 モデル目）
+- WebSocket microstructure 実装（ofi_top5 等の実数化）
+- マルチペア（ETH/JPY）展開
+
+### 異常時のロールバック
+
+`docs/運用ガイド/Phase89_N-BEATS_rollback.md` 参照:
+- 軽度（N-BEATS のみ無効化）: `weights.nbeats: 0.0` で 3 モデル運用
+- 重度（Phase 89 全体）: `git tag phase-89-stable` から checkout
+
+---
+
+## 🚀 過去のセッション再開手順（参考・履歴用）
 
 クリア後の再開ガイド。**実行順序厳守**。
 

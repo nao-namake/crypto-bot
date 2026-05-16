@@ -4,33 +4,48 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 89-α/β/γ/δ コード実装完了（2026-05-15）→ 手動 ML 再学習 + 実機検証待ち** |
-| **直前の作業** | Phase 89-α Stage 2 (特徴量キャッシュ) / 89-β (Fractional Kelly + 特徴量 37→47 + Purged K-Fold + Drift 検出) / 89-γ (N-BEATS + HMM + VPIN + Auto Retraining + 52特徴量) / 89-δ (WebSocket + BTC-ETH 相関 + マルチペア基盤 + 55特徴量) を連続実装＋テスト +112 件追加 |
-| **次の予定** | (1) 全体回帰テスト確認 → (2) **手動 ML 再学習**（`gh workflow run model-training.yml`）→ (3) 新モデル `n_features_in_==55` 確認 → (4) 本番デプロイ（`git push`）→ (5) 実機 1 週間観察 |
-| **直近インシデント** | なし（Phase 88 H11 で孤児SL対策済・実機 24h 観察で再発ゼロ） |
-| **Phase 87 達成** | Critical 5 + High 10 全完了 |
+| **現在Phase** | **Phase 89 全実装完了・本番デプロイ済（2026-05-16）→ 実機 1 週間観察フェーズ** |
+| **直前の作業** | Phase 89 配線修正 (C1-C7 + H1-H12) + N-BEATS 完全版実装 (NB1-NB9) + 分析スクリプト Phase 89 対応 |
+| **次の予定** | 実機 1 週間観察（毎日 `standard_analysis.py` 実行）→ Phase 90 計画（LLM センチメント / Transformer 等） |
+| **直近インシデント** | C7 SL placeholder バグ発見・即時 hotfix で実機 SL 監視復旧（Phase 89 レビュー時に検出）|
+| **Phase 87 達成** | Critical 5 + High 10 全完了（本番デプロイ済） |
 | **Phase 88 達成** | I1-I4 GCPコスト 4件 + H11 孤児SL + M1-M5 + L1-L3 |
 | **Phase 89-α 達成** | Stage 1 取引判断 gating + Stage 3 GCP リソース整理 + Stage 2 特徴量キャッシュ |
-| **Phase 89-β 達成** | Fractional Kelly 動的化（連敗段階 multiplier）+ 特徴量 37→47（funding/sentiment/microstructure/macro_lite）+ Purged K-Fold（embargo 付き）+ Drift 検出（KS テスト + ml_health_monitor 統合） |
-| **Phase 89-γ 達成** | N-BEATS 軽量版（Pure PyTorch・CPU 推論）+ 4 モデル化（LGB/XGB/RF/N-BEATS）+ HMM レジーム検出（3 状態 Gaussian）+ VPIN +3 + 特徴量 47→52 + Auto Retraining trigger（24h cooldown） |
-| **Phase 89-δ 達成** | bitbank Public WebSocket クライアント（独自実装・reconnect with backoff）+ BTC-ETH 相関 +3 特徴量（52→55）+ マルチペア基盤（primary_symbol/auxiliary_symbols・後方互換維持） |
+| **Phase 89-β 達成** | Fractional Kelly + 特徴量 37→47 + Purged K-Fold + Drift 検出（Bonferroni 補正）|
+| **Phase 89-γ 達成** | N-BEATS + 4 モデル化 + HMM + VPIN +3 + 特徴量 47→52 + Auto Retraining |
+| **Phase 89-δ 達成** | WebSocket + BTC-ETH 相関 +3 特徴量（52→55）+ マルチペア基盤 |
+| **Phase 89 配線修正** | C1-C7（DI 漏れ + SL placeholder バグ）+ H1-H12（永続化 / Bonferroni / VPIN / Kelly / WebSocket cleanup 等） |
+| **Phase 89 NB1-NB9** | N-BEATS 完全版（StandardScaler + 200 epoch + Early Stopping + Kaiming init + class_weights + validation メタラベリング対応） |
 | **特徴量数** | 37 → **55**（+18: funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加） |
-| **ML モデル** | 3 → **4**（N-BEATS 追加） |
+| **ML モデル** | 3 → **4**（N-BEATS 追加・CV F1 0.855） |
+| **モデル性能改善** | LGB 0.612→0.893 / XGB 0.583→0.891 / RF 0.552→0.820 / N-BEATS 新規 0.855（Phase 84 比 +44-54%） |
 | **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
 | **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
-| **最終更新** | 2026年5月15日 - Phase 89-α/β/γ/δ コード実装＋テスト完了 |
+| **最終更新** | 2026年5月16日 - Phase 89 完全実装完了・実機観察フェーズ |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
-> 5 ステップ: 既知の問題調査（任意）→ 手動 ML 再学習 → 整合性確認 → 本番デプロイ → 実機 1 週間観察
 >
-> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/phase-binary-fox.md`（Phase 89-α/β/γ/δ 統合プラン）
+> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/c-gleaming-ladybug.md`（Phase 89 修正 + N-BEATS 完全版プラン）
 > 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_89.md`
 
 ---
 
-## 🚀 Phase 89 リリース完了 - 次の 5 アクション（再開ガイド）
+## 🚀 Phase 89 完了 - 実機 1 週間観察フェーズ（次のセッション）
 
-クリア後にこの 5 ステップを実行すれば Phase 89 リリース完了:
+Phase 89 は本番デプロイ完了済み。次のセッションは観察結果の確認:
+
+| Step | アクション | 必須 | 時間 |
+|------|-----------|------|------|
+| 1 | **毎日**: `venv/bin/python3 scripts/live/standard_analysis.py --hours 24` | 必須 | 5 分 |
+| 2 | 1 週間後: 勝率改善幅 + N-BEATS 動作確認 + drift 偽陽性なし確認 | 必須 | 30 分 |
+| 3 | 異常時: `docs/運用ガイド/Phase89_N-BEATS_rollback.md` 参照 | 必要時のみ | 10 分 |
+| 4 | 観察結果次第: Phase 90 計画（LLM センチメント / Transformer / WebSocket microstructure 実装等） | 任意 | 計画次第 |
+
+詳細: `docs/開発履歴/Phase_89.md` 末尾「実機 1 週間観察 チェックリスト」
+
+---
+
+## 🚀 Phase 89 リリース完了 - 次の 5 アクション（参考・履歴用）
 
 | Step | アクション | 必須 | 時間 |
 |------|-----------|------|------|

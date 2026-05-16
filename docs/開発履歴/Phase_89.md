@@ -504,3 +504,141 @@ git push origin main
 - `config/core/feature_order.json`（v8.0 → v8.3）
 - `.github/workflows/model-training.yml`（MIN_FEATURE_COUNT 50→55 + repository_dispatch トリガ）
 - `requirements.txt`（torch + hmmlearn + websockets 追加）
+
+---
+
+# Phase 89 完全実装完了 + N-BEATS 完全版（2026-05-16）
+
+**期間**: 2026-05-16
+**状態**: 本番デプロイ完了・実機 1 週間観察フェーズ
+**plan**: `~/.claude/plans/c-gleaming-ladybug.md`
+
+## 経緯
+
+Phase 89-α/β/γ/δ コード実装 (2026-05-15) 後のレビューで、**コードを書いたが本番経路に組み込まれていない**（DI 漏れ・caller 不在・workflow 条件漏れ）大規模な実装漏れが判明。さらに ML 再学習後の検証で N-BEATS が定数予測（confidence_std=2.98e-08）と完全故障していることが発覚。多角的調査の結果、根本原因 6 件を特定し、Phase 89 を真に完成させた。
+
+## Critical 修正（7 件）
+
+| ID | 問題 | 修正 file:line |
+|----|------|---------------|
+| **C1** | `orchestrator.py:373` で FeatureGenerator() 引数なし → external_api_client / regime_classifier 永続 fail-open | `src/core/orchestration/orchestrator.py` |
+| **C2** | `backtest_runner.py:266, 341` でも同様 DI 漏れ | `src/core/execution/backtest_runner.py` |
+| **C3** | `connect_websocket()` の caller がゼロ | `src/core/orchestration/orchestrator.py:initialize` |
+| **C4** | `create_ml_models.py` に N-BEATS 未組み込み | `scripts/ml/create_ml_models.py:217` |
+| **C5** | `model-training.yml:50` の `if:` で `repository_dispatch` skip | `.github/workflows/model-training.yml` |
+| **C6** | HMM の fit_offline / load caller ゼロ・models/regime/ 存在しない | 新規 `scripts/ml/train_hmm_regime.py` |
+| **C7** | `position_restorer.py:456-457` で `tp_order_id="existing"` placeholder ハードコード → SL 監視永遠に無効化 | `src/trading/execution/position_restorer.py` + `sl_monitor.py` + `sl_state_persistence.py` |
+
+## High 修正（12 件・H1-H12）
+
+drift カウンタ永続化 / fetch_eth_jpy_ticker キャッシュバグ / cross_asset history pickle 永続化 / KS Bonferroni 補正 / torch CPU wheel / VPIN window 修正 / Kelly fallback safety / silent fallback warning / ml.drift yaml / drift→Auto Retraining 連鎖 / WebSocket cleanup / Secret Manager 手順
+
+## N-BEATS 完全版実装（NB1-NB9）
+
+| ID | 内容 |
+|----|------|
+| **NB1** | StandardScaler 統合（大スケール特徴量正規化・最有力対策・確度 90%） |
+| **NB2** | n_epochs 50→200 + EarlyStopping (patience=20) + ReduceLROnPlateau |
+| **NB3** | Kaiming/Xavier 初期化 + logits 加算→平均化（softmax 飽和回避）+ 勾配クリッピング |
+| **NB4** | class_weights="balanced" 自動算出 → CrossEntropyLoss |
+| **NB5** | epoch ごと train/val loss / val_acc / val_conf_std を logger.info |
+| **NB6** | tests/unit/ml/test_nbeats_predictor.py 新規（7 件・TDD）|
+| **NB7** | （Optuna 統合・次 Phase へ繰越） |
+| **NB8** | model-training.yml の HMM push 経路修正 + notes 更新 |
+| **NB9** | validate_ml_models.py をメタラベリング設計に追従（80% 閾値の構造的誤判定を解消） |
+
+## N-BEATS 性能改善実測
+
+| metric | 旧 buggy | 新完全版 | 改善倍率 |
+|--------|---------|---------|---------|
+| accuracy | 0.008 | **0.896** | **×105 倍** |
+| f1_score | 0.0001 | **0.928** | **×6,000 倍** |
+| precision | 7.2e-05 | **0.963** | **×13,000 倍** |
+| cv_f1_mean | 0.353 | **0.855** | **×2.4 倍** |
+| cv_f1_std | 0.433 | **0.054** | **1/8（安定化）** |
+| **confidence_std** | **2.98e-08** | **0.115** | **×400 万倍** |
+
+## 4 モデル ensemble 最終性能（Phase 89 完全版）
+
+| model | accuracy | f1 | CV F1 (±std) | confidence_std |
+|-------|----------|-----|----------------|----------------|
+| LightGBM | 0.968 | 0.966 | 0.893 ±0.050 | 0.110 |
+| XGBoost | 0.966 | 0.965 | 0.891 ±0.050 | 0.097 |
+| RandomForest | 0.771 | 0.856 | 0.820 ±0.106 | 0.140 |
+| **N-BEATS** | **0.896** | **0.928** | **0.855 ±0.054** | **0.115** |
+
+## 過去モデル性能比較（Phase 84 vs 85 vs 89）
+
+| モデル | Phase 84 | Phase 85 (= 86-88 期間使用) | **Phase 89 完全版** | 改善 |
+|--------|---------|---------|---------|------|
+| LightGBM CV F1 | 0.612 | 0.602 | **0.893** | **+0.291 (+48%)** |
+| XGBoost CV F1 | 0.583 | 0.577 | **0.891** | **+0.314 (+54%)** |
+| RandomForest CV F1 | 0.552 | 0.571 | **0.820** | **+0.249 (+44%)** |
+| N-BEATS CV F1 | - | - | **0.855**（新規） | - |
+
+## 分析スクリプト Phase 89 対応（実機観察支援）
+
+`scripts/live/standard_analysis.py` に Phase 89 全実装の運用カバレッジを追加:
+
+- **89-α gating**: trigger 数 vs フル取引サイクル vs monitor_only スキップ + 削減率
+- **89-β + H4 drift**: 検出 / Bonferroni 抑制 / Auto Retraining 起動 / cooldown / 状態復元
+- **89-γ NB1-NB9 + C7**: N-BEATS health / DI warning / SL placeholder 検出 / HMM load
+- **89-δ WebSocket**: 接続成否 / クリーン disconnect / ETH ticker
+- **89-β + H7 Kelly**: Fractional Kelly 発動 + Fallback safety
+
+新メソッド `_check_phase89_features` + `_generate_phase89_markdown`（最終 Markdown レポート）。
+`src/analysis/common/gcp_metrics.py` に `count_phase89_*` 5 関数追加。
+
+## False Positive（修正不要と判明したもの）
+
+- strategy_signals 6 個との合計 61 mismatch → `trading_cycle_manager.py:437` で 55 列のみ ML に渡す（実コード確認済み）
+- macro_lite 5 特徴量 0 fill → 設計通り
+- WebSocket EIO=3 メッセージパーサ → fail-safe 設計
+- fear_greed N/A 処理 → fail-open 設計
+
+## 期待効果（実機 1 週間観察で検証）
+
+- 取引頻度: 3-5 件/日（Phase 89-α 実測 4 件 維持）
+- 勝率: 55%+（Phase 85 実測 67% 以上を維持・向上見込み）
+- 月期待損益: **+43,440 円 → +60,000-70,000 円見込み**
+- N-BEATS が ensemble に有意な貢献（CV F1 0.855 が LGB/XGB と僅差）
+
+## 実機 1 週間観察 チェックリスト
+
+```bash
+# 毎日（5 分）
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+
+# ログ確認
+gcloud logging read 'resource.type=cloud_run_revision AND severity>=ERROR' --freshness=24h
+
+# 1 週間後
+venv/bin/python3 scripts/live/standard_analysis.py --hours 168
+```
+
+### 期待値 vs 警告水準
+
+| 観察項目 | 期待値 | 警告水準 |
+|----------|--------|---------|
+| 取引頻度 | 3-5 件/日 | < 1 件/日 が 3 日続く |
+| 勝率 | 55%+ | < 40% が続く |
+| 月期待値 | +60,000 円ペース | -10,000 円超で停止検討 |
+| Drift 検出 | < 5 件/日 | > 20 件/日 で偽陽性確認 |
+| SL placeholder 検出 | **0 件**（C7 修正効果）| 1 件でも要確認 |
+| `Phase 89-β/H8` warning | **出ない**（DI 成功）| 出れば配線不全 |
+
+## ロールバック手順
+
+`docs/運用ガイド/Phase89_N-BEATS_rollback.md` 参照。
+
+- **軽度（N-BEATS のみ無効化）**: `config/core/thresholds.yaml` で `ensemble.weights.nbeats: 0.0` → 3 モデル運用
+- **重度（Phase 89 全体ロールバック）**: `git tag phase-89-stable` から checkout
+- **モデル個別復旧**: `ensemble_full.phase89_buggy_nbeats.pkl.bak` から復元
+
+## Phase 90 への引継ぎ事項
+
+- WebSocket メッセージ → feature pipeline 配信実装（現状は接続して buffer に貯めるまで）
+- `ofi_top5` / `bid_ask_imbalance` / `depth_ratio` の WebSocket 経由実数化
+- LLM センチメント特徴量導入（funding/fear_greed と並列で）
+- Transformer 時系列予測モデル検討（N-BEATS の置き換え or 5 モデル目）
+- マルチペア（ETH/JPY）展開
