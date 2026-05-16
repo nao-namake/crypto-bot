@@ -425,6 +425,12 @@ class MLModelValidator:
             self.warnings.append("⚠️  メタデータにclass_distributionがありません")
             return
 
+        # Phase 89 NB9: メタラベリングモード判定
+        # Phase 73-D 以降は 3 クラス分類でも実態は「Triple Barrier (TP到達/SL到達/HOLD)」のメタラベリング。
+        # quality_filter mode では HOLD = 「品質が低いため取引しない」サンプルで、本質的に大半を占めるのが正常。
+        # 80% 閾値は 3 クラス方向予測（Phase 73-B 以前）時代の値で、メタラベリング設計に合わない。
+        is_meta_label = self._is_metalabeling_mode(metadata, training_info)
+
         sell_pct = class_dist.get("sell", class_dist.get("0", 0))
         if isinstance(sell_pct, float) and sell_pct <= 1:
             sell_pct *= 100
@@ -439,25 +445,92 @@ class MLModelValidator:
         print(f"   SELL: {sell_pct:.1f}%")
         print(f"   HOLD: {hold_pct:.1f}%")
         print(f"   BUY:  {buy_pct:.1f}%")
+        if is_meta_label:
+            print("   モード: メタラベリング（Triple Barrier・quality_filter）")
 
         max_pct = max(sell_pct, hold_pct, buy_pct)
         print(f"   最大クラス比率: {max_pct:.1f}%")
 
-        MAX_CLASS_THRESHOLD = 80.0
-        MIN_CLASS_THRESHOLD = 5.0
-
-        if max_pct >= MAX_CLASS_THRESHOLD:
-            self.errors.append(
-                f"❌ 極端なクラスバイアス（最大クラス: {max_pct:.1f}% >= {MAX_CLASS_THRESHOLD}%）"
+        # Phase 89 NB9: メタラベリング vs 方向予測で判定基準を分岐
+        if is_meta_label:
+            # メタラベリング: 「成功サンプル(BUY+SELL) ≥ 5%」が判定基準
+            # HOLD 偏りは「取引機会の選別が厳しい」を意味するだけで、設計上正常。
+            # Lopez de Prado 2018: Triple Barrier の成功率 5-15% は妥当な範囲。
+            META_MIN_SUCCESS_PCT = 5.0
+            META_MAX_HOLD_PCT = 98.0  # 99% 超は流石に学習困難（成功サンプル 1% 未満）
+            success_pct = sell_pct + buy_pct
+            print(
+                f"\n📊 メタラベリング判定: "
+                f"成功率(BUY+SELL)={success_pct:.1f}%, HOLD={hold_pct:.1f}%"
             )
+            if hold_pct >= META_MAX_HOLD_PCT:
+                self.errors.append(
+                    f"❌ メタラベリング HOLD 比率が極端"
+                    f"（HOLD: {hold_pct:.1f}% >= {META_MAX_HOLD_PCT}%・成功サンプル 1% 未満で学習困難）"
+                )
+            elif success_pct < META_MIN_SUCCESS_PCT:
+                self.warnings.append(
+                    f"⚠️  メタラベリング 成功率(BUY+SELL): {success_pct:.1f}% "
+                    f"< {META_MIN_SUCCESS_PCT}%（取引機会少・要検討）"
+                )
+            else:
+                print(
+                    f"✅ メタラベリング分布 妥当"
+                    f"（成功率 {success_pct:.1f}% >= {META_MIN_SUCCESS_PCT}%）"
+                )
         else:
-            print(f"\n✅ クラスバランス良好（最大クラス: {max_pct:.1f}% < {MAX_CLASS_THRESHOLD}%）")
+            # 旧 3 クラス方向予測モード（Phase 73-B 以前）: 従来の 80% 閾値を維持
+            MAX_CLASS_THRESHOLD = 80.0
+            MIN_CLASS_THRESHOLD = 5.0
+            if max_pct >= MAX_CLASS_THRESHOLD:
+                self.errors.append(
+                    f"❌ 極端なクラスバイアス（最大クラス: {max_pct:.1f}% >= {MAX_CLASS_THRESHOLD}%）"
+                )
+            else:
+                print(
+                    f"\n✅ クラスバランス良好（最大クラス: {max_pct:.1f}% < {MAX_CLASS_THRESHOLD}%）"
+                )
+            if min(sell_pct, buy_pct) < MIN_CLASS_THRESHOLD:
+                self.warnings.append(
+                    f"⚠️  BUY/SELLの一方が{MIN_CLASS_THRESHOLD}%未満"
+                    f"（SELL:{sell_pct:.1f}%, BUY:{buy_pct:.1f}%）"
+                )
 
-        if min(sell_pct, buy_pct) < MIN_CLASS_THRESHOLD:
-            self.warnings.append(
-                f"⚠️  BUY/SELLの一方が{MIN_CLASS_THRESHOLD}%未満"
-                f"（SELL:{sell_pct:.1f}%, BUY:{buy_pct:.1f}%）"
-            )
+    @staticmethod
+    def _is_metalabeling_mode(metadata: dict, training_info: dict) -> bool:
+        """Phase 89 NB9: メタラベリングモードかどうか判定.
+
+        判定方法:
+        1. metadata.training_info.meta_label == True
+        2. metadata.training_info.target_type == "meta_label" / "triple_barrier"
+        3. metadata.notes に "メタラベリング" or "Triple Barrier" 含む
+        4. training_info.meta_tp_ratio / meta_sl_ratio が存在
+
+        フォールバック: False（旧 3 クラス方向予測扱い）
+        """
+        if training_info.get("meta_label") is True:
+            return True
+        ttype = str(training_info.get("target_type", "")).lower()
+        if ttype in ("meta_label", "metalabel", "triple_barrier"):
+            return True
+        if "meta_tp_ratio" in training_info or "meta_sl_ratio" in training_info:
+            return True
+        notes = str(metadata.get("notes", ""))
+        if "メタラベリング" in notes or "Triple Barrier" in notes or "meta_label" in notes:
+            return True
+        # フォールバック: thresholds.yaml の ml.mode を直読
+        try:
+            import yaml
+
+            tpath = Path(__file__).resolve().parent.parent.parent / "config/core/thresholds.yaml"
+            if tpath.exists():
+                with tpath.open("r", encoding="utf-8") as f:
+                    cfg = yaml.safe_load(f) or {}
+                if str(cfg.get("ml", {}).get("mode", "")).lower() == "quality_filter":
+                    return True
+        except Exception:
+            pass
+        return False
 
     # ========================================
     # 性能検証（performance）

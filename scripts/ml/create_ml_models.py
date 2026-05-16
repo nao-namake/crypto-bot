@@ -1390,6 +1390,13 @@ class NewSystemMLModelCreator:
                             "class_distribution": getattr(self, "_class_distribution", {}),
                             "n_classes": self.n_classes,
                             "optimal_threshold": training_results.get("optimal_threshold", 0.5),
+                            # Phase 89 NB9: validate_ml_models がメタラベリングモードを正しく判定するためのフラグ
+                            "meta_label": bool(getattr(self, "meta_label", False)),
+                            "target_type": (
+                                "meta_label" if getattr(self, "meta_label", False) else "direction"
+                            ),
+                            "meta_tp_ratio": getattr(self, "meta_tp_ratio", None),
+                            "meta_sl_ratio": getattr(self, "meta_sl_ratio", None),
                         },
                         "git_info": git_commit,
                         "notes": "Phase 89-δ完了・55特徴量（funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 追加）・N-BEATS 統合（4モデルensemble）・PurgedKFold・Early Stopping・SMOTE・Optuna最適化",
