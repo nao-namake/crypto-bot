@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-05-11T07:21:13.270786",
+  "created_at": "2026-05-16T00:49:28.463992",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_full.pkl",
   "version": "1.0.0",
@@ -42,70 +42,103 @@
     "hour",
     "day_of_week",
     "hour_cos",
-    "day_sin"
+    "day_sin",
+    "funding_rate_8h_avg",
+    "fear_greed_index",
+    "ofi_top5",
+    "bid_ask_imbalance",
+    "depth_ratio",
+    "btc_dominance_change",
+    "usdjpy_change",
+    "nikkei_change_proxy",
+    "btc_realized_vol_24h",
+    "btc_funding_premium",
+    "vpin",
+    "vpin_ma20",
+    "vpin_change",
+    "hmm_state_bear_prob",
+    "hmm_state_bull_prob",
+    "eth_btc_price_ratio",
+    "eth_btc_corr_24h",
+    "eth_returns_15m"
   ],
   "individual_models": [
     "lightgbm",
     "xgboost",
-    "random_forest"
+    "random_forest",
+    "nbeats"
   ],
   "model_weights": {
-    "lightgbm": 0.4,
-    "xgboost": 0.4,
-    "random_forest": 0.2
+    "lightgbm": 0.34,
+    "xgboost": 0.34,
+    "random_forest": 0.17,
+    "nbeats": 0.15
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.564117199391172,
-      "f1_score": 0.573501548210845,
-      "precision": 0.6061397804861199,
-      "recall": 0.564117199391172,
-      "cv_f1_mean": 0.6021577178883257,
-      "cv_f1_std": 0.051465700884880866,
-      "confidence_mean": 0.6329646949590833,
-      "confidence_std": 0.10932465215133838,
-      "confidence_min": 0.5001020955923449,
-      "confidence_max": 0.9613048170775436
+      "accuracy": 0.9610339506172839,
+      "f1_score": 0.9627369050483838,
+      "precision": 0.9644459054715466,
+      "recall": 0.9610339506172839,
+      "cv_f1_mean": 0.8927208966308386,
+      "cv_f1_std": 0.05040831039408,
+      "confidence_mean": 0.9410067238971024,
+      "confidence_std": 0.10080253705298649,
+      "confidence_min": 0.4008937951450746,
+      "confidence_max": 0.9999795258515471
     },
     "xgboost": {
-      "accuracy": 0.4899162861491629,
-      "f1_score": 0.4832823117015891,
-      "precision": 0.5979022728988723,
-      "recall": 0.4899162861491629,
-      "cv_f1_mean": 0.5768919221049789,
-      "cv_f1_std": 0.07346757393019242,
-      "confidence_mean": 0.7394990921020508,
-      "confidence_std": 0.13196642696857452,
-      "confidence_min": 0.5000290870666504,
-      "confidence_max": 0.9965674877166748
+      "accuracy": 0.9714506172839507,
+      "f1_score": 0.9676469735201136,
+      "precision": 0.963872999364419,
+      "recall": 0.9714506172839507,
+      "cv_f1_mean": 0.889885305902328,
+      "cv_f1_std": 0.0530233649344354,
+      "confidence_mean": 0.8633909821510315,
+      "confidence_std": 0.13173553347587585,
+      "confidence_min": 0.34408798813819885,
+      "confidence_max": 0.999795138835907
     },
     "random_forest": {
-      "accuracy": 0.4777397260273973,
-      "f1_score": 0.45185088946939084,
-      "precision": 0.6294704768028678,
-      "recall": 0.4777397260273973,
-      "cv_f1_mean": 0.5713837850603201,
-      "cv_f1_std": 0.07400260924304145,
-      "confidence_mean": 0.6773338982325644,
-      "confidence_std": 0.0991806566008664,
-      "confidence_min": 0.5000643520573279,
-      "confidence_max": 0.9411120502517691
+      "accuracy": 0.7195216049382716,
+      "f1_score": 0.8227945138946046,
+      "precision": 0.9677153884644494,
+      "recall": 0.7195216049382716,
+      "cv_f1_mean": 0.8248228056163811,
+      "cv_f1_std": 0.10085902814232456,
+      "confidence_mean": 0.5507864729362781,
+      "confidence_std": 0.12980497508131603,
+      "confidence_min": 0.3352038707219057,
+      "confidence_max": 0.888710595136361
+    },
+    "nbeats": {
+      "accuracy": 0.008487654320987654,
+      "f1_score": 0.00014286793807324286,
+      "precision": 7.20402758725804e-05,
+      "recall": 0.008487654320987654,
+      "cv_f1_mean": 0.35342944096815837,
+      "cv_f1_std": 0.4327344827433444,
+      "confidence_mean": 0.3398403227329254,
+      "confidence_std": 2.9802322387695312e-08,
+      "confidence_min": 0.339840292930603,
+      "confidence_max": 0.339840292930603
     }
   },
   "training_info": {
-    "samples": 35036,
-    "feature_count": 37,
+    "samples": 17280,
+    "feature_count": 55,
     "training_duration_seconds": 0,
     "class_distribution": {
-      "success": 0.3136488183582601,
-      "failure": 0.6863511816417399
+      "sell": 0.030324074074074073,
+      "hold": 0.942650462962963,
+      "buy": 0.027025462962962963
     },
-    "n_classes": 2,
+    "n_classes": 3,
     "optimal_threshold": 0.5
   },
   "git_info": {
-    "commit": "397b834374ccbfe292599165c27bff6de5ab65fb",
-    "commit_short": "397b8343",
+    "commit": "3f5bcbd157335e3a9c8945fabc48355896608eea",
+    "commit_short": "3f5bcbd1",
     "branch": "main"
   },
   "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"
