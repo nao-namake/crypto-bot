@@ -34,18 +34,77 @@
 
 ---
 
-## 🚀 Phase 89 完了 - 実機 1 週間観察フェーズ（次のセッション）
+## 🚀 セッション再開時の最優先タスク（2026-05-17 時点・ML 再学習 v7 待ち）
 
-Phase 89 は本番デプロイ完了済み。次のセッションは観察結果の確認:
+**進行中**: ML 再学習 v7 (run id **25971359708**) が GitHub Actions で稼働中（起動: 2026-05-16 19:53 UTC・50-70 分見込み・365 日データ + 4 モデル + N-BEATS + HMM）。
 
-| Step | アクション | 必須 | 時間 |
-|------|-----------|------|------|
-| 1 | **毎日**: `venv/bin/python3 scripts/live/standard_analysis.py --hours 24` | 必須 | 5 分 |
-| 2 | 1 週間後: 勝率改善幅 + N-BEATS 動作確認 + drift 偽陽性なし確認 | 必須 | 30 分 |
-| 3 | 異常時: `docs/運用ガイド/Phase89_N-BEATS_rollback.md` 参照 | 必要時のみ | 10 分 |
-| 4 | 観察結果次第: Phase 90 計画（LLM センチメント / Transformer / WebSocket microstructure 実装等） | 任意 | 計画次第 |
+### Step 1: ML 再学習 v7 の完了確認（最優先・1 分）
 
-詳細: `docs/開発履歴/Phase_89.md` 末尾「実機 1 週間観察 チェックリスト」
+```bash
+gh run view 25971359708 --json status,conclusion
+# 期待: {"conclusion":"success","status":"completed"}
+```
+
+- **success** ならば Step 2 へ
+- **failure** ならば `gh run view 25971359708 --log-failed | tail -50` で原因確認
+- **timeout** ならば再学習時間延長 or n_trials 削減検討
+
+### Step 2: 新モデル取得 + macro F1 比較表作成（必須・30 分）
+
+```bash
+git pull origin main  # 新モデル取得
+
+venv/bin/python3 -c "
+import json
+print('=== macro F1 比較（v7 真の性能 vs 旧 weighted F1）===')
+
+# Phase 84 backup
+with open('models/production/production_model_metadata.phase84.json.bak') as f:
+    p84 = json.load(f)
+
+# Phase 89 buggy backup
+with open('models/production/phase89_buggy_nbeats_metadata.json.bak') as f:
+    p89b = json.load(f)
+
+# Phase 89 v7 (新)
+with open('models/production/production_model_metadata.json') as f:
+    v7 = json.load(f)
+
+# 各モデルの metric 比較表を作成
+for m in ['lightgbm', 'xgboost', 'random_forest', 'nbeats']:
+    print(f'\\n## {m}')
+    print(f'  Phase 84 weighted F1: {p84[\"performance_metrics\"].get(m, {}).get(\"f1_score\", \"-\")}')
+    print(f'  Phase 89 buggy weighted F1: {p89b[\"performance_metrics\"].get(m, {}).get(\"f1_score\", \"-\")}')
+    print(f'  Phase 89 v7 macro F1: {v7[\"performance_metrics\"].get(m, {}).get(\"f1_score\", \"-\")}  ← 真の指標')
+    print(f'  Phase 89 v7 CV F1 mean: {v7[\"performance_metrics\"].get(m, {}).get(\"cv_f1_mean\", \"-\")}')
+"
+```
+
+### Step 3: 真の改善幅評価（必須）
+
+判定基準:
+- **macro F1 > 0.6**: 真の改善あり・喜べる結果
+- **macro F1 0.4-0.6**: 部分的改善・実機観察で確認
+- **macro F1 < 0.4**: ほぼランダム水準・P2 項目（Transformer/LLM）の Phase 90 計画が急務
+
+### Step 4: 結果次第
+
+- **改善あり**: 実機 1 週間観察 (`scripts/live/standard_analysis.py --hours 24`) フェーズ
+- **改善微小**: weighted F1 と乖離度合いから「過去同じ失敗パターン」かを判定 → Phase 90 で根本対策
+
+### 直近の重要文脈
+
+- **ユーザーから「見かけだけの性能で過去失敗した経緯あり」と指摘あり** → 評価指標 weighted → macro へ修正済（P0-2）
+- **cross_asset pickle リーク防止済**（P0-3）→ v7 ではリーク除外
+- **訓練 180→365 日統一済**（P1-4）→ Phase 84/85 と公平比較可能
+- **TPSL +362円/件は手数料未控除**: 真の期待値 +138-254 円/件（docs 訂正済）
+
+### 関連ファイル
+
+- `~/.claude/plans/c-gleaming-ladybug.md`（Phase 86-89 レビュー + P0+P1 修正計画）
+- `docs/開発履歴/Phase_89.md` 末尾「Phase 86-89 総合レビュー + P0+P1 修正」セクション
+- 旧モデル backup: `models/production/{ensemble_full.phase84.pkl.bak, ensemble_full.phase89_buggy_nbeats.pkl.bak}`
+- ロールバック手順: `docs/運用ガイド/Phase89_N-BEATS_rollback.md`
 
 ---
 
