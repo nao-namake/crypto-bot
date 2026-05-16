@@ -127,11 +127,17 @@ class TestPhase89BetaDriftDetection:
 
     @pytest.fixture
     def monitor_drift(self, persistence):
-        """drift_consecutive_threshold=2、window=50 に縮小したインスタンス."""
+        """drift_consecutive_threshold=2、window=50 に縮小したインスタンス.
+
+        Phase 89 H4: 本番では significant_feature_min=3 だが、テストは単一特徴量で実施するため 1 に上書き.
+        Phase 89 H10: auto_retraining も無効化（テストで requests.post を mock しない場合の干渉防止）.
+        """
         m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
         m._drift_consecutive_threshold = 2
         m._drift_window = 50
         m._drift_ks_alpha = 0.01
+        m._drift_significant_feature_min = 1  # H4: テストは 1 特徴量で drift 判定
+        m._drift_auto_retraining = False  # H10: テスト中の自動 trigger を抑制
         return m
 
     def test_first_record_initializes_reference_without_detection(self, monitor_drift):
