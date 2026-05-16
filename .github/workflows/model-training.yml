@@ -167,8 +167,15 @@ jobs:
             exit 0
           fi
 
-          # Phase 89 C6: HMM regime model も commit に含める
-          git add models/production/ models/training/ models/regime/ 2>/dev/null || git add models/production/ models/training/
+          # Phase 89 C6 / NB8: HMM regime model も commit に含める
+          # 旧版 (... 2>/dev/null || ...) は OR fallback で silent skip が起きた → 明示的に分離
+          git add models/production/ models/training/
+          if [ -d models/regime ] && [ -n "$(ls -A models/regime 2>/dev/null)" ]; then
+            git add models/regime/
+            echo "✅ models/regime/ を staging に追加"
+          else
+            echo "⚠️ models/regime/ が空またはない (HMM 学習スキップされた可能性)"
+          fi
 
           git commit -m "feat: MLモデル自動更新（週次再学習）" \
             -m "" \

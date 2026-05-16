@@ -52,6 +52,13 @@ if _HAS_TORCH:
             self.forecast_head = nn.Linear(hidden_size, n_classes)
             self.relu = nn.ReLU()
             self.dropout = nn.Dropout(p=0.1)
+            # Phase 89 NB3: Kaiming(He) 初期化で勾配消失・爆発を抑制
+            # 隠れ層 (ReLU 用) は kaiming_normal_、出力 head (線形) は xavier_normal_
+            for layer in (self.fc1, self.fc2, self.fc3, self.fc4):
+                nn.init.kaiming_normal_(layer.weight, nonlinearity="relu")
+                nn.init.zeros_(layer.bias)
+            nn.init.xavier_normal_(self.forecast_head.weight)
+            nn.init.zeros_(self.forecast_head.bias)
 
         def forward(self, x: "torch.Tensor") -> "torch.Tensor":
             h = self.relu(self.fc1(x))
@@ -96,7 +103,9 @@ if _HAS_TORCH:
             )
 
         def forward(self, x: "torch.Tensor") -> "torch.Tensor":
-            """各 block の forecast を加算 → softmax で確率化（softmax は train/test 側で）.
+            """各 block の forecast を平均化 → softmax で確率化（softmax は train/test 側で）.
+
+            Phase 89 NB3: 加算 → 平均化に変更（6 blocks 加算で値が大きくなり softmax 飽和する問題を解消）.
 
             Returns:
                 logits (batch, n_classes)
@@ -104,7 +113,8 @@ if _HAS_TORCH:
             logits_sum = torch.zeros(x.shape[0], self.n_classes, device=x.device, dtype=x.dtype)
             for block in self.blocks:
                 logits_sum = logits_sum + block(x)
-            return logits_sum
+            # Phase 89 NB3: block 数で正規化（数値安定性向上）
+            return logits_sum / float(len(self.blocks))
 
 else:
     # torch 未インストール時のスタブ

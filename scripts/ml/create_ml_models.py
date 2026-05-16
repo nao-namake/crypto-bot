@@ -230,19 +230,45 @@ class NewSystemMLModelCreator:
             from src.ml.nbeats_predictor import NBeatsPredictor
 
             if has_torch():
+                # Phase 89 NB1-NB5: hyperparam を thresholds.yaml から取得（fallback 付き）
+                try:
+                    from src.core.config.threshold_manager import get_threshold
+
+                    nb_n_epochs = int(get_threshold("ml.nbeats.n_epochs", 200))
+                    nb_patience = int(get_threshold("ml.nbeats.patience", 20))
+                    nb_hidden = int(get_threshold("ml.nbeats.hidden_size", 64))
+                    nb_lr = float(get_threshold("ml.nbeats.learning_rate", 1e-3))
+                    nb_batch = int(get_threshold("ml.nbeats.batch_size", 64))
+                    nb_log_every = int(get_threshold("ml.nbeats.log_every", 10))
+                except Exception:
+                    nb_n_epochs, nb_patience, nb_hidden, nb_lr, nb_batch, nb_log_every = (
+                        200,
+                        20,
+                        64,
+                        1e-3,
+                        64,
+                        10,
+                    )
+
                 self.models["nbeats"] = NBeatsPredictor(
                     n_features=None,  # fit 時に検出
                     n_classes=self.n_classes,
                     n_stacks=2,
                     n_blocks_per_stack=3,
-                    hidden_size=64,
-                    learning_rate=1e-3,
-                    n_epochs=50,
-                    batch_size=64,
+                    hidden_size=nb_hidden,
+                    learning_rate=nb_lr,
+                    n_epochs=nb_n_epochs,
+                    batch_size=nb_batch,
                     device="cpu",  # Cloud Run は CPU only
                     random_state=42,
+                    patience=nb_patience,
+                    log_every=nb_log_every,
                 )
-                self.logger.info("✅ Phase 89 C4: N-BEATS Predictor 追加（4 モデル ensemble）")
+                self.logger.info(
+                    f"✅ Phase 89 C4 + NB1-NB5: N-BEATS Predictor 追加（4 モデル ensemble・"
+                    f"n_epochs={nb_n_epochs}, patience={nb_patience}, hidden={nb_hidden}, "
+                    f"lr={nb_lr}, batch={nb_batch}）"
+                )
             else:
                 self.logger.warning(
                     "Phase 89 C4: torch 未インストール → N-BEATS スキップ "
@@ -1366,7 +1392,7 @@ class NewSystemMLModelCreator:
                             "optimal_threshold": training_results.get("optimal_threshold", 0.5),
                         },
                         "git_info": git_commit,
-                        "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化",
+                        "notes": "Phase 89-δ完了・55特徴量（funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 追加）・N-BEATS 統合（4モデルensemble）・PurgedKFold・Early Stopping・SMOTE・Optuna最適化",
                     }
 
                     # Phase 51.5-A Fix: メタデータファイル名決定
@@ -1413,8 +1439,8 @@ class NewSystemMLModelCreator:
             "model_metrics": training_results.get("results", {}),
             "model_files": saved_files,
             "config_path": self.config_path,
-            "phase": "Phase 51.9",  # Phase 51.9完了: 真の3クラス分類実装
-            "notes": "Phase 77完了・37特徴量（SHAP最適化）・メタラベリング・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果",
+            "phase": "Phase 89-γ",  # Phase 89-γ: N-BEATS 追加 4 モデル ensemble
+            "notes": "Phase 89-δ完了・55特徴量（funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加）・メタラベリング・閾値0.5%・CV (PurgedKFold embargo)・Early Stopping・SMOTE・Optuna最適化（LGB/XGB/RF）・N-BEATS 統合（4モデルensemble・重み 0.34/0.34/0.17/0.15）",
         }
 
         training_metadata_file = self.training_dir / "training_metadata.json"
