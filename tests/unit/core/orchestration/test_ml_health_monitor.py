@@ -225,7 +225,7 @@ class TestPhase89GammaAutoRetraining:
 
     def test_trigger_success_posts_to_github(self, monitor):
         """正常レスポンス時 True + Firestore に last_retrain_trigger_at 保存."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_resp = MagicMock()
         mock_resp.status_code = 204
@@ -244,7 +244,7 @@ class TestPhase89GammaAutoRetraining:
 
     def test_trigger_api_failure_returns_false(self, monitor):
         """HTTP 401/500 で False."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_resp = MagicMock()
         mock_resp.status_code = 401
@@ -257,7 +257,7 @@ class TestPhase89GammaAutoRetraining:
 
     def test_trigger_within_cooldown_skips(self, monitor):
         """cooldown 中の 2 回目呼び出しは False."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_resp = MagicMock()
         mock_resp.status_code = 204
@@ -287,7 +287,7 @@ class TestPhase89GammaAutoRetraining:
 
     def test_trigger_uses_env_vars_when_not_passed(self, monitor, monkeypatch):
         """引数未指定なら環境変数を読む."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, patch
 
         monkeypatch.setenv("GITHUB_REPO_OWNER", "env-owner")
         monkeypatch.setenv("GITHUB_REPO_NAME", "env-repo")
