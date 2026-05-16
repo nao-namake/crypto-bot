@@ -121,6 +121,9 @@ class InfrastructureCheckResult:
     # キー: memory_metrics / oom_incidents / cold_start / trigger_health
     #       / h11_orphan_sl / m5_gcs_backup / recovery_testing / quality_filter_regime
     phase87_88_metrics: Dict[str, Any] = field(default_factory=dict)
+    # Phase 89 全実装の運用カバレッジ（α gating / β drift / γ N-BEATS / δ WebSocket / Kelly safety）
+    # キー: gating / drift / nbeats_health / websocket / kelly_safety
+    phase89_metrics: Dict[str, Any] = field(default_factory=dict)
 
     # スコア
     normal_checks: int = 0
@@ -701,6 +704,8 @@ class BotFunctionChecker:
         # Phase 87/88 動作確認カバレッジ拡充（include_metrics=True 時）
         if self.infra_checker.include_metrics:
             self._check_phase87_88_features()
+            # Phase 89 全実装の運用カバレッジ（gating / drift / N-BEATS / WebSocket / Kelly）
+            self._check_phase89_features()
 
         # 総合スコア計算
         self.result.total_score = (
@@ -1218,6 +1223,102 @@ class BotFunctionChecker:
 
         except Exception as e:
             self.logger.warning(f"⚠️ Phase 87/88 機能カバレッジ確認失敗: {e}")
+
+    def _check_phase89_features(self):
+        """Phase 89 全実装の動作確認（gating / drift / N-BEATS / WebSocket / Kelly）。
+
+        - 89-α gating: trigger 数 vs フル取引サイクル vs monitor_only スキップ
+        - 89-β drift: Bonferroni 補正効果 + Auto Retraining trigger
+        - 89-γ NB1-NB9: N-BEATS health + DI 配線 warning + HMM load
+        - 89-δ WebSocket: 接続成否 + ETH ticker
+        - 89 H7: Fractional Kelly fallback の発動
+        """
+        self.logger.info("🔍 Phase 89 機能カバレッジ確認（α/β/γ/δ + NB1-NB9 + C7）")
+        try:
+            from src.analysis.common.gcp_metrics import (
+                count_phase89_drift_events,
+                count_phase89_gating_stats,
+                count_phase89_kelly_safety,
+                count_phase89_nbeats_health,
+                count_phase89_websocket_status,
+            )
+
+            metrics = self.infra_checker.result.phase89_metrics
+            metrics["gating"] = count_phase89_gating_stats(hours=self.infra_checker.hours)
+            metrics["drift"] = count_phase89_drift_events(hours=self.infra_checker.hours)
+            metrics["nbeats_health"] = count_phase89_nbeats_health(hours=self.infra_checker.hours)
+            metrics["websocket"] = count_phase89_websocket_status(hours=self.infra_checker.hours)
+            metrics["kelly_safety"] = count_phase89_kelly_safety(hours=self.infra_checker.hours)
+
+            # gating: 50% 以上が monitor_only スキップなら効果ありと判定
+            g = metrics["gating"]
+            if g["total_triggers"] > 0:
+                if g["skip_percentage"] >= 50.0:
+                    self.logger.info(
+                        f"  ✅ Phase 89-α gating: trigger {g['total_triggers']} 件中 "
+                        f"{g['skip_percentage']:.1f}% を monitor_only でスキップ"
+                    )
+                    self.result.normal_checks += 1
+                else:
+                    self.logger.warning(
+                        f"  ⚠️ Phase 89-α gating: skip 率 {g['skip_percentage']:.1f}% < 50%"
+                    )
+                    self.result.warning_issues += 1
+
+            # drift: 20 件/24h 超は偽陽性疑い
+            d = metrics["drift"]
+            if d["drift_detected"] >= 20:
+                self.logger.warning(
+                    f"  ⚠️ Phase 89-β drift: {d['drift_detected']} 件/24h・Bonferroni 補正薄い可能性"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.logger.info(
+                    f"  ✅ Phase 89-β drift: 検出 {d['drift_detected']} / "
+                    f"抑制 {d['drift_suppressed_by_bonferroni']} / "
+                    f"再学習 {d['retrain_triggered']} 件"
+                )
+                self.result.normal_checks += 1
+
+            # NB health: SL placeholder 検出 = C7 修正の漏れ
+            nb = metrics["nbeats_health"]
+            if nb["sl_placeholder_detected"] > 0:
+                self.logger.critical(
+                    f"  🚨 Phase 89 C7: SL placeholder ID 検出 "
+                    f"{nb['sl_placeholder_detected']} 件・position_restorer の漏れ確認"
+                )
+                self.result.critical_issues += 1
+            elif nb["warning_external_api_client_missing"] > 0:
+                self.logger.warning(
+                    f"  ⚠️ Phase 89-β/H8: external_api_client 未配線 "
+                    f"{nb['warning_external_api_client_missing']} 件"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+            # WebSocket
+            ws = metrics["websocket"]
+            if ws["websocket_start_success"] == 0 and ws["websocket_start_failure"] == 0:
+                self.logger.warning(
+                    "  ⚠️ Phase 89-δ WebSocket: 起動ログ未検出（orchestrator 呼出確認）"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+            # Kelly safety: 連敗発動は warning（取引動作確認）
+            k = metrics["kelly_safety"]
+            if k["fractional_kelly_active"] >= 5:
+                self.logger.warning(
+                    f"  ⚠️ Phase 89-β Fractional Kelly: {k['fractional_kelly_active']} 件発動・連敗注視"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 89 機能カバレッジ確認失敗: {e}")
 
 
 @dataclass
@@ -3589,7 +3690,115 @@ def _generate_diagnostic_markdown(
     # Phase 87/88 動作確認カバレッジ拡充セクション
     lines.extend(_generate_phase87_88_markdown(infra_result))
 
+    # Phase 89 全実装カバレッジセクション
+    lines.extend(_generate_phase89_markdown(infra_result))
+
     return "\n".join(lines)
+
+
+def _generate_phase89_markdown(infra_result: InfrastructureCheckResult) -> List[str]:
+    """Phase 89 全実装の運用カバレッジセクションを Markdown 配列で返す。
+
+    infra_result.phase89_metrics に格納された gcp_metrics 結果を整形。
+    対象: α gating / β drift / γ N-BEATS health / δ WebSocket / Kelly safety
+    """
+    metrics = getattr(infra_result, "phase89_metrics", {}) or {}
+    if not metrics:
+        return [
+            "",
+            "---",
+            "",
+            "## Phase 89 機能カバレッジ（α/β/γ/δ + NB1-NB9 + C7）",
+            "",
+            "_（--no-metrics で skip / または取得失敗）_",
+            "",
+        ]
+
+    lines = ["", "---", "", "## Phase 89 機能カバレッジ（α/β/γ/δ + NB1-NB9 + C7）", ""]
+
+    # 89-α gating
+    g = metrics.get("gating", {})
+    lines.extend(["### 🎯 Phase 89-α: Stage 1 gating（CPU 削減効果）", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| trigger 総数 | {g.get('total_triggers', 0)} 回 |",
+            f"| フル取引サイクル発火 | {g.get('gating_pass', 0)} 回 |",
+            f"| monitor_only スキップ | {g.get('monitor_only_skip', 0)} 回 |",
+            f"| スキップ率 | {g.get('skip_percentage', 0)}% |",
+            f"| Verdict | **{g.get('verdict', '-')}** |",
+            "",
+        ]
+    )
+
+    # 89-β drift
+    d = metrics.get("drift", {})
+    lines.extend(["### 📊 Phase 89-β + H4: 特徴量分布 Drift 検出（Bonferroni 補正）", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| Drift 検出（真の drift） | {d.get('drift_detected', 0)} 件 |",
+            f"| Bonferroni 補正で抑制 | {d.get('drift_suppressed_by_bonferroni', 0)} 件 |",
+            f"| Drift 解消 | {d.get('drift_resolved', 0)} 件 |",
+            f"| Auto Retraining 起動 | {d.get('retrain_triggered', 0)} 件 |",
+            f"| cooldown でスキップ | {d.get('retrain_cooldown_skipped', 0)} 件 |",
+            f"| 再起動跨ぎ復元 | {d.get('state_restored_on_restart', 0)} 件 |",
+            f"| Verdict | **{d.get('verdict', '-')}** |",
+            "",
+        ]
+    )
+
+    # 89-γ NB1-NB9 health
+    nb = metrics.get("nbeats_health", {})
+    lines.extend(["### 🤖 Phase 89-γ NB1-NB9: N-BEATS + DI 配線 + C7 SL Placeholder", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| N-BEATS class_weights 適用 | {nb.get('nbeats_class_weights_applied', 0)} 回 |",
+            f"| SL placeholder 検出（C7・期待 0） | {nb.get('sl_placeholder_detected', 0)} 件 |",
+            f"| external_api_client 未配線 warning（H8） | {nb.get('warning_external_api_client_missing', 0)} 件 |",
+            f"| regime_classifier 未配線 warning（H8） | {nb.get('warning_regime_classifier_missing', 0)} 件 |",
+            f"| HMM model load 成功 | {nb.get('hmm_load_success', 0)} 件 |",
+            f"| NBeatsPredictor 追加（学習時） | {nb.get('nbeats_predictor_added', 0)} 件 |",
+            f"| Verdict | **{nb.get('verdict', '-')}** |",
+            "",
+        ]
+    )
+
+    # 89-δ WebSocket
+    ws = metrics.get("websocket", {})
+    lines.extend(["### 🔌 Phase 89-δ: WebSocket クライアント動作", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| WebSocket 接続起動成功 | {ws.get('websocket_start_success', 0)} 回 |",
+            f"| WebSocket 接続失敗 | {ws.get('websocket_start_failure', 0)} 回 |",
+            f"| クリーン disconnect（H11） | {ws.get('websocket_clean_disconnect', 0)} 回 |",
+            f"| ETH/JPY ticker 取得失敗 | {ws.get('eth_ticker_fetch_failure', 0)} 回 |",
+            f"| Verdict | **{ws.get('verdict', '-')}** |",
+            "",
+        ]
+    )
+
+    # Fractional Kelly
+    k = metrics.get("kelly_safety", {})
+    lines.extend(["### ⚖️ Phase 89-β + H7: Fractional Kelly 動的安全係数", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| Fractional Kelly 発動（連敗時） | {k.get('fractional_kelly_active', 0)} 回 |",
+            f"| Fallback 経路でも safety 適用 | {k.get('fallback_with_safety', 0)} 回 |",
+            f"| Verdict | **{k.get('verdict', '-')}** |",
+            "",
+        ]
+    )
+
+    return lines
 
 
 def _generate_phase87_88_markdown(infra_result: InfrastructureCheckResult) -> List[str]:

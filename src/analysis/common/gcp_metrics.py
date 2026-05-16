@@ -528,3 +528,176 @@ def count_quality_filter_regime_outcomes(
         "normal_range": {"approved": normal_approved, "rejected": normal_rejected},
         "trending": {"approved": trending_approved, "rejected": trending_rejected},
     }
+
+
+# =====================================================================
+# Phase 89 観察用メトリクス（gating / drift / N-BEATS / WebSocket / Kelly）
+# =====================================================================
+
+
+def count_phase89_gating_stats(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 89-α Stage 1: gating 統計。
+
+    - trigger 数 vs フル取引サイクル発火数 vs monitor_only スキップ数
+    - CPU 削減効果の定量化に必須
+    """
+    gating_pass = run_gcloud_logging_count(
+        "Phase 89-α Stage 1: gating 通過", hours=hours, service_name=service_name
+    )
+    monitor_only = run_gcloud_logging_count(
+        "Phase 89-α Stage 1: フル取引判断スキップ", hours=hours, service_name=service_name
+    )
+    total = gating_pass + monitor_only
+    skip_pct = (monitor_only / total * 100.0) if total > 0 else 0.0
+    return {
+        "gating_pass": gating_pass,
+        "monitor_only_skip": monitor_only,
+        "total_triggers": total,
+        "skip_percentage": round(skip_pct, 1),
+        "verdict": (
+            "OK" if skip_pct >= 50.0 else f"LOW_SKIP_RATE ({skip_pct:.1f}% < 50%・gating 効果薄い)"
+        ),
+    }
+
+
+def count_phase89_drift_events(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 89-β + H4: Drift 検出と Bonferroni 補正効果。
+
+    - drift 検出（真の drift・3 特徴量以上）
+    - 偽陽性抑制（significant_feature_min 未満で抑制）
+    - Auto Retraining trigger 履歴
+    """
+    drift_detected = run_gcloud_logging_count(
+        "Phase 89-β: Drift 検出", hours=hours, service_name=service_name
+    )
+    drift_suppressed = run_gcloud_logging_count(
+        "Phase 89 H4: 有意特徴量.*drift 未判定",
+        hours=hours,
+        service_name=service_name,
+    )
+    drift_resolved = run_gcloud_logging_count(
+        "Phase 89-β: Drift 解消", hours=hours, service_name=service_name
+    )
+    retrain_triggered = run_gcloud_logging_count(
+        "Auto Retraining triggered", hours=hours, service_name=service_name
+    )
+    retrain_cooldown = run_gcloud_logging_count(
+        "Auto Retraining cooldown 中", hours=hours, service_name=service_name
+    )
+    drift_state_restored = run_gcloud_logging_count(
+        "Phase 89 H1: drift カウンタ復元", hours=hours, service_name=service_name
+    )
+    # 過剰検知の判定基準: drift detected >= 20 件/24h は偽陽性疑い
+    verdict = "OK"
+    if drift_detected >= 20:
+        verdict = f"OVERFITTED ({drift_detected} 件/24h・Bonferroni 補正効果薄)"
+    elif retrain_triggered > 2:
+        verdict = f"FREQUENT_RETRAIN ({retrain_triggered} 件/24h・drift 過剰)"
+    return {
+        "drift_detected": drift_detected,
+        "drift_suppressed_by_bonferroni": drift_suppressed,
+        "drift_resolved": drift_resolved,
+        "retrain_triggered": retrain_triggered,
+        "retrain_cooldown_skipped": retrain_cooldown,
+        "state_restored_on_restart": drift_state_restored,
+        "verdict": verdict,
+    }
+
+
+def count_phase89_nbeats_health(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 89-γ NB1-NB9: N-BEATS 動作確認（実機）.
+
+    実機では予測時のログは多数のため、起動時の health とエラー系を中心に集計。
+    """
+    class_weights = run_gcloud_logging_count(
+        "Phase 89 NB4: N-BEATS class_weights", hours=hours, service_name=service_name
+    )
+    placeholder_id = run_gcloud_logging_count(
+        "Phase 89 C7: SL placeholder ID 検出", hours=hours, service_name=service_name
+    )
+    h8_external = run_gcloud_logging_count(
+        "Phase 89-β/H8: external_api_client 未設定", hours=hours, service_name=service_name
+    )
+    h8_regime = run_gcloud_logging_count(
+        "Phase 89-γ/H8: regime_classifier 未設定", hours=hours, service_name=service_name
+    )
+    hmm_loaded = run_gcloud_logging_count(
+        "Phase 89 C6: HMM レジーム分類器 load 成功", hours=hours, service_name=service_name
+    )
+    nbeats_added = run_gcloud_logging_count(
+        "Phase 89 C4.*N-BEATS Predictor 追加", hours=hours, service_name=service_name
+    )
+    verdict = "OK"
+    if h8_external > 0 or h8_regime > 0:
+        verdict = f"DI_MISSING (external_api {h8_external} / regime {h8_regime})"
+    if placeholder_id > 0:
+        verdict = f"SL_PLACEHOLDER ({placeholder_id} 件・C7 修正の漏れ確認)"
+    return {
+        "nbeats_class_weights_applied": class_weights,
+        "sl_placeholder_detected": placeholder_id,
+        "warning_external_api_client_missing": h8_external,
+        "warning_regime_classifier_missing": h8_regime,
+        "hmm_load_success": hmm_loaded,
+        "nbeats_predictor_added": nbeats_added,
+        "verdict": verdict,
+    }
+
+
+def count_phase89_websocket_status(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 89-δ: WebSocket クライアント動作確認."""
+    ws_started = run_gcloud_logging_count(
+        "Phase 89-δ WebSocket 接続タスク起動完了", hours=hours, service_name=service_name
+    )
+    ws_failed = run_gcloud_logging_count(
+        "Phase 89-δ WebSocket 接続失敗", hours=hours, service_name=service_name
+    )
+    ws_disconnect = run_gcloud_logging_count(
+        "Phase 89 H11.*WebSocket クライアント切断完了",
+        hours=hours,
+        service_name=service_name,
+    )
+    eth_ticker_fail = run_gcloud_logging_count(
+        "bitbank ETH/JPY ticker 取得失敗", hours=hours, service_name=service_name
+    )
+    verdict = "OK"
+    if ws_started == 0:
+        verdict = "NOT_STARTED (起動シーケンスに WebSocket 呼出がない可能性)"
+    elif ws_failed > 0:
+        verdict = f"FAILED ({ws_failed} 件・REST フォールバック動作中)"
+    return {
+        "websocket_start_success": ws_started,
+        "websocket_start_failure": ws_failed,
+        "websocket_clean_disconnect": ws_disconnect,
+        "eth_ticker_fetch_failure": eth_ticker_fail,
+        "verdict": verdict,
+    }
+
+
+def count_phase89_kelly_safety(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 89-β + H7: Fractional Kelly 動的安全係数の発動."""
+    kelly_apply = run_gcloud_logging_count(
+        "Phase 89-β Fractional Kelly: 連敗", hours=hours, service_name=service_name
+    )
+    kelly_fallback = run_gcloud_logging_count(
+        "Phase 89 H7: Kelly履歴不足.*safety_factor", hours=hours, service_name=service_name
+    )
+    return {
+        "fractional_kelly_active": kelly_apply,
+        "fallback_with_safety": kelly_fallback,
+        "verdict": "OK" if kelly_apply == 0 else f"LOSS_STREAK_DETECTED ({kelly_apply} 件)",
+    }
