@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-05-16T00:49:28.464600",
+  "created_at": "2026-05-16T08:38:40.128461",
   "feature_names": [
     "close",
     "volume",
@@ -57,55 +57,55 @@
     "eth_btc_corr_24h",
     "eth_returns_15m"
   ],
-  "training_samples": 17280,
+  "training_samples": 17281,
   "model_metrics": {
     "lightgbm": {
-      "accuracy": 0.9610339506172839,
-      "f1_score": 0.9627369050483838,
-      "precision": 0.9644459054715466,
-      "recall": 0.9610339506172839,
-      "cv_f1_mean": 0.8927208966308386,
-      "cv_f1_std": 0.05040831039408,
-      "confidence_mean": 0.9410067238971024,
-      "confidence_std": 0.10080253705298649,
-      "confidence_min": 0.4008937951450746,
-      "confidence_max": 0.9999795258515471
+      "accuracy": 0.9679907443116081,
+      "f1_score": 0.9659033304344414,
+      "precision": 0.9638248999503296,
+      "recall": 0.9679907443116081,
+      "cv_f1_mean": 0.8929051622382225,
+      "cv_f1_std": 0.04991651954039933,
+      "confidence_mean": 0.915592499153803,
+      "confidence_std": 0.11024353292288785,
+      "confidence_min": 0.37340999098338545,
+      "confidence_max": 0.9996413494871428
     },
     "xgboost": {
-      "accuracy": 0.9714506172839507,
-      "f1_score": 0.9676469735201136,
-      "precision": 0.963872999364419,
-      "recall": 0.9714506172839507,
-      "cv_f1_mean": 0.889885305902328,
-      "cv_f1_std": 0.0530233649344354,
-      "confidence_mean": 0.8633909821510315,
-      "confidence_std": 0.13173553347587585,
-      "confidence_min": 0.34408798813819885,
-      "confidence_max": 0.999795138835907
+      "accuracy": 0.9660624758966448,
+      "f1_score": 0.9651144263619081,
+      "precision": 0.9641682357478278,
+      "recall": 0.9660624758966448,
+      "cv_f1_mean": 0.8909269036478271,
+      "cv_f1_std": 0.04969548026572462,
+      "confidence_mean": 0.9497479200363159,
+      "confidence_std": 0.097369484603405,
+      "confidence_min": 0.3781084418296814,
+      "confidence_max": 0.9999891519546509
     },
     "random_forest": {
-      "accuracy": 0.7195216049382716,
-      "f1_score": 0.8227945138946046,
-      "precision": 0.9677153884644494,
-      "recall": 0.7195216049382716,
-      "cv_f1_mean": 0.8248228056163811,
-      "cv_f1_std": 0.10085902814232456,
-      "confidence_mean": 0.5507864729362781,
-      "confidence_std": 0.12980497508131603,
-      "confidence_min": 0.3352038707219057,
-      "confidence_max": 0.888710595136361
+      "accuracy": 0.7709217123023525,
+      "f1_score": 0.8560289024096248,
+      "precision": 0.9672084232922827,
+      "recall": 0.7709217123023525,
+      "cv_f1_mean": 0.8198443073963226,
+      "cv_f1_std": 0.10621182711753571,
+      "confidence_mean": 0.5705602309734294,
+      "confidence_std": 0.13979115518074145,
+      "confidence_min": 0.33844291286681133,
+      "confidence_max": 0.9250240880232713
     },
     "nbeats": {
-      "accuracy": 0.008487654320987654,
-      "f1_score": 0.00014286793807324286,
-      "precision": 7.20402758725804e-05,
-      "recall": 0.008487654320987654,
-      "cv_f1_mean": 0.35342944096815837,
-      "cv_f1_std": 0.4327344827433444,
-      "confidence_mean": 0.3398403227329254,
-      "confidence_std": 2.9802322387695312e-08,
-      "confidence_min": 0.339840292930603,
-      "confidence_max": 0.339840292930603
+      "accuracy": 0.8958735055919784,
+      "f1_score": 0.9283182895639345,
+      "precision": 0.9633630115321704,
+      "recall": 0.8958735055919784,
+      "cv_f1_mean": 0.8550492005173675,
+      "cv_f1_std": 0.054480096703348545,
+      "confidence_mean": 0.9426780939102173,
+      "confidence_std": 0.11451663076877594,
+      "confidence_min": 0.4304249584674835,
+      "confidence_max": 1.0
     }
   },
   "model_files": {
@@ -116,6 +116,6 @@
     "production_ensemble": "models/production/ensemble_full.pkl"
   },
   "config_path": "config/core/thresholds.yaml",
-  "phase": "Phase 51.9",
-  "notes": "Phase 77完了・37特徴量（SHAP最適化）・メタラベリング・閾値0.5%・CV n_splits=5・Early Stopping・SMOTE・Optuna最適化・個別モデル学習結果"
+  "phase": "Phase 89-γ",
+  "notes": "Phase 89-δ完了・55特徴量（funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加）・メタラベリング・閾値0.5%・CV (PurgedKFold embargo)・Early Stopping・SMOTE・Optuna最適化（LGB/XGB/RF）・N-BEATS 統合（4モデルensemble・重み 0.34/0.34/0.17/0.15）"
 }
