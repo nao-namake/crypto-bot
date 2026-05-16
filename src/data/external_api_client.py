@@ -67,6 +67,9 @@ class ExternalAPIClient:
 
         self._cache: Dict[str, Tuple[float, datetime]] = {}
         self._last_known_good: Dict[str, float] = {}
+        # P1-2: dict 型キャッシュ専用ストレージ（ticker 等）。float cache との二重管理を解消。
+        self._dict_cache: Dict[str, Tuple[Dict[str, Any], datetime]] = {}
+        self._last_known_good_dict: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
 
     async def fetch_funding_rate(self, symbol: str = "BTCUSDT", limit: int = 24) -> float:
@@ -121,21 +124,11 @@ class ExternalAPIClient:
             {"last": float, "bid": float, "ask": float, "volume": float}
             失敗時は全て 0.0 fill（fail-open）。last-known-good を優先。
         """
+        # P1-2: dict 型専用キャッシュで二重管理を解消（_get_cached_dict のみで TTL + last-known-good 統一）
         cache_key = "eth_jpy_ticker"
-        cached = self._get_cached(cache_key)
+        cached = self._get_cached_dict(cache_key)
         if cached is not None:
-            # cached は float ではなく dict なので別ストレージ
-            # Phase 89 H2: _last_known_good[..._data] 不一致時は再 fetch にフォールスルー
-            # （旧実装は暗黙 None return で呼出側 .get() が AttributeError）
-            with self._lock:
-                data = self._last_known_good.get(cache_key + "_data")
-            if data:
-                return dict(data)
-            # _data が欠落: cache に値はあるが dict が無い不整合状態 → fallback dict 生成
-            self.logger.warning(
-                f"Phase 89 H2: eth_jpy_ticker cache hit ({cached}) だが _data 欠落 → fallback 経由"
-            )
-            return self._fallback_eth_ticker()
+            return cached
 
         url = "https://public.bitbank.cc/eth_jpy/ticker"
         try:
@@ -157,10 +150,8 @@ class ExternalAPIClient:
                 "ask": float(data.get("sell", 0.0) or 0.0),
                 "volume": float(data.get("vol", 0.0) or 0.0),
             }
-            # last 価格をキャッシュキーとして登録（_get_cached 互換）+ data 全体は別ストレージ
-            with self._lock:
-                self._put_cache(cache_key, result["last"])
-                self._last_known_good[cache_key + "_data"] = dict(result)
+            # P1-2: dict 専用キャッシュで一元化（旧二重管理を解消）
+            self._put_cache_dict(cache_key, result)
             return result
 
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
@@ -171,12 +162,13 @@ class ExternalAPIClient:
             return self._fallback_eth_ticker()
 
     def _fallback_eth_ticker(self) -> Dict[str, float]:
-        """ETH ticker 取得失敗時の fallback（last-known-good 優先）."""
-        with self._lock:
-            data = self._last_known_good.get("eth_jpy_ticker_data")
-            if data:
-                return dict(data)
-        return {"last": 0.0, "bid": 0.0, "ask": 0.0, "volume": 0.0}
+        """ETH ticker 取得失敗時の fallback（last-known-good 優先）.
+
+        P1-2: _fallback_dict に統一して二重管理を解消。
+        """
+        return self._fallback_dict(
+            "eth_jpy_ticker", {"last": 0.0, "bid": 0.0, "ask": 0.0, "volume": 0.0}
+        )
 
     async def fetch_fear_greed_index(self) -> float:
         """
@@ -238,11 +230,38 @@ class ExternalAPIClient:
         with self._lock:
             return self._last_known_good.get(key, self.fallback_value)
 
+    # P1-2: dict 型キャッシュ専用メソッド（ticker 等）
+    def _get_cached_dict(self, key: str) -> Optional[Dict[str, Any]]:
+        """TTL 内の dict キャッシュ値を返す（無ければ None・copy 返却）."""
+        with self._lock:
+            entry = self._dict_cache.get(key)
+            if entry is None:
+                return None
+            value, expires_at = entry
+            if datetime.now() >= expires_at:
+                del self._dict_cache[key]
+                return None
+            return dict(value)
+
+    def _put_cache_dict(self, key: str, value: Dict[str, Any]) -> None:
+        """dict キャッシュと last-known-good 両方に保存."""
+        with self._lock:
+            expires_at = datetime.now() + timedelta(seconds=self.cache_ttl)
+            self._dict_cache[key] = (dict(value), expires_at)
+            self._last_known_good_dict[key] = dict(value)
+
+    def _fallback_dict(self, key: str, default: Dict[str, Any]) -> Dict[str, Any]:
+        """last-known-good dict 優先、無ければ default 返却."""
+        with self._lock:
+            return dict(self._last_known_good_dict.get(key, default))
+
     def clear_cache(self) -> None:
         """テスト用: キャッシュ・last-known-good を初期化."""
         with self._lock:
             self._cache.clear()
             self._last_known_good.clear()
+            self._dict_cache.clear()
+            self._last_known_good_dict.clear()
 
 
 _external_api_client: Optional[ExternalAPIClient] = None

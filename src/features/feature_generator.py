@@ -98,7 +98,24 @@ class FeatureGenerator:
         self._load_cross_asset_history()
 
     def _load_cross_asset_history(self) -> None:
-        """Phase 89 H3: cross_asset history を pickle から復元（再起動跨ぎ保持）."""
+        """Phase 89 H3: cross_asset history を pickle から復元（再起動跨ぎ保持）.
+
+        P0-3: ML 学習時（ML_TRAINING_MODE=true or BACKTEST_MODE=true）は pickle 読み込みを skip。
+        本番環境の deque 状態が訓練データに混入する**データリーク**を防止する。
+        """
+        # P0-3: ML 訓練時はリーク防止のため履歴復元を skip
+        if os.environ.get("ML_TRAINING_MODE", "").lower() == "true":
+            self.logger.info(
+                "P0-3: ML_TRAINING_MODE=true のため cross_asset history pickle 読み込みを skip"
+                "（本番 deque リーク防止）"
+            )
+            return
+        if os.environ.get("BACKTEST_MODE", "").lower() == "true":
+            self.logger.info(
+                "P0-3: BACKTEST_MODE=true のため cross_asset history pickle 読み込みを skip"
+            )
+            return
+
         try:
             import pickle
             from pathlib import Path

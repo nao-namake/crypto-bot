@@ -30,8 +30,9 @@ from ...core.logger import CryptoBotLogger, get_logger
 # 24h タイムアウトのデフォルト（thresholds.yaml から override 可能）
 DEFAULT_SL_TIMEOUT_HOURS: int = 24
 
-# Phase 89 C7: 実 order_id ではない placeholder 文字列
-PLACEHOLDER_ORDER_IDS: frozenset = frozenset({"existing", "none", "null", "unknown"})
+# Phase 89 C7 / P0-1: 実 order_id ではない placeholder 文字列
+# sl_state_persistence.PLACEHOLDER_ORDER_IDS と統一（"" 空文字も含める）
+PLACEHOLDER_ORDER_IDS: frozenset = frozenset({"existing", "none", "null", "unknown", ""})
 
 # Phase 89 C7: 同一 sl_order_id で fetch_order が連続失敗した時に緊急決済へ昇格する閾値
 DEFAULT_MAX_FETCH_FAILURES: int = 3

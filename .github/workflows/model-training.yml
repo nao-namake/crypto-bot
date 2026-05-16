@@ -80,7 +80,7 @@ jobs:
       - name: Collect training data
         run: |
           echo "📊 180日分データ収集"
-          python3 src/backtest/scripts/collect_historical_csv.py --days 180 --symbol BTC/JPY
+          python3 src/backtest/scripts/collect_historical_csv.py --days 365 --symbol BTC/JPY
           ls -lh src/backtest/data/historical/
 
       - name: Execute ML Model Training
@@ -97,8 +97,8 @@ jobs:
           fi
 
           # Phase 89 fix: --model full のみ学習（basic 廃止）
-          # 旧 both モード (full + basic) では 4 モデル × 2 セット = 8 モデル学習で 60 分超過
-          # full のみで Optuna 50 trials × 4 モデル + N-BEATS torch 学習が timeout 内に収まる
+          # P0-3: ML_TRAINING_MODE=true で cross_asset history pickle リーク防止
+          export ML_TRAINING_MODE=true
           python3 scripts/ml/create_ml_models.py \
             --model full \
             --n-classes 3 \
@@ -121,7 +121,7 @@ jobs:
         if: github.event.inputs.dry_run != 'true' && steps.training.outputs.training_success == 'true'
         run: |
           echo "🧬 Phase 89 C6: HMM レジーム分類器学習開始"
-          python3 scripts/ml/train_hmm_regime.py --days 180 --symbol BTC/JPY || {
+          python3 scripts/ml/train_hmm_regime.py --days 365 --symbol BTC/JPY || {
             echo "⚠️ HMM 学習失敗（fail-open 設計で本番は uniform 1/3 動作）"
             exit 0
           }

@@ -519,17 +519,26 @@ class MLModelValidator:
         if "メタラベリング" in notes or "Triple Barrier" in notes or "meta_label" in notes:
             return True
         # フォールバック: thresholds.yaml の ml.mode を直読
+        # P1-3: yaml 読み込み失敗を silent skip せず明示的に warning 出力
         try:
             import yaml
 
             tpath = Path(__file__).resolve().parent.parent.parent / "config/core/thresholds.yaml"
-            if tpath.exists():
-                with tpath.open("r", encoding="utf-8") as f:
-                    cfg = yaml.safe_load(f) or {}
-                if str(cfg.get("ml", {}).get("mode", "")).lower() == "quality_filter":
-                    return True
-        except Exception:
-            pass
+            if not tpath.exists():
+                print(
+                    f"⚠️  P1-3: thresholds.yaml が見つかりません ({tpath}) → "
+                    f"メタラベリング判定不可・旧 3 クラス方向予測モード扱い"
+                )
+                return False
+            with tpath.open("r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            if str(cfg.get("ml", {}).get("mode", "")).lower() == "quality_filter":
+                return True
+        except Exception as e:
+            print(
+                f"⚠️  P1-3: thresholds.yaml 読み込み失敗 ({e}) → "
+                f"メタラベリング判定不可・旧 3 クラス方向予測モード扱い"
+            )
         return False
 
     # ========================================

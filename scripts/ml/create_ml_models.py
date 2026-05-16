@@ -817,7 +817,7 @@ class NewSystemMLModelCreator:
 
             model.fit(X_cv_train, y_cv_train)
             y_pred = model.predict(X_cv_val)
-            score = f1_score(y_cv_val, y_pred, average="weighted")
+            score = f1_score(y_cv_val, y_pred, average="macro")
             scores.append(score)
 
         return np.mean(scores)
@@ -866,7 +866,7 @@ class NewSystemMLModelCreator:
 
             model.fit(X_cv_train, y_cv_train)
             y_pred = model.predict(X_cv_val)
-            score = f1_score(y_cv_val, y_pred, average="weighted")
+            score = f1_score(y_cv_val, y_pred, average="macro")
             scores.append(score)
 
         return np.mean(scores)
@@ -899,7 +899,7 @@ class NewSystemMLModelCreator:
 
             model.fit(X_cv_train, y_cv_train)
             y_pred = model.predict(X_cv_val)
-            score = f1_score(y_cv_val, y_pred, average="weighted")
+            score = f1_score(y_cv_val, y_pred, average="macro")
             scores.append(score)
 
         return np.mean(scores)
@@ -1121,7 +1121,7 @@ class NewSystemMLModelCreator:
 
                     # 予測・評価
                     y_pred = model.predict(X_cv_val)
-                    score = f1_score(y_cv_val, y_pred, average="weighted")
+                    score = f1_score(y_cv_val, y_pred, average="macro")
                     cv_scores.append(score)
 
                 # Phase 39.3: Final model training on Train+Val with Early Stopping
@@ -1194,16 +1194,17 @@ class NewSystemMLModelCreator:
                     model.fit(X_train_val, y_train_val)
 
                 # Test set evaluation
+                # P0-2: average="weighted" → "macro" 変更
+                # 旧 weighted は HOLD 94% 偏りで「全部 HOLD 予測」でも F1=0.918 になる構造的歪み。
+                # macro はクラス毎 F1 の単純平均で、真の汎化性能を反映。
                 y_test_pred = model.predict(X_test)
                 test_metrics = {
                     "accuracy": accuracy_score(y_test, y_test_pred),
-                    "f1_score": f1_score(y_test, y_test_pred, average="weighted"),
+                    "f1_score": f1_score(y_test, y_test_pred, average="macro"),
                     "precision": precision_score(
-                        y_test, y_test_pred, average="weighted", zero_division=0
+                        y_test, y_test_pred, average="macro", zero_division=0
                     ),
-                    "recall": recall_score(
-                        y_test, y_test_pred, average="weighted", zero_division=0
-                    ),
+                    "recall": recall_score(y_test, y_test_pred, average="macro", zero_division=0),
                     "cv_f1_mean": np.mean(cv_scores),
                     "cv_f1_std": np.std(cv_scores),
                 }
@@ -1262,7 +1263,7 @@ class NewSystemMLModelCreator:
                 best_thr = 0.5
                 for thr in [0.30, 0.35, 0.40, 0.45, 0.50]:
                     y_pred_thr = (test_proba[:, 1] >= thr).astype(int)
-                    f1_val = f1_func(y_test, y_pred_thr, average="weighted")
+                    f1_val = f1_func(y_test, y_pred_thr, average="macro")
                     self.logger.info(f"  閾値={thr:.2f}: F1={f1_val:.4f}")
                     if f1_val > best_f1:
                         best_f1 = f1_val
@@ -1723,8 +1724,8 @@ def main():
     parser.add_argument(
         "--days",
         type=int,
-        default=180,
-        help="学習データ期間（日数、デフォルト: 180日）",
+        default=365,
+        help="学習データ期間（日数、デフォルト: 365日・P1-4 で 180→365 統一）",
     )
     parser.add_argument("--config", default="config/core/thresholds.yaml", help="設定ファイルパス")
 
