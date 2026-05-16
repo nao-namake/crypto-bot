@@ -12,19 +12,21 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 89 全実装完了・本番デプロイ済（2026-05-16）→ 実機 1 週間観察フェーズ**
+**Phase 86-89 総合レビュー + P0+P1 軽微修正完了（2026-05-16）→ ML 再学習 v7 待ち（macro F1 で真の性能確認）**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 89 全実装完了: 89-α/β/γ/δ + 配線修正 (C1-C7・H1-H12) + N-BEATS 完全版 (NB1-NB9) + 分析スクリプト Phase 89 対応 |
+| 最新成果 | Phase 86-89 全 72 観点 3-agent レビュー + ML 評価指標の構造的歪み発見・修正（weighted→macro F1）+ cross_asset リーク防止 + 訓練 180→365 日統一 |
+| Phase 86-89 レビュー | Critical ゼロ・軽微 9 件（P0+P1 4 件修正完了・P2 5 件 Phase 90 繰越） |
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加） |
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| モデル性能 | LGB CV F1 0.612→**0.893** / XGB 0.583→**0.891** / RF 0.552→**0.820** / **N-BEATS 0.855**（Phase 84 比 +44-54%） |
-| N-BEATS 修復 | 故障版 acc 0.008・f1 0.0001・conf_std 2.98e-08 → 完全版 acc **0.896** / f1 **0.928** / conf_std **0.115**（400 万倍改善） |
-| 次の予定 | 実機 1 週間観察 → 結果次第で Phase 90 計画（LLM センチメント / Transformer / WebSocket microstructure 等） |
-| 期待効果 | 月期待損益 **+43,440 → +60,000-70,000 円見込み**（取引頻度 3-5 件/日 維持・質的改善） |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/c-gleaming-ladybug.md`（Phase 89 修正 + N-BEATS 完全版プラン） |
-| 最終更新 | 2026年5月16日 - Phase 89 完全実装完了・実機観察フェーズ |
+| ⚠️ 旧 weighted F1 性能 | LGB 0.612→0.893 等の改善は**評価指標歪み**（HOLD 94% 不均衡 + weighted F1 = ランダム予測 0.893 と同水準） |
+| 🔄 真の性能 (macro F1) | ML 再学習 v7 で確認予定（Phase 84/85 と公平比較可能化） |
+| N-BEATS 修復は本物 | confidence_std 2.98e-08 → **0.115**（400 万倍改善・定数予測脱出は事実） |
+| TPSL 検証結果 | TPSLCalculator 実装は健全。Phase 85 報告 +362 円/件は**手数料未控除**・真の期待値は +138-254 円/件 |
+| 次の予定 | ML 再学習 v7 → macro F1 確認 → 実機 1 週間観察 → Phase 90 計画 |
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/c-gleaming-ladybug.md` |
+| 最終更新 | 2026年5月16日 - Phase 86-89 総合レビュー + P0+P1 修正完了 |
 
 ---
 

@@ -642,3 +642,101 @@ venv/bin/python3 scripts/live/standard_analysis.py --hours 168
 - LLM センチメント特徴量導入（funding/fear_greed と並列で）
 - Transformer 時系列予測モデル検討（N-BEATS の置き換え or 5 モデル目）
 - マルチペア（ETH/JPY）展開
+
+---
+
+# Phase 86-89 総合レビュー + P0+P1 修正（2026-05-16・本セッション追加）
+
+## 経緯
+
+Phase 89 本番デプロイ完了後、ユーザー要請で Phase 86-89 全実装の総合レビューを 3 つの Explore agent で並列実施（合計 72 観点）。さらに「ML 性能向上が見かけだけか」を多角的検証した結果、**評価指標の構造的歪み**を発見。ユーザーの「過去同じ失敗があった」という重要情報と一致し、即時根本修正を実施。
+
+## レビュー結果
+
+**Critical ゼロ・軽微 9 件**
+
+| Phase | レビュー観点数 | 結果 |
+|-------|---------|------|
+| Phase 86 (TPSLCalculator) | 8 | ✅ 健全 |
+| Phase 87 (SL 監視層) | 8 | ✅ 健全 |
+| Phase 88 (GCP コスト + H11) | 10 | ✅ 健全 |
+| Phase 89-α (gating + キャッシュ) | 10 | ✅ 健前 |
+| Phase 89-β (Kelly + Drift) | 10 | ✅ 健全 |
+| Phase 89-γ (N-BEATS + HMM + VPIN) | 10 | ✅ 健全 |
+| Phase 89-δ (WebSocket + BTC-ETH) | 6 | ✅ 健全 |
+| Phase 89 C7 + NB1-NB9 | 10 | ✅ 健全 |
+
+## P0+P1 修正（7 件実施）
+
+### 軽微改善 4 件
+
+**P0-1: sl_monitor PLACEHOLDER_ORDER_IDS に空文字追加**
+- `sl_state_persistence` の定義と統一（5 個 frozenset）
+- 実機影響なし
+
+**P1-1: gcp_metrics MEMORY_LIMIT_MIB 768→1024**
+- `thresholds.yaml:cloud_run.memory: 1Gi` と整合
+- メモリ percentile 表示の正確化
+
+**P1-2: external_api_client eth_jpy_ticker キャッシュキー統一**
+- 旧: float (last price) + dict (_data) の二重管理
+- 新: `_dict_cache` + `_last_known_good_dict` で一元化
+- 「cache hit だが _data 欠落」リスクを構造的に解消
+
+**P1-3: validate_ml_models yaml 失敗時 warning ログ追加**
+- silent skip を可視化
+
+### ML 評価指標 + データリーク修正 3 件（最重要）
+
+**P0-2: f1_score average "weighted" → "macro"**
+- 旧 weighted F1 は HOLD 94% 不均衡で「全部 HOLD 予測」でも **F1=0.918** を達成する構造的歪み
+- 検証実測: ランダム予測でも weighted F1=0.893 → Phase 89 LGB CV F1 0.893 は**ランダム予測と同水準**
+- macro F1 はクラス毎 F1 平均で真の汎化性能を反映
+- `create_ml_models.py` の 8 箇所すべて修正
+
+**P0-3: cross_asset history pickle 訓練時スキップ**
+- `data/runtime_state/cross_asset_history.pkl` が本番と訓練で共有 → リーク
+- `feature_generator.py:_load_cross_asset_history` に ML_TRAINING_MODE / BACKTEST_MODE チェック追加
+- `model-training.yml` で `export ML_TRAINING_MODE=true` 設定
+
+**P1-4: 訓練期間 180→365 日に統一**
+- Phase 84/85 と比較可能化
+- 短期トレンド偏り解消（直近 180 日の低ボラ期間に偏らない）
+
+## ML 性能向上の真偽検証結果
+
+ユーザーの「過去、見かけだけの性能で失敗した経緯あり」を受けて多角的検証:
+
+| 検証指標 | 値 | 評価 |
+|---------|------|------|
+| ダミー「全部 HOLD」予測 | weighted F1 **0.918** | 高スコアの構造的歪み |
+| ランダム予測（母集団比） | weighted F1 **0.893** | Phase 89 報告値と**同水準** |
+| Phase 89 LGB (報告) | weighted F1 **0.893** | 真の性能ではない可能性 |
+| Phase 89 LGB (macro F1) | **約 0.32-0.35** 推定 | 真の性能（ランダム水準）|
+
+**結論**: Phase 89 の 48-54% 改善は**見かけだけ要素が 70-80%**。真の改善 20-30%。N-BEATS confidence_std 改善（×400 万倍）は本物だが、F1 スコア改善幅は ML 再学習 v7 (macro F1) で再評価必要。
+
+## TPSL 検証結果（コード健全・docs 訂正のみ）
+
+- TPSLCalculator 実装: ✅ 健全
+- テストカバレッジ: ✅ 10 件網羅
+- 旧 4 箇所統合: ✅ 完了
+- **CLAUDE.md「+362 円/件」は手数料未控除**: 真の期待値は **+138-254 円/件**（手数料控除後）
+- 実機運用に影響なし（実装は手数料を正しく計算）
+
+## 次のステップ
+
+1. **ML 再学習 v7** 起動（CI 完了後）
+2. macro F1 で旧 Phase 84/85 と公平比較
+3. 真の性能改善度を確認
+4. 実機 1 週間観察開始
+
+## Phase 90 候補（P2 5 件）
+
+| ID | 内容 |
+|----|------|
+| P2-1 | HMM `model.converged` 未収束時の warning 追加 |
+| P2-2 | ml_health_monitor reference 分布 freshness 管理 |
+| P2-3 | position_restorer TP/SL 抽出を「最大 amount 基準」に変更 |
+| P2-4 | Phase 88 M5 GCS backup 統合テスト |
+| P2-5 | WebSocket disconnect cleanup integration test |

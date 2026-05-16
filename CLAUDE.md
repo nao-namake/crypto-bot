@@ -4,10 +4,10 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 89 全実装完了・本番デプロイ済（2026-05-16）→ 実機 1 週間観察フェーズ** |
-| **直前の作業** | Phase 89 配線修正 (C1-C7 + H1-H12) + N-BEATS 完全版実装 (NB1-NB9) + 分析スクリプト Phase 89 対応 |
-| **次の予定** | 実機 1 週間観察（毎日 `standard_analysis.py` 実行）→ Phase 90 計画（LLM センチメント / Transformer 等） |
-| **直近インシデント** | C7 SL placeholder バグ発見・即時 hotfix で実機 SL 監視復旧（Phase 89 レビュー時に検出）|
+| **現在Phase** | **Phase 86-89 総合レビュー完了 + P0+P1 軽微修正完了（2026-05-16）→ ML 再学習 v7 待ち（macro F1 で真の性能確認）** |
+| **直前の作業** | Phase 86-89 全 72 観点レビュー + P0+P1 修正（placeholder/MEMORY/cache/yaml warning/macro F1/cross_asset リーク防止/365 日）|
+| **次の予定** | ML 再学習 v7 → 真の性能 (macro F1) 確認 → 実機 1 週間観察 → Phase 90 計画 |
+| **直近インシデント** | ML 評価指標の構造的歪み発見（weighted F1 でランダム予測と同等の見かけ性能・修正済）|
 | **Phase 87 達成** | Critical 5 + High 10 全完了（本番デプロイ済） |
 | **Phase 88 達成** | I1-I4 GCPコスト 4件 + H11 孤児SL + M1-M5 + L1-L3 |
 | **Phase 89-α 達成** | Stage 1 取引判断 gating + Stage 3 GCP リソース整理 + Stage 2 特徴量キャッシュ |
@@ -16,12 +16,16 @@
 | **Phase 89-δ 達成** | WebSocket + BTC-ETH 相関 +3 特徴量（52→55）+ マルチペア基盤 |
 | **Phase 89 配線修正** | C1-C7（DI 漏れ + SL placeholder バグ）+ H1-H12（永続化 / Bonferroni / VPIN / Kelly / WebSocket cleanup 等） |
 | **Phase 89 NB1-NB9** | N-BEATS 完全版（StandardScaler + 200 epoch + Early Stopping + Kaiming init + class_weights + validation メタラベリング対応） |
+| **Phase 86-89 レビュー** | 72 観点・Critical ゼロ・軽微 9 件（P0/P1 4 件修正完了・P2 5 件 Phase 90 繰越） |
+| **P0+P1 修正完了** | sl_monitor placeholder 統一 / MEMORY 768→1024 / eth_jpy cache 統一 / yaml warning / **macro F1** / cross_asset リーク防止 / 訓練 180→365 日 |
 | **特徴量数** | 37 → **55**（+18: funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加） |
-| **ML モデル** | 3 → **4**（N-BEATS 追加・CV F1 0.855） |
-| **モデル性能改善** | LGB 0.612→0.893 / XGB 0.583→0.891 / RF 0.552→0.820 / N-BEATS 新規 0.855（Phase 84 比 +44-54%） |
+| **ML モデル** | 3 → **4**（N-BEATS 追加） |
+| **モデル性能（旧 weighted F1）** | ⚠️ LGB 0.612→0.893 等の改善は**評価指標歪み**（クラス不均衡 HOLD 94% + weighted F1 = ランダム予測と同水準）|
+| **モデル性能（macro F1・真の指標）** | ML 再学習 v7 で確認予定（Phase 84/85 との公平比較可能化） |
+| **TPSL 検証結果** | TPSLCalculator 実装は健全。Phase 85 報告 +362円/件は手数料**未控除**の期待値・真の期待値は **+138-254 円/件**（実機運用に影響なし）|
 | **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
 | **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
-| **最終更新** | 2026年5月16日 - Phase 89 完全実装完了・実機観察フェーズ |
+| **最終更新** | 2026年5月16日 - Phase 86-89 総合レビュー + P0+P1 修正完了 |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
