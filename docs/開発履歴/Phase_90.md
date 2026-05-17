@@ -503,3 +503,69 @@ fi
 - `src/core/persistence/firestore_state.py`: BOT_FORCE_LOCAL_PERSISTENCE
 - `scripts/testing/checks.sh`: venv 自動検出 + $PYTHON 置換（13 箇所）
 - `requirements.txt`: pytest-timeout / pytest-forked 追加
+
+---
+
+# Phase 90α 補強 2: ライブモード分析 Phase 90 対応（2026-05-18）
+
+**契機**: `scripts/live/standard_analysis.py` は Phase 86-89 まで対応していたが、Phase 90α (v8e メタラベリング有効化) の動作確認は未対応だった。実機 1 週間観察フェーズ突入前に、v8e の動作を毎日定量監視できるよう拡張。
+
+## 追加内容
+
+### `src/analysis/common/gcp_metrics.py`
+
+| 関数 | 監視内容 | 警告条件 |
+|---|---|---|
+| `count_phase90_quality_filter_stats(hours)` | accept/reject/uncertain 比率 | reject > 70% (過剰防衛) / accept < 10% (機会逸失) |
+| `count_phase90_ml_prediction_dist(hours)` | 「高品質/低品質」ラベル分布 + 旧 3 クラスラベル残存 | 3 クラスラベル残存 = v8e モデル未配備 (REGRESSION) |
+| `count_phase90_model_health(hours)` | DummyModel フォールバック + 予測失敗 + メタラベル load | 予測失敗 ≥3 件 = CIRCUIT_BREAKER_RISK |
+
+### `scripts/live/standard_analysis.py`
+
+- `InfrastructureCheckResult.phase90_metrics` フィールド追加
+- `_check_phase90_features()` メソッド追加（gcp_metrics 呼び出し + 警告判定）
+- `_generate_phase90_markdown()` 関数追加（最終 Markdown レポートの「Phase 90α 機能カバレッジ」セクション生成）
+
+## 使い方
+
+```bash
+# 24h ライブ運用分析（Phase 86-90 全カバー）
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+```
+
+レポート末尾に以下のセクションが追加される:
+
+```
+## Phase 90α 機能カバレッジ（v8e メタラベリング有効化）
+
+### 🛡️ 品質フィルタ動作（accept/reject/uncertain 比率）
+### 🎯 ML 予測ラベル分布（高品質 / 低品質）
+### 🏥 本番モデル整合性 & 予測失敗
+```
+
+## 期待される監視シナリオ
+
+### 正常運用時
+- `Accept 比率 20-40% / Reject 比率 30-50%`
+- `高品質率 30-50%`（success クラス比率 30.8% と整合）
+- `旧 3 クラスラベル残存 = 0 件`
+- `予測失敗 = 0 件`
+
+### 異常検知時
+- **`旧 3 クラスラベル残存 > 0`** → 🚨 CRITICAL: v8e モデル未配備の疑い・即時調査
+- **`Reject 比率 > 70%`** → ⚠️ WARNING: accept_threshold 緩和検討 (0.58 → 0.55)
+- **`予測失敗 ≥ 3 件`** → 🚨 CRITICAL: MLHealthMonitor サーキットブレーカー作動候補
+- **`Accept 比率 < 10%`** → ⚠️ WARNING: 取引機会逸失リスク
+
+## 関連ファイル (ライブ分析対応)
+
+### 修正
+- `src/analysis/common/gcp_metrics.py`: count_phase90_* 3 関数追加（+128 行）
+- `scripts/live/standard_analysis.py`: phase90_metrics + _check_phase90_features + _generate_phase90_markdown（+172 行）
+
+## コミット履歴（Phase 90α 全体）
+
+- `7deb5e01` feat: メタラベリング有効化で学習-運用整合性回復・macro F1 +0.20
+- `59e3aa4d` fix: black フォーマット整形
+- `8afcd406` fix: ローカル checks.sh 完全 PASS 対応 (2426 tests / 73.70%)
+- `ad3cd48b` feat: ライブモード分析 Phase 90α 対応 - v8e メタラベリング動作確認追加

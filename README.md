@@ -16,7 +16,7 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 90α 完了: CI workflow に `--meta-label` フラグ追加（6 行）で**学習と運用のセマンティック大破綻を解消**・macro F1 0.347 → **0.546（LGB CV）**・naive 0.41 比 **+0.14 で真の予測力獲得** + ローカル checks.sh 完全 PASS 対応（2426 tests / 73.70% カバレッジ / SEGFAULT ゼロ） |
+| 最新成果 | Phase 90α 完了: (1) CI workflow に `--meta-label` フラグ追加（6 行）で**学習-運用のセマンティック大破綻を解消**・macro F1 0.347 → **0.546（LGB CV）**・naive 0.41 比 **+0.14 で真の予測力獲得**。(2) ローカル checks.sh 完全 PASS 対応（2426 tests / 73.70% / SEGFAULT ゼロ）。(3) **ライブ分析 Phase 90α 対応追加**（quality_filter / 高品質ラベル分布 / モデル整合性監視） |
 | 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` (2 クラスメタラベリング前提) ⇄ CI workflow `--meta-label` フラグなし (3 クラス方向予測モデル生成) という大破綻状態を Phase 73-D 以来運用し続けていた |
 | v8e (新) macro F1 | **LGB CV 0.546 / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459** |
 | v8e クラス分布 | **success 30.8% / failure 69.2%**（Triple Barrier 理想分布）|
@@ -29,7 +29,7 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 | N-BEATS ハング修正 | torch.set_num_threads(1) + MKL/OMP/OPENBLAS_NUM_THREADS=1 で PyTorch+sklearn 競合解消 |
 | 次の予定 | 実機 1 週間観察（勝率 / PF / 期待値改善確認）→ Phase 90β 計画（Calibration 修正 / Focal Loss / Optuna 試行数増）|
 | 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/calm-noodling-cat.md` |
-| 最終更新 | 2026年5月17日 - Phase 90α (v8e メタラベリング) 完了・本番デプロイ済 |
+| 最終更新 | 2026年5月18日 - Phase 90α + ローカル checks.sh + ライブ分析 Phase 90 対応 全完了 |
 
 ---
 

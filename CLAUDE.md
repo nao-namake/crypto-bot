@@ -5,7 +5,7 @@
 | 項目 | 値 |
 |------|-----|
 | **現在Phase** | **Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済 → 実機 1 週間観察フェーズ（2026-05-17）** |
-| **直前の作業** | v8e 実装後の補強: ローカル checks.sh 完全 PASS 対応（conftest.py 新規 + ml_health_monitor sentinel + firestore_state 環境変数 + checks.sh venv 自動検出）→ 2426 tests passed / カバレッジ 73.70% / SEGFAULT ゼロ |
+| **直前の作業** | v8e 実装後の補強: (1) ローカル checks.sh 完全 PASS 対応（conftest.py + ml_health_monitor sentinel + firestore_state 環境変数 + checks.sh venv 自動検出）→ 2426 tests / 73.70% / SEGFAULT ゼロ。(2) **ライブ分析 Phase 90α 対応追加**（gcp_metrics に count_phase90_* 3 関数 + standard_analysis.py に _check_phase90_features / _generate_phase90_markdown） |
 | **次の予定** | 実機 1 週間観察（勝率 / PF / 期待値の改善確認）→ Phase 90β 計画（Calibration 修正・Focal Loss・Optuna 試行数増・XGBoost 過学習対策）|
 | **直近インシデント** | (1) v7 CI timeout (RF n_jobs=1) → 環境変数化で解消。(2) N-BEATS macOS ハング (PyTorch+sklearn OpenMP 競合) → torch.set_num_threads(1) で解消。(3) v8e データ収集 2 時間遅延 (PC スリープ) → caffeinate ラップで解消。(4) checks.sh で system python3 使用 → venv 自動検出に修正。(5) test_lgbm_model SEGFAULT (conftest.py の torch 早期 import) → torch import 削除で解消 |
 | **🎯 Phase 90α 最重要発見** | **Phase 89 までの学習と運用がセマンティック大破綻**（運用側 `ml.mode: quality_filter` は 2 クラスメタラベリング前提なのに、CI workflow に `--meta-label` フラグなく **3 クラス方向予測モデルで運用**していた）。`--meta-label` フラグ追加（6 行）で macro F1 が **0.347 → 0.546（LGB CV）**に改善・naive baseline +0.14 で真の予測力獲得 |
@@ -28,7 +28,7 @@
 | **TPSL 検証結果** | TPSLCalculator 実装は健全。Phase 85 報告 +362円/件は手数料**未控除**の期待値・真の期待値は **+138-254 円/件**（実機運用に影響なし）|
 | **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
 | **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
-| **最終更新** | 2026年5月17日 - Phase 90α (v8e メタラベリング) 完了・本番デプロイ済 |
+| **最終更新** | 2026年5月18日 - Phase 90α + ローカル checks.sh + ライブ分析 Phase 90 対応 全完了 |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
@@ -54,7 +54,7 @@
 ### Step 1: 毎日チェック（5 分）
 
 ```bash
-# ライブ運用 24h 分析
+# ライブ運用 24h 分析（Phase 86-90 全カバー・Phase 90α 監視追加済）
 venv/bin/python3 scripts/live/standard_analysis.py --hours 24
 
 # 異常ログのスキャン
@@ -63,6 +63,11 @@ gcloud logging read 'resource.type=cloud_run_revision AND severity>=ERROR' --fre
 # ML 品質フィルタ動作確認（accept_threshold で reject されたケース数）
 gcloud logging read 'textPayload=~"quality_filter.*reject|低品質"' --freshness=24h | wc -l
 ```
+
+**ライブ分析の Phase 90α 監視項目**（standard_analysis.py で自動レポート出力）:
+- **品質フィルタ accept/reject 比率**: reject > 70% で過剰防衛警告
+- **高品質/低品質ラベル分布**: 旧 3 クラス方向予測ラベル残存検出（v8e モデル未配備の疑い）
+- **モデル整合性**: DummyModel フォールバック検知（サーキットブレーカー作動候補）
 
 ### Step 2: 1 週間後の総合評価（30 分）
 
@@ -104,9 +109,18 @@ cp models/production/ensemble_full.phase84.pkl.bak \
 ### Phase 90α 関連ファイル
 
 - `~/.claude/plans/calm-noodling-cat.md` Phase 90 計画書
-- `docs/開発履歴/Phase_90.md` Phase 90α 詳細記録（v8e）
-- 修正済: `.github/workflows/model-training.yml` `scripts/ml/run_local_training.sh` `src/ml/nbeats_predictor.py` `config/core/thresholds.yaml`
+- `docs/開発履歴/Phase_90.md` Phase 90α 詳細記録（v8e + 補強 + ライブ分析対応）
+- 修正済 (本体): `.github/workflows/model-training.yml` `scripts/ml/run_local_training.sh` `src/ml/nbeats_predictor.py` `config/core/thresholds.yaml`
+- 修正済 (補強): `tests/conftest.py` `src/core/orchestration/ml_health_monitor.py` `src/core/persistence/firestore_state.py` `scripts/testing/checks.sh` `requirements.txt`
+- 修正済 (ライブ分析): `src/analysis/common/gcp_metrics.py` (count_phase90_* 3 関数) `scripts/live/standard_analysis.py` (_check_phase90_features + _generate_phase90_markdown)
 - v8e backup: `models/production/ensemble_full.pre_v8_20260517_101041.pkl.bak`
+
+### Phase 90α 関連コミット履歴
+
+- `7deb5e01` feat: メタラベリング有効化で学習-運用整合性回復・macro F1 +0.20
+- `59e3aa4d` fix: black フォーマット整形
+- `8afcd406` fix: ローカル checks.sh 完全 PASS 対応 (2426 tests / 73.70%)
+- `ad3cd48b` feat: ライブモード分析 Phase 90α 対応 - v8e メタラベリング動作確認追加
 
 ---
 
