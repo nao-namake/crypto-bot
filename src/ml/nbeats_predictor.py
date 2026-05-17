@@ -117,6 +117,16 @@ class NBeatsPredictor:
         Returns:
             self
         """
+        # Phase 90: macOS Apple Silicon ハング対策
+        # PyTorch のスレッド数を 1 に固定し、sklearn/LightGBM の OpenMP プールとの競合を回避
+        # GCP Cloud Run (gVisor) でも安全（並列推論オーバーヘッド回避）
+        try:
+            torch.set_num_threads(1)
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            # 既に set されている場合は無視（複数 fit 呼び出し時）
+            pass
+
         torch.manual_seed(self.random_state)
         np.random.seed(self.random_state)
 

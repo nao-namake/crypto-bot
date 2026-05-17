@@ -2,30 +2,31 @@
 
 ## 現在の状態
 
-**Phase 86-89 総合レビュー + P0+P1 軽微修正完了（2026-05-16）→ ML 再学習 v7 待ち**
+**Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済 → 実機 1 週間観察フェーズ（2026-05-17）**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | **Phase 86-89 全 72 観点 3-agent レビュー + ML 評価指標構造修正**: weighted→macro F1 / cross_asset リーク防止 / 訓練 180→365 日統一 + 軽微 4 件 |
-| Phase 86-89 レビュー | **Critical ゼロ**・軽微 9 件（P0+P1 4 件修正完了・P2 5 件 Phase 90 繰越） |
-| 特徴量数 | 37 → **55**（+18・6 カテゴリ追加） |
-| ML モデル | 3 → **4**（N-BEATS 追加） |
-| ⚠️ 旧 weighted F1 | LGB 0.612→0.893 等は**評価指標歪み**（HOLD 94% + weighted F1 = ランダム予測 0.893 と同水準） |
-| 🔄 真の性能 (macro F1) | ML 再学習 v7 で確認予定（Phase 84/85 と公平比較） |
-| N-BEATS 修復は本物 | confidence_std 2.98e-08 → 0.115（400 万倍改善・定数予測脱出は事実）|
-| TPSL 検証 | 実装健全・Phase 85 報告 +362 円/件は手数料未控除・真の期待値 +138-254 円/件 |
-| テスト追加 | +119 件 PASS（既存 2284 → 2403）|
-| 追加課金 | ゼロ |
-| 完了 Phase | Phase 87 / 88 / **89 全実装 + P0+P1 修正完了** |
-| **次の予定** | ML 再学習 v7 → macro F1 確認 → 実機 1 週間観察 → Phase 90 計画 |
-| **Phase 90 候補（P2 5 件）** | HMM convergence warning / drift reference 更新 / position_restorer TP/SL 抽出高度化 / GCS backup 統合テスト / WebSocket cleanup integration test |
-| 最終更新 | 2026年5月16日 - Phase 86-89 総合レビュー + P0+P1 修正完了 |
+| 最新成果 | Phase 90α 完了: CI workflow に `--meta-label` フラグ追加 (6 行) で**学習と運用のセマンティック大破綻を解消**・macro F1 0.347 → **0.546 (LGB CV)** で真の予測力獲得 |
+| 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` (2 クラスメタラベリング前提) ⇄ CI workflow `--meta-label` フラグなし (3 クラス方向予測モデル生成) という大破綻状態を Phase 73-D 以来 1 年以上運用していた |
+| v8e (新) macro F1 | **LGB CV 0.546 / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459**（naive 0.41 比 **+0.10〜+0.14 で真の予測力獲得**）|
+| v8e クラス分布 | **success 30.8% / failure 69.2%**（Triple Barrier 理想分布）|
+| v8c (旧) macro F1 | LGB 0.347 / XGB 0.344 / RF 0.296 / N-BEATS 0.335（ランダム 0.333 と同等）|
+| Phase 89 buggy weighted F1 | 0.89-0.97（評価指標歪み 100%・ランダム予測と同水準）|
+| 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
+| ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15）|
+| Phase 90α 修正規模 | **2 ファイル / 計 6 行追加 / 互換性破壊ゼロ** |
+| CI/ローカル整備 | n_jobs 環境変数化 (CI: RF 31 分→6.5 分) + Optuna 30 分タイムアウト + ローカル wrapper + caffeinate スリープ防止 |
+| N-BEATS ハング修正 | torch.set_num_threads(1) + MKL/OMP/OPENBLAS_NUM_THREADS=1 で PyTorch+sklearn deadlock 解消 |
+| 完了 Phase | Phase 87 / 88 / 89 / **90α** |
+| **次の予定** | 実機 1 週間観察（勝率 / PF / 期待値改善確認）→ Phase 90β 計画着手判断 |
+| **Phase 90β 候補** | Isotonic Calibration 修正・Focal Loss・CatBoost 追加・Optuna 試行数増 (50→100)・Multi-Level VPIN/OFI |
+| 最終更新 | 2026年5月17日 - Phase 90α (v8e メタラベリング) 完了・本番デプロイ済 |
 
 ---
 
-## 🚀 セッション再開時の手順（Phase 89 観察フェーズ）
+## 🚀 セッション再開時の手順（Phase 90α 完了・実機 1 週間観察フェーズ）
 
-Phase 89 は本番デプロイ完了済。次のセッションは観察結果の確認。
+Phase 90α (v8e メタラベリング有効化) 本番デプロイ完了。次セッションは観察結果確認 + Phase 90β 計画策定。
 
 ### Step 1: 毎日チェック（5 分）
 
@@ -36,7 +37,10 @@ venv/bin/python3 scripts/live/standard_analysis.py --hours 24
 # 異常ログのスキャン
 gcloud logging read 'resource.type=cloud_run_revision AND severity>=ERROR' --freshness=24h --limit=20
 
-# SL placeholder 検出（期待: 0 件）
+# ML 品質フィルタ動作確認（reject されたケース数）
+gcloud logging read 'textPayload=~"quality_filter.*reject|低品質"' --freshness=24h | wc -l
+
+# SL placeholder 検出（期待: 0 件・Phase 89 C7 修正効果）
 gcloud logging read 'textPayload=~"Phase 89 C7: SL placeholder ID 検出|ID=existing"' --freshness=24h
 ```
 
@@ -46,21 +50,205 @@ gcloud logging read 'textPayload=~"Phase 89 C7: SL placeholder ID 検出|ID=exis
 # 1 週間分析
 venv/bin/python3 scripts/live/standard_analysis.py --hours 168
 
-# 確認項目（docs/開発履歴/Phase_89.md 末尾「期待値 vs 警告水準」表参照）
+# 期待値 vs 実測比較（Phase 90α 目標）
+# - PF: 0.8-1.2 → 1.3-1.7 達成？
+# - 勝率: 50-55% → 55-65% 達成？
+# - 取引数: 月 20-50 件（品質フィルタが過剰防衛していないか）
 ```
 
-### Step 3: 観察結果次第で Phase 90 計画
+### Step 3: 観察結果次第で Phase 90β 着手判断
 
-- LLM センチメント（Twitter/News 感情）
-- Transformer 時系列予測（N-BEATS 置換 or 5 モデル目）
-- WebSocket microstructure 実装（ofi_top5 等の実数化）
-- マルチペア（ETH/JPY）展開
+**Phase 90β 候補（macro F1 +0.05-0.10 期待・各独立適用可）**:
+
+1. **Isotonic Calibration 修正**（最優先）
+   - v8e で `CalibratedClassifierCV` が `ProductionEnsemble` を fit/predict_proba 持たないと判定
+   - `src/ml/ensemble.py:45-130` に sklearn 互換 `fit()` メソッド追加
+   - 期待効果: ECE 0.10-0.15 → 0.03-0.05・信頼度校正で取引品質判定精度向上
+
+2. **Focal Loss (LGB/XGB)**
+   - クラス不均衡対策（success 31% / failure 69% でも残る軽微な不均衡）
+   - `scripts/ml/create_ml_models.py:786-877` にカスタム loss
+   - 期待効果: 各モデル macro F1 +0.03-0.05
+
+3. **CatBoost 追加 (5 モデル化 or RF 置換)**
+   - ensemble 多様性向上
+   - 重み案: lightgbm 0.30 / xgboost 0.30 / random_forest 0.15 / catboost 0.15 / nbeats 0.10
+   - 期待効果: ensemble macro F1 +0.03-0.07
+
+4. **Optuna 試行数増 (50 → 100)**
+   - XGBoost 過学習対策（v8e で CV/Test 乖離 -0.09 と最大）
+   - 期待効果: macro F1 +0.02-0.05
+
+5. **Multi-Level VPIN + OFI 拡張**
+   - マイクロ構造特徴強化
+   - `src/features/feature_generator.py:248-289, 302-334`
+   - 期待効果: macro F1 +0.05-0.10
+
+### 異常時のロールバック（10 分以内）
+
+```bash
+# 1. v8e から v8c (3 クラス方向予測) に戻す
+cp models/production/ensemble_full.pre_v8_20260517_101041.pkl.bak \
+   models/production/ensemble_full.pkl
+cp models/production/production_model_metadata.pre_v8_20260517_101041.json.bak \
+   models/production/production_model_metadata.json
+git revert <Phase 90α commit hash>
+git push origin main
+
+# 2. 深いロールバック (Phase 84 安定モデル)
+cp models/production/ensemble_full.phase84.pkl.bak \
+   models/production/ensemble_full.pkl
+cp models/production/production_model_metadata.phase84.json.bak \
+   models/production/production_model_metadata.json
+```
+
+### Phase 90α 関連ファイル
+
+- `~/.claude/plans/calm-noodling-cat.md` Phase 90 全体計画書
+- `docs/開発履歴/Phase_90.md` Phase 90α 詳細記録（v8e）
+- 修正ファイル: `.github/workflows/model-training.yml` / `scripts/ml/run_local_training.sh` / `src/ml/nbeats_predictor.py` / `config/core/thresholds.yaml`
+- v8e backup: `models/production/ensemble_full.pre_v8_20260517_101041.pkl.bak`
+
+---
+
+## 🔍 過去のセッション再開時の手順（v8c 待ち + Phase 90α 準備）— 履歴用
+
+ローカル ML 再学習 v8c がバックグラウンドで稼働中（task ID `bwaszgl0f`・想定 25-30 分）。完了後に macro F1 比較表を作成し、Phase 90α 着手判断。
+
+### Step 1: v8c 完了確認
+
+```bash
+# 最新ログ確認
+ls -lat logs/ml_local/ | head -3
+
+# プロセス生存確認
+ps aux | grep -E "create_ml_models|run_local_training" | grep -v grep
+
+# 完了後の重要ログ抽出
+grep -E "(最適化完了|elapsed|Test F1|CV F1|nbeats|完了|エラー)" logs/ml_local/training_<latest>.log | tail -30
+```
+
+### Step 2: macro F1 比較表作成（必須・5 分）
+
+```bash
+venv/bin/python3 -c "
+import json
+print('=== macro F1 比較表（v8c 真の性能）===')
+with open('models/production/production_model_metadata.phase84.json.bak') as f: p84 = json.load(f)
+with open('models/production/phase89_buggy_nbeats_metadata.json.bak') as f: p89b = json.load(f)
+with open('models/production/production_model_metadata.json') as f: v8c = json.load(f)
+header = f'{\"model\":15s} {\"P84 weighted\":>13s} {\"P89-buggy weighted\":>20s} {\"P89 v8c MACRO\":>15s}'
+print(header)
+print('-' * len(header))
+for m in ['lightgbm', 'xgboost', 'random_forest', 'nbeats']:
+    p84_v = p84.get('performance_metrics', {}).get(m, {}).get('f1_score', 0)
+    p89b_v = p89b.get('performance_metrics', {}).get(m, {}).get('f1_score', 0)
+    v8c_v = v8c.get('performance_metrics', {}).get(m, {}).get('f1_score', 0)
+    print(f'{m:15s} {p84_v:>13.4f} {p89b_v:>20.4f} {v8c_v:>15.4f}')
+"
+```
+
+### Step 3: 判定 → Phase 90α 着手
+
+判定基準（v7 timeout 時点でほぼ確定的に「ランダム水準」）:
+- macro F1 > 0.6: 真の改善（現実的でない）
+- macro F1 0.4-0.6: 部分的改善（LGB/RF はここ）
+- macro F1 < 0.4: ランダム水準（XGB はここ）
+
+→ いずれにせよ Phase 90α は確実に必要。実機運用継続するか、即時 90α 着手するかをユーザー判断。
+
+### Phase 90α: ラベリング再設計（v8c 完了後の確定方針・2026-05-17）
+
+#### v8c 結果サマリ（真の性能・macro F1）
+
+| モデル | Test F1 | CV F1 (mean±std) | ランダム水準比 |
+|---|---|---|---|
+| LightGBM | 0.347 | 0.367 ± 0.017 | +0.014 |
+| XGBoost | 0.344 | 0.358 ± 0.013 | +0.011 |
+| RandomForest | **0.296** | 0.356 ± 0.019 | **-0.037** ⚠️ |
+| N-BEATS | 0.335 | 0.366 ± 0.018 | +0.002 |
+
+→ **全モデルでランダム水準 0.333 +0.01〜+0.04 のみ**（RF はランダム以下）。Phase 89 の見かけ改善 +48〜54% は **100% 評価指標歪み確定**。
+
+#### 🚨 v8c 後の重要発見：現状は「メタラベリング」未使用だった
+
+`docs/開発履歴/Phase_73.md` に「Phase 73-D メタラベリング (Triple Barrier Method) 導入」と記録があるが、`.github/workflows/model-training.yml:102-109` の実行コマンドには **`--meta-label` フラグなし**:
+
+```bash
+# 実態（Phase 89 v7 / v8c 共通・--meta-label 抜け）
+python3 scripts/ml/create_ml_models.py \
+    --model full --n-classes 3 --threshold 0.005 \
+    --use-smote --optimize --n-trials "$N_TRIALS"
+```
+
+→ Phase 73-D 以降ずっと **3 クラス方向予測**（メタラベリングではなく）で運用していた。
+→ クラス分布 SELL 2.1% / HOLD 96.0% / BUY 1.9% は「15 分後に ±0.5% 動くか」の純粋なラベリング結果。
+
+ユーザーは「使っていない状態が意図/バグの記憶なし」と回答 → **v8d と v8e を並行検証して**、本来あるべき設計を再決定する。
+
+#### 検証戦略：v8d → v8e 順次実行（macOS 並列実行は CPU 競合リスクのため避ける）
+
+##### Phase 90α-D（v8d）: 既存 3 クラス方向予測の threshold 緩和
+
+| 項目 | 現状（v8c）| v8d |
+|---|---|---|
+| CLI フラグ | `--threshold 0.005` | **`--threshold 0.002`** |
+| ラベル定義 | 15 分後 ±0.5% で BUY/SELL | 15 分後 ±0.2% で BUY/SELL |
+| 期待クラス分布 | SELL 2% / HOLD 96% / BUY 2% | SELL 12% / HOLD 75% / BUY 13% 程度 |
+| 実装影響 | - | **CLI 引数のみ・コード変更ゼロ** |
+| 互換性 | - | 3 クラス維持・既存 quality_filter / ensemble 無変更 |
+| ロールバック | - | 容易（CLI 引数戻すだけ）|
+| 期待 macro F1 | 0.33-0.37 | **0.40-0.50**（クラス均等化で誤分類ペナルティ減）|
+
+##### Phase 90α-E（v8e）: メタラベリング有効化（Phase 73-D 本来の設計）
+
+| 項目 | 現状（v8c）| v8e |
+|---|---|---|
+| CLI フラグ | （なし）| **`--meta-label --meta-tp-ratio 0.003 --meta-sl-ratio 0.004`** |
+| ラベル定義 | 3 クラス（方向）| **2 クラス（取引成功/失敗）** |
+| 学習対象 | 「次足の方向」| **「20 足以内に TP 0.3% 到達 vs SL 0.4% 到達」** |
+| 実装影響 | - | **`n_classes=2` に変更・DummyModel / quality_filter の互換性確認必要** |
+| 互換性 | - | **要改修**（旧計画の仮説 B 相当）|
+| ロールバック | - | 困難（モデル再学習 + コード revert）|
+| 期待 macro F1 | 0.33-0.37 | **0.50-0.60**（バランス取れた 2 クラス分類）|
+
+#### 実行順序（順次・安全重視）
+
+1. **Step 1: v8d 実行**（threshold 0.002・コード変更不要・33 分）
+2. **Step 2: v8d 結果評価**（macro F1 / クラス分布確認）
+3. **Step 3: v8e 互換性チェック**（n_classes=2 の DummyModel / quality_filter / ensemble 修正必要箇所洗い出し）
+4. **Step 4: v8e コード修正**（互換性確保）
+5. **Step 5: v8e 実行**（メタラベリング有効化・33 分）
+6. **Step 6: v8d vs v8e 比較**（macro F1 / 実機運用での期待値）
+7. **Step 7: ベスト選択 → 本番デプロイ判断 / Phase 90α-F（仮説 C: lookahead 短縮）着手判断**
+
+### 関連ファイル（Phase 90α-D/E 実装時）
+
+- `scripts/ml/create_ml_models.py:675-742` `_generate_meta_label_target()`（Triple Barrier 本体・実装は既存・呼ばれていなかっただけ）
+- `scripts/ml/create_ml_models.py:1761-1779`（CLI フラグ `--meta-label` / `--meta-tp-ratio` / `--meta-sl-ratio`）
+- `.github/workflows/model-training.yml:101-109`（CI 実行コマンド・v8e で要修正）
+- `src/ml/ensemble.py:144`（n_classes 動的検出・v8e で要確認）
+- `src/ml/fallback.py:10`（DummyModel・v8e で n_classes パラメータ要修正）
+- `src/strategies/utils/quality_filter.py:88, 108-120`（v8e で accept_threshold 再調整必要・確率分布が変わるため）
+
+### Phase 90α-F（v8f）以降：仮説 C・lookahead 短縮
+
+v8d / v8e の結果次第:
+- どちらかで macro F1 > 0.55 達成 → 本番デプロイ → 実機 1 週間観察フェーズ
+- 両方 macro F1 < 0.45 → 仮説 C（lookahead 15min → 5min）追加検証
+
+### v8c で得られた N-BEATS macro F1 の意味
+
+- N-BEATS の confidence_std 改善（×400 万倍）は本物 = 定数予測脱出は事実
+- ただし「分類精度」は他モデルと同等（macro Test F1 0.335 / CV 0.366）
+- → N-BEATS 自体は健全・**問題はラベリング設計**（Phase 90α-D/E で対処）
 
 ### 異常時のロールバック
 
 `docs/運用ガイド/Phase89_N-BEATS_rollback.md` 参照:
 - 軽度（N-BEATS のみ無効化）: `weights.nbeats: 0.0` で 3 モデル運用
 - 重度（Phase 89 全体）: `git tag phase-89-stable` から checkout
+- v8 失敗時: `cp models/production/ensemble_full.pre_v8_20260517_062507.pkl.bak models/production/ensemble_full.pkl`
 
 ---
 

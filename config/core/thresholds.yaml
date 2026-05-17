@@ -175,13 +175,14 @@ ml:
   health:
     consecutive_failure_threshold: 3  # 連続 N 回 predict/predict_proba 失敗で EMERGENCY_STOP 候補
   # Phase 89 NB1-NB5: N-BEATS hyperparam（完全版実装で uniform 予測問題を解消）
+  # Phase 90: macOS Apple Silicon で PyTorch ハング多発のため epoch 削減 + log_every 短縮
   nbeats:
-    n_epochs: 200              # NB2: 50 → 200 (Early Stopping で実際は 100-150 で止まる見込み)
-    patience: 20               # NB2: validation loss 改善なしで Early Stop
+    n_epochs: 50               # Phase 90: 200→50 削減（macOS ハング回避・CV F1 0.855 達成済みで余地少）
+    patience: 10               # Phase 90: 20→10 削減（Early Stop 早期発動）
     hidden_size: 64            # ネットワーク幅
     learning_rate: 0.001       # Adam lr
     batch_size: 64
-    log_every: 10              # NB5: 10 epoch ごとに loss/conf_std をログ出力
+    log_every: 5               # Phase 90: 10→5 短縮（ハング検出を早める）
   # Phase 89-β / 89 H9: 特徴量分布 Drift 検出（KS テスト + Bonferroni 補正）
   drift:
     window_size: 200                    # reference 分布のサンプル数

@@ -99,6 +99,15 @@ jobs:
           # Phase 89 fix: --model full のみ学習（basic 廃止）
           # P0-3: ML_TRAINING_MODE=true で cross_asset history pickle リーク防止
           export ML_TRAINING_MODE=true
+          # Phase 90: RF n_jobs=-1 で全コア利用（GitHub Actions Ubuntu runner は gVisor 非依存）
+          # → RF 学習時間 31 分 → 5-7 分 / CI timeout 回避
+          # GCP Cloud Run 本番は推論のみ実行で学習しないため影響なし
+          export ML_TRAINING_N_JOBS=-1
+          # Phase 90: モデル別タイムアウト 30 分（Optuna timeout 引数経由）
+          export ML_TRAINING_PER_MODEL_TIMEOUT=1800
+          # Phase 90α (v8e): メタラベリング有効化（Phase 73-D Triple Barrier Method）
+          # 運用側 ml.mode=quality_filter と学習側の整合性を回復
+          # meta_tp/sl_ratio は tight_range の運用 TP/SL（0.7% / 0.86%）に合わせる
           python3 scripts/ml/create_ml_models.py \
             --model full \
             --n-classes 3 \
@@ -106,7 +115,10 @@ jobs:
             --use-smote \
             --optimize \
             --n-trials "$N_TRIALS" \
-            --verbose
+            --verbose \
+            --meta-label \
+            --meta-tp-ratio 0.007 \
+            --meta-sl-ratio 0.0086
 
           if [ $? -eq 0 ]; then
             echo "training_success=true" >> $GITHUB_OUTPUT

@@ -20,8 +20,10 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import pickle
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -209,11 +211,13 @@ class NewSystemMLModelCreator:
             xgb_params["eval_metric"] = "logloss"
 
         # RandomForest設定（Phase 53.2: GCP gVisor互換性のためn_jobs=1）
+        # Phase 90: 環境変数 ML_TRAINING_N_JOBS で上書き可能（ローカル/CI では -1 で全コア利用）
+        rf_n_jobs = int(os.environ.get("ML_TRAINING_N_JOBS", "1"))
         rf_params = {
             "n_estimators": 200,
             "max_depth": 12,
             "random_state": 42,
-            "n_jobs": 1,  # Phase 53.2: GCP gVisor fork()制限対応
+            "n_jobs": rf_n_jobs,
             "class_weight": "balanced",  # Phase 39.4
         }
 
@@ -875,6 +879,8 @@ class NewSystemMLModelCreator:
         self, trial: optuna.Trial, X_train: pd.DataFrame, y_train: pd.Series
     ) -> float:
         """Phase 39.5: RandomForest最適化objective関数"""
+        # Phase 90: n_jobs を環境変数で制御（GCP=1 / ローカル=-1）
+        rf_n_jobs = int(os.environ.get("ML_TRAINING_N_JOBS", "1"))
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 100, 300),
             "max_depth": trial.suggest_int("max_depth", 5, 12),  # Phase 73-C: 上限12に制限
@@ -882,7 +888,7 @@ class NewSystemMLModelCreator:
             # Phase 73-C: 正則化パラメータ追加
             "min_samples_leaf": trial.suggest_int("min_samples_leaf", 2, 10),
             "random_state": 42,
-            "n_jobs": 1,  # Phase 53.2: GCP gVisor fork()制限対応
+            "n_jobs": rf_n_jobs,
             "class_weight": "balanced",
         }
 
@@ -930,8 +936,16 @@ class NewSystemMLModelCreator:
             "models": {},
         }
 
+        # Phase 90: モデル別タイムアウト（環境変数で上書き可・デフォルト 1800 秒）
+        per_model_timeout = int(os.environ.get("ML_TRAINING_PER_MODEL_TIMEOUT", "1800"))
+        self.logger.info(
+            f"⏱️  Phase 90: モデル別タイムアウト {per_model_timeout} 秒 "
+            f"(ML_TRAINING_PER_MODEL_TIMEOUT で上書き可)"
+        )
+
         for model_name in ["lightgbm", "xgboost", "random_forest"]:
             self.logger.info(f"📊 {model_name} 最適化開始")
+            start_time = time.time()
 
             try:
                 # Objective関数選択（E731: flake8 lambda回避）
@@ -943,9 +957,17 @@ class NewSystemMLModelCreator:
                     else:  # random_forest
                         return self._objective_random_forest(trial, features, target)
 
-                # Optuna Study作成・最適化実行
+                # Optuna Study作成・最適化実行（Phase 90: timeout 追加で 30 分以内強制終了）
                 study = optuna.create_study(direction="maximize", sampler=TPESampler(seed=42))
-                study.optimize(objective_func, n_trials=n_trials, show_progress_bar=False)
+                study.optimize(
+                    objective_func,
+                    n_trials=n_trials,
+                    timeout=per_model_timeout,
+                    show_progress_bar=False,
+                )
+
+                elapsed = time.time() - start_time
+                completed_trials = len(study.trials)
 
                 # 最適パラメータ取得
                 best_params = study.best_params
@@ -956,16 +978,33 @@ class NewSystemMLModelCreator:
                     "best_params": best_params,
                     "best_score": float(best_score),
                     "n_trials": n_trials,
+                    "completed_trials": completed_trials,
+                    "elapsed_seconds": round(elapsed, 1),
                 }
+
+                # Phase 90: 30 分超過 warning
+                if elapsed > per_model_timeout * 0.95:
+                    self.logger.warning(
+                        f"⚠️  {model_name} がタイムアウト近く / 超過 "
+                        f"({elapsed:.1f}s / {per_model_timeout}s, "
+                        f"完了 trial {completed_trials}/{n_trials})"
+                    )
 
                 self.logger.info(
                     f"✅ {model_name} 最適化完了 - Best F1: {best_score:.4f}, "
+                    f"elapsed: {elapsed:.1f}s, trials: {completed_trials}/{n_trials}, "
                     f"Best params: {best_params}"
                 )
 
             except Exception as e:
-                self.logger.error(f"❌ {model_name} 最適化エラー: {e}")
-                optimization_results["models"][model_name] = {"error": str(e)}
+                elapsed = time.time() - start_time
+                self.logger.error(
+                    f"❌ {model_name} 最適化エラー (elapsed: {elapsed:.1f}s): {e}"
+                )
+                optimization_results["models"][model_name] = {
+                    "error": str(e),
+                    "elapsed_seconds": round(elapsed, 1),
+                }
 
         # 結果保存（モデルタイプ別）
         try:

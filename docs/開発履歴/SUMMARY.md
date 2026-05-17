@@ -549,6 +549,62 @@
 
 **当初目標 ¥300-500/月 には届かず**（Cloud Run idle 15分問題 + 無料枠 asia 非対応）→ Phase 89 へ持ち越し
 
+### Phase 90α: メタラベリング有効化 + 学習/運用整合性回復 🎉（2026-05-17）
+**期間**: 2026-05-17 / **詳細**: [Phase_90.md](Phase_90.md)
+
+**🚨 Phase 73-D 以来 1 年以上続いていた致命的整合性大破綻を発見・修正**:
+
+| 層 | 設定 | 実態 |
+|---|---|---|
+| 運用側 (`thresholds.yaml:142`) | `ml.mode: quality_filter` (2 クラスメタラベリング前提) | - |
+| 運用側 (`trading_cycle_manager.py:478-484`) | `label_map = {0: "低品質", 1: "高品質"}` | - |
+| 学習側 (`model-training.yml`) | `--meta-label` フラグなし | **3 クラス方向予測モデル生成** |
+| **結果** | - | **`prediction == 0 (SELL)` を「低品質」、`== 1 (HOLD)` を「高品質」と誤解釈** |
+
+**修正は 2 ファイル × 計 6 行追加のみ**で:
+- macro F1: **LGB 0.347 → 0.546 (CV)・Test 0.486** (naive 0.41 比 **+0.14** = 真の予測力獲得)
+- クラス分布: HOLD 96% → **success 30.8% / failure 69.2%** (Triple Barrier 理想分布)
+- 互換性破壊ゼロ（下流コードは最初から 2 クラス対応済み）
+
+**並行修正**:
+- N-BEATS macOS Apple Silicon ハング修正 (`torch.set_num_threads(1)` + OpenMP env var)
+- caffeinate スリープ防止ラップ (`scripts/ml/run_local_training.sh`)
+- n_jobs 環境変数化 (`ML_TRAINING_N_JOBS=-1` で CI RF 31 分→6.5 分)
+- Optuna timeout + elapsed_seconds ログ
+
+**ユーザーの 3 質問への確定回答**:
+- 戦略+ML の方向性は正しい設計（Stacking 失敗 / モデル差別化失敗で実証済）
+- ML は完全に補助（フィルタ役）で正しい
+- ML 主導転換は不要（Phase 73-B で 51% 実力確認済）
+
+**次の予定**: 実機 1 週間観察 → Phase 90β (Calibration 修正 / Focal Loss / CatBoost / Optuna 試行数増) 着手判断
+
+---
+
+### Phase 89 真の性能判明 + CI/ローカル両対応 + N-BEATS ハング修正 🚨（2026-05-17）
+**詳細**: [Phase_89.md](Phase_89.md) 末尾セクション
+
+**ML 再学習 v7 timeout failure**（GitHub Actions run 25971359708・RF 31 分超でキャンセル）→ 途中値で **Phase 89 の真の性能を判定**:
+
+| モデル | Phase 89 buggy (weighted) | Phase 89 v7/v8 (macro) | ランダム水準比 |
+|---|---|---|---|
+| LightGBM | 0.893（見かけ）| **0.4048** | **+0.07** のみ |
+| XGBoost | 0.891（見かけ）| **0.3560** | **+0.02** のみ |
+| RandomForest | 0.820（見かけ）| **0.4031** | +0.07 |
+
+**結論**: Phase 89 報告「+48〜54% 改善」は**評価指標歪み 100%**。N-BEATS の confidence_std ×400 万倍改善は本物だが、**分類精度改善は構造的にほぼゼロ**。→ **Phase 90α ラベリング再設計が必須**。
+
+**3 つの根本修正**:
+1. **n_jobs 環境変数化**: `ML_TRAINING_N_JOBS=-1` で CI/ローカル RF 学習 **31 分→6.5 分**（GCP 本番は推論のみ・影響なし）
+2. **Optuna timeout + elapsed_seconds ログ**: `ML_TRAINING_PER_MODEL_TIMEOUT=1800` で 30 分超過防止
+3. **N-BEATS macOS ハング修正**: `torch.set_num_threads(1)` + `MKL/OMP/OPENBLAS_NUM_THREADS=1` で PyTorch+sklearn OpenMP/BLAS deadlock 解消
+
+**新規追加**: `scripts/ml/run_local_training.sh`（ローカル wrapper・モデル backup 機能付き）
+
+**次の予定**: Phase 90α ラベリング再設計（仮説 A: Triple Barrier threshold 緩和 / 仮説 B: 2 クラス化 / 仮説 C: lookahead 短縮）
+
+---
+
 ### Phase 89-α: GCPコスト削減 再挑戦（Stage 1+3 完了・Stage 2 pending） ⏳
 **期間**: 2026/5/15 / **詳細**: [Phase_89.md](Phase_89.md)
 
@@ -587,5 +643,5 @@
 
 ---
 
-**最終更新**: 2026年5月15日
-**ステータス**: Phase 89-α Stage 1+3 本番デプロイ済 / Stage 2 pending / Phase 89-β (Web リサーチ統合) 計画中
+**最終更新**: 2026年5月17日
+**ステータス**: **Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済** / 学習-運用整合性回復 (macro F1 0.347 → 0.546 LGB CV) / 実機 1 週間観察フェーズ / Phase 90β 計画準備

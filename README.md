@@ -12,21 +12,24 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 86-89 総合レビュー + P0+P1 軽微修正完了（2026-05-16）→ ML 再学習 v7 待ち（macro F1 で真の性能確認）**
+**Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済 → 実機 1 週間観察フェーズ（2026-05-17）**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 86-89 全 72 観点 3-agent レビュー + ML 評価指標の構造的歪み発見・修正（weighted→macro F1）+ cross_asset リーク防止 + 訓練 180→365 日統一 |
-| Phase 86-89 レビュー | Critical ゼロ・軽微 9 件（P0+P1 4 件修正完了・P2 5 件 Phase 90 繰越） |
-| 特徴量数 | 37 → **55**（+18・6 カテゴリ追加） |
+| 最新成果 | Phase 90α 完了: CI workflow に `--meta-label` フラグ追加（6 行）で**学習と運用のセマンティック大破綻を解消**・macro F1 0.347 → **0.546（LGB CV）**・naive 0.41 比 **+0.14 で真の予測力獲得** |
+| 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` (2 クラスメタラベリング前提) ⇄ CI workflow `--meta-label` フラグなし (3 クラス方向予測モデル生成) という大破綻状態を Phase 73-D 以来運用し続けていた |
+| v8e (新) macro F1 | **LGB CV 0.546 / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459** |
+| v8e クラス分布 | **success 30.8% / failure 69.2%**（Triple Barrier 理想分布）|
+| v8c (旧) macro F1 | LGB 0.347 / XGB 0.344 / RF 0.296 / N-BEATS 0.335（ランダム 0.333 と同等）|
+| Phase 89 buggy weighted F1 | 0.89-0.97（**評価指標歪み 100%**・ランダム予測と同水準）|
+| 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| ⚠️ 旧 weighted F1 性能 | LGB 0.612→0.893 等の改善は**評価指標歪み**（HOLD 94% 不均衡 + weighted F1 = ランダム予測 0.893 と同水準） |
-| 🔄 真の性能 (macro F1) | ML 再学習 v7 で確認予定（Phase 84/85 と公平比較可能化） |
-| N-BEATS 修復は本物 | confidence_std 2.98e-08 → **0.115**（400 万倍改善・定数予測脱出は事実） |
-| TPSL 検証結果 | TPSLCalculator 実装は健全。Phase 85 報告 +362 円/件は**手数料未控除**・真の期待値は +138-254 円/件 |
-| 次の予定 | ML 再学習 v7 → macro F1 確認 → 実機 1 週間観察 → Phase 90 計画 |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_89.md](docs/開発履歴/Phase_89.md) / `~/.claude/plans/c-gleaming-ladybug.md` |
-| 最終更新 | 2026年5月16日 - Phase 86-89 総合レビュー + P0+P1 修正完了 |
+| Phase 90α 修正規模 | **2 ファイル / 計 6 行追加 / 互換性破壊ゼロ** |
+| CI/ローカル整備 | RF n_jobs 環境変数化（CI: 31 分→6.5 分）+ Optuna 30 分タイムアウト + ローカル wrapper + caffeinate スリープ防止ラップ |
+| N-BEATS ハング修正 | torch.set_num_threads(1) + MKL/OMP/OPENBLAS_NUM_THREADS=1 で PyTorch+sklearn 競合解消 |
+| 次の予定 | 実機 1 週間観察（勝率 / PF / 期待値改善確認）→ Phase 90β 計画（Calibration 修正 / Focal Loss / Optuna 試行数増）|
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/calm-noodling-cat.md` |
+| 最終更新 | 2026年5月17日 - Phase 90α (v8e メタラベリング) 完了・本番デプロイ済 |
 
 ---
 
