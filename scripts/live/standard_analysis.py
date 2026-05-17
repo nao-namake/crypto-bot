@@ -124,6 +124,9 @@ class InfrastructureCheckResult:
     # Phase 89 全実装の運用カバレッジ（α gating / β drift / γ N-BEATS / δ WebSocket / Kelly safety）
     # キー: gating / drift / nbeats_health / websocket / kelly_safety
     phase89_metrics: Dict[str, Any] = field(default_factory=dict)
+    # Phase 90α v8e メタラベリング有効化動作確認
+    # キー: quality_filter / ml_prediction_dist / model_health
+    phase90_metrics: Dict[str, Any] = field(default_factory=dict)
 
     # スコア
     normal_checks: int = 0
@@ -706,6 +709,8 @@ class BotFunctionChecker:
             self._check_phase87_88_features()
             # Phase 89 全実装の運用カバレッジ（gating / drift / N-BEATS / WebSocket / Kelly）
             self._check_phase89_features()
+            # Phase 90α v8e メタラベリング動作確認（quality_filter / ML 予測分布 / モデル整合性）
+            self._check_phase90_features()
 
         # 総合スコア計算
         self.result.total_score = (
@@ -1319,6 +1324,87 @@ class BotFunctionChecker:
 
         except Exception as e:
             self.logger.warning(f"⚠️ Phase 89 機能カバレッジ確認失敗: {e}")
+
+    def _check_phase90_features(self):
+        """Phase 90α v8e: メタラベリング有効化動作確認.
+
+        - quality_filter: accept/reject/uncertain 比率（過剰防衛検知）
+        - ML 予測分布: 「低品質 / 高品質」ラベル比率（2 クラス切替検証）
+        - モデル整合性: v8e (n_classes=2) フォールバック検知
+        """
+        self.logger.info("🔍 Phase 90α 機能カバレッジ確認（v8e メタラベリング）")
+        try:
+            from src.analysis.common.gcp_metrics import (
+                count_phase90_ml_prediction_dist,
+                count_phase90_model_health,
+                count_phase90_quality_filter_stats,
+            )
+
+            metrics = self.infra_checker.result.phase90_metrics
+            metrics["quality_filter"] = count_phase90_quality_filter_stats(
+                hours=self.infra_checker.hours
+            )
+            metrics["ml_prediction_dist"] = count_phase90_ml_prediction_dist(
+                hours=self.infra_checker.hours
+            )
+            metrics["model_health"] = count_phase90_model_health(hours=self.infra_checker.hours)
+
+            # quality_filter 比率の判定
+            qf = metrics["quality_filter"]
+            if qf["total_evaluated"] > 0:
+                if qf["reject_pct"] > 70:
+                    self.logger.warning(
+                        f"  ⚠️ Phase 90α quality_filter: reject {qf['reject_pct']}% > 70% "
+                        f"(accept_threshold 緩和検討・現 0.58)"
+                    )
+                    self.result.warning_issues += 1
+                elif qf["accept_pct"] < 10:
+                    self.logger.warning(
+                        f"  ⚠️ Phase 90α quality_filter: accept {qf['accept_pct']}% < 10% "
+                        f"(取引機会逸失リスク)"
+                    )
+                    self.result.warning_issues += 1
+                else:
+                    self.logger.info(
+                        f"  ✅ Phase 90α quality_filter: accept {qf['accept_pct']}% / "
+                        f"reject {qf['reject_pct']}% / total {qf['total_evaluated']} 件"
+                    )
+                    self.result.normal_checks += 1
+
+            # ML 予測分布の判定（旧 3 クラス方向予測ラベル残存検出）
+            pd = metrics["ml_prediction_dist"]
+            if pd["direction_label_count"] > 0 and pd["total_meta_predictions"] == 0:
+                self.logger.critical(
+                    f"  🚨 Phase 90α: 旧 3 クラス方向予測ラベル {pd['direction_label_count']} 件検出 "
+                    f"(v8e モデル未配備 or ロード失敗の疑い)"
+                )
+                self.result.critical_issues += 1
+            elif pd["total_meta_predictions"] > 0:
+                self.logger.info(
+                    f"  ✅ Phase 90α ML 予測: 高品質 {pd['high_quality_count']} / "
+                    f"低品質 {pd['low_quality_count']} (高品質率 {pd['high_quality_pct']}%)"
+                )
+                self.result.normal_checks += 1
+
+            # モデル整合性: DummyModel フォールバック検知
+            mh = metrics["model_health"]
+            if mh["predict_failure_count"] >= 3:
+                self.logger.critical(
+                    f"  🚨 Phase 90α: ML 予測失敗 {mh['predict_failure_count']} 件 "
+                    f"(MLHealthMonitor サーキットブレーカー作動候補)"
+                )
+                self.result.critical_issues += 1
+            elif mh["fallback_3class_detected"] > 0:
+                self.logger.warning(
+                    f"  ⚠️ Phase 90α: 3 クラスフォールバック {mh['fallback_3class_detected']} 件 "
+                    f"(v8e モデル不整合)"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.result.normal_checks += 1
+
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 90α 機能カバレッジ確認失敗: {e}")
 
 
 @dataclass
@@ -3693,7 +3779,89 @@ def _generate_diagnostic_markdown(
     # Phase 89 全実装カバレッジセクション
     lines.extend(_generate_phase89_markdown(infra_result))
 
+    # Phase 90α v8e メタラベリング動作確認セクション
+    lines.extend(_generate_phase90_markdown(infra_result))
+
     return "\n".join(lines)
+
+
+def _generate_phase90_markdown(infra_result: InfrastructureCheckResult) -> List[str]:
+    """Phase 90α v8e メタラベリング有効化動作確認セクションを Markdown 配列で返す.
+
+    infra_result.phase90_metrics に格納された gcp_metrics 結果を整形。
+    対象: quality_filter / ml_prediction_dist / model_health
+    """
+    metrics = getattr(infra_result, "phase90_metrics", {}) or {}
+    if not metrics:
+        return [
+            "",
+            "---",
+            "",
+            "## Phase 90α 機能カバレッジ（v8e メタラベリング有効化）",
+            "",
+            "_（--no-metrics で skip / または取得失敗）_",
+            "",
+        ]
+
+    lines = ["", "---", "", "## Phase 90α 機能カバレッジ（v8e メタラベリング有効化）", ""]
+
+    # quality_filter
+    qf = metrics.get("quality_filter", {})
+    lines.extend(["### 🛡️ 品質フィルタ動作（accept/reject/uncertain 比率）", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| Accept 件数 | {qf.get('accept_count', 0)} |",
+            f"| Reject 件数 | {qf.get('reject_count', 0)} |",
+            f"| Uncertain 件数 | {qf.get('uncertain_count', 0)} |",
+            f"| **Accept 比率** | **{qf.get('accept_pct', 0.0)}%** |",
+            f"| **Reject 比率** | **{qf.get('reject_pct', 0.0)}%** |",
+            f"| Total 評価件数 | {qf.get('total_evaluated', 0)} |",
+            f"| Verdict | {qf.get('verdict', 'NO_DATA')} |",
+            "",
+            "_期待: accept 20-40% / reject 30-50%（過剰防衛時は accept_threshold 緩和検討）_",
+            "",
+        ]
+    )
+
+    # ML 予測分布（2 クラスメタラベリング切替検証）
+    pd = metrics.get("ml_prediction_dist", {})
+    lines.extend(["### 🎯 ML 予測ラベル分布（高品質 / 低品質）", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| 高品質予測 | {pd.get('high_quality_count', 0)} |",
+            f"| 低品質予測 | {pd.get('low_quality_count', 0)} |",
+            f"| **高品質率** | **{pd.get('high_quality_pct', 0.0)}%** |",
+            f"| Total メタ予測 | {pd.get('total_meta_predictions', 0)} |",
+            f"| 旧3クラスラベル残存 | {pd.get('direction_label_count', 0)} ⚠️ |",
+            f"| Verdict | {pd.get('verdict', 'NO_DATA')} |",
+            "",
+            "_旧3クラスラベル残存 = v8e モデル未配備の疑い・即時調査_",
+            "",
+        ]
+    )
+
+    # モデル整合性
+    mh = metrics.get("model_health", {})
+    lines.extend(["### 🏥 本番モデル整合性 & 予測失敗", ""])
+    lines.extend(
+        [
+            "| 項目 | 値 |",
+            "|------|------|",
+            f"| 3 クラスフォールバック検知 | {mh.get('fallback_3class_detected', 0)} |",
+            f"| ML 予測失敗回数 | {mh.get('predict_failure_count', 0)} |",
+            f"| メタラベル load 確認 | {mh.get('meta_label_load_confirmed', 0)} |",
+            f"| Verdict | {mh.get('verdict', 'NO_DATA')} |",
+            "",
+            "_予測失敗 ≥3 件で MLHealthMonitor サーキットブレーカー作動候補_",
+            "",
+        ]
+    )
+
+    return lines
 
 
 def _generate_phase89_markdown(infra_result: InfrastructureCheckResult) -> List[str]:

@@ -701,3 +701,135 @@ def count_phase89_kelly_safety(
         "fallback_with_safety": kelly_fallback,
         "verdict": "OK" if kelly_apply == 0 else f"LOSS_STREAK_DETECTED ({kelly_apply} 件)",
     }
+
+
+# ========================================
+# Phase 90α: メタラベリング有効化動作確認
+# ========================================
+
+
+def count_phase90_quality_filter_stats(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 90α: ML 品質フィルタの accept/reject/uncertain 比率確認.
+
+    v8e (メタラベリング 2 クラス品質判定) 切替後、quality_filter の動作が
+    旧 3 クラス方向予測時と比較してどう変化したかを実機ログで監視。
+    """
+    accept = run_gcloud_logging_count(
+        "quality_filter.*accept|品質フィルタ.*承認|verdict=accept",
+        hours=hours,
+        service_name=service_name,
+    )
+    reject = run_gcloud_logging_count(
+        "quality_filter.*reject|品質フィルタ.*拒否|verdict=reject",
+        hours=hours,
+        service_name=service_name,
+    )
+    uncertain = run_gcloud_logging_count(
+        "quality_filter.*uncertain|品質フィルタ.*不確実|verdict=uncertain",
+        hours=hours,
+        service_name=service_name,
+    )
+    total = accept + reject + uncertain
+    accept_pct = (accept / total * 100) if total > 0 else 0.0
+    reject_pct = (reject / total * 100) if total > 0 else 0.0
+    # 過剰防衛判定: reject > 70% は閾値高すぎ・accept < 10% も過剰
+    verdict = "OK"
+    if total == 0:
+        verdict = "NO_DATA (品質フィルタログ未検出)"
+    elif reject_pct > 70:
+        verdict = f"OVER_DEFENSIVE (reject {reject_pct:.1f}%・accept_threshold 緩和検討)"
+    elif accept_pct < 10:
+        verdict = f"UNDER_ACCEPTING (accept {accept_pct:.1f}%・取引機会逸失リスク)"
+    return {
+        "accept_count": accept,
+        "reject_count": reject,
+        "uncertain_count": uncertain,
+        "total_evaluated": total,
+        "accept_pct": round(accept_pct, 1),
+        "reject_pct": round(reject_pct, 1),
+        "verdict": verdict,
+    }
+
+
+def count_phase90_ml_prediction_dist(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 90α: ML 予測の「低品質 / 高品質」ラベル分布確認.
+
+    trading_cycle_manager.py:478-484 で 2 クラスメタラベリング時は
+    label_map = {0: '低品質', 1: '高品質'} に展開される。v8e 切替後の
+    実機での予測ラベル分布を監視。
+    """
+    low_quality = run_gcloud_logging_count(
+        "ML予測完了.*prediction=低品質", hours=hours, service_name=service_name
+    )
+    high_quality = run_gcloud_logging_count(
+        "ML予測完了.*prediction=高品質", hours=hours, service_name=service_name
+    )
+    # 旧 3 クラス方向予測ログも検出（移行漏れの確認）
+    direction_label = run_gcloud_logging_count(
+        "ML予測完了.*prediction=売り|prediction=保持|prediction=買い",
+        hours=hours,
+        service_name=service_name,
+    )
+    total = low_quality + high_quality
+    high_pct = (high_quality / total * 100) if total > 0 else 0.0
+    verdict = "OK"
+    if direction_label > 0 and total == 0:
+        verdict = f"REGRESSION_TO_DIRECTION ({direction_label} 件・モデル切替不整合)"
+    elif total == 0:
+        verdict = "NO_DATA (ML予測ログ未検出)"
+    elif high_pct < 10 or high_pct > 90:
+        verdict = f"SKEWED (high_quality {high_pct:.1f}%・balance 偏向)"
+    return {
+        "low_quality_count": low_quality,
+        "high_quality_count": high_quality,
+        "direction_label_count": direction_label,
+        "total_meta_predictions": total,
+        "high_quality_pct": round(high_pct, 1),
+        "verdict": verdict,
+    }
+
+
+def count_phase90_model_health(
+    hours: int = 24,
+    service_name: str = DEFAULT_SERVICE,
+) -> Dict[str, Any]:
+    """Phase 90α: 本番モデルメタデータ整合性 + ML 予測失敗.
+
+    本番モデル v8e は target_type=meta_label / n_classes=2 で生成済。
+    実機でも predict_proba が 2 クラス shape (n_samples, 2) で返ることを確認。
+    """
+    # n_classes=3 へのフォールバックは v8e 想定外
+    fallback_3class = run_gcloud_logging_count(
+        "n_classes=3|3 クラス分類|DummyModel.*n_classes=3",
+        hours=hours,
+        service_name=service_name,
+    )
+    # 予測失敗（DummyModel フォールバック）= モデル load 失敗のシグナル
+    predict_failure = run_gcloud_logging_count(
+        "DummyModel.*fallback|ML予測失敗|predict_proba.*失敗",
+        hours=hours,
+        service_name=service_name,
+    )
+    # 起動時メタデータ確認ログ
+    meta_load = run_gcloud_logging_count(
+        "production_model_metadata.*meta_label=True|target_type.*meta_label",
+        hours=hours,
+        service_name=service_name,
+    )
+    verdict = "OK"
+    if predict_failure >= 3:
+        verdict = f"CIRCUIT_BREAKER_RISK ({predict_failure} 件・EMERGENCY_STOP 候補)"
+    elif fallback_3class > 0:
+        verdict = f"3CLASS_FALLBACK ({fallback_3class} 件・v8e モデル未配備の疑い)"
+    return {
+        "fallback_3class_detected": fallback_3class,
+        "predict_failure_count": predict_failure,
+        "meta_label_load_confirmed": meta_load,
+        "verdict": verdict,
+    }
