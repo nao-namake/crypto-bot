@@ -352,3 +352,154 @@ macro F1 + 信頼度 + ECE の多目的最適化。
 
 ### Plan
 - `~/.claude/plans/calm-noodling-cat.md`: Phase 90 全体計画書
+
+---
+
+# Phase 90α 補強: ローカル checks.sh 完全通過対応（2026-05-17 続き）
+
+**契機**: Phase 90α v8e デプロイ後の CI で black 整形違反 → 修正 push → ローカル checks.sh で 2 件 fail + カバレッジ 71.79% 未達発覚。「ローカル失敗するなら CI も失敗する」原則に基づき、ローカルでの完全 PASS を最優先で対応。
+
+## 問題と原因の系譜
+
+### 問題 1: black フォーマット違反（最初の CI failure）
+- 私の Phase 90α コミットで追加した `logger.error(...)` が多行 → black 単行整形済みでなかった
+- **修正**: `black scripts/ml/create_ml_models.py` で整形・コミット `59e3aa4d`
+
+### 問題 2: test_no_persistence_works_inmemory が 30 秒 hang
+- **原因**: `MLHealthMonitor.__init__()` で `persistence=None` 渡しても `else` 節で **自動 FirestoreStateClient 生成** → 実 Firestore に net 接続試行 → 認証なし状態で hang
+- **修正**: sentinel パターン `_PERSISTENCE_DEFAULT = object()` を導入し、「省略時のみ自動生成・明示的 None はインメモリ動作」と semantics 明確化
+- caller 互換: `ml_adapter.py:55` `MLHealthMonitor()` (引数なし) は従来通り Firestore 自動生成
+
+### 問題 3: test_orchestrator が同じ Firestore real call で hang
+- **原因**: `MLServiceAdapter` → `MLHealthMonitor()` (引数なし) → `FirestoreStateClient()` → 実 Firestore call
+- **修正**: `FirestoreStateClient.__init__` に `BOT_FORCE_LOCAL_PERSISTENCE` 環境変数チェック追加・`tests/conftest.py` で自動設定 → テスト中は **絶対に net 接続しない**
+
+### 問題 4: tests/unit/ml/models/test_lgbm_model.py で SEGFAULT
+- **原因**: `tests/conftest.py` で `import torch` した瞬間、torch C 拡張が OpenMP プールを占有 → 後続の LightGBM 初期化と競合 → ネイティブクラッシュ
+- 発生時 macOS Python クラッシュダイアログが大量発生
+- **修正**: `tests/conftest.py` から `import torch` を削除・torch スレッド設定は環境変数 `OMP_NUM_THREADS=1` で間接制御 + `nbeats_predictor.py:fit()` 内の `torch.set_num_threads(1)` で対処済
+
+### 問題 5: checks.sh で 2 件 fail + カバレッジ 71.79% 未達
+- **原因**: checks.sh が `python3 -m pytest`（system python3）で実行 → system python3 に `websockets` 未インストール → `BitbankClient.get_websocket_client()` の `try: import ... except ImportError` で None 返却 → test_bitbank_client_websocket.py 2 件 fail → カバレッジ計算も部分失敗
+- **修正**: checks.sh 冒頭で venv 自動検出（`if [ -x venv/bin/python3 ]`）し全 `python3` 呼び出しを `$PYTHON` に置換（13 箇所）
+
+## 修正ファイル詳細
+
+### `tests/conftest.py` 新規
+
+```python
+# Phase 90α: pytest セッション全体の環境設定
+import os
+
+# macOS / Linux 共通: OpenMP / BLAS スレッドを 1 に固定
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "0")
+
+# bitbank API 認証情報未設定でも test が動くよう mock 値を設定
+os.environ.setdefault("BITBANK_API_KEY", "test_key_for_unit_tests")
+os.environ.setdefault("BITBANK_API_SECRET", "test_secret_for_unit_tests")
+
+# Phase 90α: テスト実行中は Firestore real call を抑止
+os.environ.setdefault("BOT_FORCE_LOCAL_PERSISTENCE", "1")
+
+# 注意: ここで torch を import すると torch C 拡張が OpenMP プールを先取りし
+# その後 LightGBM の初期化と競合して macOS で SEGFAULT が発生する
+# → torch import はテストファイル個別で行う
+```
+
+### `src/core/orchestration/ml_health_monitor.py`
+
+```python
+# Phase 90α: sentinel で「省略」と「明示的 None」を区別
+_PERSISTENCE_DEFAULT = object()
+
+class MLHealthMonitor:
+    def __init__(
+        self,
+        persistence: Any = _PERSISTENCE_DEFAULT,  # 旧: None
+        ...
+    ):
+        if persistence is _PERSISTENCE_DEFAULT:
+            # 省略時のみ FirestoreStateClient 自動生成（本番経路）
+            try:
+                self.persistence = FirestoreStateClient()
+            except Exception:
+                self.persistence = None
+        else:
+            # 明示的に渡された値（None 含む）をそのまま使用
+            self.persistence = persistence
+```
+
+### `src/core/persistence/firestore_state.py`
+
+```python
+# Phase 90α: 環境変数で Firestore real call を強制スキップ
+env_force_local = os.getenv("BOT_FORCE_LOCAL_PERSISTENCE", "").lower() in (
+    "1", "true", "yes"
+)
+
+if force_local or env_force_local:
+    return  # local JSON fallback のみ使用
+```
+
+### `scripts/testing/checks.sh`
+
+```bash
+# Phase 90α: venv 自動検出
+if [ -x "$PROJECT_ROOT/venv/bin/python3" ]; then
+    PYTHON="$PROJECT_ROOT/venv/bin/python3"
+    echo "🐍 Python: $PYTHON (venv)"
+else
+    PYTHON="python3"
+    echo "🐍 Python: $PYTHON (system)"
+fi
+# 全 python3 呼び出しを $PYTHON に置換（13 箇所）
+```
+
+## 実測結果（ローカル macOS 8 コア）
+
+| 項目 | Before | **After** |
+|---|---|---|
+| pytest 結果 | 2 failed, 2379 passed | **2426 passed, 1 skipped** ✅ |
+| カバレッジ | 71.79% (未達) | **73.70%** (+1.91%) ✅ |
+| SEGFAULT / クラッシュダイアログ | 数十回 | **0 回** ✅ |
+| hang | 多発（30 分+ で kill） | **0 回** ✅ |
+| 実行時間 | - | 4 分 01 秒 |
+| 全 checks.sh 結果 | ❌ FAIL | **✅ PASS（全 12 項目）** |
+
+## 教訓
+
+### 1. `python3` ハードコードは venv 非互換
+- CI Ubuntu では `pip install -r requirements.txt` で system python3 に依存が入る
+- ローカル macOS では通常 venv 使用 → system python3 に依存が無い
+- → `checks.sh` で `venv/bin/python3` 自動検出するか PATH を venv 優先にすべき
+
+### 2. テスト中の Firestore 自動生成は危険
+- `if persistence is None: self.persistence = FirestoreStateClient()` のような fallback コードは
+  「明示渡しの None」「省略時のデフォルト」を区別できない
+- → sentinel パターンで意図を明確化
+
+### 3. conftest.py での torch 早期 import は禁忌
+- macOS Apple Silicon + Python 3.13 + PyTorch 2.12 + LightGBM 4.x の組合せで OpenMP 競合
+- torch スレッド設定は環境変数 `OMP_NUM_THREADS=1` で間接制御するのが安全
+
+### 4. pytest-timeout は hang テストの早期検出に必須
+- macOS C 拡張干渉などで pytest が無限 hang した場合、`pytest-timeout` で各テスト 30 秒上限を設定
+- hang は失敗扱いとなり、後続テストへ影響しない
+
+### 5. macOS Python クラッシュダイアログは pytest hang のシグナル
+- SEGFAULT 時、macOS が大量のクラッシュダイアログを表示する
+- ユーザー影響甚大なので、CLAUDE.md 既知問題リストに「pytest 実行時に出現する可能性」を明記推奨
+
+## 関連ファイル (補強分)
+
+### 新規追加
+- `tests/conftest.py`: pytest 起動時の環境変数設定
+
+### 修正
+- `src/core/orchestration/ml_health_monitor.py`: sentinel パターン
+- `src/core/persistence/firestore_state.py`: BOT_FORCE_LOCAL_PERSISTENCE
+- `scripts/testing/checks.sh`: venv 自動検出 + $PYTHON 置換（13 箇所）
+- `requirements.txt`: pytest-timeout / pytest-forked 追加

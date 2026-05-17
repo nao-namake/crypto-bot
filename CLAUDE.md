@@ -5,9 +5,9 @@
 | 項目 | 値 |
 |------|-----|
 | **現在Phase** | **Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済 → 実機 1 週間観察フェーズ（2026-05-17）** |
-| **直前の作業** | v8e 実装: CI/ローカル workflow に `--meta-label --meta-tp-ratio 0.007 --meta-sl-ratio 0.0086` 追加（2 ファイル 6 行）+ N-BEATS macOS ハング修正 + caffeinate ラップ + 全 ML 関連ドキュメント整備 |
+| **直前の作業** | v8e 実装後の補強: ローカル checks.sh 完全 PASS 対応（conftest.py 新規 + ml_health_monitor sentinel + firestore_state 環境変数 + checks.sh venv 自動検出）→ 2426 tests passed / カバレッジ 73.70% / SEGFAULT ゼロ |
 | **次の予定** | 実機 1 週間観察（勝率 / PF / 期待値の改善確認）→ Phase 90β 計画（Calibration 修正・Focal Loss・Optuna 試行数増・XGBoost 過学習対策）|
-| **直近インシデント** | (1) v7 CI timeout (RF n_jobs=1) → 環境変数化で解消。(2) N-BEATS macOS ハング (PyTorch+sklearn OpenMP 競合) → torch.set_num_threads(1) で解消。(3) v8e データ収集 2 時間遅延 (PC スリープ) → caffeinate ラップで解消 |
+| **直近インシデント** | (1) v7 CI timeout (RF n_jobs=1) → 環境変数化で解消。(2) N-BEATS macOS ハング (PyTorch+sklearn OpenMP 競合) → torch.set_num_threads(1) で解消。(3) v8e データ収集 2 時間遅延 (PC スリープ) → caffeinate ラップで解消。(4) checks.sh で system python3 使用 → venv 自動検出に修正。(5) test_lgbm_model SEGFAULT (conftest.py の torch 早期 import) → torch import 削除で解消 |
 | **🎯 Phase 90α 最重要発見** | **Phase 89 までの学習と運用がセマンティック大破綻**（運用側 `ml.mode: quality_filter` は 2 クラスメタラベリング前提なのに、CI workflow に `--meta-label` フラグなく **3 クラス方向予測モデルで運用**していた）。`--meta-label` フラグ追加（6 行）で macro F1 が **0.347 → 0.546（LGB CV）**に改善・naive baseline +0.14 で真の予測力獲得 |
 | **Phase 87 達成** | Critical 5 + High 10 全完了（本番デプロイ済） |
 | **Phase 88 達成** | I1-I4 GCPコスト 4件 + H11 孤児SL + M1-M5 + L1-L3 |

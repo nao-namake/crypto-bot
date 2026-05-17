@@ -39,6 +39,17 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 cd "$PROJECT_ROOT"
 
+# Phase 90α: venv 自動検出
+# ローカル開発: venv/bin/python3 を使用（websockets 等の依存込み）
+# CI 環境: venv 未作成 → system python3 (CI で pip install -r requirements.txt 済)
+if [ -x "$PROJECT_ROOT/venv/bin/python3" ]; then
+    PYTHON="$PROJECT_ROOT/venv/bin/python3"
+    echo "🐍 Python: $PYTHON (venv)"
+else
+    PYTHON="python3"
+    echo "🐍 Python: $PYTHON (system)"
+fi
+
 # エラーカウンター
 ERRORS=0
 
@@ -94,7 +105,7 @@ if [ ! -f "config/core/feature_order.json" ]; then
     echo "  ❌ ERROR: config/core/feature_order.json が見つかりません"
     ERRORS=$((ERRORS + 1))
 else
-    FEATURE_ORDER_COUNT=$(python3 -c "
+    FEATURE_ORDER_COUNT=$($PYTHON -c "
 import json
 with open('config/core/feature_order.json') as f:
     data = json.load(f)
@@ -114,7 +125,7 @@ if [ ! -f "models/production/production_model_metadata.json" ]; then
     echo "  ❌ ERROR: models/production/production_model_metadata.json が見つかりません"
     ERRORS=$((ERRORS + 1))
 else
-    MODEL_FEATURE_COUNT=$(python3 -c "
+    MODEL_FEATURE_COUNT=$($PYTHON -c "
 import json
 with open('models/production/production_model_metadata.json') as f:
     data = json.load(f)
@@ -131,7 +142,7 @@ fi
 
 # 特徴量数妥当性確認
 if [ -n "$FEATURE_ORDER_COUNT" ] && [ -n "$MODEL_FEATURE_COUNT" ]; then
-    VALID_FEATURE_COUNTS=$(python3 -c "
+    VALID_FEATURE_COUNTS=$($PYTHON -c "
 import json
 with open('config/core/feature_order.json') as f:
     data = json.load(f)
@@ -155,7 +166,7 @@ echo ""
 echo "🎯 [4/12] 戦略整合性検証..."
 
 # thresholds.yaml から戦略リスト取得
-STRATEGIES_YAML_STRATEGIES=$(python3 -c "
+STRATEGIES_YAML_STRATEGIES=$($PYTHON -c "
 import yaml
 with open('config/core/thresholds.yaml') as f:
     data = yaml.safe_load(f)
@@ -190,7 +201,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     echo "  ❌ ERROR: $CONFIG_FILE が見つかりません"
     ERRORS=$((ERRORS + 1))
 else
-    if ! python3 -c "import yaml; yaml.safe_load(open('$CONFIG_FILE'))" 2>/dev/null; then
+    if ! $PYTHON -c "import yaml; yaml.safe_load(open('$CONFIG_FILE'))" 2>/dev/null; then
         echo "  ❌ ERROR: $CONFIG_FILE のYAML構文エラー"
         ERRORS=$((ERRORS + 1))
     else
@@ -199,7 +210,7 @@ else
 fi
 
 # thresholds.yaml 必須フィールド確認（環境設定+パラメータ）
-REQUIRED_CHECK=$(python3 -c "
+REQUIRED_CHECK=$($PYTHON -c "
 import yaml
 try:
     with open('config/core/thresholds.yaml') as f:
@@ -226,7 +237,7 @@ else
 fi
 
 # thresholds.yaml 設定値妥当性チェック
-THRESHOLD_CHECK=$(python3 -c "
+THRESHOLD_CHECK=$($PYTHON -c "
 import yaml
 try:
     with open('config/core/thresholds.yaml') as f:
@@ -304,7 +315,7 @@ done
 
 # メタデータ検証
 if [ -f "models/production/production_model_metadata.json" ]; then
-    METADATA_CHECK=$(python3 -c "
+    METADATA_CHECK=$($PYTHON -c "
 import json
 from datetime import datetime, timezone
 
@@ -362,7 +373,7 @@ echo ""
 echo "🤖 [7/12] ML検証（37特徴量）..."
 
 if [[ -f "scripts/testing/validate_ml_models.py" ]]; then
-    python3 scripts/testing/validate_ml_models.py --quick || {
+    $PYTHON scripts/testing/validate_ml_models.py --quick || {
         echo "❌ エラー: ML検証失敗"
         echo "モデル再訓練が必要: python3 scripts/ml/create_ml_models.py"
         exit 1
@@ -377,7 +388,7 @@ fi
 echo ""
 echo "🎨 [8/12] flake8: コードスタイルチェック..."
 
-python3 -m flake8 src/ tests/ scripts/ \
+$PYTHON -m flake8 src/ tests/ scripts/ \
     --max-line-length=100 \
     --ignore=E203,W503,E402,F401,F841,F541,F811 \
     --exclude=_legacy_v1 || {
@@ -393,7 +404,7 @@ echo "✅ flake8チェック完了"
 echo ""
 echo "📥 [9/12] isort: import順序チェック..."
 
-python3 -m isort --check-only --diff src/ tests/ scripts/ \
+$PYTHON -m isort --check-only --diff src/ tests/ scripts/ \
     --skip=_legacy_v1 || {
     echo "❌ isortチェック失敗"
     echo "修正するには: python3 -m isort src/ tests/ scripts/"
@@ -408,7 +419,7 @@ echo "✅ isortチェック完了"
 echo ""
 echo "⚫ [10/12] black: コード整形チェック..."
 
-python3 -m black --check --diff src/ tests/ scripts/ \
+$PYTHON -m black --check --diff src/ tests/ scripts/ \
     --exclude="_legacy_v1" || {
     echo "❌ blackチェック失敗"
     echo "修正するには: python3 -m black src/ tests/ scripts/"
@@ -423,7 +434,7 @@ echo "✅ blackチェック完了"
 echo ""
 echo "🧪 [11/12] pytest: 全テスト実行..."
 
-python3 -m pytest \
+$PYTHON -m pytest \
   tests/ \
   --maxfail=3 \
   --disable-warnings \

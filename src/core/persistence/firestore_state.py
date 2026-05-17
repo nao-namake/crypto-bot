@@ -59,8 +59,21 @@ class FirestoreStateClient:
         self.db: Any = None
         self.enabled = False
 
-        if force_local:
-            self.logger.debug("Phase 87 H4: FirestoreStateClient (force_local=True)")
+        # Phase 90α: テスト・ローカル開発で Firestore net 接続を強制スキップする環境変数
+        # - CI 環境では未設定 → 通常 Firestore 経路
+        # - tests/conftest.py で "1" に設定 → 認証情報の有無に関わらず local JSON 一択
+        # - ローカル開発で Firestore 試行による遅延を回避したい場合も使用可
+        env_force_local = os.getenv("BOT_FORCE_LOCAL_PERSISTENCE", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+
+        if force_local or env_force_local:
+            self.logger.debug(
+                f"Phase 87 H4: FirestoreStateClient (force_local={force_local}, "
+                f"env_force_local={env_force_local})"
+            )
             return
 
         try:

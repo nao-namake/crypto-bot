@@ -28,6 +28,11 @@ from typing import Any, Deque, Dict, List, Optional
 
 from ..logger import get_logger
 
+# Phase 90α: 「persistence 引数省略」と「明示的 None」を区別する sentinel
+# - 省略 (デフォルト): FirestoreStateClient を自動生成（本番経路）
+# - 明示的 None: インメモリ動作（テスト・ローカル動作確認用）
+_PERSISTENCE_DEFAULT = object()
+
 
 class MLHealthMonitor:
     """ML predict 失敗カウントの永続化 + サーキットブレーカー判定"""
@@ -38,7 +43,7 @@ class MLHealthMonitor:
 
     def __init__(
         self,
-        persistence: Any = None,
+        persistence: Any = _PERSISTENCE_DEFAULT,
         threshold: Optional[int] = None,
         auto_load: bool = True,
     ) -> None:
@@ -86,9 +91,11 @@ class MLHealthMonitor:
         self.consecutive_drift_detections: int = 0
         self.last_drift_at: Optional[str] = None
 
-        if persistence is not None:
-            self.persistence = persistence
-        else:
+        # Phase 90α: persistence の semantics 修正
+        # - 明示的 None: インメモリ動作（test_no_persistence_works_inmemory の意図）
+        # - 省略 (_PERSISTENCE_DEFAULT): FirestoreStateClient 自動生成（本番経路）
+        # - その他: 渡された値を使用
+        if persistence is _PERSISTENCE_DEFAULT:
             try:
                 from ..persistence import FirestoreStateClient  # type: ignore
 
@@ -99,6 +106,9 @@ class MLHealthMonitor:
                     f"→ MLHealthMonitor はインメモリのみ動作: {e}"
                 )
                 self.persistence = None
+        else:
+            # 明示的に渡された値（None 含む）をそのまま使用
+            self.persistence = persistence
 
         if auto_load:
             self._load_state()
