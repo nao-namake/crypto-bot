@@ -998,9 +998,7 @@ class NewSystemMLModelCreator:
 
             except Exception as e:
                 elapsed = time.time() - start_time
-                self.logger.error(
-                    f"❌ {model_name} 最適化エラー (elapsed: {elapsed:.1f}s): {e}"
-                )
+                self.logger.error(f"❌ {model_name} 最適化エラー (elapsed: {elapsed:.1f}s): {e}")
                 optimization_results["models"][model_name] = {
                     "error": str(e),
                     "elapsed_seconds": round(elapsed, 1),
