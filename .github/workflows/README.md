@@ -1,256 +1,203 @@
 # GitHub Actions Workflows
 
-## 🎯 役割
+CI/CD・ML 自動再学習・バックテスト・Walk-Forward 検証・GCP リソース管理・緊急停止を担う **6 ワークフロー**。
 
-このディレクトリには、AI自動取引システムのCI/CD、ML自動再学習、緊急停止、リソース管理、レポート自動送信を実現する6つのワークフローが含まれています。
-
-## 📂 ファイル構成
+## ファイル構成
 
 ```
 .github/workflows/
-├── ci.yml               # CI/CDパイプライン（品質チェック・ビルド・デプロイ）
-├── model-training.yml   # ML自動再学習（週次・37特徴量）
-├── backtest.yml         # バックテスト実行（手動・Markdownレポート生成）
-├── cleanup.yml          # GCPリソースクリーンアップ（月次・コスト最適化）
-├── weekly_report.yml    # 週間レポート自動送信（Phase 48実装）
-├── emergency-stop.yml   # 🚨 緊急停止（iPhoneワンタップ対応）
+├── ci.yml               # CI/CD パイプライン（品質チェック・ビルド・デプロイ）
+├── model-training.yml   # ML 自動再学習（週次 + repository_dispatch・55 特徴量・4 モデル）
+├── backtest.yml         # バックテスト実行（手動・Markdown レポート生成）
+├── walk_forward.yml     # Walk-Forward 検証（過学習検出）
+├── cleanup.yml          # GCP リソースクリーンアップ（月次・コスト最適化）
+├── emergency-stop.yml   # 🚨 緊急停止（iPhone ワンタップ対応）
 └── README.md            # このファイル
 ```
 
-## 🔧 ワークフロー詳細
+## ワークフロー詳細
 
-### **ci.yml - CI/CDパイプライン**
+### ci.yml - CI/CD パイプライン
 
-**役割**: メインのCI/CDパイプライン・品質保証・本番自動デプロイ
+**役割**: メインの CI/CD パイプライン・品質保証・本番自動デプロイ
 
 **実行条件**:
 - `main` ブランチへのプッシュ（自動デプロイ）
 - プルリクエスト作成時（品質チェック）
 - 手動実行（`workflow_dispatch`）
-- ML学習完了時（`model-updated`イベント）
+- ML 学習完了時（`model-updated` イベント）
 
 **実行フロー**:
-1. **品質チェック**: テスト実行・カバレッジ・コード品質確認
-2. **GCP環境確認**: Secret Manager・Workload Identity・必要リソース確認
-3. **Dockerビルド**: イメージ構築とArtifact Registryプッシュ
-4. **Docker起動テスト**: モジュールimport検証
-5. **本番デプロイ**: Cloud Runサービスデプロイ（MODE=live）
-6. **ヘルスチェック**: デプロイ成功確認
+1. 品質チェック（テスト + カバレッジ + コード品質）
+2. GCP 環境確認（Secret Manager + Workload Identity）
+3. Docker ビルド + Artifact Registry プッシュ
+4. Docker 起動テスト
+5. Cloud Run 本番デプロイ（MODE=live）
+6. ヘルスチェック
 
 ---
 
-### **model-training.yml - ML自動再学習**
+### model-training.yml - ML 自動再学習
 
-**役割**: MLモデルの週次自動再学習とデプロイメント・37特徴量
+**役割**: ML モデルの自動再学習とデプロイメント・**55 特徴量・4 モデル・メタラベリング**
 
 **実行条件**:
-- 毎週日曜日 18:00 JST（スケジュール実行）
-- 手動実行（`workflow_dispatch`・パラメータ設定可能）
+- 毎週日曜日 18:00 JST（スケジュール）
+- 手動実行（`workflow_dispatch`・パラメータ可能）
+- **repository_dispatch: types: [ml-drift-detected]**（Phase 89-γ Auto Retraining）
 
 **パラメータ**:
-- `n_trials`: Optuna最適化試行回数（50推奨・100高精度・30テスト用）
+- `n_trials`: Optuna 最適化試行回数（50 推奨・100 高精度・30 テスト用）
 - `dry_run`: ドライラン実行フラグ（モデル保存なし）
 
-**実行フロー**:
-1. **環境セットアップ**: Python3.13・依存関係インストール
-2. **データ収集**: 180日分の履歴データ取得
-3. **ML学習実行**:
-   ```bash
-   --n-classes 3 --threshold 0.005 --optimize --n-trials 50 --verbose
-   ```
-4. **品質検証**: MIN_FEATURE_COUNT（50）以上確認
-5. **バージョン管理**: 自動コミット・プッシュ
-6. **デプロイトリガー**: `model-updated`イベント送信 → ci.yml自動実行
+**実行フロー**（Phase 90α 対応）:
+1. 環境セットアップ（Python 3.13 + 依存関係 + `ML_TRAINING_N_JOBS=-1` で RF 並列化）
+2. データ収集（365 日分・履歴 CSV）
+3. ML 学習（**メタラベリング**: `--meta-label --meta-tp-ratio 0.007 --meta-sl-ratio 0.0086`）
+4. 品質検証（特徴量数 55 確認）
+5. 自動 commit + push
+6. `model-updated` イベント送信 → ci.yml 自動デプロイ
 
-**実行時間**: 約4-8分（50-100 trials）・タイムアウト30分
+**実行時間**: 約 7-10 分（50 trials）・タイムアウト 60 分・モデル別 30 分
 
 ---
 
-### **backtest.yml - バックテスト実行**
+### backtest.yml - バックテスト実行
 
-**役割**: バックテスト実行とMarkdownレポート生成
+**役割**: バックテスト実行 + Markdown レポート生成
 
-**実行条件**:
-- 手動実行のみ（`workflow_dispatch`）
+**実行条件**: 手動実行のみ（`workflow_dispatch`）
 
 **パラメータ**:
-- `phase_name`: Phase名（例: 52.1）
-- `backtest_days`: バックテスト日数（デフォルト: 180）
+- `phase_name`: Phase 名（例: 90α）
+- `backtest_days`: バックテスト日数（デフォルト 180）
 
-**実行フロー**:
-1. **環境セットアップ**: Python3.13・依存関係インストール
-2. **履歴データ収集**: 15分足・4時間足データ取得
-3. **バックテスト実行**: main.py --mode backtest
-4. **Markdownレポート生成**: docs/バックテスト記録/に保存
-5. **Git自動コミット**: レポートをリポジトリにプッシュ
+**実行フロー**: 環境セット → 履歴 CSV 取得 → バックテスト → Markdown 生成 → Git コミット
 
 ---
 
-### **cleanup.yml - GCPリソースクリーンアップ**
+### walk_forward.yml - Walk-Forward 検証
 
-**役割**: GCPリソースの自動削除とコスト最適化（月30%削減）
+**役割**: 過学習検出のための時系列分割検証
+
+**実行条件**: 手動実行（`workflow_dispatch`）
+
+**実行フロー**: 履歴データを複数 window に分割 → 各 window で学習＋検証 → 全 window のメトリクス集約 → `docs/検証記録/walk_forward/` に保存
+
+---
+
+### cleanup.yml - GCP リソースクリーンアップ
+
+**役割**: GCP リソースの自動削除とコスト最適化
 
 **実行条件**:
 - 手動実行（`workflow_dispatch`・推奨）
-- 毎月第1日曜日 JST 2:00 AM（スケジュール実行）
+- 毎月第 1 日曜日 JST 2:00 AM（スケジュール）
 
-**パラメータ**:
-- `cleanup_level`: クリーンアップレベル（safe/moderate/aggressive）
+**パラメータ**: `cleanup_level`（safe/moderate/aggressive）
 
-**クリーンアップレベル**:
-- **Safe**: 古いDockerイメージ（最新5個保持）・Cloud Runリビジョン（最新3個保持）
-- **Moderate**: Safe + Cloud Build履歴（30日以上）
-- **Aggressive**: より積極的な大量削除（要注意）
-
-**Phase 52.2改善**:
-- SHA256ダイジェストベース削除（より確実）
-- 環境変数によるマジックナンバー排除
+| レベル | 内容 |
+|---|---|
+| safe | 古い Docker イメージ（最新 5 保持）+ Cloud Run リビジョン（最新 3 保持）|
+| moderate | safe + Cloud Build 履歴（30 日以上）|
+| aggressive | より積極的な大量削除（要注意）|
 
 ---
 
-### **weekly_report.yml - 週間レポート自動送信**
+### 🚨 emergency-stop.yml - 緊急停止
 
-**役割**: 週間取引統計レポート（損益曲線グラフ付き）のDiscord自動送信
+**役割**: iPhone からワンタップで実行可能な緊急停止/復旧
 
-**実行条件**:
-- 毎週月曜日 9:00 JST（スケジュール実行）
-- 手動実行（`workflow_dispatch`）
-
-**レポート内容**:
-- 週間損益統計（勝率・取引回数・最大利益/損失）
-- 損益曲線グラフ（matplotlib生成）
-- Discord自動送信
-
-**Phase 52.2改善**:
-- Cloud Storage統合（gs://crypto-bot-trade-data/tax/trade_history.db）
-- 環境変数化（BUCKET_NAME, DB_PATH）
-
----
-
-### **🚨 emergency-stop.yml - 緊急停止**
-
-**役割**: iPhoneからワンタップで実行可能な緊急停止/復旧
-
-**実行条件**:
-- 手動実行のみ（`workflow_dispatch`）
+**実行条件**: 手動実行のみ（`workflow_dispatch`）
 
 **アクション**:
-- **stop**: トラフィック0%に設定（即時停止・リソース保持で復旧簡単）
-- **resume**: トラフィック100%に設定（復旧）
-- **status**: 現在の状態確認のみ
+- `stop`: トラフィック 0%（即時停止・復旧簡単）
+- `resume`: トラフィック 100%（復旧）
+- `status`: 状態確認のみ
 
-**使い方**:
-1. iPhoneのGitHubアプリを開く
-2. Actions → 🚨 Emergency Stop → Run workflow
-3. アクションを選択して実行
+**使い方**: iPhone GitHub アプリ → Actions → 🚨 Emergency Stop → Run workflow
 
 ---
 
-## 📝 使用方法
-
-### **完全自動化フロー**
+## 自動化フロー
 
 ```
-🗓️  毎週日曜18:00 JST
+🗓️  毎週日曜 18:00 JST
     ↓
 🤖 model-training.yml 自動実行
-    ├── 180日分データ収集
-    ├── ProductionEnsemble学習（LightGBM・XGBoost・RandomForest）
-    ├── 37特徴量品質検証
-    └── Git自動コミット・model-updatedイベント送信
+    ├── 365 日分データ収集
+    ├── ProductionEnsemble 学習（LGB 34% / XGB 34% / RF 17% / N-BEATS 15%）
+    ├── 55 特徴量・メタラベリング（success/failure）品質検証
+    └── Git 自動コミット → model-updated イベント送信
     ↓
 🚀 ci.yml 自動トリガー
-    ├── テスト・品質チェック
-    ├── Docker Build・Artifact Registry プッシュ
-    └── Cloud Run本番デプロイ（MODE=live）
+    ├── テスト + 品質チェック
+    ├── Docker Build + Artifact Registry プッシュ
+    └── Cloud Run 本番デプロイ（MODE=live）
     ↓
 ✅ 週次完全自動モデル更新完了
 
-🗓️  毎週月曜9:00 JST
+🗓️  毎月第 1 日曜 2:00 JST
     ↓
-📊 weekly_report.yml 自動実行
-    └── 週間レポート（損益統計・グラフ）Discord送信
+🧹 cleanup.yml 自動実行（safe モード）
+    └── 古いリソース削除
 
-🗓️  毎月第1日曜2:00 JST
+🚨 Drift 検知時（ml.drift.consecutive_threshold 連続）
     ↓
-🧹 cleanup.yml 自動実行（safeモード）
-    └── 古いリソース削除・コスト30%削減
+🔄 MLHealthMonitor.trigger_retraining()
+    ├── GitHub repository_dispatch (event_type=ml-drift-detected)
+    └── model-training.yml 自動起動 → ci.yml 連鎖デプロイ
 ```
 
-### **手動実行方法**
+## 手動実行
 
 ```bash
-# GitHub CLI使用
-gh workflow run ci.yml                                    # CI/CDパイプライン
-gh workflow run model-training.yml                        # MLモデル学習（50 trials）
-gh workflow run backtest.yml -f phase_name=52.2           # バックテスト実行
-gh workflow run cleanup.yml -f cleanup_level=safe         # リソースクリーンアップ
-gh workflow run weekly_report.yml                         # 週間レポート即座送信
+gh workflow run ci.yml                                    # CI/CD パイプライン
+gh workflow run model-training.yml -f n_trials=50         # ML 学習（標準）
+gh workflow run model-training.yml -f n_trials=100        # 高精度学習
+gh workflow run model-training.yml -f dry_run=true        # ドライラン
+gh workflow run backtest.yml -f phase_name=90a -f backtest_days=180
+gh workflow run walk_forward.yml                          # WF 検証
+gh workflow run cleanup.yml -f cleanup_level=safe         # クリーンアップ
 gh workflow run emergency-stop.yml -f action=status       # 状態確認
-
-# パラメータ付き実行
-gh workflow run model-training.yml -f n_trials=100        # 高精度学習（100 trials）
-gh workflow run model-training.yml -f dry_run=true        # ドライラン（モデル保存なし）
-gh workflow run cleanup.yml -f cleanup_level=moderate     # 中程度クリーンアップ
 gh workflow run emergency-stop.yml -f action=stop         # 緊急停止
 gh workflow run emergency-stop.yml -f action=resume       # 復旧
+
+# 実行履歴
+gh run list --workflow=<name>.yml --limit 5
+gh run view <RUN_ID> --log
 ```
 
-### **実行状況確認**
+## 重要な設定・制約
 
-```bash
-# 実行履歴確認
-gh run list --workflow=ci.yml --limit 5
-gh run list --workflow=model-training.yml --limit 5
-gh run list --workflow=backtest.yml --limit 5
-gh run list --workflow=cleanup.yml --limit 5
+### 実行制約
+- mainブランチ実行は順次（競合回避）
+- 実行時間: CI/CD 30 分・ML 学習 60 分・クリーンアップ 20 分
+- Python 3.13 統一
 
-# 詳細ログ確認
-gh run view [RUN_ID] --log
+### 環境変数（model-training.yml）
+- `ML_TRAINING_N_JOBS`: -1（CI で全コア並列・RF 31 分→6.5 分）
+- `ML_TRAINING_PER_MODEL_TIMEOUT`: 1800（モデル別 30 分タイムアウト）
+- `ML_TRAINING_MODE`: true（cross_asset history pickle リーク防止）
 
-# 最新実行確認
-gh run list --limit 1
-```
+### GCP 認証・権限
+- Workload Identity: `projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
+- Service Account: `github-deployer@my-crypto-bot-project.iam.gserviceaccount.com`
+- Secret Manager（具体的バージョン必須・`:latest` 禁止）:
+  - `bitbank-api-key:X`
+  - `bitbank-api-secret:X`
+  - `discord-webhook-url:X`
+  - `github-repo-dispatch-token:X`（Phase 89-γ Auto Retraining）
 
----
+## 更新履歴（要点）
 
-## ⚠️ 重要な設定・制約
-
-### **実行制約**
-- **同時実行制限**: mainブランチでは順次実行（競合回避）
-- **実行時間制限**: CI/CD 30分・ML学習 30分・クリーンアップ 20分・週間レポート 15分
-- **Python版**: 3.13（全ワークフロー統一）
-- **実行制限**: mainブランチでの実行に制限（安全性確保）
-
-### **環境変数（Phase 52.2追加）**
-- **MIN_FEATURE_COUNT**: 50（model-training.yml）
-- **IMAGE_RETENTION_COUNT**: 5（cleanup.yml）
-- **REVISION_RETENTION_COUNT**: 3（cleanup.yml）
-- **BUCKET_NAME**: crypto-bot-trade-data（weekly_report.yml）
-
-### **GCP認証・権限**
-- **Workload Identity**: `projects/11445303925/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
-- **Service Account**: `github-deployer@my-crypto-bot-project.iam.gserviceaccount.com`
-- **Secret Manager**: 具体的バージョン必須
-  - `bitbank-api-key:3`
-  - `bitbank-api-secret:3`
-  - `discord-webhook-url:6`
+- **Phase 90α (2026-05-17)**: model-training.yml に `--meta-label` フラグ追加（macro F1 0.347 → 0.546）+ n_jobs 環境変数化
+- **Phase 89-γ (2026-05-16)**: model-training.yml に `repository_dispatch: types: [ml-drift-detected]` 追加（Auto Retraining）
+- **Phase 89-β (2026-05-15)**: 55 特徴量対応 + 4 モデル化（N-BEATS 追加）
+- **Phase 61.2 (2026-01-25)**: weekly_report.yml 削除（Discord 機能廃止）
+- **Phase 60 (2026-01-19)**: walk_forward.yml 追加
+- **Phase 52.2 (2025-12-13)**: emergency-stop.yml 追加 + cleanup.yml SHA256 削除化 + 環境変数化
 
 ---
 
-## 🔧 更新履歴
-
-### **2025-12-13: Phase 52.2整理**
-
-**更新内容**:
-- 全ワークフローのPhase参照更新
-- emergency-stop.yml追加（緊急停止/復旧）
-- 環境変数によるマジックナンバー排除
-- cleanup.yml: SHA256ダイジェストベース削除
-- model-training.yml: データ収集ステップ追加
-- weekly_report.yml: Cloud Storage統合
-- 37特徴量システム対応
-
----
-
-**Phase 52.2完了**: 37特徴量・Python 3.13統一・緊急停止機能追加により、堅牢なCI/CD基盤が整備されています。
+**最終更新**: 2026年5月18日（Phase 90α: 55 特徴量・4 モデル・メタラベリング・Auto Retraining 対応）

@@ -1,7 +1,7 @@
 """
 暗号資産取引Bot - エントリーポイント
 
-Phase 61版・企業級AI自動取引システム対応の薄いエントリーポイント。
+Phase 90α 版・企業級AI自動取引システム対応の薄いエントリーポイント。
 具体的なビジネスロジックはTradingOrchestratorに委譲し、
 ここでは引数解析と基本設定のみを担当。
 
@@ -213,7 +213,7 @@ def setup_signal_handlers():
 def parse_arguments():
     """コマンドライン引数解析"""
     parser = argparse.ArgumentParser(
-        description="暗号資産取引Bot - Phase 61",
+        description="暗号資産取引Bot - Phase 90α",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用例:
@@ -293,7 +293,7 @@ async def main():
 
     # 3. TradingOrchestratorに実行を委譲
     try:
-        logger.info(f"🚀 暗号資産取引Bot Phase 61 起動 - モード: {config.mode.upper()}")
+        logger.info(f"🚀 暗号資産取引Bot Phase 90α 起動 - モード: {config.mode.upper()}")
 
         # 依存性組み立て済みOrchestratorを取得
         orchestrator = await create_trading_orchestrator(config, logger)

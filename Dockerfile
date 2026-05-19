@@ -1,12 +1,12 @@
-# Phase 61 Production Dockerfile
-# 戦略分析・コードベース整理・レジーム判定最適化
+# Phase 90α Production Dockerfile
+# 55 特徴量・4 モデルアンサンブル・メタラベリング（success/failure）
 
 FROM python:3.13-slim-bullseye
 
-# メタデータ（Phase 61）
-LABEL maintainer="crypto-bot-phase61-system"
-LABEL version="61.0.0"
-LABEL description="Phase 61: 戦略分析・コードベース整理"
+# メタデータ（Phase 90α）
+LABEL maintainer="crypto-bot-phase90-system"
+LABEL version="90.0.0"
+LABEL description="Phase 90α: 55 特徴量・4 モデル（LGB/XGB/RF/N-BEATS）・メタラベリング"
 
 WORKDIR /app
 

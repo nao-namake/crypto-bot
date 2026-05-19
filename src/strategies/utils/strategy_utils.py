@@ -41,7 +41,6 @@ class StrategyType:
     """戦略タイプ定数 - Phase 51.5-A: 3戦略構成 + Phase 51.7: 3戦略追加."""
 
     ATR_BASED = "atr_based"
-    DONCHIAN_CHANNEL = "donchian_channel"
     ADX_TREND = "adx_trend"
     BB_REVERSAL = "bb_reversal"  # Phase 51.7 Day 3: BB Reversal strategy
     STOCHASTIC_REVERSAL = "stochastic_reversal"  # Phase 51.7 Day 4: Stochastic Reversal strategy

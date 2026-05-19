@@ -629,7 +629,7 @@ venv/bin/python3 scripts/live/standard_analysis.py --hours 168
 
 ## ロールバック手順
 
-`docs/運用ガイド/Phase89_N-BEATS_rollback.md` 参照。
+`docs/運用ガイド/統合運用ガイド.md` 第7部「N-BEATS rollback 手順（Phase 89-γ）」参照。
 
 - **軽度（N-BEATS のみ無効化）**: `config/core/thresholds.yaml` で `ensemble.weights.nbeats: 0.0` → 3 モデル運用
 - **重度（Phase 89 全体ロールバック）**: `git tag phase-89-stable` から checkout

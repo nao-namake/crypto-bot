@@ -239,9 +239,9 @@ for m in ['lightgbm', 'xgboost', 'random_forest', 'nbeats']:
 | **証拠金** | 50万円 |
 | **年利目標** | 10% (Phase 88 まで) / Phase 89-91 で **15-18%** / Phase 92 で **17-20%**（DD 10%許容） |
 | **戦略数** | 6戦略（レンジ型4 + トレンド型2、CMFReversalがDonchianChannel置換） |
-| **特徴量数** | 37特徴量（Phase 77: SHAP+Forward Selection）→ Phase 89: 47-50 → Phase 91: 50-55 |
-| **MLモデル** | ProductionEnsemble（LGB40%/XGB40%/RF20%）→ Phase 90: + N-BEATS 軽量版 |
-| **ML方式** | メタラベリング（品質フィルタ Go/No-Go）+ Phase 90: HMM レジーム検出補強 + LLM センチメント |
+| **特徴量数** | **55 特徴量**（Phase 89-β/γ/δ で 37→55 拡張・Phase 92 で更なる拡張余地）|
+| **MLモデル** | **ProductionEnsemble 4 モデル**（LGB 34%/XGB 34%/RF 17%/N-BEATS 15%・Phase 89-γ で N-BEATS 追加）|
+| **ML方式** | **メタラベリング 2 クラス**（success/failure・Phase 90α）+ HMM レジーム検出（Phase 89-γ）+ Fear & Greed センチメント（LLM 不採用・Phase 89-β で確定）|
 
 ---
 
@@ -300,8 +300,9 @@ bash scripts/backtest/run_backtest.sh
 python3 scripts/backtest/standard_analysis.py --from-ci
 python3 scripts/backtest/standard_analysis.py results/backtest_result.json
 
-# 戦略個別パフォーマンス分析
-python3 scripts/analysis/strategy_performance_analysis.py
+# 戦略個別パフォーマンス分析（旧 strategy_performance_analysis.py の後継・Phase 61 統合）
+python3 scripts/analysis/unified_strategy_analyzer.py --mode theoretical  # 理論分析（数秒）
+python3 scripts/analysis/unified_strategy_analyzer.py --mode full         # 完全実証（3分）
 
 # シグナルシミュレーション（Phase 75: 事後検証）
 python3 scripts/analysis/signal_simulation.py                          # 直近7日全足
@@ -346,7 +347,7 @@ models/production/          # MLモデル（週次更新）
 ```
 Bitbank API（15分足取得）
     ↓
-特徴量生成（37特徴量・SHAP最適化）
+特徴量生成（55 特徴量・Phase 89-β/γ/δ 拡張）
     ↓
 ML予測（ensemble_full.pkl → 信頼度）
     ↓
@@ -612,8 +613,8 @@ git status && git add . && git commit -m "..." && git push origin main
 # importエラー確認
 python3 -c "import sys; sys.path.insert(0, '.'); from src.core.logger import CryptoBotLogger"
 
-# 設定整合性確認
-python3 scripts/testing/dev_check.py validate
+# 設定整合性確認（checks.sh [5/12] で実施・dev_check.py は Phase 40.6 で統合廃止）
+bash scripts/testing/checks.sh
 
 # GCPエラーログ
 gcloud logging read "resource.type=cloud_run_revision AND severity>=ERROR" --limit=20

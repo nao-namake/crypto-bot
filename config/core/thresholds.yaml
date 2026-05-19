@@ -55,7 +55,7 @@ features:
     cache_ttl_seconds: 300
     fallback_on_error: 0.0
 cloud_run:
-  memory: 1Gi
+  memory: 768Mi  # Phase 88 I4 で 1Gi → 768Mi に削減（512Mi で OOM 即発生・768Mi が下限）
   cpu: 1
   min_instances: 1
   max_instances: 2

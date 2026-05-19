@@ -111,13 +111,6 @@ class BitbankClient:
     # Phase 89-δ: WebSocket ライフサイクル（最小実装）
     # ========================================
 
-    def get_primary_symbol(self) -> str:
-        """Phase 89-δ: thresholds.yaml の `exchange.primary_symbol` を返す（後方互換: 既存 `symbol` も参照）."""
-        return get_threshold(
-            "exchange.primary_symbol",
-            get_threshold("exchange.symbol", "BTC/JPY"),
-        )
-
     def get_websocket_client(self):
         """Phase 89-δ: WebSocket クライアントを取得（シングルトン）.
 
@@ -161,27 +154,6 @@ class BitbankClient:
             except Exception:
                 pass
         self._ws_task = None
-
-    def test_connection(self) -> bool:
-        """API接続テスト."""
-        try:
-            # 公開API（認証不要）でテスト（設定から取得）
-            try:
-                config = get_config()
-                symbol = config.exchange.symbol
-            except Exception:
-                symbol = "BTC/JPY"  # フォールバック
-
-            ticker = self.exchange.fetch_ticker(symbol)
-            self.logger.info(
-                f"Bitbank API接続テスト成功 - {symbol}価格: ¥{ticker['last']:,.0f}",
-                extra_data={"price": ticker["last"]},
-            )
-            return True
-
-        except Exception as e:
-            self.logger.error("Bitbank API接続テスト失敗", error=e)
-            return False
 
     def set_backtest_mode(self, enabled: bool) -> None:
         """
@@ -1456,43 +1428,6 @@ class BitbankClient:
                 context={"operation": "fetch_active_orders", "symbol": symbol},
             )
 
-    def get_market_info(self, symbol: str = "BTC/JPY") -> Dict[str, Any]:
-        """
-        市場情報取得
-
-        Args:
-            symbol: 通貨ペア
-
-        Returns:
-            市場情報（最小注文単位、手数料等）.
-        """
-        try:
-            markets = self.exchange.load_markets()
-            market = markets.get(symbol)
-
-            if not market:
-                raise DataFetchError(
-                    f"市場情報が見つかりません: {symbol}",
-                    context={"symbol": symbol},
-                )
-
-            return {
-                "id": market["id"],
-                "symbol": market["symbol"],
-                "base": market["base"],
-                "quote": market["quote"],
-                "precision": market["precision"],
-                "limits": market["limits"],
-                "fees": market.get("fees", {}),
-                "active": market["active"],
-            }
-
-        except Exception as e:
-            raise DataFetchError(
-                f"市場情報取得に失敗しました: {symbol} - {e}",
-                context={"symbol": symbol},
-            )
-
     async def fetch_margin_status(self) -> Dict[str, Any]:
         """
         信用取引口座状況取得（Phase 35: バックテストモックデータ対応）
@@ -1982,18 +1917,6 @@ class BitbankClient:
             raise ExchangeAPIError(
                 f"private API呼び出し失敗: {e}", context={"endpoint": endpoint, "method": method}
             )
-
-    def get_stats(self) -> Dict[str, Any]:
-        """統計情報取得."""
-        return {
-            "authenticated": bool(self.api_key and self.api_secret),
-            "margin_mode": True,
-            "leverage": self.leverage,
-            "exchange_id": (self.exchange.id if hasattr(self, "exchange") else None),
-            "rate_limit": (
-                getattr(self.exchange, "rateLimit", None) if hasattr(self, "exchange") else None
-            ),
-        }
 
 
 # グローバルクライアント

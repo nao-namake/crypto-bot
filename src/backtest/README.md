@@ -7,13 +7,13 @@
 ```
 src/backtest/
 ├── __init__.py                    14行  エクスポート（BacktestReporter・TradeTracker・MLAnalyzer）
-├── reporter.py                 1,470行  TradeTracker・MLAnalyzer・BacktestReporter
-├── visualizer.py                 314行  matplotlib可視化（4種グラフ）
+├── reporter.py                 1,493行  TradeTracker・MLAnalyzer・BacktestReporter
+├── visualizer.py                 333行  matplotlib 可視化（4 種グラフ）
 ├── data/
-│   ├── csv_data_loader.py        255行  CSV読み込み・キャッシュ
-│   └── historical/                     CSVデータ（BTC_JPY_4h.csv, BTC_JPY_15m.csv）
+│   ├── csv_data_loader.py        257行  CSV 読み込み・キャッシュ
+│   └── historical/                     CSV データ（BTC_JPY_4h.csv, BTC_JPY_15m.csv）
 ├── scripts/
-│   └── collect_historical_csv.py 435行  Bitbank APIデータ収集
+│   └── collect_historical_csv.py 436行  Bitbank API データ収集
 └── (出力先: logs/backtest/)            レポート出力先（JSON・テキスト・グラフ）
 ```
 

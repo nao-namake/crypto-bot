@@ -30,8 +30,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlencode
 
-# Cloud Run のメモリ制限（P1-1: thresholds.yaml cloud_run.memory: 1Gi (=1024MiB) と整合）
-MEMORY_LIMIT_MIB = 1024.0
+# Cloud Run のメモリ制限（Phase 88 I4 で 1Gi → 768Mi に削減・gcloud run services describe で実値確認）
+MEMORY_LIMIT_MIB = 768.0
 
 # subprocess 共通 timeout
 _GCLOUD_TIMEOUT = 60

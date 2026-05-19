@@ -1,60 +1,59 @@
 # src/strategies/implementations/ - 取引戦略実装群
 
-**Phase 64.5**: 6戦略（レンジ型4 + トレンド型2）によるレジーム別動的戦略選択システム。
+**Phase 90α**: 6 戦略（レンジ型 4 + トレンド型 2）によるレジーム別動的戦略選択システム。DonchianChannel は Phase 74 で CMFReversal に置換済（実体削除済）。
 
 ## ファイル構成
 
 ```
 src/strategies/implementations/
-├── __init__.py               # 6戦略エクスポート
-├── atr_based.py              # ATRBased戦略（レンジ型・主力）
-├── bb_reversal.py            # BBReversal戦略（レンジ型）
-├── stochastic_reversal.py    # StochasticReversal戦略（レンジ型）
-├── donchian_channel.py       # DonchianChannel戦略（レンジ型）
-├── macd_ema_crossover.py     # MACDEMACrossover戦略（トレンド型）
-└── adx_trend.py              # ADXTrendStrength戦略（トレンド型）
+├── __init__.py               # 6 戦略エクスポート
+├── atr_based.py              # ATRBased 戦略（レンジ型・主力・707 行）
+├── bb_reversal.py            # BBReversal 戦略（レンジ型・409 行）
+├── stochastic_reversal.py    # StochasticReversal 戦略（レンジ型・589 行）
+├── cmf_reversal.py           # CMFReversal 戦略（レンジ型・237 行・Phase 74 で DonchianChannel 置換）
+├── macd_ema_crossover.py     # MACDEMACrossover 戦略（トレンド型・350 行）
+└── adx_trend.py              # ADXTrendStrength 戦略（トレンド型・961 行）
 ```
 
-## 6戦略一覧
+## 6 戦略一覧
 
-### レンジ型（4戦略）
+### レンジ型（4 戦略）
 
 | 戦略 | 核心ロジック | 備考 |
 |------|-------------|------|
-| **ATRBased** | ATR消尽率70%以上 → 反転期待 | 主力戦略 |
-| **BBReversal** | BB位置主導 + RSIボーナス → 平均回帰 | Phase 62.2: AND→BB主導 |
-| **StochasticReversal** | 価格とStochasticの乖離検出 → 反転 | Phase 62.2: 価格変化フィルタ追加 |
-| **DonchianChannel** | チャネル端部反転 + RSIボーナス | Phase 62.2: RSIボーナス制度 |
+| **ATRBased** | ATR 消尽率 70% 以上 → 反転期待 | 主力戦略 |
+| **BBReversal** | BB 位置主導 + RSI ボーナス → 平均回帰 | Phase 62.2: AND→BB 主導 |
+| **StochasticReversal** | 価格と Stochastic の乖離検出 → 反転 | Phase 62.2: 価格変化フィルタ追加 |
+| **CMFReversal** | CMF 売り圧力減少→BUY / 買い圧力減少→SELL | Phase 74: DonchianChannel 置換 |
 
-### トレンド型（2戦略）
+### トレンド型（2 戦略）
 
 | 戦略 | 核心ロジック |
 |------|-------------|
-| **MACDEMACrossover** | MACDクロス + EMAトレンド確認 |
-| **ADXTrendStrength** | ADX≥25 + DIクロス → トレンドフォロー |
+| **MACDEMACrossover** | MACD クロス + EMA トレンド確認 |
+| **ADXTrendStrength** | ADX≥22 + DI クロス → トレンドフォロー（Phase 74 で閾値緩和）|
 
-## レジーム別重みづけ
+## レジーム別重みづけ（Phase 85: trending 全停止）
 
-戦略選択はレジーム（tight_range / normal_range / trending）に応じて動的に重みづけされる。
-設定は `config/core/thresholds.yaml` の `dynamic_strategy_selection.regime_strategy_mapping` で管理。
+設定: `config/core/thresholds.yaml` の `dynamic_strategy_selection.regime_strategy_mapping`
 
-```yaml
-# tight_range例
-tight_range:
-  BBReversal: 0.35
-  StochasticReversal: 0.35
-  ATRBased: 0.20
-  DonchianChannel: 0.10
-  ADXTrendStrength: 0.0
-  MACDEMACrossover: 0.0
-```
+| 戦略 | tight_range | normal_range | trending |
+|------|------------|-------------|---------|
+| ATRBased | 0.35 | 0.25 | **0.0** |
+| CMFReversal | 0.20 | 0.15 | **0.0** |
+| BBReversal | 0.20 | 0.15 | **0.0** |
+| StochasticReversal | 0.10 | 0.15 | **0.0** |
+| ADXTrendStrength | 0.10 | 0.15 | **0.0** |
+| MACDEMACrossover | 0.05 | 0.15 | **0.0** |
+
+**Phase 85 trending 全停止根拠**: 過去 30 日 trending 23 件で全シナリオ赤字（TP1500/SL2000 floor 0.7% でも勝率 45%・-8,500 円）。「レンジ専用 bot」設計と完全合致。
 
 ## 共通アーキテクチャ
 
 - 全戦略が `StrategyBase` を継承し `StrategySignal` を返却
-- `StrategyManager` が統合判定（重み付け投票）
+- `StrategyManager` が統合判定（重み付け平均方式・Phase 59.4 で 2 票ルール廃止）
 - 設定は `config/core/thresholds.yaml` で一元管理（`get_threshold()` パターン）
-- 動的信頼度計算（市場不確実性を反映、0.2-0.8範囲）
+- 動的信頼度計算（市場不確実性を反映、0.2-0.8 範囲）
 
 ## テスト
 
@@ -67,6 +66,12 @@ python -m pytest tests/unit/strategies/implementations/test_atr_based.py -v
 python -m pytest tests/unit/strategies/implementations/test_adx_trend.py -v
 ```
 
+## 関連リンク
+
+- 親 README: [../README.md](../README.md)
+- 戦略基盤: [../base/README.md](../base/README.md)
+- 共通処理: [../utils/README.md](../utils/README.md)
+
 ---
 
-**Phase 64.5更新**: デッドコード削除（Phase 55.3/55.6実験的機能）・6戦略構成に合わせたドキュメント刷新。
+**最終更新**: 2026年5月19日（Phase 90α: DonchianChannel 実体削除・CMFReversal 反映・trending 全停止反映）

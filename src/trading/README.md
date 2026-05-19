@@ -1,7 +1,7 @@
 # src/trading/ - 統合取引管理層
 
-**Phase 64.4**: レイヤードアーキテクチャによる責務分離実装。
-5層構造（core / balance / execution / position / risk）で統合取引管理を実現。
+**Phase 90α**: レイヤードアーキテクチャによる責務分離実装。
+6 層構造（core / balance / execution / position / risk / analysis）で統合取引管理を実現。Phase 90α で `stop_manager.py` の 2 死コードメソッド（144 行）を削除し、Phase 87/65.x 以降の包括レビューで死コードゼロを達成。
 
 ## ファイル構成
 

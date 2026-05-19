@@ -895,28 +895,6 @@ class StopManager:
             self.logger.error(f"❌ ポジション決済判定エラー: {e}")
             return None
 
-    def _is_sl_price_breached(self, position: dict, current_price: float) -> bool:
-        """
-        Phase 64.12: 現在価格がSLトリガー価格を超過しているか判定
-
-        Args:
-            position: ポジション情報
-            current_price: 現在価格
-
-        Returns:
-            bool: SL価格を超過している場合True
-        """
-        stop_loss = position.get("stop_loss")
-        entry_side = position.get("side", "")
-        if not stop_loss or current_price <= 0:
-            return False
-        sl_price = float(stop_loss)
-        if entry_side.lower() == "buy" and current_price <= sl_price:
-            return True
-        elif entry_side.lower() == "sell" and current_price >= sl_price:
-            return True
-        return False
-
     async def _execute_position_exit(
         self,
         position: dict,
@@ -1343,63 +1321,6 @@ class StopManager:
                 fee=0.0,
                 status=OrderStatus.FAILED,
             )
-
-    async def _replace_sl_order(
-        self,
-        position: dict,
-        stop_loss: Optional[float],
-        bitbank_client: BitbankClient,
-    ) -> Optional[str]:
-        """
-        Phase 68.6: 成行決済失敗時のSL再配置
-
-        タイムアウト成行決済が失敗した場合に、SLを再配置してポジションを保護する。
-
-        Returns:
-            Optional[str]: 新しいSL注文ID（成功時）またはNone
-        """
-        if not stop_loss or not bitbank_client:
-            return None
-
-        entry_side = position.get("side", "")
-        amount = float(position.get("amount", 0))
-        sl_price = float(stop_loss)
-        symbol = get_threshold(TPSLConfig.CURRENCY_PAIR, "BTC/JPY")
-
-        sl_config = get_threshold(TPSLConfig.SL_CONFIG, {})
-        sl_order_type = sl_config.get("order_type", "stop")
-
-        # Phase 81: stop（成行）専用のため limit_price は常にNone
-        limit_price = None
-
-        sl_order = await asyncio.to_thread(
-            bitbank_client.create_stop_loss_order,
-            entry_side=entry_side,
-            amount=amount,
-            stop_loss_price=sl_price,
-            symbol=symbol,
-            order_type=sl_order_type,
-            limit_price=limit_price,
-        )
-
-        order_id = sl_order.get("id")
-        if order_id:
-            sl_placed_at = datetime.now(timezone.utc).isoformat()
-            self.logger.info(
-                f"✅ Phase 68.6: SL再配置成功 - " f"ID: {order_id}, SL: {sl_price:.0f}円"
-            )
-            # SL永続化（Phase 69.6: sl_placed_at含む）
-            self.sl_persistence.save(
-                side=entry_side,
-                sl_order_id=str(order_id),
-                sl_price=sl_price,
-                amount=amount,
-                sl_placed_at=sl_placed_at,
-            )
-            return str(order_id)
-        else:
-            self.logger.error(f"❌ Phase 68.6: SL再配置で注文IDが空: {sl_order}")
-            return None
 
     async def _cleanup_sibling_vp_orders(
         self,

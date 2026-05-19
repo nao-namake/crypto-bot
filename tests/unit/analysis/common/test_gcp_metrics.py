@@ -86,7 +86,7 @@ class TestFetchMemoryPercentiles:
         result = gcp_metrics.fetch_memory_percentiles(hours=24)
         assert result["available"] is False
         assert result["reason"] == "no_data"
-        assert result["memory_limit_mib"] == 1024.0  # P1-1: 768→1024 (cloud_run.memory: 1Gi)
+        assert result["memory_limit_mib"] == 768.0  # Phase 88 I4 で 1Gi → 768Mi に削減
 
     def test_percentile_calculation(self, mock_subprocess_run, mock_gcloud_auth):
         # 比率 0.5, 0.6, 0.7, 0.8, 0.9 (5 points) - REST API 形式
@@ -111,8 +111,8 @@ class TestFetchMemoryPercentiles:
         assert result["sample_count"] == 5
         # P50 は中央値 0.7、max は 0.9
         assert result["max_ratio"] == 0.9
-        # P1-1: 0.9 * 1024 = 921.6 MiB（旧 768 → 1024）
-        assert result["max_mib"] == 921.6
+        # 0.9 * 768 = 691.2 MiB（Phase 88 I4 で 1Gi → 768Mi に削減）
+        assert result["max_mib"] == 691.2
 
     def test_high_memory_triggers_critical_verdict(self, mock_subprocess_run, mock_gcloud_auth):
         # 最大値が 0.95 以上 → CRITICAL

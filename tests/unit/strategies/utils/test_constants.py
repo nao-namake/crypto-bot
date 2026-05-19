@@ -33,11 +33,11 @@ class TestConstants(unittest.TestCase):
         self.assertIsInstance(EntryAction.CLOSE, str)
 
     def test_strategy_type_constants(self):
-        """StrategyTypeクラステスト - Phase 51.7 Day 7: 6戦略構成."""
+        """StrategyTypeクラステスト - Phase 90α: 6戦略構成（CMFReversal が DonchianChannel 置換）."""
         # 全ての戦略タイプが存在することを確認
         expected_types = [
             "ATR_BASED",
-            "DONCHIAN_CHANNEL",
+            "CMF_REVERSAL",
             "ADX_TREND",
             "BB_REVERSAL",
             "STOCHASTIC_REVERSAL",
@@ -89,7 +89,7 @@ class TestConstants(unittest.TestCase):
         # 各戦略タイプが一意であることを確認
         strategy_values = [
             StrategyType.ATR_BASED,
-            StrategyType.DONCHIAN_CHANNEL,
+            StrategyType.CMF_REVERSAL,
             StrategyType.ADX_TREND,
             StrategyType.BB_REVERSAL,
             StrategyType.STOCHASTIC_REVERSAL,

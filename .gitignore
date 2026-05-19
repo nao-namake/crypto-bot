@@ -99,7 +99,8 @@ Thumbs.db
 # ログ / 結果 / モデルなど実行時生成物
 # ──────────────────────────────────────────────────────────────────────────────
 *.log
-logs/
+logs/*
+!logs/README.md
 results/
 */results/
 
@@ -114,7 +115,7 @@ docs/検証記録/analysis_history.csv
 # ──────────────────────────────────────────────────────────────────────────────
 # 動的生成される学習中間ファイル・一時モデル
 *.pkl
-# 本番用2段階モデルは例外（37特徴量）
+# 本番用 2 段階モデルは例外（Phase 90α: 55 特徴量・4 モデル）
 !models/production/ensemble_full.pkl
 !models/production/ensemble_basic.pkl
 *.model
@@ -169,7 +170,10 @@ historical_data/
 # 実行時生成ファイル
 # ──────────────────────────────────────────────────────────────────────────────
 # ランタイムデータ（孤児SL追跡等）
-data/
+data/*
+!data/README.md
+!data/orderbook/
+data/orderbook/*
 !data/orderbook/.gitkeep
 
 # 取引・リスク管理関連
@@ -214,7 +218,6 @@ analysis_script.py
 big.txt
 temp_*.py
 *_temp.py
-readme/
 
 # 投機・試算分析ファイル
 aggressive_projection_analysis.py
@@ -237,14 +240,12 @@ docker-compose.override.yml
 **/*.tfstate.backup
 **/.terraform.lock.hcl
 .terraform.tfstate.lock.info
-archive/
+# 注意: 旧 `archive/` パターン除外は models/archive/ を誤マッチさせるため削除（Phase 90α）
 
 # ──────────────────────────────────────────────────────────────────────────────
-# レガシーシステム（参考用アーカイブ）
+# レガシーパターン（過去のレガシーシステム名残・将来の誤参照防止）
 # ──────────────────────────────────────────────────────────────────────────────
-# 注意: _legacy_v1/ は既にコミット済みアーカイブです
-# 新規開発では _legacy_v1/ 内のコードを参照・コピーしないでください
-# 将来の誤参照防止のため、今後の変更は無視対象:
+# _legacy_v1/ は Phase XX で完全削除済（実体無し・将来再作成された場合の保険）
 _legacy_v1/
 
 # レガシーシステム関連の一時ファイル・生成物

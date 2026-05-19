@@ -1697,81 +1697,6 @@ class TestPhase686ReasonStringMatch:
 
 
 # ========================================
-# Phase 68.6: _replace_sl_order() テスト
-# ========================================
-
-
-@pytest.mark.asyncio
-class TestPhase686ReplaceSLOrder:
-    """Phase 68.6: 成行決済失敗時のSL再配置テスト"""
-
-    @pytest.fixture
-    def stop_manager(self):
-        return StopManager()
-
-    @pytest.fixture
-    def mock_bitbank_client(self):
-        client = MagicMock()
-        client.create_stop_loss_order = MagicMock(return_value={"id": "new_sl_123"})
-        return client
-
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_replace_sl_order_success(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
-        """Phase 68.6: SL再配置成功"""
-        mock_threshold.side_effect = lambda key, default=None: {
-            "trading_constraints.currency_pair": "BTC/JPY",
-            "position_management.stop_loss": {
-                "enabled": True,
-                "order_type": "stop",
-                "slippage_buffer": 0.002,
-            },
-        }.get(key, default)
-
-        position = {"side": "buy", "amount": "0.001"}
-
-        with patch.object(stop_manager.sl_persistence, "save"):
-            await stop_manager._replace_sl_order(position, 13900000.0, mock_bitbank_client)
-
-        mock_bitbank_client.create_stop_loss_order.assert_called_once()
-        call_kwargs = mock_bitbank_client.create_stop_loss_order.call_args
-        assert call_kwargs.kwargs["entry_side"] == "buy"
-        assert call_kwargs.kwargs["stop_loss_price"] == 13900000.0
-
-    async def test_replace_sl_order_no_stop_loss(self, stop_manager, mock_bitbank_client):
-        """Phase 68.6: SL価格なしの場合は何もしない"""
-        position = {"side": "buy", "amount": "0.001"}
-        await stop_manager._replace_sl_order(position, None, mock_bitbank_client)
-        mock_bitbank_client.create_stop_loss_order.assert_not_called()
-
-    async def test_replace_sl_order_no_client(self, stop_manager):
-        """Phase 68.6: bitbank_clientなしの場合は何もしない"""
-        position = {"side": "buy", "amount": "0.001"}
-        await stop_manager._replace_sl_order(position, 13900000.0, None)
-
-    @patch("src.trading.execution.stop_manager.get_threshold")
-    async def test_replace_sl_order_empty_order_id(
-        self, mock_threshold, stop_manager, mock_bitbank_client
-    ):
-        """Phase 68.6: SL注文のIDが空の場合はエラーログ"""
-        mock_threshold.side_effect = lambda key, default=None: {
-            "trading_constraints.currency_pair": "BTC/JPY",
-            "position_management.stop_loss": {
-                "enabled": True,
-                "order_type": "stop",
-                "slippage_buffer": 0.001,
-            },
-        }.get(key, default)
-
-        mock_bitbank_client.create_stop_loss_order = MagicMock(return_value={})
-        position = {"side": "sell", "amount": "0.002"}
-
-        await stop_manager._replace_sl_order(position, 14100000.0, mock_bitbank_client)
-        mock_bitbank_client.create_stop_loss_order.assert_called_once()
-
-
-# ========================================
 # Phase 61.9: _log_auto_execution() テスト
 # ========================================
 
@@ -2962,39 +2887,6 @@ class TestPhase6210BitbankClientTPMaker:
 # ========================================
 # Phase 64.12: SL安全網テスト
 # ========================================
-
-
-class TestPhase6412SLSafetyNet:
-    """Phase 64.12: SL安全網の根本修正テスト"""
-
-    @pytest.fixture
-    def stop_manager(self):
-        return StopManager()
-
-    def test_is_sl_price_breached_long_below_sl(self, stop_manager):
-        """Phase 64.12: ロング - 現在価格がSL以下→超過"""
-        position = {"side": "buy", "stop_loss": 10000000.0}
-        assert stop_manager._is_sl_price_breached(position, 9900000.0) is True
-
-    def test_is_sl_price_breached_long_above_sl(self, stop_manager):
-        """Phase 64.12: ロング - 現在価格がSL以上→未超過"""
-        position = {"side": "buy", "stop_loss": 10000000.0}
-        assert stop_manager._is_sl_price_breached(position, 10100000.0) is False
-
-    def test_is_sl_price_breached_short_above_sl(self, stop_manager):
-        """Phase 64.12: ショート - 現在価格がSL以上→超過"""
-        position = {"side": "sell", "stop_loss": 10000000.0}
-        assert stop_manager._is_sl_price_breached(position, 10100000.0) is True
-
-    def test_is_sl_price_breached_short_below_sl(self, stop_manager):
-        """Phase 64.12: ショート - 現在価格がSL以下→未超過"""
-        position = {"side": "sell", "stop_loss": 10000000.0}
-        assert stop_manager._is_sl_price_breached(position, 9900000.0) is False
-
-    def test_is_sl_price_breached_no_stop_loss(self, stop_manager):
-        """Phase 64.12: stop_lossなし→False"""
-        position = {"side": "buy"}
-        assert stop_manager._is_sl_price_breached(position, 10000000.0) is False
 
 
 # ========================================

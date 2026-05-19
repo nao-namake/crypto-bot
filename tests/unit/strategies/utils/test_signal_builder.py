@@ -128,7 +128,7 @@ class TestSignalBuilder(unittest.TestCase):
             current_price=self.current_price,
             df=self.test_df,
             config=self.basic_config,
-            strategy_type=StrategyType.DONCHIAN_CHANNEL,
+            strategy_type=StrategyType.CMF_REVERSAL,
         )
 
         # ホールドシグナルの確認
@@ -139,7 +139,7 @@ class TestSignalBuilder(unittest.TestCase):
         self.assertIsNone(signal.risk_ratio)
 
         # メタデータの確認
-        self.assertEqual(signal.metadata["strategy_type"], StrategyType.DONCHIAN_CHANNEL)
+        self.assertEqual(signal.metadata["strategy_type"], StrategyType.CMF_REVERSAL)
         self.assertFalse(signal.metadata["risk_calculated"])
 
     def test_create_signal_with_decision_metadata(self):
@@ -269,7 +269,7 @@ class TestSignalBuilder(unittest.TestCase):
         """全戦略タイプでのテスト - Phase 51.7 Day 7: 6戦略構成."""
         strategy_types = [
             StrategyType.ATR_BASED,
-            StrategyType.DONCHIAN_CHANNEL,
+            StrategyType.CMF_REVERSAL,
             StrategyType.ADX_TREND,
             StrategyType.BB_REVERSAL,
         ]

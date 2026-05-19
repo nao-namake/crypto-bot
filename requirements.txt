@@ -1,8 +1,8 @@
 # requirements.txt
 # ====================================================================
-# Crypto Bot v61 - 本番環境最小依存関係（2026年1月更新）
+# Crypto Bot - 本番環境最小依存関係
 # Python 3.13対応・JST対応
-# Phase 61: 戦略分析・コードベース整理・レジーム判定最適化
+# Phase 90α: 55 特徴量・4 モデル（LGB/XGB/RF/N-BEATS）・メタラベリング
 # Phase 89 H5: torch CPU wheel を強制（CUDA wheel で Cloud Run コンテナ肥大化回避）
 # ====================================================================
 --extra-index-url https://download.pytorch.org/whl/cpu
@@ -16,8 +16,7 @@ joblib==1.3.2           # 並列処理・モデルシリアライゼーション
 # --- HTTP通信・API接続 ------------------------------------------------
 requests==2.31.0        # HTTP クライアント・外部API通信
 ccxt>=2.10.0            # 暗号資産取引所API・Bitbank接続・版互換性確保
-yfinance==0.2.32        # Yahoo Finance API・Phase 50.3外部API統合・マクロ経済指標取得
-aiohttp>=3.9.0          # 非同期HTTPクライアント・Phase 50.3外部API統合・Alternative.me API接続
+aiohttp>=3.9.0          # 非同期HTTPクライアント・bitbank_client / external_api_client で使用
 
 # --- Cloud Storage・永続化 -------------------------------------------
 google-cloud-storage==2.10.0  # GCP Cloud Storage・ドローダウン状態永続化・GCP統合対応
@@ -67,7 +66,6 @@ isort>=5.12.0           # インポート整理・black連携
 flake8>=6.0.0           # リンター・コード品質管理・実用的設定
 
 # --- Cloud Run・本番環境（GCP最適化）-------------------------------
-gunicorn>=21.0.0        # WSGI サーバー・本番環境
 uvloop>=0.17.0          # Linux高速非同期処理
 
 # --- セキュリティ・暗号化 -------------------------------------------

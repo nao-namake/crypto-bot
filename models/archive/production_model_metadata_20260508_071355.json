@@ -1,0 +1,112 @@
+{
+  "created_at": "2026-05-08T07:01:29.163446",
+  "model_type": "ProductionEnsemble",
+  "model_file": "models/production/ensemble_full.pkl",
+  "version": "1.0.0",
+  "phase": "Phase 50.9",
+  "status": "production_ready",
+  "feature_names": [
+    "close",
+    "volume",
+    "rsi_14",
+    "macd",
+    "atr_14",
+    "bb_position",
+    "ema_20",
+    "ema_50",
+    "volume_ratio",
+    "volume_ema",
+    "channel_position",
+    "adx_14",
+    "plus_di_14",
+    "minus_di_14",
+    "returns_1",
+    "returns_2",
+    "returns_3",
+    "returns_10",
+    "volume_lag_1",
+    "volume_lag_2",
+    "volume_lag_3",
+    "rsi_lag_1",
+    "macd_lag_1",
+    "close_ma_10",
+    "close_ma_20",
+    "close_std_5",
+    "close_std_10",
+    "close_std_20",
+    "rsi_x_atr",
+    "macd_x_volume",
+    "bb_position_x_volume_ratio",
+    "close_x_atr",
+    "volume_x_bb_position",
+    "hour",
+    "day_of_week",
+    "hour_cos",
+    "day_sin"
+  ],
+  "individual_models": [
+    "lightgbm",
+    "xgboost",
+    "random_forest"
+  ],
+  "model_weights": {
+    "lightgbm": 0.4,
+    "xgboost": 0.4,
+    "random_forest": 0.2
+  },
+  "performance_metrics": {
+    "lightgbm": {
+      "accuracy": 0.6,
+      "f1_score": 0.47372078968573733,
+      "precision": 0.5247761194029852,
+      "recall": 0.6,
+      "cv_f1_mean": 0.5160735679333242,
+      "cv_f1_std": 0.07883086914093775,
+      "confidence_mean": 0.602268918859874,
+      "confidence_std": 0.04547338853509444,
+      "confidence_min": 0.5011361043021332,
+      "confidence_max": 0.696355353276227
+    },
+    "xgboost": {
+      "accuracy": 0.6043478260869565,
+      "f1_score": 0.4933118069253593,
+      "precision": 0.5608769850580452,
+      "recall": 0.6043478260869565,
+      "cv_f1_mean": 0.527433902530804,
+      "cv_f1_std": 0.05362858002634439,
+      "confidence_mean": 0.9256462454795837,
+      "confidence_std": 0.11585728824138641,
+      "confidence_min": 0.5064760446548462,
+      "confidence_max": 0.9999170303344727
+    },
+    "random_forest": {
+      "accuracy": 0.6072463768115942,
+      "f1_score": 0.46038240198720926,
+      "precision": 0.7617256683704593,
+      "recall": 0.6072463768115942,
+      "cv_f1_mean": 0.503619720038192,
+      "cv_f1_std": 0.07808129371351982,
+      "confidence_mean": 0.7699123118335925,
+      "confidence_std": 0.08662278001433478,
+      "confidence_min": 0.5030497738912136,
+      "confidence_max": 0.9477647472450982
+    }
+  },
+  "training_info": {
+    "samples": 4596,
+    "feature_count": 37,
+    "training_duration_seconds": 0,
+    "class_distribution": {
+      "success": 0.384029590948651,
+      "failure": 0.6159704090513489
+    },
+    "n_classes": 2,
+    "optimal_threshold": 0.3
+  },
+  "git_info": {
+    "commit": "153c156a1282b17ba2c20d134c18bbba19ce98c2",
+    "commit_short": "153c156a",
+    "branch": "main"
+  },
+  "notes": "Phase 50.9完了・外部API完全削除・62特徴量固定システム・2段階Graceful Degradation・シンプル設計回帰・TimeSeriesSplit n_splits=5・Early Stopping・SMOTE・Optuna最適化"
+}

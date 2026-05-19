@@ -253,7 +253,7 @@ v8d / v8e の結果次第:
 
 ### 異常時のロールバック
 
-`docs/運用ガイド/Phase89_N-BEATS_rollback.md` 参照:
+`docs/運用ガイド/統合運用ガイド.md` 第7部「N-BEATS rollback 手順（Phase 89-γ）」参照:
 - 軽度（N-BEATS のみ無効化）: `weights.nbeats: 0.0` で 3 モデル運用
 - 重度（Phase 89 全体）: `git tag phase-89-stable` から checkout
 - v8 失敗時: `cp models/production/ensemble_full.pre_v8_20260517_062507.pkl.bak models/production/ensemble_full.pkl`
