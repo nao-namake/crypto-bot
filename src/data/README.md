@@ -55,6 +55,8 @@ bitbank Public WebSocket API クライアント。ticker / depth / transactions 
 
 **主要クラス**: `BitbankWebSocketClient`
 
+**Phase 90β 注記**: `mode=trigger` (min_instances=0) ではコンテナがリクエスト毎に破棄されるため WebSocket 常駐不可。`orchestrator.initialize()` の起動条件は `if config.mode in ("live", "paper"):` のみで、`trigger` は通らない。OFI 等のマイクロ構造特徴量は REST 経路 (`fetch_order_book`) のみで生成される設計。
+
 ### data_pipeline.py（572 行）
 
 マルチタイムフレーム対応データ取得パイプライン。15 分足（メイン）・4 時間足（環境認識）の 2 軸構成。

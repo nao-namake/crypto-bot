@@ -153,6 +153,8 @@ class TradingOrchestrator:
             await self.health_checker.check_all_services()
 
             # Phase 89 C3: live / paper モードで WebSocket クライアントを起動（fail-open）
+            # Phase 90β: trigger モードは min_instances=0 でコンテナ即破棄 → WebSocket 常駐不可
+            # OFI 等のマイクロ構造特徴量は REST (fetch_order_book) 経路でのみ生成される設計
             if self.config.mode in ("live", "paper"):
                 bitbank_client = getattr(self.execution_service, "bitbank_client", None)
                 if bitbank_client is not None and hasattr(bitbank_client, "connect_websocket"):

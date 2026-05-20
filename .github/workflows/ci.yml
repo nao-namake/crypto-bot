@@ -359,8 +359,8 @@ jobs:
             --max-instances="$MAX_INSTANCES" \
             --concurrency=1 \
             --timeout="$TIMEOUT" \
-            --set-env-vars="MODE=trigger,LOG_LEVEL=WARNING,DEPLOY_MODE=$DEPLOY_MODE,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE" \
-            --set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:6" \
+            --set-env-vars="MODE=trigger,LOG_LEVEL=WARNING,DEPLOY_MODE=$DEPLOY_MODE,PYTHONPATH=/app,FEATURE_MODE=full,DEPLOY_STAGE=$DEPLOY_MODE,GITHUB_REPO_OWNER=nao-namake,GITHUB_REPO_NAME=bitbank-btc-bot" \
+            --set-secrets="BITBANK_API_KEY=bitbank-api-key:3,BITBANK_API_SECRET=bitbank-api-secret:3,DISCORD_WEBHOOK_URL=discord-webhook-url:6,GITHUB_REPO_DISPATCH_TOKEN=github-repo-dispatch-token:latest" \
             --no-allow-unauthenticated \
             --no-cpu-boost \
             --port=8080 \

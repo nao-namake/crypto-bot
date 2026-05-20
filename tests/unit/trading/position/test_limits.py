@@ -386,6 +386,92 @@ class TestCheckSameDirectionPositions:
         assert "同方向ポジション制限" in result["reason"]
 
 
+class TestCheckOppositeDirectionPositions:
+    """Phase 90β: _check_opposite_direction_positions() テスト
+
+    long+short 同時保有 → 維持率 66% 強制ロスカット 50% まで余裕 16pt 事案の
+    構造的防止を検証する。
+    """
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_opposite_direction_blocked(self, mock_threshold, limits, sample_evaluation):
+        """反対方向ポジションが上限に達している場合ブロック（2026-05-21 事案の再発防止）"""
+        mock_threshold.return_value = 1
+
+        # 既存に sell ポジション 1 件、新規 buy 試行
+        sample_evaluation.side = "buy"
+        virtual_positions = [{"order_id": "1", "side": "sell"}]
+
+        result = limits._check_opposite_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is False
+        assert "Phase 90β 反対方向ポジション制限" in result["reason"]
+        assert "sell" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_same_direction_allowed(self, mock_threshold, limits, sample_evaluation):
+        """同方向のポジションは反対方向制限で許可（同方向制限とは独立）"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = "buy"
+        virtual_positions = [{"order_id": "1", "side": "buy"}]
+
+        result = limits._check_opposite_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is True
+        assert "反対方向ポジション数OK" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_no_existing_positions_allowed(self, mock_threshold, limits, sample_evaluation):
+        """既存ポジションなしの場合は許可"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = "buy"
+
+        result = limits._check_opposite_direction_positions(sample_evaluation, [])
+
+        assert result["allowed"] is True
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_limit_disabled_when_zero(self, mock_threshold, limits, sample_evaluation):
+        """設定値0で制限無効（Phase 89 以前の挙動保持）"""
+        mock_threshold.return_value = 0
+
+        sample_evaluation.side = "buy"
+        virtual_positions = [{"order_id": "1", "side": "sell"}]
+
+        result = limits._check_opposite_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is True
+        assert "反対方向制限無効" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_no_side_info_skips(self, mock_threshold, limits, sample_evaluation):
+        """side情報がない場合はスキップ"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = None
+        virtual_positions = [{"order_id": "1", "side": "sell"}]
+
+        result = limits._check_opposite_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is True
+        assert "side情報なし" in result["reason"]
+
+    @patch("src.trading.position.limits.get_threshold")
+    def test_sell_blocked_by_existing_buy(self, mock_threshold, limits, sample_evaluation):
+        """既存 buy ポジションあり → 新規 sell も拒否（反対方向）"""
+        mock_threshold.return_value = 1
+
+        sample_evaluation.side = "sell"
+        virtual_positions = [{"order_id": "1", "side": "buy"}]
+
+        result = limits._check_opposite_direction_positions(sample_evaluation, virtual_positions)
+
+        assert result["allowed"] is False
+        assert "buy" in result["reason"]
+
+
 class TestCheckCapitalUsage:
     """_check_capital_usage() テスト"""
 

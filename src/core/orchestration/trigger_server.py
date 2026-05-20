@@ -104,9 +104,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("✅ Phase 88 I3: Firestore I/O 検証 OK")
 
     # 2. 設定ロード
+    # Phase 90β: cmdline_mode="trigger" に修正（旧 "live" だと orchestrator.initialize() で
+    # WebSocket 起動コードが通るが、min_instances=0 でコンテナ削除と共に切断され無意味だった）
+    # trigger モードでは WebSocket 起動条件 (live/paper) を満たさず、REST 経路で運用継続
     config = None
     try:
-        config = load_config("config/core/thresholds.yaml", cmdline_mode="live")
+        config = load_config("config/core/thresholds.yaml", cmdline_mode="trigger")
         _state["config"] = config
     except Exception as e:
         _state["config_reason"] = f"{type(e).__name__}:{e}"

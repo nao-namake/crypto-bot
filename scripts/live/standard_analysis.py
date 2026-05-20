@@ -1530,6 +1530,8 @@ class LiveAnalyzer:
         self.current_price: float = 0.0
         # Phase 59.5: 注文フェッチ一元化（タイミング差による不整合防止）
         self._cached_active_orders: List[Dict[str, Any]] = []
+        # Phase 90β: ポジションキャッシュ防御的初期化（_fetch_position_status 失敗時の AttributeError 対策）
+        self._cached_positions: List[Dict[str, Any]] = []
 
     async def analyze(self) -> LiveAnalysisResult:
         """分析実行"""
@@ -1653,6 +1655,9 @@ class LiveAnalyzer:
                 if p.get("amount", 0) > 0
                 and p.get("symbol", "").lower().replace("/", "_") == "btc_jpy"
             ]
+            # Phase 90β: 後続の _check_tp_sl_placement / 孤児 SL 検出で参照される
+            # 直前まで未初期化なら AttributeError になっていたバグの根本対応
+            self._cached_positions = active_positions
             self.result.open_position_count = len(active_positions)
 
             # ポジション詳細（有効ポジションのみ）
@@ -2209,6 +2214,7 @@ class LiveAnalyzer:
 
             # TP距離計算
             # Phase 61.8: take_profit注文はtrigger_priceを使用
+            # Phase 90β: エントリー価格基準で TP 距離を計算（現在価格基準だと相場変動で表示が揺れる）
             if tp_orders and self.result.position_details:
                 tp_order = tp_orders[0]
                 tp_price = (
@@ -2219,12 +2225,15 @@ class LiveAnalyzer:
                 )
                 if tp_price:
                     tp_price = float(tp_price)
-                    self.result.tp_distance_pct = (
-                        abs(tp_price - self.current_price) / self.current_price * 100
+                    entry_price = (
+                        float(self.result.position_details[0].get("avg_price", self.current_price))
+                        or self.current_price
                     )
+                    self.result.tp_distance_pct = abs(tp_price - entry_price) / entry_price * 100
 
             # SL距離計算
             # Phase 61.8: stop_loss注文はtrigger_priceを使用
+            # Phase 90β: エントリー価格基準で SL 距離を計算（現在価格基準だと相場変動で表示が揺れる）
             if sl_orders and self.result.position_details:
                 sl_order = sl_orders[0]
                 sl_price = (
@@ -2235,9 +2244,11 @@ class LiveAnalyzer:
                 )
                 if sl_price:
                     sl_price = float(sl_price)
-                    self.result.sl_distance_pct = (
-                        abs(sl_price - self.current_price) / self.current_price * 100
+                    entry_price = (
+                        float(self.result.position_details[0].get("avg_price", self.current_price))
+                        or self.current_price
                     )
+                    self.result.sl_distance_pct = abs(sl_price - entry_price) / entry_price * 100
 
             # Phase 68.4: SL未検出時、永続化ファイルからINACTIVE SL検証
             if not sl_orders and self.result.open_position_count > 0:

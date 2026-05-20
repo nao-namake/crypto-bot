@@ -702,6 +702,9 @@ position_management:
   # Phase 85: Phase 84で1→2に緩和したが、24h観測で0.030 BTC統合ポジが発生し損失40%増幅
   # → 1にロールバック（trending停止と組み合わせて、エントリー機会は別軸で確保）
   max_same_direction_positions: 1
+  # Phase 90β: 反対方向ポジションも 1 件まで制限（2026-05-21 維持率 66% 強制ロスカット 50% まで余裕 16pt 事案）
+  # long+short 同時保有は両方向 SL の流動性懸念 + Phase 50.4 ゲートの予測甘さで強制決済リスク増大
+  max_opposite_direction_positions: 1
   # Phase 86: 孤児ポジション定期スキャン間隔（旧30分→5分に短縮）
   # SL未設置の孤児ポジを最大5分以内に検出し、自動修復するためのインターバル
   orphan_scan:
@@ -803,7 +806,9 @@ position_management:
     # Phase 87 C1/C5: SL CANCELED_UNFILLED 検出 + 緊急成行決済
     sl_monitor:
       enabled: true
-      dry_run: true  # 初期投入時はログのみ。誤発火0件確認後 false へ切替
+      # Phase 90β (2026-05-21): scripts/analysis/sl_monitor_validator.py で 7 日間ログ検証後に false へ切替予定
+      # 切替手順: 統合運用ガイド第7部「SLMonitor DRY_RUN 解除」参照
+      dry_run: true
     # Phase 88 H11: 孤児SL注文（ポジション無しで残存）の検出・自動キャンセル
     # 2026-05-14 09:05 BUYポジ TP約定後の SL cancel が bitbank 70004 で失敗 → 12時間孤児SL放置
     # 対策: 指数バックオフ 1s/2s/4s でキャンセル試行、3回失敗時は次5分サイクルで再試行
@@ -890,6 +895,11 @@ position_management:
     enabled: true
     reduction_factor: 0.625
 margin:
+  # Phase 90β: bitbank 信用取引の必要証拠金率（公式仕様: 初回 30-40% / 価格変動時 30-50%）
+  # 2026-05-21 維持率 66% 事案で「executor.py の 50% 固定」が Phase 50.4 予測の 17pt 楽観バイアス源と判明
+  # 暫定: 実態合わせの 50%（保守側・既存挙動と同じ）。将来 bitbank API 動的取得へ拡張可能な設計
+  required_ratio_initial: 0.5
+  required_ratio_max: 0.5
   position_value_estimation_ratio: 0.8
   thresholds:
     critical: 80.0

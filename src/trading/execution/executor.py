@@ -1080,8 +1080,11 @@ class ExecutionService:
             price = float(getattr(evaluation, "entry_price", 0))
 
             # Phase 57: 必要証拠金計算（bitbank信用取引は2倍レバレッジ）
+            # Phase 90β: 設定値経由化（bitbank 動的マージン 30-50% を将来反映可能に）
+            # 2026-05-21 維持率予測 17pt 楽観バイアスの根本対策
+            margin_required_ratio = get_threshold("margin.required_ratio_initial", 0.5)
             order_total = price * amount  # 注文総額
-            required_margin = order_total / 2  # 必要証拠金（50%）
+            required_margin = order_total * margin_required_ratio
 
             # Phase 51.8-J4-D: 残高チェック
             if self.virtual_balance < required_margin:

@@ -261,6 +261,21 @@ class BalanceMonitor:
             f"予測={future_margin_ratio:.1f}%"
         )
 
+        # Phase 90β: 予測精度トレース用ログ
+        # 2026-05-21 維持率予測 17pt 楽観バイアス事案: 予測 82.9% / 実態 66%
+        # 必要証拠金率の前提 + ポジション逆算精度のずれを追跡可能にする
+        margin_required_ratio = get_threshold("margin.required_ratio_initial", 0.5)
+        if not is_backtest_mode():
+            self.logger.info(
+                f"🔬 Phase 90β 予測トレース: "
+                f"必要証拠金率前提={margin_required_ratio * 100:.0f}% / "
+                f"残高={current_balance_jpy:,.0f}円 / "
+                f"新規ポジ価値={new_position_value_jpy:,.0f}円 / "
+                f"future_position_value={future_position_value:,.0f}円 / "
+                f"future_margin_ratio={future_margin_ratio:.2f}% / "
+                f"※実態維持率との乖離 5pt 超なら margin.required_ratio_initial 見直し検討"
+            )
+
         # 警告ログ（バックテスト時は抑制）
         if not is_backtest_mode() and future_margin_ratio < current_margin.margin_ratio:
             self.logger.warning(

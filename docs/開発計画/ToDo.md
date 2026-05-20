@@ -2,37 +2,78 @@
 
 ## 現在の状態
 
-**Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済 → 実機 1 週間観察フェーズ（2026-05-17）**
+**Phase 90β (本番運用リスク 7 件根本修正) 実装完了・本番デプロイ予定（2026-05-21）**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 90α 完了: (1) CI workflow に `--meta-label` フラグ追加 (6 行) で**学習-運用のセマンティック大破綻を解消**・macro F1 0.347 → **0.546 (LGB CV)** で真の予測力獲得。(2) ローカル checks.sh 完全 PASS (2426 tests / 73.70%)。(3) **ライブ分析 Phase 90α 対応追加**（gcp_metrics + standard_analysis.py）|
+| 最新成果 | Phase 90β 完了: 2026-05-20/21 ライブ分析で発覚した 8 件構造的問題を根本修正。**反対方向ポジション 1 件制限新規実装 + 必要証拠金率設定値経由化 (Phase 50.4 楽観バイアス対策) + trigger×WebSocket 構造分岐 + Auto Retraining env/secrets + SLMonitor 切替判定スクリプト + TP/SL 距離計算 + _cached_positions 防御** |
+| 🎯 Phase 90β 根本発見 | **executor.py:1084 で必要証拠金 = 注文額 / 2 (50% 固定)** が bitbank 動的マージン 30-50% に未追従 + **limits.py に反対方向制限が実装されていなかった**（同方向のみ）→ 両者独立修正で 1 件ずれても安全側に倒れる設計に |
+| 2026-05-21 事案 | long×1 + short×1 同時保有 → 維持率 66% (強制ロスカット 50% まで 16pt のみ)・手動決済で対応・Phase 90β 修正で再発防止 |
+| Phase 90β 修正規模 | **12 ファイル変更 + 1 ファイル新規 / 約 587 行追加 / テスト 6 件追加 / 553+ tests PASS** |
+| 完了 Phase | Phase 87 / 88 / 89 / 90α / **90β** |
+| **次の予定** | デプロイ後 24h 監視（維持率予測精度確認・反対方向拒否ログ確認）→ 7 日後 SLMonitor DRY_RUN→false 切替判定（sl_monitor_validator.py 実行）→ Phase 90γ 計画策定 |
+| **Phase 90γ 候補** | Isotonic Calibration 修正・Focal Loss・CatBoost 追加・Optuna 試行数増 (50→100)・Multi-Level VPIN/OFI（Phase 90α で繰越済の ML 改善案）|
+| ユーザー手動作業 | GitHub PAT 発行 + `gcloud secrets create github-repo-dispatch-token` + IAM 付与（詳細: 統合運用ガイド第3部）|
+| 最終更新 | 2026年5月21日 - Phase 90β 全実装完了 |
+
+### Phase 90β 修正サマリ
+
+| # | 項目 | 修正箇所 | 効果 |
+|---|---|---|---|
+| 1 | 反対方向ポジション 1 件制限 | `src/trading/position/limits.py` (新規 `_check_opposite_direction_positions` 62 行) | long+short 同時保有を構造的に拒否 |
+| 2 | 必要証拠金率を設定値経由 | `src/trading/execution/executor.py:1084` + `config/core/thresholds.yaml:margin` | Phase 50.4 楽観バイアス対策（実態追従可能化） |
+| 3 | Phase 50.4 予測トレースログ | `src/trading/balance/monitor.py:264-275` | 予測と実態の乖離 5pt 超を検知可能 |
+| 4 | trigger × WebSocket 構造分岐 | `src/core/orchestration/trigger_server.py:112` | min_instances=0 と整合・コード通過しない |
+| 5 | Auto Retraining env/secrets | `.github/workflows/ci.yml:362-363` | Drift 連続検出時の再学習を有効化 |
+| 6 | SLMonitor 切替判定 | `scripts/analysis/sl_monitor_validator.py` 新規 311 行 | DRY_RUN→false の定量判定 |
+| 7 | TP/SL 距離をエントリー価格基準 | `scripts/live/standard_analysis.py:2214-2253` | ライブ分析の表示精度向上 |
+| 8 | `_cached_positions` 防御 | `scripts/live/standard_analysis.py:1533, 1660` | AttributeError 根絶 |
+
+### Phase 90α 結果（履歴用）
+
+| 項目 | 値 |
+|------|-----|
 | 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` (2 クラスメタラベリング前提) ⇄ CI workflow `--meta-label` フラグなし (3 クラス方向予測モデル生成) という大破綻状態を Phase 73-D 以来 1 年以上運用していた |
 | v8e (新) macro F1 | **LGB CV 0.546 / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459**（naive 0.41 比 **+0.10〜+0.14 で真の予測力獲得**）|
 | v8e クラス分布 | **success 30.8% / failure 69.2%**（Triple Barrier 理想分布）|
 | v8c (旧) macro F1 | LGB 0.347 / XGB 0.344 / RF 0.296 / N-BEATS 0.335（ランダム 0.333 と同等）|
-| Phase 89 buggy weighted F1 | 0.89-0.97（評価指標歪み 100%・ランダム予測と同水準）|
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15）|
-| Phase 90α 修正規模 | **2 ファイル / 計 6 行追加 / 互換性破壊ゼロ** |
-| CI/ローカル整備 | n_jobs 環境変数化 (CI: RF 31 分→6.5 分) + Optuna 30 分タイムアウト + ローカル wrapper + caffeinate スリープ防止 |
-| N-BEATS ハング修正 | torch.set_num_threads(1) + MKL/OMP/OPENBLAS_NUM_THREADS=1 で PyTorch+sklearn deadlock 解消 |
-| 完了 Phase | Phase 87 / 88 / 89 / **90α** |
-| **次の予定** | 実機 1 週間観察（勝率 / PF / 期待値改善確認）→ Phase 90β 計画着手判断 |
-| **Phase 90β 候補** | Isotonic Calibration 修正・Focal Loss・CatBoost 追加・Optuna 試行数増 (50→100)・Multi-Level VPIN/OFI |
-| 最終更新 | 2026年5月18日 - Phase 90α + ローカル checks.sh + ライブ分析 Phase 90 対応 全完了 |
 
 ---
 
-## 🚀 セッション再開時の手順（Phase 90α 完了・実機 1 週間観察フェーズ）
+## 🚀 セッション再開時の手順（Phase 90β 実装完了・本番デプロイ + 24h 監視フェーズ）
 
-Phase 90α (v8e メタラベリング有効化) 本番デプロイ完了。次セッションは観察結果確認 + Phase 90β 計画策定。
+Phase 90β (本番運用リスク 7 件根本修正) 実装完了。次セッションは本番デプロイ後の 24h 監視 + 7 日後の SLMonitor 切替判定。
+
+### Step 0: 本番デプロイ完了確認（5 分・コミット直後のみ）
+
+```bash
+# CI/CD 完了確認
+gh run list --workflow=ci.yml --limit=3
+
+# Cloud Run 最新リビジョン確認
+gcloud run revisions list --service=crypto-bot-service-prod --region=asia-northeast1 --limit=3
+
+# Phase 90β 反映確認（env vars / secrets）
+gcloud run services describe crypto-bot-service-prod --region=asia-northeast1 \
+  --format='value(spec.template.spec.containers[0].env)' | grep -E 'GITHUB_REPO'
+```
 
 ### Step 1: 毎日チェック（5 分）
 
 ```bash
-# ライブ運用 24h 分析（Phase 86-90 全カバー・Phase 90α 監視追加済み）
+# ライブ運用 24h 分析（Phase 86-90β 全カバー）
 venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+
+# Phase 90β 維持率予測トレースログ確認（必要証拠金率前提が実態と整合しているか）
+gcloud logging read 'textPayload=~"Phase 90β 予測トレース"' --freshness=24h --limit=20
+
+# Phase 90β 反対方向ポジション拒否ログ確認
+gcloud logging read 'textPayload=~"Phase 90β 反対方向ポジション制限"' --freshness=24h --limit=10
+
+# Auto Retraining warning 消失確認（期待: 0 件）
+gcloud logging read 'textPayload=~"GitHub 設定不足"' --freshness=24h | wc -l
 
 # 異常ログのスキャン
 gcloud logging read 'resource.type=cloud_run_revision AND severity>=ERROR' --freshness=24h --limit=20
@@ -52,21 +93,23 @@ gcloud logging read 'textPayload=~"Phase 89 C7: SL placeholder ID 検出|ID=exis
 | ML 予測ラベル分布 | 高品質/低品質ラベル + 旧 3 クラス残存検出 | 3 クラスラベル残存 = v8e モデル未配備 (CRITICAL) |
 | モデル整合性 | DummyModel フォールバック + 予測失敗 | 予測失敗 ≥3 件 = サーキットブレーカー作動候補 |
 
-### Step 2: 1 週間後の総合評価（30 分）
+### Step 2: 7 日後 SLMonitor DRY_RUN→false 切替判定（10 分）
 
 ```bash
-# 1 週間分析
-venv/bin/python3 scripts/live/standard_analysis.py --hours 168
+# 誤発火率算出（Phase 90β 新規スクリプト）
+venv/bin/python3 scripts/analysis/sl_monitor_validator.py --days 7
 
-# 期待値 vs 実測比較（Phase 90α 目標）
-# - PF: 0.8-1.2 → 1.3-1.7 達成？
-# - 勝率: 50-55% → 55-65% 達成？
-# - 取引数: 月 20-50 件（品質フィルタが過剰防衛していないか）
+# 終了コード:
+# 0 (🟢 SAFE)    : 誤発火率 < 5% → dry_run: false 切替推奨
+# 2 (🟡 CAUTION) : 5-10% → 観察期間延長 (--days 14)
+# 1 (🔴 RISKY)   : ≥ 10% → 根本原因調査
 ```
 
-### Step 3: 観察結果次第で Phase 90β 着手判断
+切替手順は `docs/運用ガイド/統合運用ガイド.md` 付録「SLMonitor DRY_RUN → false 切替手順」を参照。
 
-**Phase 90β 候補（macro F1 +0.05-0.10 期待・各独立適用可）**:
+### Step 3: Phase 90γ（旧 90β 候補）着手判断
+
+Phase 90α で繰越した ML 改善案。Phase 90β は本番運用リスク修正に専念したため、ML 改善は Phase 90γ として整理:
 
 1. **Isotonic Calibration 修正**（最優先）
    - v8e で `CalibratedClassifierCV` が `ProductionEnsemble` を fit/predict_proba 持たないと判定
@@ -92,29 +135,26 @@ venv/bin/python3 scripts/live/standard_analysis.py --hours 168
    - `src/features/feature_generator.py:248-289, 302-334`
    - 期待効果: macro F1 +0.05-0.10
 
-### 異常時のロールバック（10 分以内）
+### Phase 90β 異常時のロールバック
 
 ```bash
-# 1. v8e から v8c (3 クラス方向予測) に戻す
-cp models/production/ensemble_full.pre_v8_20260517_101041.pkl.bak \
-   models/production/ensemble_full.pkl
-cp models/production/production_model_metadata.pre_v8_20260517_101041.json.bak \
-   models/production/production_model_metadata.json
-git revert <Phase 90α commit hash>
+# 設定だけ戻す（最も軽量）
+yq -i '.position_management.max_opposite_direction_positions = 0' config/core/thresholds.yaml
+git add config/core/thresholds.yaml
+git commit -m "rollback: Phase 90β 反対方向制限を一時的に無効化"
 git push origin main
 
-# 2. 深いロールバック (Phase 84 安定モデル)
-cp models/production/ensemble_full.phase84.pkl.bak \
-   models/production/ensemble_full.pkl
-cp models/production/production_model_metadata.phase84.json.bak \
-   models/production/production_model_metadata.json
+# または Phase 90β コミット全体を revert
+git revert <Phase 90β コミットハッシュ>
+git push origin main
 ```
 
-### Phase 90α 関連ファイル
+### Phase 90α/β 関連ファイル
 
-- `~/.claude/plans/calm-noodling-cat.md` Phase 90 全体計画書
-- `docs/開発履歴/Phase_90.md` Phase 90α 詳細記録（v8e）
-- 修正ファイル: `.github/workflows/model-training.yml` / `scripts/ml/run_local_training.sh` / `src/ml/nbeats_predictor.py` / `config/core/thresholds.yaml`
+- 計画書 90α: `~/.claude/plans/calm-noodling-cat.md`
+- 計画書 90β: `~/.claude/plans/phase-readme-users-nao-developer-active-enchanted-hollerith.md`
+- 詳細記録: `docs/開発履歴/Phase_90.md`
+- Phase 90β 新規: `scripts/analysis/sl_monitor_validator.py`
 - v8e backup: `models/production/ensemble_full.pre_v8_20260517_101041.pkl.bak`
 
 ---

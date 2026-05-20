@@ -81,6 +81,14 @@ class PositionLimits:
             if not same_dir_check["allowed"]:
                 return same_dir_check
 
+            # 1.6. Phase 90β: 反対方向ポジション制限チェック
+            # 2026-05-21 long+short 同時保有で維持率 66% (強制ロスカット 50% まで 16pt) 事案を構造的に防止
+            opposite_dir_check = self._check_opposite_direction_positions(
+                evaluation, virtual_positions
+            )
+            if not opposite_dir_check["allowed"]:
+                return opposite_dir_check
+
             # 2. 残高利用率チェック（Phase 65.6: mode伝搬）
             capital_usage_check = self._check_capital_usage(current_balance, mode)
             if not capital_usage_check["allowed"]:
@@ -275,6 +283,60 @@ class PositionLimits:
             }
 
         return {"allowed": True, "reason": f"同方向ポジション数OK({side})"}
+
+    def _check_opposite_direction_positions(
+        self,
+        evaluation: TradeEvaluation,
+        virtual_positions: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Phase 90β: 反対方向ポジション制限チェック
+
+        long+short 同時保有時の合算 SL 流動性懸念 + Phase 50.4 維持率予測の
+        楽観バイアスによる強制ロスカットリスクを構造的に防止。
+
+        2026-05-21 事案: long×1 + short×1 = 0.03 BTC 同時保有 → 維持率 66%
+        (強制ロスカット 50% まで余裕 16pt のみ)
+
+        Args:
+            evaluation: 取引評価結果（side を参照）
+            virtual_positions: 現在のポジションリスト
+
+        Returns:
+            Dict: {"allowed": bool, "reason": str}
+        """
+        max_opposite = get_threshold("position_management.max_opposite_direction_positions", 0)
+
+        # 設定が 0 以下の場合は制限無効（Phase 89 以前の挙動）
+        if max_opposite <= 0:
+            return {"allowed": True, "reason": "反対方向制限無効"}
+
+        side = getattr(evaluation, "side", None)
+        if not side:
+            return {"allowed": True, "reason": "side情報なし（スキップ）"}
+
+        # 反対方向の判定（buy ↔ sell）
+        opposite_side = "sell" if side.lower() == "buy" else "buy"
+        opposite_dir_count = sum(
+            1 for pos in virtual_positions if pos.get("side", "").lower() == opposite_side
+        )
+
+        if opposite_dir_count >= max_opposite:
+            self.logger.info(
+                f"🚫 Phase 90β 反対方向ポジション制限: "
+                f"既存{opposite_side}方向={opposite_dir_count}件 >= 上限{max_opposite}件 "
+                f"(新規 {side} 拒否)"
+            )
+            return {
+                "allowed": False,
+                "reason": (
+                    f"Phase 90β 反対方向ポジション制限({opposite_side}: {max_opposite}個)"
+                    f"に達しています。現在: {opposite_dir_count}個。"
+                    f"両方向同時保有は強制ロスカットリスク増大のため拒否"
+                ),
+            }
+
+        return {"allowed": True, "reason": f"反対方向ポジション数OK({opposite_side})"}
 
     def _check_capital_usage(
         self, current_balance: float, mode: Optional[str] = None

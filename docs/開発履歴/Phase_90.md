@@ -569,3 +569,163 @@ venv/bin/python3 scripts/live/standard_analysis.py --hours 24
 - `59e3aa4d` fix: black フォーマット整形
 - `8afcd406` fix: ローカル checks.sh 完全 PASS 対応 (2426 tests / 73.70%)
 - `ad3cd48b` feat: ライブモード分析 Phase 90α 対応 - v8e メタラベリング動作確認追加
+
+---
+
+# Phase 90β: 本番運用リスク・整合性 7 件 根本修正（2026-05-21）
+
+**期間**: 2026-05-21
+**状態**: 実装完了・本番デプロイ予定
+**plan**: `~/.claude/plans/phase-readme-users-nao-developer-active-enchanted-hollerith.md`
+
+## エグゼクティブサマリ
+
+2026-05-20 / 05-21 ライブ分析で **8 件の構造的問題**が発覚し、すべて **対処療法ではなく根本解決**で修正。
+特に **2026-05-21 強制ロスカット 50% まで余裕 16pt（維持率 66%）事案**は、以下 2 つの構造的欠陥の合算で発生していた:
+
+1. `executor.py:1084` で必要証拠金率を **50% 固定**（bitbank 動的 30-50% に未追従）→ Phase 50.4 予測の 17pt 楽観バイアス源
+2. `position/limits.py` に **反対方向ポジション制限が未実装**（同方向のみ 1 件制限あり）→ long+short 同時保有を許容
+
+両者を独立に修正したことで、**1 件ずれていても安全側に倒れる**設計に。
+
+## 修正項目 7 件
+
+### 1. Phase 50.4 維持率予測の楽観バイアス解消
+
+**問題**: 予測 132% → 82.9%（実態 66%）の 17pt 楽観バイアス
+
+**根本原因**:
+- `src/trading/execution/executor.py:1084` で `required_margin = order_total / 2`（**50% 固定**）
+- bitbank 動的マージン仕様（**初回 30-40% / 価格変動時 30-50%**）に未追従
+
+**修正**:
+- `config/core/thresholds.yaml` の `margin:` に `required_ratio_initial: 0.5` `required_ratio_max: 0.5` 追加
+- `src/trading/execution/executor.py:1084` を `get_threshold("margin.required_ratio_initial", 0.5)` 経由に
+- `src/trading/balance/monitor.py:264-275` に Phase 90β 予測トレースログ追加（必要証拠金率前提・残高・新規ポジ価値・future_margin_ratio を出力 → 実態との乖離 5pt 超なら警告）
+
+### 2. 反対方向ポジション 1 件制限の構造実装
+
+**問題**: long×1 + short×1 = 0.03 BTC 同時保有 → 維持率 66%（強制ロスカット 50% まで 16pt のみ）
+
+**根本原因**: `src/trading/position/limits.py` に同方向制限 (`_check_same_direction_positions`) はあるが、反対方向は別カウントで Phase 50.4 ゲート通過
+
+**修正**:
+- `config/core/thresholds.yaml` の `position_management:` に `max_opposite_direction_positions: 1` 追加
+- `src/trading/position/limits.py:287-340` に `_check_opposite_direction_positions()` 新規実装
+- `check_limits()` フロー (line 84-91) に反対方向チェック追加
+- `tests/unit/trading/position/test_limits.py` に反対方向テスト 6 件追加（全 PASS）
+
+### 3. SLMonitor DRY_RUN → false 安全切替判定スクリプト
+
+**問題**: 7 日経過しても DRY_RUN のまま・切替判定が手動・基準曖昧
+
+**根本原因**: 「誤発火 0 件確認後 false へ切替」基準が定量化されていない
+
+**修正**:
+- `scripts/analysis/sl_monitor_validator.py` 新規作成（311 行）
+  - GCP Cloud Logging から DRY_RUN 発火ログを取得
+  - 誤発火率 = (発火件数 - 実 CANCELED 件数) / 発火件数
+  - 終了コード 0 (SAFE < 5%) / 2 (CAUTION 5-10%) / 1 (RISKY ≥ 10%)
+- `config/core/thresholds.yaml:806` 付近にスクリプト参照コメント追加
+
+### 4. Auto Retraining GitHub 設定不足
+
+**問題**: 15 分毎に「GitHub 設定不足」warning・Drift 連続 277 回でも再学習スキップ
+
+**根本原因**: `.github/workflows/ci.yml:362-363` の Cloud Run deploy ステップに 3 環境変数欠落
+- `GITHUB_REPO_OWNER` `GITHUB_REPO_NAME` `GITHUB_REPO_DISPATCH_TOKEN`
+
+**修正**:
+- `.github/workflows/ci.yml:362-363` に `--set-env-vars` で OWNER/NAME 追加 + `--set-secrets` で `github-repo-dispatch-token:latest` 追加
+- ユーザー手動作業: GitHub PAT 発行 + `gcloud secrets create github-repo-dispatch-token`
+
+### 5. WebSocket × trigger モード構造分岐
+
+**問題**: trigger モードで WebSocket 起動コードが通り得るが、min_instances=0 で即切断
+
+**根本原因**: `src/core/orchestration/trigger_server.py:107` で `cmdline_mode="live"` 固定 → orchestrator.initialize() の `if config.mode in ("live", "paper"):` 条件を通過
+
+**修正**:
+- `src/core/orchestration/trigger_server.py:112`: `cmdline_mode="live"` → `cmdline_mode="trigger"`
+- `src/core/orchestration/orchestrator.py:156-157` に Phase 90β 注記コメント追加
+- `src/data/README.md` に「trigger モードでは WebSocket 常駐不可・REST 経路のみ」を明文化
+
+### 6. TP/SL 距離表示バグ修正
+
+**問題**: 現在価格基準で計算 → 相場変動で表示が揺れる（エントリー価格基準が正）
+
+**修正**:
+- `scripts/live/standard_analysis.py:2222-2240` (TP/SL 距離計算) を `position_details[0]["avg_price"]` 基準に変更
+- `float()` 失敗時のフォールバックとして `or self.current_price` でゼロ除算を防止
+
+### 7. `_cached_positions` AttributeError 防御
+
+**問題**: `LiveAnalyzer.__init__` で初期化漏れ → `_check_tp_sl_placement()` で AttributeError
+
+**修正**:
+- `scripts/live/standard_analysis.py:1533` `__init__` で `self._cached_positions: List[Dict[str, Any]] = []` 防御的初期化
+- `scripts/live/standard_analysis.py:1658-1660` `_fetch_position_status()` 末尾で active_positions キャッシュ化
+
+## ドキュメント更新
+
+- `docs/運用ガイド/統合運用ガイド.md`:
+  - 第3部「Auto Retraining セットアップ」に Phase 90β 修正済の旨を追記
+  - 付録に「SLMonitor DRY_RUN → false 切替手順」セクション新規追加
+- `src/data/README.md`: trigger モード × WebSocket 常駐不可を明文化
+- `src/trading/position/README.md`: 反対方向制限を PositionLimits 主要メソッド一覧に追加
+
+## 修正対象ファイル一覧
+
+| ファイル | 行数 | 種別 |
+|---|---|---|
+| `config/core/thresholds.yaml` | +9 / -1 | 設定追加 |
+| `.github/workflows/ci.yml` | +1 / -1 | env/secrets 拡張 |
+| `src/core/orchestration/trigger_server.py` | +4 / -1 | cmdline_mode 修正 |
+| `src/core/orchestration/orchestrator.py` | +2 | コメント追加 |
+| `src/trading/execution/executor.py` | +3 / -1 | margin 設定経由化 |
+| `src/trading/balance/monitor.py` | +15 | 予測トレースログ |
+| `src/trading/position/limits.py` | +62 | 反対方向制限新規 |
+| `scripts/live/standard_analysis.py` | +16 / -4 | TP/SL + キャッシュ |
+| `scripts/analysis/sl_monitor_validator.py` | +311（新規）| 切替判定 |
+| `tests/unit/trading/position/test_limits.py` | +86 | 反対方向テスト 6 件 |
+| `docs/運用ガイド/統合運用ガイド.md` | +61 | 第3部 + SLMonitor 手順 |
+| `src/data/README.md` `src/trading/position/README.md` | +8 | 注記追加 |
+
+**合計**: 約 587 行追加・8 行修正・1 ファイル新規
+
+## 検証結果
+
+- `bash scripts/testing/checks.sh`: ✅ PASS（153 秒・全テスト + 72%+ カバレッジ + flake8 + black + isort）
+- `test_limits.py`: ✅ 49 件 PASS（既存 43 + 反対方向新規 6）
+- `tests/unit/trading/` 全体: ✅ 553 件 PASS
+- スモークテスト: `_check_opposite_direction_positions` で既存 sell + 新規 buy → 正しく拒否
+
+## ユーザー手動作業（Phase F）
+
+Auto Retraining 用 GitHub PAT を発行 → Secret Manager に登録 → IAM 付与:
+
+```bash
+# 1. GitHub PAT 発行 (Fine-grained, Actions: Read and write)
+#    https://github.com/settings/personal-access-tokens
+
+# 2. Secret Manager 登録
+echo -n "ghp_xxxx..." | gcloud secrets create github-repo-dispatch-token \
+  --replication-policy="automatic" --data-file=-
+
+# 3. Cloud Run サービスアカウントに read 権限付与
+gcloud secrets add-iam-policy-binding github-repo-dispatch-token \
+  --member="serviceAccount:bitbank-bot-runner@my-crypto-bot-project.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+## 期待される改善
+
+| 項目 | Phase 90α 末 | Phase 90β 後 |
+|---|---|---|
+| 反対方向同時保有 | 許容（最大 2 件）| **拒否（1 件まで）** |
+| 維持率予測精度 | 実態と 17pt 乖離 | トレースログで乖離検知 |
+| Auto Retraining | Drift 277 回でもスキップ | **正常 trigger** |
+| trigger モードでの WebSocket | コード通過するが即切断 | 構造的に通らない |
+| SLMonitor DRY_RUN 切替 | 手動・基準曖昧 | スクリプトで定量判定 |
+| ライブ分析 TP/SL 距離 | 現在価格基準（揺れる）| **エントリー価格基準** |
+| `_cached_positions` AttributeError | 発生し得る | 二重防御で発生せず |

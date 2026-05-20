@@ -4,10 +4,11 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済 → 実機 1 週間観察フェーズ（2026-05-17）** |
-| **直前の作業** | v8e 実装後の補強: (1) ローカル checks.sh 完全 PASS 対応（conftest.py + ml_health_monitor sentinel + firestore_state 環境変数 + checks.sh venv 自動検出）→ 2426 tests / 73.70% / SEGFAULT ゼロ。(2) **ライブ分析 Phase 90α 対応追加**（gcp_metrics に count_phase90_* 3 関数 + standard_analysis.py に _check_phase90_features / _generate_phase90_markdown） |
-| **次の予定** | 実機 1 週間観察（勝率 / PF / 期待値の改善確認）→ Phase 90β 計画（Calibration 修正・Focal Loss・Optuna 試行数増・XGBoost 過学習対策）|
-| **直近インシデント** | (1) v7 CI timeout (RF n_jobs=1) → 環境変数化で解消。(2) N-BEATS macOS ハング (PyTorch+sklearn OpenMP 競合) → torch.set_num_threads(1) で解消。(3) v8e データ収集 2 時間遅延 (PC スリープ) → caffeinate ラップで解消。(4) checks.sh で system python3 使用 → venv 自動検出に修正。(5) test_lgbm_model SEGFAULT (conftest.py の torch 早期 import) → torch import 削除で解消 |
+| **現在Phase** | **Phase 90β (本番運用リスク 7 件根本修正) 完了・本番デプロイ予定（2026-05-21）** |
+| **直前の作業** | 2026-05-20 / 21 ライブ分析で発覚した 7 件構造的問題を根本修正: (1) 反対方向ポジション 1 件制限新規実装 (2) 必要証拠金率を設定値経由化（Phase 50.4 楽観バイアス対策）(3) trigger × WebSocket 構造分岐修正 (4) Auto Retraining env/secrets 設定 (5) SLMonitor 切替判定スクリプト新規 (6) TP/SL 距離計算修正 (7) `_cached_positions` 防御初期化。全 12 ファイル変更・553+ tests PASS |
+| **次の予定** | 本番デプロイ後 24h 監視 → 維持率予測精度の改善確認 → SLMonitor DRY_RUN→false 切替判定 (sl_monitor_validator.py) → Phase 90γ 計画（Calibration 修正・Focal Loss・Optuna 試行数増・XGBoost 過学習対策）|
+| **直近インシデント** | **2026-05-21 維持率 66% 強制ロスカット 50% まで余裕 16pt 事案**: long+short 同時保有 + Phase 50.4 予測 17pt 楽観バイアス。両方を構造修正で解消。Phase A-F のうち A-E 実装完了、F (GitHub PAT 発行) はユーザー手動作業 |
+| **🎯 Phase 90β 最重要発見** | **`executor.py:1084` で必要証拠金 = `order_total / 2`（50% 固定）と bitbank 動的マージン 30-50% に未追従**だった + **`limits.py` に反対方向制限が実装されていなかった**（同方向のみ）。両方の独立修正により 1 件ずれても安全側に倒れる設計に |
 | **🎯 Phase 90α 最重要発見** | **Phase 89 までの学習と運用がセマンティック大破綻**（運用側 `ml.mode: quality_filter` は 2 クラスメタラベリング前提なのに、CI workflow に `--meta-label` フラグなく **3 クラス方向予測モデルで運用**していた）。`--meta-label` フラグ追加（6 行）で macro F1 が **0.347 → 0.546（LGB CV）**に改善・naive baseline +0.14 で真の予測力獲得 |
 | **Phase 87 達成** | Critical 5 + High 10 全完了（本番デプロイ済） |
 | **Phase 88 達成** | I1-I4 GCPコスト 4件 + H11 孤児SL + M1-M5 + L1-L3 |
@@ -28,7 +29,7 @@
 | **TPSL 検証結果** | TPSLCalculator 実装は健全。Phase 85 報告 +362円/件は手数料**未控除**の期待値・真の期待値は **+138-254 円/件**（実機運用に影響なし）|
 | **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
 | **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
-| **最終更新** | 2026年5月18日 - Phase 90α + ローカル checks.sh + ライブ分析 Phase 90 対応 全完了 |
+| **最終更新** | 2026年5月21日 - Phase 90β (本番運用リスク 7 件根本修正) 実装完了 |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
@@ -37,7 +38,83 @@
 
 ---
 
-## 🚀 セッション再開時の最優先タスク（2026-05-17 時点・Phase 90α 完了 → 実機観察フェーズ）
+## 🚀 セッション再開時の最優先タスク（2026-05-21 時点・Phase 90β 実装完了 → 本番デプロイ + 24h 監視フェーズ）
+
+**Phase 90β (本番運用リスク 7 件根本修正)** 実装完了・コミット予定。デプロイ後 24h で維持率予測精度の改善を確認。
+
+### Phase 90β 修正サマリ
+
+| # | 修正内容 | 効果 |
+|---|---|---|
+| 1 | 反対方向ポジション 1 件制限 (`limits._check_opposite_direction_positions`) | long+short 同時保有を構造的に拒否 |
+| 2 | 必要証拠金率を設定値経由 (`margin.required_ratio_initial`) | Phase 50.4 楽観バイアスの根本対策 |
+| 3 | trigger × WebSocket 構造分岐 (`cmdline_mode="trigger"`) | min_instances=0 と整合 |
+| 4 | Auto Retraining env/secrets (ci.yml に 3 件追加) | Drift 連続検出時の再学習を有効化 |
+| 5 | SLMonitor 切替判定スクリプト (sl_monitor_validator.py) | DRY_RUN→false の定量判定 |
+| 6 | TP/SL 距離計算をエントリー価格基準に修正 | ライブ分析の表示精度向上 |
+| 7 | `_cached_positions` 防御初期化 + キャッシュ化 | AttributeError 根絶 |
+
+### セッション再開時 Step 1: デプロイ後 24h 監視（5 分）
+
+```bash
+# ライブ運用 24h 分析（Phase 86-90β 全カバー）
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+
+# Phase 90β 維持率予測トレースログ確認
+gcloud logging read 'textPayload=~"Phase 90β 予測トレース"' --freshness=24h --limit=20
+
+# Phase 90β 反対方向ポジション拒否ログ確認
+gcloud logging read 'textPayload=~"Phase 90β 反対方向ポジション制限"' --freshness=24h --limit=10
+
+# Auto Retraining 動作確認（GitHub 設定不足 warning が消えたか）
+gcloud logging read 'textPayload=~"GitHub 設定不足"' --freshness=24h | wc -l
+# → 0 が期待値
+```
+
+### セッション再開時 Step 2: SLMonitor DRY_RUN→false 切替判定（7 日後）
+
+```bash
+# 誤発火率算出
+venv/bin/python3 scripts/analysis/sl_monitor_validator.py --days 7
+
+# 終了コード 0 (SAFE) なら config/core/thresholds.yaml:806 で dry_run: false に切替
+```
+
+### セッション再開時 Step 3: ユーザー手動作業（Phase F）
+
+GitHub PAT 発行 + Secret Manager 登録 + IAM 付与は別途実施。詳細は `docs/運用ガイド/統合運用ガイド.md` 第3部「Auto Retraining セットアップ」参照。
+
+```bash
+# 1. https://github.com/settings/personal-access-tokens で PAT 発行（Fine-grained, Actions: Read and write）
+# 2. echo -n "ghp_xxxx..." | gcloud secrets create github-repo-dispatch-token --replication-policy="automatic" --data-file=-
+# 3. gcloud secrets add-iam-policy-binding github-repo-dispatch-token --member="serviceAccount:bitbank-bot-runner@my-crypto-bot-project.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+```
+
+### Phase 90β 異常時のロールバック
+
+```bash
+# 設定だけ戻す（コードはそのまま）
+yq -i '.position_management.max_opposite_direction_positions = 0' config/core/thresholds.yaml
+git add config/core/thresholds.yaml
+git commit -m "rollback: Phase 90β 反対方向制限を一時的に無効化"
+git push origin main
+
+# またはコミットを revert
+git revert <Phase 90β コミットハッシュ>
+git push origin main
+```
+
+### Phase 90β 関連ファイル
+
+- 計画書: `~/.claude/plans/phase-readme-users-nao-developer-active-enchanted-hollerith.md`
+- 詳細記録: `docs/開発履歴/Phase_90.md` 末尾「Phase 90β: 本番運用リスク・整合性 7 件 根本修正」
+- 新規スクリプト: `scripts/analysis/sl_monitor_validator.py`
+- 修正済本体: `src/trading/position/limits.py` `src/trading/execution/executor.py` `src/trading/balance/monitor.py` `src/core/orchestration/trigger_server.py` `src/core/orchestration/orchestrator.py` `scripts/live/standard_analysis.py` `.github/workflows/ci.yml` `config/core/thresholds.yaml`
+- ドキュメント: `docs/運用ガイド/統合運用ガイド.md` `src/data/README.md` `src/trading/position/README.md`
+
+---
+
+## 🔍 過去のセッション再開時の最優先タスク（2026-05-17 時点・Phase 90α 完了 → 実機観察フェーズ）— 履歴用
 
 **Phase 90α (v8e メタラベリング有効化) 本番デプロイ完了**。実機 1 週間観察フェーズに突入。
 

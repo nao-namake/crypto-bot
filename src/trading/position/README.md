@@ -28,7 +28,7 @@ Phase 38で trading レイヤードアーキテクチャの一部として分離
 - `update_average_on_entry()` / `update_average_on_exit()`: 平均価格更新
 - `get_position_summary()`: ポジション状態サマリー
 
-### PositionLimits（379行・9メソッド）
+### PositionLimits（440行・11メソッド）
 
 エントリー前の各種制限チェックを一括実行。
 
@@ -37,8 +37,12 @@ Phase 38で trading レイヤードアーキテクチャの一部として分離
 - `_check_minimum_balance()`: 最小資金要件
 - `_check_cooldown()`: クールダウン判定
 - `_check_max_positions()`: 最大ポジション数
+- `_check_same_direction_positions()`: 同方向ポジション制限（Phase 69.8 / 85）
+- `_check_opposite_direction_positions()`: **反対方向ポジション制限（Phase 90β 新規）**
 - `_check_capital_usage()`: 残高利用率
 - `_check_daily_trades()`: 日次取引回数
+
+**Phase 90β: 反対方向ポジション 1 件制限**: 2026-05-21 long+short 同時保有で維持率 66%（強制ロスカット 50% まで余裕 16pt）事案を構造的に防止。`config/core/thresholds.yaml:position_management.max_opposite_direction_positions=1` で制御。
 
 ### PositionCleanup（321行・8メソッド）
 
