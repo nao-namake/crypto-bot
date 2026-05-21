@@ -200,27 +200,28 @@ ml:
     reference_reset_hours: 168
     # Phase 90γ-①: drift 比較から除外する特徴量（価格絶対値・MA・BB 等）
     # これらは時間と共に変動するのが当然なため、reference との比較で常時陽性反応してしまう
+    # 名前は src/features/feature_generator.py で実生成される列名と照合済
     exclude_features:
+      # OHLCV（時間と共に必然的に変動）
       - open
       - high
       - low
       - close
       - volume
+      # Bollinger Bands（価格レベル系・bb_position は正規化済みなので除外しない）
       - bb_upper
       - bb_lower
-      - bb_middle
+      # EMA（価格レベル系）
       - ema_20
       - ema_50
-      - ema_100
-      - ema_200
-      - sma_20
-      - sma_50
-      - sma_100
-      - sma_200
-      - vwap
-      - donchian_high
-      - donchian_low
+      # ATR（ボラ絶対値・時間と共にスケール変動）
       - atr_14
+      # Donchian channel（価格レベル系）
+      - donchian_high_20
+      - donchian_low_20
+      # MACD signal/histogram（価格レベル変動の累積で drift する）
+      - macd_signal
+      - macd_histogram
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3

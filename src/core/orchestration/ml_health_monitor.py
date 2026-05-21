@@ -220,10 +220,23 @@ class MLHealthMonitor:
             action = "reset" if reference_expired else "初期化"
             self._reference_distribution = {}
             self._recent_distribution.clear()
+            # Phase 90γ-① fix: reset 時は古い drift カウンタを無効化（新 reference に対しては仕切り直し）
+            # 古い reference に対する drift 検出結果は新 reference では意味を持たないため
+            if reference_expired and self.consecutive_drift_detections > 0:
+                self.logger.warning(
+                    f"Phase 90γ-①: reset に伴い drift カウンタクリア "
+                    f"(was consecutive={self.consecutive_drift_detections}, "
+                    f"last_drift_at={self.last_drift_at})"
+                )
+                self.consecutive_drift_detections = 0
+                self.last_drift_at = None
             for name, values in feature_values.items():
                 self._reference_distribution[name] = list(values)[-self._drift_window :]
             self._reference_initialized_at = now
-            self.logger.info(
+            # Phase 90γ-① fix: reset イベントは本番 LOG_LEVEL=WARNING で観測可能にする
+            # 初回起動時の初期化は INFO 維持（本番では取り込まれないが想定通り）
+            log_method = self.logger.warning if reference_expired else self.logger.info
+            log_method(
                 f"Phase 90γ-①: drift 検出用 reference 分布{action} "
                 f"(features={len(self._reference_distribution)}, "
                 f"window={self._drift_window}, reset_hours={self._drift_reference_reset_hours})"

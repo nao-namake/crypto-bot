@@ -478,3 +478,43 @@ class TestPhase90GammaDriftFix:
         assert m2._reference_initialized_at is not None
         # ISO フォーマット変換による微小誤差を許容
         assert abs((m2._reference_initialized_at - first_ref_at).total_seconds()) < 1.0
+
+    def test_reset_clears_drift_counter(self, monitor_drift):
+        """reset 時に consecutive_drift_detections と last_drift_at がクリアされる.
+
+        旧実装では reset 後も古いカウンタが残っており、reset 直後にも
+        should_emergency_stop() が True を返し続ける危険があった。
+        Phase 90γ-① fix: reset 時は drift カウンタを仕切り直す。
+        """
+        from datetime import timedelta
+
+        import numpy as np
+        import pandas as pd
+
+        monitor_drift._drift_reference_reset_hours = 168.0
+        np.random.seed(42)
+
+        # 1. reference 初期化
+        ref = pd.DataFrame({"f1": np.random.normal(0, 1, 200)})
+        monitor_drift.record_feature_distribution(ref)
+        assert monitor_drift.consecutive_drift_detections == 0
+
+        # 2. drift を発生させて consecutive > 0 にする
+        shifted = pd.DataFrame({"f1": np.random.normal(10, 1, 200)})
+        monitor_drift.record_feature_distribution(shifted)
+        assert monitor_drift.consecutive_drift_detections == 1
+        assert monitor_drift.last_drift_at is not None
+
+        # 3. reset 期限切れシミュレーション（200h 前にずらす = 168h より古い）
+        monitor_drift._reference_initialized_at = (
+            monitor_drift._reference_initialized_at - timedelta(hours=200)
+        )
+
+        # 4. 再度呼び出して reset 発火 + drift カウンタクリア
+        new_ref = pd.DataFrame({"f1": np.random.normal(20, 1, 200)})
+        detected = monitor_drift.record_feature_distribution(new_ref)
+
+        # 5. drift カウンタが仕切り直されていることを検証
+        assert detected is False  # reset 直後の戻り値は False
+        assert monitor_drift.consecutive_drift_detections == 0
+        assert monitor_drift.last_drift_at is None
