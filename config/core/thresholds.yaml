@@ -184,13 +184,43 @@ ml:
     batch_size: 64
     log_every: 5               # Phase 90: 10→5 短縮（ハング検出を早める）
   # Phase 89-β / 89 H9: 特徴量分布 Drift 検出（KS テスト + Bonferroni 補正）
+  # Phase 90γ-①: 構造的バグ修正
+  #   1. exclude_features: 価格絶対値・MA・BB を除外（市場の自然変動による誤検知抑制）
+  #   2. reference_reset_hours: reference 分布を定期 reset（古い分布との永続乖離防止）
+  #   3. significant_feature_min: 3→10（少数特徴量での誤発火抑制）
   drift:
     window_size: 200                    # reference 分布のサンプル数
     ks_alpha: 0.01                      # 全体有意水準（Bonferroni で 1/n に補正される）
     consecutive_threshold: 3            # 連続何サイクル drift で emergency_stop 候補
     retrain_cooldown_hours: 24          # Auto Retraining のクールダウン（Phase 89-γ H10）
-    significant_feature_min: 3          # Bonferroni 補正後、何個の特徴量が有意なら drift 判定
+    significant_feature_min: 10         # Phase 90γ-①: 3→10（OHLCV 除外後の有意特徴量下限を厳格化）
     enable_auto_retraining: true        # drift 連続検出時に repository_dispatch を発火するか
+    # Phase 90γ-①: reference 分布の定期 reset（古い reference との永続乖離を防止）
+    # 7 日 = 168 時間。0 にすると reset 無効化（旧挙動）
+    reference_reset_hours: 168
+    # Phase 90γ-①: drift 比較から除外する特徴量（価格絶対値・MA・BB 等）
+    # これらは時間と共に変動するのが当然なため、reference との比較で常時陽性反応してしまう
+    exclude_features:
+      - open
+      - high
+      - low
+      - close
+      - volume
+      - bb_upper
+      - bb_lower
+      - bb_middle
+      - ema_20
+      - ema_50
+      - ema_100
+      - ema_200
+      - sma_20
+      - sma_50
+      - sma_100
+      - sma_200
+      - vwap
+      - donchian_high
+      - donchian_low
+      - atr_14
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3

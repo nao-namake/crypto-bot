@@ -72,6 +72,9 @@ class MLHealthMonitor:
 
         # Phase 89-β: Drift 検出用の特徴量分布履歴
         # Phase 89 H4: Bonferroni 補正 + 有意特徴量数下限による偽陽性抑制
+        # Phase 90γ-①: Drift 検出の構造的バグ修正
+        #   1. exclude_features: 価格絶対値・MA・BB を比較対象から除外
+        #   2. reference_reset_hours: reference 分布を定期 reset（古い分布との永続乖離防止）
         try:
             from ..config import get_threshold as _gt
 
@@ -80,16 +83,27 @@ class MLHealthMonitor:
             self._drift_consecutive_threshold = int(_gt("ml.drift.consecutive_threshold", 3))
             self._drift_significant_feature_min = int(_gt("ml.drift.significant_feature_min", 3))
             self._drift_auto_retraining = bool(_gt("ml.drift.enable_auto_retraining", True))
+            # Phase 90γ-①: 除外リスト（価格絶対値系を drift 比較から除外）
+            exclude_raw = _gt("ml.drift.exclude_features", []) or []
+            self._drift_exclude_features = (
+                set(str(x) for x in exclude_raw) if isinstance(exclude_raw, list) else set()
+            )
+            # Phase 90γ-①: reference 分布の定期 reset（古い reference との永続乖離を防止）
+            self._drift_reference_reset_hours = float(_gt("ml.drift.reference_reset_hours", 168.0))
         except Exception:
             self._drift_window = 200
             self._drift_ks_alpha = 0.01
             self._drift_consecutive_threshold = 3
             self._drift_significant_feature_min = 3
             self._drift_auto_retraining = True
+            self._drift_exclude_features = set()
+            self._drift_reference_reset_hours = 168.0
         self._reference_distribution: Dict[str, List[float]] = {}
         self._recent_distribution: Dict[str, Deque[float]] = {}
         self.consecutive_drift_detections: int = 0
         self.last_drift_at: Optional[str] = None
+        # Phase 90γ-①: reference 初期化時刻（None = 未初期化）
+        self._reference_initialized_at: Optional[datetime] = None
 
         # Phase 90α: persistence の semantics 修正
         # - 明示的 None: インメモリ動作（test_no_persistence_works_inmemory の意図）
@@ -164,6 +178,14 @@ class MLHealthMonitor:
             "drift_threshold": self._drift_consecutive_threshold,
             "last_drift_at": self.last_drift_at,
             "reference_features_count": len(self._reference_distribution),
+            # Phase 90γ-①: Drift 検出構造修正の状態
+            "reference_initialized_at": (
+                self._reference_initialized_at.isoformat()
+                if self._reference_initialized_at
+                else None
+            ),
+            "drift_exclude_features_count": len(self._drift_exclude_features),
+            "drift_reference_reset_hours": self._drift_reference_reset_hours,
         }
 
     # ========================================
@@ -184,14 +206,30 @@ class MLHealthMonitor:
         if not feature_values:
             return False
 
-        # 初回呼び出し: reference として保存
-        if not self._reference_distribution:
+        # Phase 90γ-①: reference 分布の期限切れ判定（古い reference との永続乖離を防止）
+        now = datetime.now(timezone.utc)
+        reference_expired = (
+            self._reference_initialized_at is not None
+            and self._drift_reference_reset_hours > 0
+            and (now - self._reference_initialized_at).total_seconds()
+            > self._drift_reference_reset_hours * 3600.0
+        )
+
+        # 初回呼び出し or 期限切れ: reference として保存（または reset）
+        if not self._reference_distribution or reference_expired:
+            action = "reset" if reference_expired else "初期化"
+            self._reference_distribution = {}
+            self._recent_distribution.clear()
             for name, values in feature_values.items():
                 self._reference_distribution[name] = list(values)[-self._drift_window :]
+            self._reference_initialized_at = now
             self.logger.info(
-                f"Phase 89-β: drift 検出用 reference 分布初期化 "
-                f"(features={len(self._reference_distribution)}, window={self._drift_window})"
+                f"Phase 90γ-①: drift 検出用 reference 分布{action} "
+                f"(features={len(self._reference_distribution)}, "
+                f"window={self._drift_window}, reset_hours={self._drift_reference_reset_hours})"
             )
+            # Phase 90γ-①: 初期化時刻を永続化（再起動跨ぎで reset 期限を保持）
+            self._save_state()
             return False
 
         # recent buffer 更新
@@ -251,12 +289,18 @@ class MLHealthMonitor:
         return False
 
     def _extract_feature_values(self, features: Any) -> Dict[str, List[float]]:
-        """DataFrame/dict から特徴量名 -> 値リストの辞書を作る."""
+        """DataFrame/dict から特徴量名 -> 値リストの辞書を作る.
+
+        Phase 90γ-①: ``_drift_exclude_features`` に指定された特徴量は除外する.
+        価格絶対値（OHLCV）・MA・BB のような「時間と共に変動するのが当然」な特徴量を
+        drift 比較対象から外し、市場の自然変動による誤検知を抑制する.
+        """
+        result: Dict[str, List[float]] = {}
         try:
             import pandas as pd  # 遅延 import
 
             if isinstance(features, pd.DataFrame):
-                return {
+                result = {
                     col: features[col].dropna().astype(float).tolist()
                     for col in features.columns
                     if features[col].dtype.kind in "fi"  # 数値型のみ
@@ -264,15 +308,17 @@ class MLHealthMonitor:
         except ImportError:
             pass
 
-        if isinstance(features, dict):
-            result: Dict[str, List[float]] = {}
+        if not result and isinstance(features, dict):
             for name, values in features.items():
                 try:
                     result[name] = [float(v) for v in values]
                 except (TypeError, ValueError):
                     continue
-            return result
-        return {}
+
+        # Phase 90γ-①: 除外リスト適用（価格絶対値系を drift 比較から除外）
+        if self._drift_exclude_features and result:
+            result = {k: v for k, v in result.items() if k not in self._drift_exclude_features}
+        return result
 
     def _detect_drift_with_ks(self) -> List[str]:
         """reference と recent で 2-sample KS テスト → 有意な特徴量を返す.
@@ -314,6 +360,8 @@ class MLHealthMonitor:
         self.last_drift_at = None
         self._reference_distribution.clear()
         self._recent_distribution.clear()
+        # Phase 90γ-①: reference 初期化時刻もクリア
+        self._reference_initialized_at = None
 
     # ========================================
     # Phase 89-γ: Auto Retraining trigger
@@ -453,6 +501,12 @@ class MLHealthMonitor:
                     # Phase 89 H1: drift state も永続化（Cloud Run 再起動で reset しない）
                     "consecutive_drift_detections": self.consecutive_drift_detections,
                     "last_drift_at": self.last_drift_at,
+                    # Phase 90γ-①: reference 初期化時刻（再起動跨ぎで reset 期限を保持）
+                    "reference_initialized_at": (
+                        self._reference_initialized_at.isoformat()
+                        if self._reference_initialized_at
+                        else None
+                    ),
                 }
             )
             self.persistence.save(self.COLLECTION, self.DOC_ID, merged)
@@ -474,6 +528,16 @@ class MLHealthMonitor:
                 state.get("consecutive_drift_detections", 0) or 0
             )
             self.last_drift_at = state.get("last_drift_at")
+            # Phase 90γ-①: reference 初期化時刻の復元（reset 期限を再起動跨ぎで保持）
+            ref_init_at = state.get("reference_initialized_at")
+            if ref_init_at:
+                try:
+                    parsed = datetime.fromisoformat(ref_init_at)
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    self._reference_initialized_at = parsed
+                except (ValueError, TypeError):
+                    self._reference_initialized_at = None
             last_retrain = state.get("last_retrain_trigger_at")
             if last_retrain:
                 self._last_retrain_at = last_retrain

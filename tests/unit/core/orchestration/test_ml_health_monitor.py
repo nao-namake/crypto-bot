@@ -307,3 +307,174 @@ class TestPhase89GammaAutoRetraining:
         # URL に env-owner/env-repo が含まれていること
         url = mock_post.call_args.args[0]
         assert "env-owner" in url and "env-repo" in url
+
+
+class TestPhase90GammaDriftFix:
+    """Phase 90γ-①: Drift 検出の構造的バグ修正
+
+    背景: 旧実装は (a) reference 分布が初回固定で永久に更新されず、
+    (b) 価格絶対値 (OHLCV/MA/BB) を比較対象に含むため、市場の自然変動を
+    drift と誤検知し続ける構造的欠陥があった。本テストは修正後の挙動を保証する。
+    """
+
+    @pytest.fixture
+    def monitor_drift(self, persistence):
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        m._drift_consecutive_threshold = 2
+        m._drift_window = 50
+        m._drift_ks_alpha = 0.01
+        m._drift_significant_feature_min = 1
+        m._drift_auto_retraining = False
+        return m
+
+    def test_exclude_features_filtered_out(self, monitor_drift):
+        """exclude_features に指定された特徴量は _extract_feature_values の出力から除外."""
+        import pandas as pd
+
+        monitor_drift._drift_exclude_features = {"open", "close"}
+        df = pd.DataFrame(
+            {"open": [1.0, 2.0, 3.0], "close": [4.0, 5.0, 6.0], "rsi_14": [50.0, 55.0, 60.0]}
+        )
+        values = monitor_drift._extract_feature_values(df)
+        assert "open" not in values
+        assert "close" not in values
+        assert "rsi_14" in values
+
+    def test_price_shift_with_exclusion_does_not_trigger_drift(self, monitor_drift):
+        """OHLCV を除外している状態で価格大幅シフトしても drift 検出されない."""
+        import numpy as np
+        import pandas as pd
+
+        monitor_drift._drift_exclude_features = {"close"}
+        monitor_drift._drift_significant_feature_min = 1
+        np.random.seed(42)
+        # close は除外・rsi は変動なし → drift 対象が無いので検出されない
+        ref = pd.DataFrame(
+            {
+                "close": np.random.normal(12_000_000, 10_000, 200),
+                "rsi_14": np.random.normal(50, 5, 200),
+            }
+        )
+        monitor_drift.record_feature_distribution(ref)
+        shifted = pd.DataFrame(
+            {
+                "close": np.random.normal(13_000_000, 10_000, 200),  # +8% 価格シフト
+                "rsi_14": np.random.normal(50, 5, 200),  # 変動なし
+            }
+        )
+        # rsi 同一分布なので drift 判定されないはず（close は除外で比較対象外）
+        for _ in range(3):
+            detected = monitor_drift.record_feature_distribution(shifted)
+            assert detected is False
+
+    def test_reference_reset_after_expiry(self, monitor_drift):
+        """reference_reset_hours 経過後に reference が reset され、新分布で再初期化される."""
+        from datetime import timedelta
+
+        import numpy as np
+        import pandas as pd
+
+        monitor_drift._drift_reference_reset_hours = 168.0
+        np.random.seed(42)
+        ref = pd.DataFrame({"f1": np.random.normal(0, 1, 200)})
+        monitor_drift.record_feature_distribution(ref)
+        first_ref_at = monitor_drift._reference_initialized_at
+        assert first_ref_at is not None
+
+        # 期限切れシミュレーション（200h 前にずらす = 168h より古い）
+        monitor_drift._reference_initialized_at = first_ref_at - timedelta(hours=200)
+
+        # 大きく異なる分布を供給 → reset され新 reference として保存（drift 検出されない）
+        shifted = pd.DataFrame({"f1": np.random.normal(10, 1, 200)})
+        detected = monitor_drift.record_feature_distribution(shifted)
+        assert detected is False
+        # reference 初期化時刻が更新されている
+        assert monitor_drift._reference_initialized_at is not None
+        assert monitor_drift._reference_initialized_at > first_ref_at - timedelta(hours=200)
+
+    def test_reference_not_reset_within_expiry(self, monitor_drift):
+        """期限内であれば reference は reset されず、初期化時刻も変わらない（既存挙動保持）."""
+        import numpy as np
+        import pandas as pd
+
+        monitor_drift._drift_reference_reset_hours = 168.0
+        np.random.seed(42)
+        ref = pd.DataFrame({"f1": np.random.normal(0, 1, 200)})
+        monitor_drift.record_feature_distribution(ref)
+        first_ref_at = monitor_drift._reference_initialized_at
+
+        # 数回呼び出し（期限内）
+        for _ in range(3):
+            same = pd.DataFrame({"f1": np.random.normal(0, 1, 200)})
+            monitor_drift.record_feature_distribution(same)
+
+        # reference 初期化時刻は変わらない
+        assert monitor_drift._reference_initialized_at == first_ref_at
+
+    def test_significant_feature_min_strict_blocks_minor_drift(self, monitor_drift):
+        """significant_feature_min=10 で 9 個の特徴量が drift しても判定されない."""
+        import numpy as np
+        import pandas as pd
+
+        monitor_drift._drift_significant_feature_min = 10
+        np.random.seed(42)
+        ref_data = {f"f{i}": np.random.normal(0, 1, 200) for i in range(15)}
+        ref = pd.DataFrame(ref_data)
+        monitor_drift.record_feature_distribution(ref)
+
+        # 9 特徴量のみシフト・残り 6 は同分布
+        shift_data = {
+            f"f{i}": (np.random.normal(10, 1, 200) if i < 9 else np.random.normal(0, 1, 200))
+            for i in range(15)
+        }
+        shifted = pd.DataFrame(shift_data)
+        detected = monitor_drift.record_feature_distribution(shifted)
+        assert detected is False  # 9 < 10 で drift 未判定
+
+    def test_reset_disabled_with_zero_hours(self, monitor_drift):
+        """reference_reset_hours=0 で reset 無効化（旧挙動相当）."""
+        from datetime import timedelta
+
+        import numpy as np
+        import pandas as pd
+
+        monitor_drift._drift_reference_reset_hours = 0  # reset 無効
+        np.random.seed(42)
+        ref = pd.DataFrame({"f1": np.random.normal(0, 1, 200)})
+        monitor_drift.record_feature_distribution(ref)
+        first_ref_at = monitor_drift._reference_initialized_at
+
+        # 大幅に時刻をずらしても reset されない
+        monitor_drift._reference_initialized_at = first_ref_at - timedelta(days=365)
+        shifted = pd.DataFrame({"f1": np.random.normal(10, 1, 200)})
+        detected = monitor_drift.record_feature_distribution(shifted)
+        # reset されないので分布シフトが drift として正しく検出される
+        assert detected is True
+
+    def test_status_includes_phase90_fields(self, monitor_drift):
+        """get_status に Phase 90γ-① の新規フィールドが含まれる."""
+        status = monitor_drift.get_status()
+        assert "reference_initialized_at" in status
+        assert "drift_exclude_features_count" in status
+        assert "drift_reference_reset_hours" in status
+
+    def test_reference_initialized_at_persists(self, persistence):
+        """reference_initialized_at が Firestore に永続化され、別インスタンスで復元される."""
+        import numpy as np
+        import pandas as pd
+
+        m1 = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        m1._drift_window = 50
+        m1._drift_significant_feature_min = 1
+        m1._drift_auto_retraining = False
+        np.random.seed(42)
+        ref = pd.DataFrame({"f1": np.random.normal(0, 1, 200)})
+        m1.record_feature_distribution(ref)
+        first_ref_at = m1._reference_initialized_at
+        assert first_ref_at is not None
+
+        # 別インスタンスを auto_load=True で生成
+        m2 = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=True)
+        assert m2._reference_initialized_at is not None
+        # ISO フォーマット変換による微小誤差を許容
+        assert abs((m2._reference_initialized_at - first_ref_at).total_seconds()) < 1.0
