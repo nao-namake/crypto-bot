@@ -160,11 +160,15 @@ class MLHealthMonitor:
             self._save_state()
 
     def should_emergency_stop(self) -> bool:
-        """連続失敗が閾値以上 OR 連続 drift 検出が閾値以上なら True (Phase 89-β)"""
-        return (
-            self.consecutive_failures >= self.threshold
-            or self.consecutive_drift_detections >= self._drift_consecutive_threshold
-        )
+        """連続失敗が閾値以上なら True
+
+        Phase 90γ-③: drift OR 条件を撤廃。drift は warning ログ + Auto Retraining trigger
+        のみに使用し、取引停止には連動させない（誤発火による取引機会喪失を防止）。
+
+        Phase 87 C4 の本来意図「DummyModel サーキットブレーカー」は維持されており、
+        ML predict が連続失敗した場合は引き続き True を返す。
+        """
+        return self.consecutive_failures >= self.threshold
 
     def get_status(self) -> dict:
         return {
@@ -438,6 +442,16 @@ class MLHealthMonitor:
             self.logger.warning(
                 "Phase 89-γ Auto Retraining: GitHub 設定不足 "
                 "(owner/repo/token のいずれかが未設定) → スキップ"
+            )
+            return False
+
+        # Phase 90γ-③: ダミー token 検出（DUMMY_ プレフィックスで判定）
+        # Phase 90γ-② で IAM 付与のために設定したダミー値 (DUMMY_NOT_USED_PAT_PLACEHOLDER_*)
+        # で GitHub API を叩くと 401 リトライループになるため skip する
+        if token.startswith("DUMMY_"):
+            self.logger.info(
+                "Phase 90γ-③: Auto Retraining ダミー token 検出 → スキップ "
+                "（本物の PAT 発行後に有効化）"
             )
             return False
 

@@ -177,8 +177,13 @@ class TestPhase89BetaDriftDetection:
         assert detected is True
         assert monitor_drift.consecutive_drift_detections == 1
 
-    def test_consecutive_drift_triggers_emergency_stop(self, monitor_drift):
-        """連続 drift_consecutive_threshold 回検知で should_emergency_stop が True."""
+    def test_consecutive_drift_does_not_trigger_emergency_stop(self, monitor_drift):
+        """Phase 90γ-③: 連続 drift 検知でも emergency_stop しない（drift OR 条件撤廃）.
+
+        旧 (Phase 89-β): drift カウンタ閾値超過で True を返していたが、
+        Drift 誤検知で取引機会の 91% を喪失する事案を受けて Phase 90γ-③ で撤廃。
+        drift は警告ログ + Auto Retraining trigger のみに使用。
+        """
         import numpy as np
         import pandas as pd
 
@@ -188,7 +193,9 @@ class TestPhase89BetaDriftDetection:
         for _ in range(2):
             shifted = pd.DataFrame({"f1": np.random.normal(10, 1, 200)})
             monitor_drift.record_feature_distribution(shifted)
-        assert monitor_drift.should_emergency_stop() is True
+        # drift カウンタは増加するが、should_emergency_stop は False
+        assert monitor_drift.consecutive_drift_detections >= 2
+        assert monitor_drift.should_emergency_stop() is False
 
     def test_drift_resolution_resets_count(self, monitor_drift):
         """正常分布に戻れば連続カウントが 0 にリセット."""
@@ -518,3 +525,73 @@ class TestPhase90GammaDriftFix:
         assert detected is False  # reset 直後の戻り値は False
         assert monitor_drift.consecutive_drift_detections == 0
         assert monitor_drift.last_drift_at is None
+
+
+class TestPhase90GammaThirdFixes:
+    """Phase 90γ-③: drift OR 撤廃 + ダミー token skip"""
+
+    @pytest.fixture
+    def persistence(self, tmp_path):
+        return FirestoreStateClient(
+            instance_id="phase90g3-test",
+            local_fallback_dir=str(tmp_path),
+            force_local=True,
+        )
+
+    def test_should_emergency_stop_ignores_drift_count(self, persistence):
+        """Phase 90γ-③: drift カウンタが閾値超過しても emergency_stop しない."""
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        # drift カウンタを意図的に閾値超過させる
+        m.consecutive_drift_detections = 100
+        m._drift_consecutive_threshold = 3
+        # consecutive_failures は 0 のまま
+        assert m.consecutive_failures == 0
+        # 旧実装では True を返したが、Phase 90γ-③ で False を返すべき
+        assert m.should_emergency_stop() is False
+
+    def test_should_emergency_stop_still_works_on_failures(self, persistence):
+        """Phase 90γ-③: 連続失敗時は引き続き emergency_stop 発動."""
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        # 連続失敗を 3 回記録（drift カウンタは 0 のまま）
+        m.record_failure("err1")
+        m.record_failure("err2")
+        m.record_failure("err3")
+        assert m.consecutive_drift_detections == 0
+        # consecutive_failures >= threshold で True
+        assert m.should_emergency_stop() is True
+
+    def test_trigger_retraining_skips_dummy_token(self, persistence, monkeypatch):
+        """Phase 90γ-③: ダミー token (DUMMY_ プレフィックス) で skip."""
+        from unittest.mock import patch
+
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        monkeypatch.setenv("GITHUB_REPO_OWNER", "test-owner")
+        monkeypatch.setenv("GITHUB_REPO_NAME", "test-repo")
+        monkeypatch.setenv("GITHUB_REPO_DISPATCH_TOKEN", "DUMMY_NOT_USED_PAT_PLACEHOLDER")
+
+        with patch("requests.post") as mock_post:
+            result = m.trigger_retraining()
+
+        # ダミー token なので skip = False かつ requests.post は呼ばれない
+        assert result is False
+        mock_post.assert_not_called()
+
+    def test_trigger_retraining_works_with_real_token(self, persistence, monkeypatch):
+        """Phase 90γ-③: 本物 token (ghp_ 等) では従来通り API 呼出."""
+        from unittest.mock import MagicMock, patch
+
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 204
+        mock_resp.text = ""
+
+        with patch("requests.post", return_value=mock_resp) as mock_post:
+            result = m.trigger_retraining(
+                github_owner="test-owner",
+                github_repo="test-repo",
+                github_token="ghp_realtoken_xxxx",
+            )
+
+        assert result is True
+        mock_post.assert_called_once()

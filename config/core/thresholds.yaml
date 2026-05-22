@@ -184,44 +184,76 @@ ml:
     batch_size: 64
     log_every: 5               # Phase 90: 10→5 短縮（ハング検出を早める）
   # Phase 89-β / 89 H9: 特徴量分布 Drift 検出（KS テスト + Bonferroni 補正）
-  # Phase 90γ-①: 構造的バグ修正
-  #   1. exclude_features: 価格絶対値・MA・BB を除外（市場の自然変動による誤検知抑制）
+  # Phase 90γ-①/②/③: 構造的バグ修正
+  #   1. exclude_features: 時系列で変動する特徴量を網羅除外（Phase 90γ-③ で 14→40 個に拡張）
   #   2. reference_reset_hours: reference 分布を定期 reset（古い分布との永続乖離防止）
-  #   3. significant_feature_min: 3→10（少数特徴量での誤発火抑制）
+  #   3. significant_feature_min: Phase 90γ-③ で 10→5（除外後の特徴量数減少に合わせ緩和）
+  #   4. enable_auto_retraining: Phase 90γ-③ で false に変更（ダミー PAT で 401 ループ防止）
   drift:
     window_size: 200                    # reference 分布のサンプル数
     ks_alpha: 0.01                      # 全体有意水準（Bonferroni で 1/n に補正される）
     consecutive_threshold: 3            # 連続何サイクル drift で emergency_stop 候補
     retrain_cooldown_hours: 24          # Auto Retraining のクールダウン（Phase 89-γ H10）
-    significant_feature_min: 10         # Phase 90γ-①: 3→10（OHLCV 除外後の有意特徴量下限を厳格化）
-    enable_auto_retraining: true        # drift 連続検出時に repository_dispatch を発火するか
+    significant_feature_min: 5          # Phase 90γ-③: 10→5（exclude_features 拡張で残数減少）
+    enable_auto_retraining: false       # Phase 90γ-③: PAT 未発行・ダミー値で 401 防止のため false
     # Phase 90γ-①: reference 分布の定期 reset（古い reference との永続乖離を防止）
     # 7 日 = 168 時間。0 にすると reset 無効化（旧挙動）
     reference_reset_hours: 168
-    # Phase 90γ-①: drift 比較から除外する特徴量（価格絶対値・MA・BB 等）
-    # これらは時間と共に変動するのが当然なため、reference との比較で常時陽性反応してしまう
+    # Phase 90γ-①/③: drift 比較から除外する特徴量（時系列変動するもの）
     # 名前は src/features/feature_generator.py で実生成される列名と照合済
     exclude_features:
-      # OHLCV（時間と共に必然的に変動）
+      # Phase 90γ-①（既存・OHLCV/BB/EMA/ATR/Donchian/MACD signal-histogram）
       - open
       - high
       - low
       - close
       - volume
-      # Bollinger Bands（価格レベル系・bb_position は正規化済みなので除外しない）
       - bb_upper
       - bb_lower
-      # EMA（価格レベル系）
       - ema_20
       - ema_50
-      # ATR（ボラ絶対値・時間と共にスケール変動）
       - atr_14
-      # Donchian channel（価格レベル系）
       - donchian_high_20
       - donchian_low_20
-      # MACD signal/histogram（価格レベル変動の累積で drift する）
       - macd_signal
       - macd_histogram
+      # Phase 90γ-③: 追加（GCP ログ実測で drift 検出された特徴量を網羅）
+      # MACD 本体・interaction 系（価格スケール連動）
+      - macd
+      - macd_x_volume
+      - close_x_atr
+      - macd_lag_1
+      # close 由来統計（価格レベル連動）
+      - close_ma_10
+      - close_ma_20
+      - close_std_5
+      - close_std_10
+      - close_std_20
+      # volume 由来統計（取引量レベル連動）
+      - volume_ema
+      # 時刻系（reference 取得タイミングで分布シフトする可能性）
+      - hour
+      - hour_cos
+      - day_of_week
+      - day_sin
+      # 外部 API 系（時系列で大きく変動）
+      - funding_rate_8h_avg
+      - fear_greed_index
+      - btc_realized_vol_24h
+      - btc_funding_premium
+      - btc_dominance_change
+      - usdjpy_change
+      - nikkei_change_proxy
+      # VPIN/HMM 系（時系列 MA + 状態遷移）
+      - vpin
+      - vpin_ma20
+      - vpin_change
+      - hmm_state_bear_prob
+      - hmm_state_bull_prob
+      # cross_asset（相関は時系列で変動）
+      - eth_btc_price_ratio
+      - eth_btc_corr_24h
+      - eth_returns_15m
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3
