@@ -12,24 +12,24 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 90α (v8e メタラベリング有効化) 完了・本番デプロイ済 → 実機 1 週間観察フェーズ（2026-05-17）**
+**Phase 90γ-② (致命的バグ修正 + 運用品質改善) 完了・本番デプロイ済（2026-05-22）→ 24h 観察フェーズ**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 90α 完了: (1) CI workflow に `--meta-label` フラグ追加（6 行）で**学習-運用のセマンティック大破綻を解消**・macro F1 0.347 → **0.546（LGB CV）**・naive 0.41 比 **+0.14 で真の予測力獲得**。(2) ローカル checks.sh 完全 PASS 対応（2426 tests / 73.70% / SEGFAULT ゼロ）。(3) **ライブ分析 Phase 90α 対応追加**（quality_filter / 高品質ラベル分布 / モデル整合性監視） |
-| 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` (2 クラスメタラベリング前提) ⇄ CI workflow `--meta-label` フラグなし (3 クラス方向予測モデル生成) という大破綻状態を Phase 73-D 以来運用し続けていた |
-| v8e (新) macro F1 | **LGB CV 0.546 / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459** |
-| v8e クラス分布 | **success 30.8% / failure 69.2%**（Triple Barrier 理想分布）|
-| v8c (旧) macro F1 | LGB 0.347 / XGB 0.344 / RF 0.296 / N-BEATS 0.335（ランダム 0.333 と同等）|
-| Phase 89 buggy weighted F1 | 0.89-0.97（**評価指標歪み 100%**・ランダム予測と同水準）|
+| 最新成果 | Phase 90γ シリーズ 3 連続修正完了: (γ-①) Drift 検出 **440 連続発火 → 0 件完全沈静化** / (γ-① レビュー) drift カウンタクリア + exclude_features 整理 + reset ログ WARNING 化 / (γ-②) trigger モード **EMERGENCY_STOP 解消** + bitbank 50062 ポジション反映待ち + 孤児SL 自動クリーンアップ |
+| 🎯 Phase 90γ-② 根本発見 | `trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `config/__init__.py:90` の `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503 → トラフィック流入停止。Phase 90β デプロイ以降ずっと続いていた致命的バグ。env MODE 判定方式（Option D）で解消 |
+| 🎯 Phase 90γ-① 根本発見 | Drift 検出が「reference 初回固定 + 価格絶対値 (OHLCV/MA/BB) を比較対象」という構造的欠陥で 440 回連続発火。exclude_features 14 個 + 168h reference reset + significant_feature_min 3→10 で完全沈静化 |
+| 🎯 Phase 90β 根本発見 | `executor.py:1084` で必要証拠金 = 注文額 / 2（50% 固定）が bitbank 動的マージン 30-50% に未追従 + `limits.py` に反対方向制限が未実装 → 両方の独立修正で 1 件ずれても安全側に倒れる設計に |
+| 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` (2 クラスメタラベリング前提) ⇄ CI workflow `--meta-label` フラグなしという大破綻状態を Phase 73-D 以来運用し続けていた。`--meta-label` フラグ追加で macro F1 **0.347 → 0.546（LGB CV）** |
+| v8e (新) macro F1 | LGB CV **0.546** / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459 |
+| v8e クラス分布 | success 30.8% / failure 69.2%（Triple Barrier 理想分布）|
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| Phase 90α 修正規模 | **2 ファイル / 計 6 行追加 / 互換性破壊ゼロ** |
-| CI/ローカル整備 | RF n_jobs 環境変数化（CI: 31 分→6.5 分）+ Optuna 30 分タイムアウト + ローカル wrapper + caffeinate スリープ防止ラップ |
-| N-BEATS ハング修正 | torch.set_num_threads(1) + MKL/OMP/OPENBLAS_NUM_THREADS=1 で PyTorch+sklearn 競合解消 |
-| 次の予定 | 実機 1 週間観察（勝率 / PF / 期待値改善確認）→ Phase 90β 計画（Calibration 修正 / Focal Loss / Optuna 試行数増）|
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/calm-noodling-cat.md` |
-| 最終更新 | 2026年5月18日 - Phase 90α + ローカル checks.sh + ライブ分析 Phase 90 対応 全完了 |
+| Phase 90γ 修正規模 | 9 ファイル変更 + 1 ファイル新規 / 約 350 行追加 / テスト 15 件追加 / **2441 tests PASS** |
+| 本番効果（5/22 19:30 直近 10 分）| Phase 88 I3 EMERGENCY_STOP **0 件** / Drift 検出 **0 件** / Phase 50.4 拒否 **0 件** / bitbank 50062 **0 件** / trigger gating 通過 17 件 ✅ |
+| 次の予定 | 24h 観察 → Phase 90γ-② P1 (50062 + Taker 率) 効果確認 → Phase 90γ-③ 計画（Calibration 修正 / Focal Loss / CatBoost / Optuna 試行数増 / Multi-Level VPIN）|
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/gcp-humming-bear.md` |
+| 最終更新 | 2026年5月22日 - Phase 90γ-② (致命的バグ修正 + 運用品質改善) 全完了 |
 
 ---
 

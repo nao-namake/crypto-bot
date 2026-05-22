@@ -81,7 +81,9 @@ class TPSLManager:
                     return True
             except Exception as e:
                 self.logger.debug(f"Phase 90γ-②: ポジション取得失敗 (attempt={attempt + 1}): {e}")
-            await asyncio.sleep(1.0)
+            # 最終 attempt 後の sleep は無駄なのでスキップ（タイムアウト時の 1 秒短縮）
+            if attempt < max_wait_sec - 1:
+                await asyncio.sleep(1.0)
         self.logger.warning(
             f"⚠️ Phase 90γ-②: ポジション反映待ちタイムアウト "
             f"({max_wait_sec}s 経過・expected={expected_amount:.4f}) → 配置試行続行"
@@ -333,9 +335,6 @@ class TPSLManager:
             self.logger.debug("SL配置無効（設定オフ）")
             return None
 
-        # Phase 90γ-②: bitbank API ポジション反映待ち（50062 対策）
-        await self._wait_position_reflected(amount, bitbank_client)
-
         # Phase 51.6: SL価格検証強化（None/0/負の値チェック）
         if stop_loss_price is None:
             raise TradingError("SL価格がNone（エラー30101対策）")
@@ -374,6 +373,10 @@ class TPSLManager:
                 f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円). "
                 f"ダスト/微小ポジションまたは計算バグの可能性。"
             )
+
+        # Phase 90γ-②: bitbank API ポジション反映待ち（50062 対策）
+        # 全バリデーション通過後に実行（不正データで無駄に 5 秒待たない）
+        await self._wait_position_reflected(amount, bitbank_client)
 
         # Phase 87 H3: stop_limit 時の slippage_buffer 二重防衛
         # Phase 81: stop（成行）専用設計から拡張。order_type=stop_limit 時のみ limit_price 計算

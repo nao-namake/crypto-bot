@@ -4,32 +4,27 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 90β (本番運用リスク 7 件根本修正) 完了・本番デプロイ予定（2026-05-21）** |
-| **直前の作業** | 2026-05-20 / 21 ライブ分析で発覚した 7 件構造的問題を根本修正: (1) 反対方向ポジション 1 件制限新規実装 (2) 必要証拠金率を設定値経由化（Phase 50.4 楽観バイアス対策）(3) trigger × WebSocket 構造分岐修正 (4) Auto Retraining env/secrets 設定 (5) SLMonitor 切替判定スクリプト新規 (6) TP/SL 距離計算修正 (7) `_cached_positions` 防御初期化。全 12 ファイル変更・553+ tests PASS |
-| **次の予定** | 本番デプロイ後 24h 監視 → 維持率予測精度の改善確認 → SLMonitor DRY_RUN→false 切替判定 (sl_monitor_validator.py) → Phase 90γ 計画（Calibration 修正・Focal Loss・Optuna 試行数増・XGBoost 過学習対策）|
-| **直近インシデント** | **2026-05-21 維持率 66% 強制ロスカット 50% まで余裕 16pt 事案**: long+short 同時保有 + Phase 50.4 予測 17pt 楽観バイアス。両方を構造修正で解消。Phase A-F のうち A-E 実装完了、F (GitHub PAT 発行) はユーザー手動作業 |
-| **🎯 Phase 90β 最重要発見** | **`executor.py:1084` で必要証拠金 = `order_total / 2`（50% 固定）と bitbank 動的マージン 30-50% に未追従**だった + **`limits.py` に反対方向制限が実装されていなかった**（同方向のみ）。両方の独立修正により 1 件ずれても安全側に倒れる設計に |
-| **🎯 Phase 90α 最重要発見** | **Phase 89 までの学習と運用がセマンティック大破綻**（運用側 `ml.mode: quality_filter` は 2 クラスメタラベリング前提なのに、CI workflow に `--meta-label` フラグなく **3 クラス方向予測モデルで運用**していた）。`--meta-label` フラグ追加（6 行）で macro F1 が **0.347 → 0.546（LGB CV）**に改善・naive baseline +0.14 で真の予測力獲得 |
+| **現在Phase** | **Phase 90γ-② (致命的バグ修正 + 運用品質改善) 完了・本番デプロイ済（2026-05-22）** |
+| **直前の作業** | 2026-05-22 ライブ分析で発見した 3 層の問題を順次根本修正: (γ-①) Drift 検出 440 連続発火の構造バグ修正・(γ-① レビュー) drift カウンタクリア + exclude_features 整理 + reset ログ WARNING 化・(γ-②) trigger モード EMERGENCY_STOP 連発 + bitbank 50062 連鎖事案 + 孤児SL 1 件残存。3 コミット連続デプロイで全解消 |
+| **次の予定** | 24h 観察で Phase 90γ-② P1 (50062 + Taker 率) の効果確認 → Phase 90γ-③ 計画策定（Calibration 修正・Focal Loss・Optuna 試行数増・XGBoost 過学習対策）|
+| **🎯 Phase 90γ-② 最重要発見** | **`trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `config/__init__.py:90` の `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503 → トラフィック流入停止** という連鎖。Phase 90β デプロイ以降ずっと続いていた致命的バグ。executor.py 等の `mode == "live"` チェック 10+ 箇所への影響を避けるため、env MODE による runtime 判定方式に切替（Option D）|
+| **🎯 Phase 90γ-① 最重要発見** | **Drift 検出が「reference 初回固定 + 価格絶対値 (OHLCV/MA/BB) を比較対象」という構造的欠陥で 440 回連続発火**。`exclude_features` (OHLCV/BB/EMA/ATR/Donchian/macd_signal/histogram 14 個) + 168h reference reset + significant_feature_min 3→10 で **0 件に完全沈静化** |
+| **🎯 Phase 90β 最重要発見** | `executor.py:1084` で必要証拠金 = `order_total / 2`（50% 固定）と bitbank 動的マージン 30-50% に未追従 + `limits.py` に反対方向制限が実装されていなかった（同方向のみ）。両方の独立修正により 1 件ずれても安全側に倒れる設計に |
+| **🎯 Phase 90α 最重要発見** | Phase 89 までの学習と運用がセマンティック大破綻（CI workflow に `--meta-label` フラグなし）。`--meta-label` フラグ追加（6 行）で macro F1 が **0.347 → 0.546（LGB CV）**に改善・naive baseline +0.14 で真の予測力獲得 |
 | **Phase 87 達成** | Critical 5 + High 10 全完了（本番デプロイ済） |
 | **Phase 88 達成** | I1-I4 GCPコスト 4件 + H11 孤児SL + M1-M5 + L1-L3 |
-| **Phase 89-α 達成** | Stage 1 取引判断 gating + Stage 3 GCP リソース整理 + Stage 2 特徴量キャッシュ |
-| **Phase 89-β 達成** | Fractional Kelly + 特徴量 37→47 + Purged K-Fold + Drift 検出（Bonferroni 補正）|
-| **Phase 89-γ 達成** | N-BEATS + 4 モデル化 + HMM + VPIN +3 + 特徴量 47→52 + Auto Retraining |
-| **Phase 89-δ 達成** | WebSocket + BTC-ETH 相関 +3 特徴量（52→55）+ マルチペア基盤 |
-| **Phase 89 配線修正** | C1-C7（DI 漏れ + SL placeholder バグ）+ H1-H12（永続化 / Bonferroni / VPIN / Kelly / WebSocket cleanup 等） |
-| **Phase 89 NB1-NB9** | N-BEATS 完全版（StandardScaler + 200 epoch + Early Stopping + Kaiming init + class_weights + validation メタラベリング対応） |
-| **Phase 86-89 レビュー** | 72 観点・Critical ゼロ・軽微 9 件（P0/P1 4 件修正完了・P2 5 件 Phase 90 繰越） |
-| **P0+P1 修正完了** | sl_monitor placeholder 統一 / MEMORY 768→1024 / eth_jpy cache 統一 / yaml warning / **macro F1** / cross_asset リーク防止 / 訓練 180→365 日 |
-| **特徴量数** | 37 → **55**（+18: funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 6 カテゴリ追加） |
-| **ML モデル** | 3 → **4**（N-BEATS 追加） |
-| **モデル性能（旧 weighted F1）** | ⚠️ LGB 0.612→0.893 等の改善は**評価指標歪み**（クラス不均衡 HOLD 94% + weighted F1 = ランダム予測と同水準）|
-| **v8c (3 クラス方向予測・破綻状態) macro F1** | LGB 0.35 / XGB 0.34 / RF 0.30 / N-BEATS 0.34（ランダム 0.33 と同等）|
-| **🎉 v8e (2 クラスメタラベリング・整合) macro F1** | **LGB CV 0.546 / Test 0.486 / XGB CV 0.459 / RF CV 0.530 / N-BEATS CV 0.514 Test 0.524**（naive 0.41 比 **+0.10〜+0.14 で真の予測力獲得**）|
-| **v8e クラス分布** | success 30.8% / failure 69.2%（Triple Barrier Method 理想分布）|
-| **TPSL 検証結果** | TPSLCalculator 実装は健全。Phase 85 報告 +362円/件は手数料**未控除**の期待値・真の期待値は **+138-254 円/件**（実機運用に影響なし）|
+| **Phase 89-α/β/γ/δ 達成** | gating + Fractional Kelly + Drift 検出 + N-BEATS + HMM + VPIN + WebSocket + BTC-ETH 相関 + 特徴量 37→55 |
+| **Phase 90α 達成** | メタラベリング有効化 (`--meta-label` 6 行追加) で macro F1 0.347 → 0.546 |
+| **Phase 90β 達成** | 本番運用リスク 7 件根本修正（反対方向ポジ制限・必要証拠金率設定経由化・予測トレース・Auto Retraining env/secrets 等） |
+| **Phase 90γ-① 達成** | Drift 検出構造バグ修正（OHLCV 系除外 + 168h reference reset + significant_feature_min 厳格化）+ レビュー修正 3 件（drift カウンタクリア + 実在名整理 + reset WARNING 化）|
+| **Phase 90γ-② 達成** | trigger モード EMERGENCY_STOP 修正（env MODE 判定）+ bitbank 50062 ポジション反映待ち（`_wait_position_reflected`）+ 孤児SL 自動クリーンアップ確認 |
+| **特徴量数** | 37 → **55**（Phase 89-β/γ/δ で 6 カテゴリ追加）|
+| **ML モデル** | 3 → **4**（N-BEATS 追加・LGB 34%/XGB 34%/RF 17%/N-BEATS 15%） |
+| **🎉 v8e (2 クラスメタラベリング) macro F1** | LGB CV 0.546 / Test 0.486・XGB CV 0.459・RF CV 0.530・N-BEATS CV 0.514 Test 0.524（naive 0.41 比 **+0.10〜+0.14 で真の予測力獲得**）|
+| **本番効果（5/22 19:30 時点・直近 10 分）** | Phase 88 I3 EMERGENCY_STOP **0 件** / Drift 検出 **0 件** / Phase 50.4 拒否 **0 件** / bitbank 50062 **0 件** / trigger gating 通過 17 件 ✅|
 | **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
 | **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
-| **最終更新** | 2026年5月21日 - Phase 90β (本番運用リスク 7 件根本修正) 実装完了 |
+| **最終更新** | 2026年5月22日 - Phase 90γ-② (致命的バグ修正 + 運用品質改善) 実装完了 |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
@@ -38,40 +33,57 @@
 
 ---
 
-## 🚀 セッション再開時の最優先タスク（2026-05-21 時点・Phase 90β 実装完了 → 本番デプロイ + 24h 監視フェーズ）
+## 🚀 セッション再開時の最優先タスク（2026-05-22 時点・Phase 90γ-② 完了 → 24h 観察フェーズ）
 
-**Phase 90β (本番運用リスク 7 件根本修正)** 実装完了・コミット予定。デプロイ後 24h で維持率予測精度の改善を確認。
+**Phase 90γ シリーズ (γ-①・γ-① レビュー修正・γ-②) 全工程完了・本番デプロイ済**。24h 観察で Phase 90γ-② P1 (bitbank 50062 + Taker 率) の効果確認後、Phase 90γ-③ 計画策定。
 
-### Phase 90β 修正サマリ
+### Phase 90γ シリーズ修正サマリ
 
-| # | 修正内容 | 効果 |
-|---|---|---|
-| 1 | 反対方向ポジション 1 件制限 (`limits._check_opposite_direction_positions`) | long+short 同時保有を構造的に拒否 |
-| 2 | 必要証拠金率を設定値経由 (`margin.required_ratio_initial`) | Phase 50.4 楽観バイアスの根本対策 |
-| 3 | trigger × WebSocket 構造分岐 (`cmdline_mode="trigger"`) | min_instances=0 と整合 |
-| 4 | Auto Retraining env/secrets (ci.yml に 3 件追加) | Drift 連続検出時の再学習を有効化 |
-| 5 | SLMonitor 切替判定スクリプト (sl_monitor_validator.py) | DRY_RUN→false の定量判定 |
-| 6 | TP/SL 距離計算をエントリー価格基準に修正 | ライブ分析の表示精度向上 |
-| 7 | `_cached_positions` 防御初期化 + キャッシュ化 | AttributeError 根絶 |
+#### γ-① (コミット `6aa26ea9`): Drift 検出構造バグ修正
+| 修正 | 内容 |
+|---|---|
+| 価格絶対値除外 | `exclude_features` (OHLCV/BB/EMA/ATR/Donchian/macd_signal/histogram 14 個) を drift 比較対象から除外 |
+| Rolling Reference | reference を「初回固定」→「168h で自動 reset」(古い分布との永続乖離防止) |
+| 厳格化 | `significant_feature_min` 3 → 10 (少数特徴量での誤発火抑制) |
+| 効果 | **Drift 検出 91 件/24h → 0 件/24h（完全沈静化）** |
 
-### セッション再開時 Step 1: デプロイ後 24h 監視（5 分）
+#### γ-① レビュー修正 (コミット `8c55dc71`): 3 件のレビュー指摘
+| 修正 | 内容 |
+|---|---|
+| Reset 時 drift カウンタクリア | reset 時に `consecutive_drift_detections` / `last_drift_at` を仕切り直す（reset 直後の emergency_stop 誤発火防止）|
+| exclude_features 整理 | feature_generator.py の実生成名と照合・実在しない 10 個を削除、`donchian_high_20/low_20`・`macd_signal/histogram` を追加 |
+| Reset ログ WARNING 化 | reference_expired 時のログを INFO → WARNING（本番 Cloud Logging で観測可能化）|
+
+#### γ-② (コミット `488c820f`): 致命的バグ修正 + 運用品質改善
+| 修正 | 内容 |
+|---|---|
+| trigger モード EMERGENCY_STOP 解消 | `trigger_server.py:112` `cmdline_mode="trigger"` → `"live"` + `orchestrator.py` で env MODE 判定方式に変更（Option D）|
+| bitbank 50062 対処 | `tp_sl_manager._wait_position_reflected()` 追加・TP/SL 配置直前で最大 5 秒ポジション反映待機 |
+| 孤児SL クリーンアップ | `scripts/maintenance/cleanup_orphan_orders.py` 新規（ドライラン/--apply 対応）|
+
+### セッション再開時 Step 1: 24h 監視（5 分）
 
 ```bash
-# ライブ運用 24h 分析（Phase 86-90β 全カバー）
+# ライブ運用 24h 分析（Phase 86-90γ 全カバー）
 venv/bin/python3 scripts/live/standard_analysis.py --hours 24
 
-# Phase 90β 維持率予測トレースログ確認
-gcloud logging read 'textPayload=~"Phase 90β 予測トレース"' --freshness=24h --limit=20
+# Phase 88 I3 EMERGENCY_STOP の消失確認（期待: 0 件）
+gcloud logging read 'textPayload=~"Phase 88 I3.*EMERGENCY_STOP|無効なモード"' --freshness=24h | wc -l
 
-# Phase 90β 反対方向ポジション拒否ログ確認
-gcloud logging read 'textPayload=~"Phase 90β 反対方向ポジション制限"' --freshness=24h --limit=10
+# Phase 89-β Drift 検出件数（期待: 0-5 件以下）
+gcloud logging read 'textPayload=~"Phase 89-β: Drift 検出"' --freshness=24h | wc -l
 
-# Auto Retraining 動作確認（GitHub 設定不足 warning が消えたか）
-gcloud logging read 'textPayload=~"GitHub 設定不足"' --freshness=24h | wc -l
-# → 0 が期待値
+# Phase 50.4 拒否件数（期待: 0 件 = 楽観バイアス解消継続）
+gcloud logging read 'textPayload=~"Phase 50.4: 維持率80%未満予測"' --freshness=24h | wc -l
+
+# bitbank 50062 エラー件数（期待: 0 件・Phase 90γ-② P1 効果）
+gcloud logging read 'textPayload=~"50062"' --freshness=24h | wc -l
+
+# Phase 90γ-② ポジション反映待ちログ確認
+gcloud logging read 'textPayload=~"Phase 90γ-②"' --freshness=24h --limit=10
 ```
 
-### セッション再開時 Step 2: SLMonitor DRY_RUN→false 切替判定（7 日後）
+### セッション再開時 Step 2: SLMonitor DRY_RUN→false 切替判定（7 日後・既存）
 
 ```bash
 # 誤発火率算出
@@ -80,37 +92,52 @@ venv/bin/python3 scripts/analysis/sl_monitor_validator.py --days 7
 # 終了コード 0 (SAFE) なら config/core/thresholds.yaml:806 で dry_run: false に切替
 ```
 
-### セッション再開時 Step 3: ユーザー手動作業（Phase F）
+### セッション再開時 Step 3: Phase 90γ-③ 着手判断
 
-GitHub PAT 発行 + Secret Manager 登録 + IAM 付与は別途実施。詳細は `docs/運用ガイド/統合運用ガイド.md` 第3部「Auto Retraining セットアップ」参照。
+24h 観察結果に基づき以下を判定:
+- bitbank 50062 件数 0 件・Taker 率 50% 以下 → Phase 90γ-② 完全成功 → Phase 90γ-③ (ML 改善) 着手
+- 上記未達 → Phase 90γ-②.1 追加修正検討
+
+Phase 90γ-③ 候補（Phase 90α からの継続課題）:
+1. **Isotonic Calibration 修正**（v8e で失敗・`ProductionEnsemble` に `fit` メソッド不足）
+2. **Focal Loss** (LGB/XGB): クラス不均衡対策
+3. **CatBoost 追加** or RF 置換: ensemble 多様性向上
+4. **Optuna 試行数増** (50→100): XGBoost 過学習対策
+5. **Multi-Level VPIN + OFI 拡張**: マイクロ構造特徴強化
+
+### Phase 90γ 異常時のロールバック
 
 ```bash
-# 1. https://github.com/settings/personal-access-tokens で PAT 発行（Fine-grained, Actions: Read and write）
-# 2. echo -n "ghp_xxxx..." | gcloud secrets create github-repo-dispatch-token --replication-policy="automatic" --data-file=-
-# 3. gcloud secrets add-iam-policy-binding github-repo-dispatch-token --member="serviceAccount:bitbank-bot-runner@my-crypto-bot-project.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
-```
-
-### Phase 90β 異常時のロールバック
-
-```bash
-# 設定だけ戻す（コードはそのまま）
-yq -i '.position_management.max_opposite_direction_positions = 0' config/core/thresholds.yaml
-git add config/core/thresholds.yaml
-git commit -m "rollback: Phase 90β 反対方向制限を一時的に無効化"
+# 個別コミット revert
+git revert 488c820f  # γ-② 取消
+git revert 8c55dc71  # γ-① レビュー修正取消
+git revert 6aa26ea9  # γ-① 取消
 git push origin main
 
-# またはコミットを revert
-git revert <Phase 90β コミットハッシュ>
-git push origin main
+# Drift 検出設定だけ旧に戻す（exclude_features 無効化）
+yq -i '.ml.drift.exclude_features = []' config/core/thresholds.yaml
+yq -i '.ml.drift.significant_feature_min = 3' config/core/thresholds.yaml
+git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-① 設定無効化" && git push origin main
 ```
 
-### Phase 90β 関連ファイル
+### Phase 90γ シリーズ関連ファイル
 
-- 計画書: `~/.claude/plans/phase-readme-users-nao-developer-active-enchanted-hollerith.md`
-- 詳細記録: `docs/開発履歴/Phase_90.md` 末尾「Phase 90β: 本番運用リスク・整合性 7 件 根本修正」
-- 新規スクリプト: `scripts/analysis/sl_monitor_validator.py`
-- 修正済本体: `src/trading/position/limits.py` `src/trading/execution/executor.py` `src/trading/balance/monitor.py` `src/core/orchestration/trigger_server.py` `src/core/orchestration/orchestrator.py` `scripts/live/standard_analysis.py` `.github/workflows/ci.yml` `config/core/thresholds.yaml`
-- ドキュメント: `docs/運用ガイド/統合運用ガイド.md` `src/data/README.md` `src/trading/position/README.md`
+- 計画書: `~/.claude/plans/gcp-humming-bear.md`（Phase 90γ-② 計画含む全体記録）
+- 詳細記録: `docs/開発履歴/Phase_90.md` 末尾「Phase 90γ-① / γ-② 」セクション
+- 新規スクリプト: `scripts/maintenance/cleanup_orphan_orders.py`
+- 修正済本体:
+  - γ-①: `src/core/orchestration/ml_health_monitor.py` `config/core/thresholds.yaml`
+  - γ-②: `src/core/orchestration/trigger_server.py` `src/core/orchestration/orchestrator.py` `src/trading/execution/tp_sl_manager.py`
+- 修正済テスト: `tests/unit/core/orchestration/test_ml_health_monitor.py` (9 件) `tests/unit/core/orchestration/test_orchestrator.py` (2 件) `tests/unit/trading/execution/test_tp_sl_manager.py` (4 件)
+
+### コミット履歴（Phase 90γ 全体）
+
+```
+488c820f fix: Phase 90γ-② 致命的バグ修正 + 運用品質改善
+8c55dc71 fix: Phase 90γ-① レビュー指摘の 3 件修正
+6aa26ea9 fix: Phase 90γ-① Drift 検出構造バグ修正 (440 回連続発火問題)
+01d57b90 feat: Phase 90β 構造的問題 7 件根本修正
+```
 
 ---
 

@@ -639,9 +639,76 @@
 - [ToDo.md](../開発計画/ToDo.md) - 現在の開発計画
 
 ### Phase 別詳細
-- [Phase_83.md](Phase_83.md) / [Phase_84.md](Phase_84.md) / [Phase_85.md](Phase_85.md) / [Phase_86.md](Phase_86.md) / [Phase_87.md](Phase_87.md) / [Phase_88.md](Phase_88.md) / [Phase_89.md](Phase_89.md)
+- [Phase_83.md](Phase_83.md) / [Phase_84.md](Phase_84.md) / [Phase_85.md](Phase_85.md) / [Phase_86.md](Phase_86.md) / [Phase_87.md](Phase_87.md) / [Phase_88.md](Phase_88.md) / [Phase_89.md](Phase_89.md) / [Phase_90.md](Phase_90.md)
 
 ---
 
-**最終更新**: 2026年5月18日
-**ステータス**: **Phase 90α 全工程完了** (v8e メタラベリング + 補強 + ライブ分析対応) / 学習-運用整合性回復 (macro F1 0.347 → 0.546 LGB CV) / ローカル checks.sh PASS (2426 tests / 73.70%) / 実機 1 週間観察フェーズ突入 / Phase 90β 計画準備
+## Phase 90β/90γ シリーズ サマリ（2026/5/21-22）
+
+### Phase 90β: 本番運用リスク 7 件根本修正 ✅（2026-05-21）
+**契機**: 5/20-21 ライブ分析で 8 件の構造的問題発覚（5/21 維持率 66% 強制ロスカット 50% まで 16pt 事案を含む）
+
+**達成内容**:
+- 反対方向ポジション 1 件制限新規実装（long+short 同時保有を構造的に拒否）
+- 必要証拠金率を設定値経由化（`executor.py:1084` の 50% 固定 → 動的マージン対応）
+- Phase 50.4 予測トレースログ追加（乖離 5pt 超を検知可能）
+- trigger × WebSocket 構造分岐（後に Phase 90γ-② で env MODE 方式に再設計）
+- Auto Retraining env/secrets 設定
+- SLMonitor DRY_RUN→false 切替判定スクリプト新規（`sl_monitor_validator.py`）
+- TP/SL 距離計算をエントリー価格基準に修正
+- `_cached_positions` 防御初期化
+
+**規模**: 12 ファイル変更 + 1 ファイル新規 / 約 587 行追加 / テスト 6 件追加 / 553+ tests PASS
+
+### Phase 90γ-①: Drift 検出構造バグ修正 ✅（2026-05-22）
+**契機**: ライブ分析で Drift 検出 **24h で 91 件・consecutive=440/3** 異常頻度発覚
+
+**根本原因**:
+1. Reference 永続化バグ: 初回起動時の分布で永久固定（市場の自然変動を drift と誤検知）
+2. 生 OHLCV 比較: 価格絶対値・MA・BB を比較対象に含むため、価格 +3% 変動でも陽性反応
+
+**修正**:
+- `exclude_features` 14 個（OHLCV/BB/EMA/ATR/Donchian/macd_signal/histogram）を drift 比較対象から除外
+- `reference_reset_hours: 168` で 7 日ごとに reference 自動 reset
+- `significant_feature_min` 3 → 10（少数特徴量での誤発火抑制）
+- Reset 時刻を Firestore 永続化（再起動跨ぎで保持）
+
+**レビュー修正** (3 件):
+- Reset 時に `consecutive_drift_detections` クリア（誤発火防止）
+- exclude_features を feature_generator.py 実生成名に整理
+- Reset イベントのログを WARNING 化（本番観測可能化）
+
+**実測効果**: Drift 検出件数 **91 件/24h → 0 件/24h**（完全沈静化）
+
+### Phase 90γ-②: 致命的バグ修正 + 運用品質改善 ✅（2026-05-22）
+**契機**: ライブ分析で Phase 88 I3 EMERGENCY_STOP が **Phase 90β デプロイ以降ずっと発火していた**ことが判明
+
+**根本原因**: `trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `config/__init__.py:90` の `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503 → トラフィック流入停止
+
+**修正**:
+- **P0**: `cmdline_mode="live"` に戻し、`orchestrator.py` で env MODE による runtime 判定（Option D）
+- **P1**: `tp_sl_manager._wait_position_reflected()` 新規（TP/SL 配置直前に最大 5 秒ポジション反映待機・bitbank 50062 防止）
+- **孤児SL**: `scripts/maintenance/cleanup_orphan_orders.py` 新規（ポジション 0 件確認後にキャンセル）
+
+**実測効果**:
+- Phase 88 I3 EMERGENCY_STOP **0 件**（24h で 6+ 件 → 0）
+- trigger gating 通過 **17 件 / 10 分**（安定動作）
+- 孤児 stop 注文 1 件 → 0 件（Phase 88 H11 自動処理で解消確認）
+
+### Phase 90 シリーズ全体のコミット履歴
+
+```
+488c820f fix: Phase 90γ-② 致命的バグ修正 + 運用品質改善
+8c55dc71 fix: Phase 90γ-① レビュー指摘の 3 件修正
+6aa26ea9 fix: Phase 90γ-① Drift 検出構造バグ修正 (440 回連続発火問題)
+01d57b90 feat: Phase 90β 構造的問題 7 件根本修正
+ad3cd48b feat: ライブモード分析 Phase 90α 対応
+8afcd406 fix: Phase 90α ローカル checks.sh 完全 PASS 対応
+59e3aa4d fix: Phase 90α black フォーマット整形
+7deb5e01 feat: Phase 90α メタラベリング有効化（macro F1 +0.20）
+```
+
+---
+
+**最終更新**: 2026年5月22日
+**ステータス**: **Phase 90γ-② 完了** (trigger モード EMERGENCY_STOP 解消 + bitbank 50062 ポジション反映待ち + 孤児SL クリーンアップ) / Phase 90β + 90γ シリーズ全工程完了 / 本番効果確認済（Phase 88 I3 EMERGENCY_STOP 0 件・Drift 検出 0 件・Phase 50.4 拒否 0 件・bitbank 50062 0 件） / 24h 観察 → Phase 90γ-③ 着手判断フェーズ
