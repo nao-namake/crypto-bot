@@ -47,6 +47,47 @@ class TPSLManager:
     # Phase 64: 個別TP/SL配置メソッド（stop_manager.pyから移動）
     # ========================================
 
+    async def _wait_position_reflected(
+        self,
+        expected_amount: float,
+        bitbank_client: BitbankClient,
+        max_wait_sec: int = 5,
+    ) -> bool:
+        """Phase 90γ-②: bitbank API へのポジション反映を待つ（50062 対策）。
+
+        エントリー約定直後に TP/SL を配置すると、bitbank API のポジションが
+        まだ反映されていない場合に 50062 (保有建玉数量超過) エラーが発生する。
+        本関数は数秒間ポジション反映を待ち、TP/SL 配置失敗を防止する。
+
+        Args:
+            expected_amount: 期待されるポジション数量 (BTC)
+            bitbank_client: BitbankClient インスタンス
+            max_wait_sec: 最大待機秒数 (default: 5)
+
+        Returns:
+            True: ポジション反映確認 / False: タイムアウト（呼び出し側は処理続行）
+        """
+        for attempt in range(max_wait_sec):
+            try:
+                positions = await bitbank_client.fetch_margin_positions()
+                actual = sum(abs(float(p.get("amount", 0))) for p in positions or [])
+                if actual >= expected_amount * 0.95:
+                    if attempt > 0:
+                        self.logger.info(
+                            f"✅ Phase 90γ-②: ポジション反映確認 "
+                            f"({attempt + 1}s 後・actual={actual:.4f}/"
+                            f"expected={expected_amount:.4f})"
+                        )
+                    return True
+            except Exception as e:
+                self.logger.debug(f"Phase 90γ-②: ポジション取得失敗 (attempt={attempt + 1}): {e}")
+            await asyncio.sleep(1.0)
+        self.logger.warning(
+            f"⚠️ Phase 90γ-②: ポジション反映待ちタイムアウト "
+            f"({max_wait_sec}s 経過・expected={expected_amount:.4f}) → 配置試行続行"
+        )
+        return False
+
     async def place_take_profit(
         self,
         side: str,
@@ -82,6 +123,9 @@ class TPSLManager:
 
         if take_profit_price <= 0:
             raise TradingError("TP価格が不正（0以下）")
+
+        # Phase 90γ-②: bitbank API ポジション反映待ち（50062 対策）
+        await self._wait_position_reflected(amount, bitbank_client)
 
         # Phase 62.10: Maker戦略設定取得
         maker_config = tp_config.get("maker_strategy", {})
@@ -288,6 +332,9 @@ class TPSLManager:
         if not sl_config.get("enabled", True):
             self.logger.debug("SL配置無効（設定オフ）")
             return None
+
+        # Phase 90γ-②: bitbank API ポジション反映待ち（50062 対策）
+        await self._wait_position_reflected(amount, bitbank_client)
 
         # Phase 51.6: SL価格検証強化（None/0/負の値チェック）
         if stop_loss_price is None:

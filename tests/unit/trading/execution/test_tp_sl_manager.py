@@ -2202,3 +2202,79 @@ class TestPhaseRH11EdgeCases:
         )
 
         mock_client.cancel_order.assert_called_once_with("sl-limit", "BTC/JPY")
+
+
+class TestPhase90GammaWaitPositionReflected:
+    """Phase 90γ-②: bitbank API ポジション反映待ち（50062 対策）"""
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    async def test_wait_position_reflected_succeeds_immediately(self, tp_sl_manager):
+        """ポジションが既に反映済みなら 1 回目の取得で True 返却・追加待機なし."""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[{"amount": "0.015"}])
+
+        result = await tp_sl_manager._wait_position_reflected(
+            expected_amount=0.015,
+            bitbank_client=client,
+            max_wait_sec=3,
+        )
+
+        assert result is True
+        client.fetch_margin_positions.assert_called_once()
+
+    async def test_wait_position_reflected_partial_amount_passes(self, tp_sl_manager):
+        """期待数量の 95% 以上あれば成功扱い（API 丸め誤差吸収）."""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        # 期待 0.015 BTC・実 0.01425 BTC（95%）→ 成功
+        client.fetch_margin_positions = AsyncMock(return_value=[{"amount": "0.01425"}])
+
+        result = await tp_sl_manager._wait_position_reflected(
+            expected_amount=0.015,
+            bitbank_client=client,
+            max_wait_sec=3,
+        )
+
+        assert result is True
+
+    async def test_wait_position_reflected_timeout(self, tp_sl_manager):
+        """max_wait_sec 経過しても反映されなければ False を返す + warning ログ."""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        # ポジションが永続的に空 → タイムアウト
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+
+        result = await tp_sl_manager._wait_position_reflected(
+            expected_amount=0.015,
+            bitbank_client=client,
+            max_wait_sec=2,
+        )
+
+        assert result is False
+        assert client.fetch_margin_positions.call_count == 2
+
+    async def test_wait_position_reflected_exception_then_success(self, tp_sl_manager):
+        """API 例外発生 → リトライで成功すれば True."""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        # 1 回目例外、2 回目成功
+        client.fetch_margin_positions = AsyncMock(
+            side_effect=[Exception("network err"), [{"amount": "0.015"}]]
+        )
+
+        result = await tp_sl_manager._wait_position_reflected(
+            expected_amount=0.015,
+            bitbank_client=client,
+            max_wait_sec=3,
+        )
+
+        assert result is True
+        assert client.fetch_margin_positions.call_count == 2

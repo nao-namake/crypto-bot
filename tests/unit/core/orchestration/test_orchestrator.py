@@ -158,6 +158,47 @@ class TestOrchestratorInitialization:
 
         orchestrator.logger.critical.assert_called()
 
+    @pytest.mark.asyncio
+    async def test_phase90gamma_websocket_skipped_when_trigger_env(
+        self, orchestrator, mock_config, monkeypatch
+    ):
+        """Phase 90γ-②: env MODE=trigger なら config.mode が live でも WebSocket 起動されない."""
+        monkeypatch.setenv("MODE", "trigger")
+        mock_config.mode = "live"
+
+        # bitbank_client mock
+        bc = MagicMock()
+        bc.connect_websocket = AsyncMock(return_value=True)
+        orchestrator.execution_service.bitbank_client = bc
+
+        # health_checker mock
+        orchestrator.health_checker.check_all_services = AsyncMock()
+
+        result = await orchestrator.initialize()
+
+        assert result is True
+        # env MODE=trigger なので connect_websocket は呼ばれない
+        bc.connect_websocket.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_phase90gamma_websocket_started_when_no_trigger_env(
+        self, orchestrator, mock_config, monkeypatch
+    ):
+        """Phase 90γ-②: env MODE 未設定で config.mode=live なら WebSocket 起動される."""
+        monkeypatch.delenv("MODE", raising=False)
+        mock_config.mode = "live"
+
+        bc = MagicMock()
+        bc.connect_websocket = AsyncMock(return_value=True)
+        orchestrator.execution_service.bitbank_client = bc
+
+        orchestrator.health_checker.check_all_services = AsyncMock()
+
+        result = await orchestrator.initialize()
+
+        assert result is True
+        bc.connect_websocket.assert_called_once()
+
 
 class TestOrchestratorRun:
     """TradingOrchestrator実行テスト"""
