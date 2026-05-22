@@ -695,9 +695,26 @@
 - trigger gating 通過 **17 件 / 10 分**（安定動作）
 - 孤児 stop 注文 1 件 → 0 件（Phase 88 H11 自動処理で解消確認）
 
+### Phase 90γ-③: 取引拒否 91% 解消 + Drift 検出再設計 ✅（2026-05-23）
+**契機**: Phase 90γ-② 後 24h ライブ分析深掘りで **「取引拒否率 91% (8h で 493/544)・Drift 連続 285 件・Auto Retraining HTTP 401 リトライ 306 件」の連鎖**を発見
+
+**根本原因**: Drift 連続検出 (consecutive=457) で `should_emergency_stop()` が True → 取引拒否 91% + trigger_retraining → ダミー secret で 401 リトライループ。Phase 90γ-① で見落とした 26+ 個の特徴量（macd / close_ma_*/ volume_ema / funding / cross_asset / VPIN / HMM 系）が drift 判定対象として残っていた
+
+**修正**:
+- **P0**: `should_emergency_stop` から drift OR 撤廃（取引停止は ML 連続失敗のみで判定）
+- **P0**: Auto Retraining にダミー token (DUMMY_ プレフィックス) 検出 + `enable_auto_retraining: false`
+- **P0**: exclude_features 14→40 個に大幅拡張 + significant_feature_min 10→5 緩和
+
+**実測効果**:
+- **Drift 検出件数 285 件/8h → 0 件/10m**（完全沈静化）
+- **Auto Retraining HTTP 401 件数 306 件/8h → 0 件/10m**（完全解消）
+- 取引拒否は Phase 85 trending 全停止仕様による正常動作（市場 trending 抜け待ち）
+
 ### Phase 90 シリーズ全体のコミット履歴
 
 ```
+e529909e fix: Phase 90γ-③ 取引拒否 91% 解消 + Drift 検出再設計
+2d0f5d24 docs: Phase 90γ シリーズ完了に伴うドキュメント整備 + 軽微な不備 2 件修正
 488c820f fix: Phase 90γ-② 致命的バグ修正 + 運用品質改善
 8c55dc71 fix: Phase 90γ-① レビュー指摘の 3 件修正
 6aa26ea9 fix: Phase 90γ-① Drift 検出構造バグ修正 (440 回連続発火問題)
@@ -710,5 +727,5 @@ ad3cd48b feat: ライブモード分析 Phase 90α 対応
 
 ---
 
-**最終更新**: 2026年5月22日
-**ステータス**: **Phase 90γ-② 完了** (trigger モード EMERGENCY_STOP 解消 + bitbank 50062 ポジション反映待ち + 孤児SL クリーンアップ) / Phase 90β + 90γ シリーズ全工程完了 / 本番効果確認済（Phase 88 I3 EMERGENCY_STOP 0 件・Drift 検出 0 件・Phase 50.4 拒否 0 件・bitbank 50062 0 件） / 24h 観察 → Phase 90γ-③ 着手判断フェーズ
+**最終更新**: 2026年5月23日
+**ステータス**: **Phase 90γ-③ 完了** (取引拒否 91% 解消 + Drift 検出再設計 + Auto Retraining 401 ループ解消) / Phase 90β + 90γ シリーズ (4 段階) 全工程完了 / 本番運用層完全正常化（Drift 0 件・401 0 件・EMERGENCY_STOP 0 件・50062 0 件） / 24h 観察 → Phase 90γ-④ (ML 品質改善) 着手判断フェーズ

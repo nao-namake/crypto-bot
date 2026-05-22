@@ -12,24 +12,25 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 90γ-② (致命的バグ修正 + 運用品質改善) 完了・本番デプロイ済（2026-05-22）→ 24h 観察フェーズ**
+**Phase 90γ-③ (取引拒否 91% 解消 + Drift 検出再設計) 完了・本番デプロイ済（2026-05-23）→ 24h 観察フェーズ**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 90γ シリーズ 3 連続修正完了: (γ-①) Drift 検出 **440 連続発火 → 0 件完全沈静化** / (γ-① レビュー) drift カウンタクリア + exclude_features 整理 + reset ログ WARNING 化 / (γ-②) trigger モード **EMERGENCY_STOP 解消** + bitbank 50062 ポジション反映待ち + 孤児SL 自動クリーンアップ |
-| 🎯 Phase 90γ-② 根本発見 | `trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `config/__init__.py:90` の `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503 → トラフィック流入停止。Phase 90β デプロイ以降ずっと続いていた致命的バグ。env MODE 判定方式（Option D）で解消 |
-| 🎯 Phase 90γ-① 根本発見 | Drift 検出が「reference 初回固定 + 価格絶対値 (OHLCV/MA/BB) を比較対象」という構造的欠陥で 440 回連続発火。exclude_features 14 個 + 168h reference reset + significant_feature_min 3→10 で完全沈静化 |
-| 🎯 Phase 90β 根本発見 | `executor.py:1084` で必要証拠金 = 注文額 / 2（50% 固定）が bitbank 動的マージン 30-50% に未追従 + `limits.py` に反対方向制限が未実装 → 両方の独立修正で 1 件ずれても安全側に倒れる設計に |
-| 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` (2 クラスメタラベリング前提) ⇄ CI workflow `--meta-label` フラグなしという大破綻状態を Phase 73-D 以来運用し続けていた。`--meta-label` フラグ追加で macro F1 **0.347 → 0.546（LGB CV）** |
+| 最新成果 | Phase 90γ シリーズ 4 連続修正完了。γ-③ で **取引拒否 91% (drift 誤発火) と Auto Retraining HTTP 401 リトライループを根本解消**。drift OR 撤廃 + ダミー token skip + exclude_features 14→40 個拡張で、運用層の異常を完全正常化 |
+| 🎯 Phase 90γ-③ 根本発見 | **Drift 連続 (consecutive=457) → should_emergency_stop True → 取引拒否 91% + ダミー secret で 401 リトライ 306 件/8h** という連鎖。Phase 90γ-① で見落とした 26+ 個の特徴量（macd / close_ma_* / volume_ema / funding / cross_asset / VPIN / HMM 系）が drift 判定対象として残っていた |
+| 🎯 Phase 90γ-② 根本発見 | `trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503。env MODE 判定方式（Option D）で解消 |
+| 🎯 Phase 90γ-① 根本発見 | Drift 検出が「reference 初回固定 + 価格絶対値を比較対象」という構造的欠陥で 440 回連続発火。exclude_features + 168h reference reset で対処（ただし新特徴量への漏れが γ-③ で完全解決）|
+| 🎯 Phase 90β 根本発見 | `executor.py:1084` で必要証拠金 = 注文額 / 2（50% 固定）が bitbank 動的マージン 30-50% に未追従 + `limits.py` に反対方向制限が未実装 |
+| 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` ⇄ CI workflow `--meta-label` フラグなしという大破綻状態を Phase 73-D 以来運用していた。`--meta-label` フラグ追加で macro F1 **0.347 → 0.546（LGB CV）** |
 | v8e (新) macro F1 | LGB CV **0.546** / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459 |
 | v8e クラス分布 | success 30.8% / failure 69.2%（Triple Barrier 理想分布）|
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| Phase 90γ 修正規模 | 9 ファイル変更 + 1 ファイル新規 / 約 350 行追加 / テスト 15 件追加 / **2441 tests PASS** |
-| 本番効果（5/22 19:30 直近 10 分）| Phase 88 I3 EMERGENCY_STOP **0 件** / Drift 検出 **0 件** / Phase 50.4 拒否 **0 件** / bitbank 50062 **0 件** / trigger gating 通過 17 件 ✅ |
-| 次の予定 | 24h 観察 → Phase 90γ-② P1 (50062 + Taker 率) 効果確認 → Phase 90γ-③ 計画（Calibration 修正 / Focal Loss / CatBoost / Optuna 試行数増 / Multi-Level VPIN）|
+| Phase 90γ 修正規模 | 12 ファイル変更 + 1 ファイル新規 / 約 495 行追加 / テスト 20 件追加 / **2440+ tests PASS** |
+| 本番効果（5/23 06:30 直近 10 分）| **Drift 検出 0 件**（旧 285 件/8h → 0）/ **Auto Retraining HTTP 401 0 件**（旧 306 件/8h → 0）/ Phase 88 I3 EMERGENCY_STOP **0 件** / bitbank 50062 **0 件** / 取引拒否は Phase 85 trending 仕様による正常動作 ✅ |
+| 次の予定 | 24h 観察で取引機会の正常化を確認（市場 trending 抜け待ち）→ Phase 90γ-④ (ML 品質改善: Calibration 修正 / Focal Loss / CatBoost / Optuna 試行数増 / Multi-Level VPIN) 着手判断 |
 | 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/gcp-humming-bear.md` |
-| 最終更新 | 2026年5月22日 - Phase 90γ-② (致命的バグ修正 + 運用品質改善) 全完了 |
+| 最終更新 | 2026年5月23日 - Phase 90γ-③ (取引拒否 91% 解消 + Drift 検出再設計) 全完了 |
 
 ---
 

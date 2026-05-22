@@ -1035,11 +1035,209 @@ for attempt in range(max_wait_sec):
 
 両方とも稀なシナリオで実害は小さいが、コード品質として修正。既存テスト 73 件全て PASS 維持（call_count = 2 は不変・タイムアウト経過時間が 2 秒→1 秒に短縮されるだけ）。
 
-## Phase 90γ-③ 候補
+---
 
-24h 観察結果次第で:
+# Phase 90γ-③: 取引拒否 91% 解消 + Drift 検出再設計（2026-05-23）
 
-1. **Isotonic Calibration 修正** (v8e で失敗・`ProductionEnsemble` に `fit` メソッド不足)
+**期間**: 2026-05-23
+**状態**: 実装完了・本番デプロイ済（コミット `e529909e`）
+**plan**: `~/.claude/plans/gcp-humming-bear.md`
+
+## エグゼクティブサマリ
+
+Phase 90γ-② デプロイ後 24h のライブ分析で表面メトリクスは改善（24h で +¥2,000 黒字・致命的問題 0 件）したが、GCP ログ深掘りで**新たな致命的問題**を発見:
+
+- **8h で 493 件の取引拒否**（gating 通過 544 件中 **91% 拒否**）
+- 8h で 285 件の Drift 検出（Phase 90γ-① で見落とした特徴量で再発火）
+- 8h で 306 件の Auto Retraining HTTP 401（ダミー secret で 401 リトライループ）
+
+連鎖:
+```
+Drift 連続検出 (consecutive=457/3)
+  ↓
+should_emergency_stop() == True  (drift OR 条件)
+  ↓
+trading_cycle_manager.py:453 で取引判断スキップ
+  ↓
+holdシグナルまたは無効なポジションサイズ で取引拒否 (91% 拒否率)
+  ↓
+別経路で Auto Retraining 起動 → ダミー secret → HTTP 401 → リトライループ
+```
+
+3 系統の根本修正で本番運用層を完全正常化。
+
+## 24h GCP ログ調査の重要発見
+
+### 発見 A: 取引拒否 91% 率（致命的）
+
+```
+🚫 取引直前検証により取引拒否 - 理由: holdシグナルまたは無効なポジションサイズ
+```
+
+24h で 629 件発火（`trading_cycle_manager.py:1389`）。発火条件の 1 つに line 453 の `ml_health.should_emergency_stop()` チェックがあり、drift 連続検出で True を返していた。
+
+### 発見 B: Drift 特徴量の進化（exclude_features の見落とし）
+
+Phase 90γ-① 前後で drift 特徴量セットが変化:
+
+| 時期 | drift 特徴量 |
+|---|---|
+| 旧 (5/22 06:00 以前) | open/high/low/close/macd_signal/bb_upper/bb_lower/ema_20/ema_50/cmf_20 |
+| 新 (5/22 19:00 以降) | macd, cmf_20, adx_14, volume_ema, macd_lag_1, close_ma_10, close_ma_20, close_std_20, macd_x_volume, close_x_atr |
+| その後 | hour, hour_cos, funding_rate_8h_avg, btc_realized_vol_24h, btc_funding_premium, vpin_ma20, eth_btc_price_ratio, eth_btc_corr_24h, eth_returns_15m |
+
+Phase 90γ-① で除外した OHLCV/BB/EMA は drift から消えたが、**残り 26+ 個の特徴量が drift 判定対象として残っていた**。
+
+### 発見 C: Auto Retraining HTTP 401 (306 件/8h)
+
+Drift 連続 (consecutive=457) → `trigger_retraining()` 呼出 → `os.environ.get("GITHUB_REPO_DISPATCH_TOKEN")` = ダミー値 `"DUMMY_NOT_USED_PAT_PLACEHOLDER_phase90b"` → GitHub API 401 → リトライループ。
+
+Phase 89-γ の意図「token 未設定なら skip」が、ダミー値で**意図せず認証試行**に変質。
+
+## 修正内容（コミット `e529909e`）
+
+### 🔴 修正 1: should_emergency_stop から drift OR 撤廃
+
+**ファイル**: `src/core/orchestration/ml_health_monitor.py:162-170`
+
+```python
+# Before (Phase 89-β)
+def should_emergency_stop(self) -> bool:
+    return (
+        self.consecutive_failures >= self.threshold
+        or self.consecutive_drift_detections >= self._drift_consecutive_threshold
+    )
+
+# After (Phase 90γ-③)
+def should_emergency_stop(self) -> bool:
+    """連続失敗が閾値以上なら True
+
+    Phase 90γ-③: drift OR 条件を撤廃。drift は warning ログ + Auto Retraining trigger
+    のみに使用し、取引停止には連動させない（誤発火による取引機会喪失防止）。
+    """
+    return self.consecutive_failures >= self.threshold
+```
+
+**安全性**: Phase 87 C4 の本来意図「DummyModel サーキットブレーカー」は維持。ML predict が連続失敗した場合は引き続き True を返す。
+
+### 🔴 修正 2: Auto Retraining ダミー token 検出
+
+**ファイル**: `src/core/orchestration/ml_health_monitor.py:441` 付近
+
+```python
+if not owner or not repo or not token:
+    self.logger.warning("Phase 89-γ Auto Retraining: GitHub 設定不足 → スキップ")
+    return False
+
+# Phase 90γ-③: ダミー値検出（DUMMY_ プレフィックスで判定）
+if token.startswith("DUMMY_"):
+    self.logger.info(
+        "Phase 90γ-③: Auto Retraining ダミー token 検出 → スキップ "
+        "（本物の PAT 発行後に有効化）"
+    )
+    return False
+```
+
+**追加**: `thresholds.yaml.ml.drift.enable_auto_retraining: false` に変更（PAT 未発行・ダミー値での 401 防止）
+
+### 🔴 修正 3: exclude_features 大幅拡張 (14→40 個)
+
+**ファイル**: `config/core/thresholds.yaml:ml.drift.exclude_features`
+
+追加対象（GCP ログ実測 + 性質上時系列変動するもの）:
+
+```yaml
+# Phase 90γ-③ で追加された 26 個
+- macd, macd_x_volume, close_x_atr, macd_lag_1                    # MACD/interaction
+- close_ma_10, close_ma_20, close_std_5, close_std_10, close_std_20  # close 統計
+- volume_ema                                                       # volume 統計
+- hour, hour_cos, day_of_week, day_sin                            # 時刻系
+- funding_rate_8h_avg, fear_greed_index                           # 外部 API
+- btc_realized_vol_24h, btc_funding_premium                       # 外部 API
+- btc_dominance_change, usdjpy_change, nikkei_change_proxy        # 外部 API
+- vpin, vpin_ma20, vpin_change                                    # VPIN
+- hmm_state_bear_prob, hmm_state_bull_prob                        # HMM
+- eth_btc_price_ratio, eth_btc_corr_24h, eth_returns_15m          # cross_asset
+```
+
+**追加設定**: `significant_feature_min: 10 → 5`（除外後の特徴量数減少に合わせ緩和）
+
+## テスト追加
+
+`tests/unit/core/orchestration/test_ml_health_monitor.py::TestPhase90GammaThirdFixes` に 4 件追加:
+- `test_should_emergency_stop_ignores_drift_count`: drift 100 件超でも emergency_stop しない
+- `test_should_emergency_stop_still_works_on_failures`: 連続失敗 3 回で emergency_stop（既存仕様維持）
+- `test_trigger_retraining_skips_dummy_token`: DUMMY_ プレフィックスで skip
+- `test_trigger_retraining_works_with_real_token`: 本物 token は従来通り API 呼出
+
+加えて、Phase 89-β の旧テスト `test_consecutive_drift_triggers_emergency_stop` を Phase 90γ-③ 仕様に書き換え（drift では emergency_stop しないことを検証）。
+
+全テスト 38/38 PASS。
+
+## 実測効果（デプロイ後 10 分）
+
+| 指標 | 旧 (Phase 90γ-② 後 8h) | 新 (γ-③ デプロイ後 10m) | 改善 |
+|---|---|---|---|
+| **Drift 検出件数** | **285 件** | **0 件** | ✅ 完全沈静化 |
+| **Auto Retraining HTTP 401** | **306 件** | **0 件** | ✅ 完全解消 |
+| **Phase 88 I3 EMERGENCY_STOP** | 0 件 | 0 件 | ✅ 継続 |
+| **bitbank 50062** | 0 件 | 0 件 | ✅ 継続 |
+| **trigger gating 通過** | - | 17 件 | ✅ 安定動作 |
+
+## 残る取引拒否は「正常動作」
+
+デプロイ後 10 分で取引拒否 17 件（gating 通過 17 件中）= 100% 拒否率だが、**原因が変わった**:
+
+| 期間 | 拒否率 | 拒否原因 | 性質 |
+|---|---|---|---|
+| Phase 90γ-② 時代 (8h) | 91% | Drift 誤発火で should_emergency_stop True | 🔴 バグ |
+| Phase 90γ-③ デプロイ後 (10m) | 100% | Phase 85 trending 全停止仕様で全戦略重み 0.0 | 🟢 仕様通り |
+
+実ログ（06:30 JST のサイクル）:
+```
+06:30:05 🎯 Phase 89-α Stage 1: gating 通過 → フル取引サイクル開始
+06:30:06 📈 トレンド検出: ADX=58.42, EMA傾き=-0.0024 (強トレンド)
+06:30:06 ✅ 動的戦略選択: レジーム=trending, 全戦略重み 0.00
+06:30:07 🚫 取引直前検証により取引拒否: hold シグナル
+```
+
+`config/core/thresholds.yaml:421-425` の **Phase 85「trending 時は全戦略無効化」仕様**通り。市場が `normal_range` / `tight_range` に戻り次第、戦略重み > 0 で取引再開。
+
+## 関連ファイル
+
+- 計画書: `~/.claude/plans/gcp-humming-bear.md`
+- 修正済本体: `src/core/orchestration/ml_health_monitor.py` `config/core/thresholds.yaml`
+- 修正済テスト: `tests/unit/core/orchestration/test_ml_health_monitor.py` (4 件追加 + 1 件更新)
+
+## コミット履歴（Phase 90γ 全体）
+
+```
+e529909e fix: Phase 90γ-③ 取引拒否 91% 解消 + Drift 検出再設計
+2d0f5d24 docs: Phase 90γ シリーズ完了に伴うドキュメント整備 + 軽微な不備 2 件修正
+488c820f fix: Phase 90γ-② 致命的バグ修正 + 運用品質改善
+8c55dc71 fix: Phase 90γ-① レビュー指摘の 3 件修正
+6aa26ea9 fix: Phase 90γ-① Drift 検出構造バグ修正
+```
+
+## 教訓
+
+1. **Drift 検出と取引停止の連動は危険**
+   - 1 つの誤発火で取引機会の 91% を喪失する設計欠陥
+   - 警告ログと Auto Retraining trigger は維持しつつ、取引停止は ML predict 失敗のみに限定すべき
+
+2. **exclude_features は段階的に育てるしかない**
+   - Phase 90γ-① で 14 個除外 → 26 個漏れて再発火
+   - 「時系列で変動するもの」の定義は実運用で初めて見えるケースが多い
+
+3. **ダミー値は要注意**
+   - Phase 90γ-② で「Auto Retraining は skip される想定」だったが、ダミー値の有無で挙動が変わる
+   - 明示的なプレフィックス検出 (DUMMY_) で安全策を追加
+
+## Phase 90γ-④ 候補（24h 観察後）
+
+運用層の異常を完全解消した後、ML 品質改善へ:
+
+1. **Isotonic Calibration 修正**（v8e で失敗・`ProductionEnsemble` に `fit` メソッド不足）
 2. **Focal Loss** (LGB/XGB): クラス不均衡対策
 3. **CatBoost 追加** or RF 置換: ensemble 多様性向上
 4. **Optuna 試行数増** (50→100): XGBoost 過学習対策

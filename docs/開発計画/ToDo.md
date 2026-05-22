@@ -2,18 +2,19 @@
 
 ## 現在の状態
 
-**Phase 90γ-② (致命的バグ修正 + 運用品質改善) 完了・本番デプロイ済（2026-05-22）**
+**Phase 90γ-③ (取引拒否 91% 解消 + Drift 検出再設計) 完了・本番デプロイ済（2026-05-23）**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 90γ シリーズ 3 連続修正完了。**γ-① Drift 検出 440 連続発火 → 0 件・γ-① レビュー修正 3 件・γ-② trigger モード EMERGENCY_STOP 解消 + bitbank 50062 ポジション反映待ち + 孤児SL クリーンアップ**。本番運用全項目が安定状態へ |
-| 🎯 Phase 90γ-② 根本発見 | **`trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `config/__init__.py:90` の `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503 → トラフィック流入停止**。Phase 90β デプロイ以降ずっと続いていた致命的バグ。`mode == "live"` チェック 10+ 箇所への影響を避けるため env MODE による runtime 判定方式に切替（Option D）|
-| 🎯 Phase 90γ-① 根本発見 | **Drift 検出が「reference 初回固定 + 価格絶対値 (OHLCV/MA/BB) を比較対象」という構造的欠陥で 440 回連続発火**。`exclude_features` 14 個 + 168h reference reset + significant_feature_min 3→10 で **0 件に完全沈静化** |
-| Phase 90γ 修正規模 | **9 ファイル変更 + 1 ファイル新規 / 約 350 行追加 / テスト 15 件追加 / 2441 tests PASS** |
-| 完了 Phase | Phase 87 / 88 / 89 / 90α / 90β / 90γ-① / 90γ-① レビュー / **90γ-②** |
-| **次の予定** | 24h 観察で Phase 90γ-② P1 (50062 + Taker 率) の効果確認 → Phase 90γ-③ 着手判断（Calibration / Focal Loss / CatBoost / Optuna 試行数増 / Multi-Level VPIN）|
-| 本番効果（5/22 19:30 時点・直近 10 分）| Phase 88 I3 EMERGENCY_STOP **0 件** / Drift 検出 **0 件** / Phase 50.4 拒否 **0 件** / bitbank 50062 **0 件** / trigger gating 通過 17 件 ✅ |
-| 最終更新 | 2026年5月22日 - Phase 90γ-② 全実装完了 |
+| 最新成果 | Phase 90γ シリーズ 4 連続修正完了。**γ-③ で取引拒否 91% (drift 誤発火) と Auto Retraining HTTP 401 リトライループを根本解消**。drift OR 撤廃 + ダミー token skip + exclude_features 14→40 個拡張で、運用層の異常を完全正常化 |
+| 🎯 Phase 90γ-③ 根本発見 | **Drift 連続 (consecutive=457) → should_emergency_stop True → 取引拒否 91%（8h で 493/544 拒否）+ ダミー secret で Auto Retraining HTTP 401 リトライ 306 件/8h** という連鎖。Phase 90γ-① で見落とした 26 個の特徴量（macd / close_ma_10/20 / volume_ema / funding/cross_asset/VPIN/HMM/時刻系）が drift 判定対象として残っていた |
+| 🎯 Phase 90γ-② 根本発見 | `trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `config/__init__.py:90` の `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503 → トラフィック流入停止 |
+| 🎯 Phase 90γ-① 根本発見 | Drift 検出が「reference 初回固定 + 価格絶対値を比較対象」という構造的欠陥で 440 回連続発火 |
+| Phase 90γ 修正規模 | **12 ファイル変更 + 1 ファイル新規 / 約 495 行追加 / テスト 20 件追加 / 2440+ tests PASS** |
+| 完了 Phase | Phase 87 / 88 / 89 / 90α / 90β / 90γ-① / 90γ-① レビュー / 90γ-② / **90γ-③** |
+| **次の予定** | 24h 観察で取引機会の正常化を確認（市場 trending 抜け待ち）→ Phase 90γ-④ (ML 品質改善: Calibration / Focal Loss / CatBoost / Optuna 試行数増 / Multi-Level VPIN) 着手判断 |
+| 本番効果（5/23 06:30 時点・直近 10 分）| **Drift 検出 0 件**（旧 285 件/8h → 0 完全沈静化）/ **Auto Retraining HTTP 401 0 件**（旧 306 件/8h → 0）/ Phase 88 I3 EMERGENCY_STOP **0 件** / bitbank 50062 **0 件** / 取引拒否は Phase 85 trending 仕様による正常動作 |
+| 最終更新 | 2026年5月23日 - Phase 90γ-③ 全実装完了 |
 
 ### Phase 90γ シリーズ修正サマリ
 
@@ -37,6 +38,14 @@
 | 1 | trigger モード EMERGENCY_STOP 解消 | `trigger_server.py:112` cmdline_mode→"live" + `orchestrator.py` env MODE 判定 | 稼働率回復・/trigger 全成功 |
 | 2 | bitbank 50062 ポジション反映待ち | `tp_sl_manager._wait_position_reflected()` 新規 + place_take_profit/stop_loss 冒頭呼び出し | TP/SL 配置直前に最大 5 秒待機・50062 防止 |
 | 3 | 孤児SL クリーンアップスクリプト | `scripts/maintenance/cleanup_orphan_orders.py` 新規 | ポジション 0 件確認後に stop 注文を一括キャンセル |
+
+#### Phase 90γ-③ (コミット `e529909e`)
+| # | 項目 | 修正箇所 | 効果 |
+|---|---|---|---|
+| 1 | should_emergency_stop から drift OR 撤廃 | `ml_health_monitor.py:162` consecutive_failures のみで判定 | 取引拒否 91% → 解消（drift 誤発火による誤停止防止）|
+| 2 | Auto Retraining ダミー token 検出 | `ml_health_monitor.py:441` `token.startswith("DUMMY_")` で skip | HTTP 401 リトライループ 306 件/8h → 0 |
+| 3 | exclude_features 14→40 個拡張 | `thresholds.yaml` macd/close_ma/volume_ema/funding/cross_asset/VPIN/HMM/時刻系を網羅 | Drift 検出 285 件/8h → 0 件 |
+| 4 | significant_feature_min 10→5 + enable_auto_retraining false | `thresholds.yaml` | 除外後の特徴量数減少に合わせ緩和 + PAT 未発行時の安全策 |
 
 ### Phase 90β 結果（履歴用）
 
