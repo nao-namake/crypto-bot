@@ -41,7 +41,7 @@ services:
       live:
         memory: "1Gi"
         cpu: "1"
-        min_instances: 1
+        min_instances: 0  # Phase 88 I3: Cloud Scheduler /trigger 駆動（CI workflow MIN_INSTANCES="0" と整合）
         max_instances: 2
         timeout: 3600
         concurrency: 1

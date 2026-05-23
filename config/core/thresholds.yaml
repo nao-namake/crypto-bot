@@ -57,7 +57,7 @@ features:
 cloud_run:
   memory: 768Mi  # Phase 88 I4 で 1Gi → 768Mi に削減（512Mi で OOM 即発生・768Mi が下限）
   cpu: 1
-  min_instances: 1
+  min_instances: 0  # Phase 88 I3: Cloud Scheduler /trigger 駆動（CI workflow MIN_INSTANCES="0" と整合）
   max_instances: 2
   concurrency: 1
   timeout_seconds: 3600
@@ -184,8 +184,9 @@ ml:
     batch_size: 64
     log_every: 5               # Phase 90: 10→5 短縮（ハング検出を早める）
   # Phase 89-β / 89 H9: 特徴量分布 Drift 検出（KS テスト + Bonferroni 補正）
-  # Phase 90γ-①/②/③: 構造的バグ修正
-  #   1. exclude_features: 時系列で変動する特徴量を網羅除外（Phase 90γ-③ で 14→40 個に拡張）
+  # Phase 90γ-①/②/③/③.1: 構造的バグ修正
+  #   1. exclude_features: 時系列で変動する特徴量を網羅除外
+  #      Phase 90γ-③ で 14→40 個に拡張、Phase 90γ-③.1 で 40→59 個に拡張（オシレーター漏れ対応）
   #   2. reference_reset_hours: reference 分布を定期 reset（古い分布との永続乖離防止）
   #   3. significant_feature_min: Phase 90γ-③ で 10→5（除外後の特徴量数減少に合わせ緩和）
   #   4. enable_auto_retraining: Phase 90γ-③ で false に変更（ダミー PAT で 401 ループ防止）
@@ -254,6 +255,27 @@ ml:
       - eth_btc_price_ratio
       - eth_btc_corr_24h
       - eth_returns_15m
+      # Phase 90γ-③.1: オシレーター系（正規化済み相対値・24h 実測で漏れ発覚）
+      # rsi_14: 0-100 / adx/di: 0-100 / cci: ±100 自己正規化 / cmf: -1〜+1
+      # bb_position / channel_position: 0-1 正規化済み相対位置
+      - rsi_14
+      - rsi_lag_1
+      - adx_14
+      - plus_di_14
+      - minus_di_14
+      - cci_20
+      - cmf_20
+      - bb_position
+      - channel_position
+      # volume ラグ系（macd_lag_1 と同種）
+      - volume_lag_1
+      - volume_lag_2
+      - volume_lag_3
+      # 価格 returns 系（close_std 系と同種・実測で 1 件観測）
+      - returns_1
+      - returns_2
+      - returns_3
+      - returns_10
   ensemble_enabled: true
   ensemble_weights:
     lightgbm: 0.3
