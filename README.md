@@ -12,25 +12,26 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 90γ-③ (取引拒否 91% 解消 + Drift 検出再設計) 完了・本番デプロイ済（2026-05-23）→ 24h 観察フェーズ**
+**Phase 90γ-③.1 (Drift exclude_features オシレーター漏れ修正 + min_instances 整合) 完了・本番デプロイ済（2026-05-24 02:53 JST）→ drift 抑制効果検証フェーズ**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 90γ シリーズ 4 連続修正完了。γ-③ で **取引拒否 91% (drift 誤発火) と Auto Retraining HTTP 401 リトライループを根本解消**。drift OR 撤廃 + ダミー token skip + exclude_features 14→40 個拡張で、運用層の異常を完全正常化 |
+| 最新成果 | Phase 90γ-③ デプロイ後 24h ログ実測で **Drift 検出 545 件/24h 継続発生**を発見。検出 TOP15 が **正規化済みオシレーター系**（adx_14 26, cmf_20 16, rsi_14 13, plus_di_14 13, cci_20 13, bb_position 11, channel_position 11）と判明。exclude_features 43→59 個に拡張で漏れを完全網羅 + min_instances 設定をデプロイ実態 (=0) に整合 |
+| 🎯 Phase 90γ-③.1 根本発見 | Phase 90γ-③ で価格スケール連動の特徴量（OHLCV/MA/MACD 系）は exclude したが、**0-1 / 0-100 / -1〜+1 に自己正規化されたオシレーター類が漏れていた**。should_emergency_stop からは drift OR 撤廃済（Phase 90γ-③）なので **実害ゼロ** だが警告ログが過大化。さらに外部 bitbank API + ADX 計算で「24h+ 取引なし」は **trending 相場が本物**と確認（24h 平均 ADX=63.0、24h 全てで ADX>30）。Bot 判定は一般指標と一致 |
 | 🎯 Phase 90γ-③ 根本発見 | **Drift 連続 (consecutive=457) → should_emergency_stop True → 取引拒否 91% + ダミー secret で 401 リトライ 306 件/8h** という連鎖。Phase 90γ-① で見落とした 26+ 個の特徴量（macd / close_ma_* / volume_ema / funding / cross_asset / VPIN / HMM 系）が drift 判定対象として残っていた |
 | 🎯 Phase 90γ-② 根本発見 | `trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503。env MODE 判定方式（Option D）で解消 |
-| 🎯 Phase 90γ-① 根本発見 | Drift 検出が「reference 初回固定 + 価格絶対値を比較対象」という構造的欠陥で 440 回連続発火。exclude_features + 168h reference reset で対処（ただし新特徴量への漏れが γ-③ で完全解決）|
+| 🎯 Phase 90γ-① 根本発見 | Drift 検出が「reference 初回固定 + 価格絶対値を比較対象」という構造的欠陥で 440 回連続発火。exclude_features + 168h reference reset で対処（新特徴量への漏れが γ-③ / γ-③.1 で段階的に完全解決）|
 | 🎯 Phase 90β 根本発見 | `executor.py:1084` で必要証拠金 = 注文額 / 2（50% 固定）が bitbank 動的マージン 30-50% に未追従 + `limits.py` に反対方向制限が未実装 |
 | 🎯 Phase 90α 根本発見 | 運用側 `ml.mode: quality_filter` ⇄ CI workflow `--meta-label` フラグなしという大破綻状態を Phase 73-D 以来運用していた。`--meta-label` フラグ追加で macro F1 **0.347 → 0.546（LGB CV）** |
 | v8e (新) macro F1 | LGB CV **0.546** / Test 0.486・RF CV 0.530 / Test 0.442・N-BEATS CV 0.514 / Test 0.524・XGB CV 0.459 |
 | v8e クラス分布 | success 30.8% / failure 69.2%（Triple Barrier 理想分布）|
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| Phase 90γ 修正規模 | 12 ファイル変更 + 1 ファイル新規 / 約 495 行追加 / テスト 20 件追加 / **2440+ tests PASS** |
-| 本番効果（5/23 06:30 直近 10 分）| **Drift 検出 0 件**（旧 285 件/8h → 0）/ **Auto Retraining HTTP 401 0 件**（旧 306 件/8h → 0）/ Phase 88 I3 EMERGENCY_STOP **0 件** / bitbank 50062 **0 件** / 取引拒否は Phase 85 trending 仕様による正常動作 ✅ |
-| 次の予定 | 24h 観察で取引機会の正常化を確認（市場 trending 抜け待ち）→ Phase 90γ-④ (ML 品質改善: Calibration 修正 / Focal Loss / CatBoost / Optuna 試行数増 / Multi-Level VPIN) 着手判断 |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/gcp-humming-bear.md` |
-| 最終更新 | 2026年5月23日 - Phase 90γ-③ (取引拒否 91% 解消 + Drift 検出再設計) 全完了 |
+| Phase 90γ 修正規模 | 14 ファイル変更 + 1 ファイル新規 / 約 525 行追加 / テスト 20 件追加 / **2440+ tests PASS** |
+| 本番効果（5/24 02:13 ライブ分析時点）| Phase 88 I3 EMERGENCY_STOP **0 件** / bitbank 50062 **0 件** / Phase 50.4 維持率拒否 **0 件** / Auto Retraining HTTP 401 **デプロイ後 0 件** / Drift 検出 545 件/24h は Phase 90γ-③.1 で抑制中 / 取引拒否は Phase 85 trending 仕様（一般指標 ADX 63.0 でも trending と確認）✅ |
+| 次の予定 | 24h 観察で drift 件数 545 → 数十件以下に抑制されたか検証 → Phase 90γ-④ (ML 品質改善: Calibration 修正 / Focal Loss / CatBoost / Optuna 試行数増 / Multi-Level VPIN) 着手判断 |
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/gcp-silly-frog.md`（γ-③.1）/ `~/.claude/plans/gcp-humming-bear.md`（γ-① 〜 γ-③）|
+| 最終更新 | 2026年5月24日 - Phase 90γ-③.1 (Drift オシレーター漏れ修正 + min_instances 整合) 全完了 |
 
 ---
 
@@ -231,4 +232,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年5月15日 - Phase 87 全 Stage 完了・本番デプロイ済 / Phase 88 計画策定完了（GCP仕様 Web 調査反映版・着手予定）
+**最終更新**: 2026年5月24日 - Phase 90γ-③.1 (Drift オシレーター漏れ修正 + min_instances 整合) 完了・本番デプロイ済 → drift 抑制効果検証フェーズ

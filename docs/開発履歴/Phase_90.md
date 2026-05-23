@@ -1233,6 +1233,122 @@ e529909e fix: Phase 90γ-③ 取引拒否 91% 解消 + Drift 検出再設計
    - Phase 90γ-② で「Auto Retraining は skip される想定」だったが、ダミー値の有無で挙動が変わる
    - 明示的なプレフィックス検出 (DUMMY_) で安全策を追加
 
+## Phase 90γ-③.1: Drift exclude_features オシレーター漏れ修正 + min_instances 整合（2026-05-24 02:53 JST デプロイ）
+
+### 24h 観察で発覚した残課題
+
+Phase 90γ-③ デプロイ直後の「直近 10 分で Drift 0 件」という観測サマリに依拠して 24h 観察を待たずに「沈静化」と判定してしまった。実際の 24h 実測（5/24 02:13 ライブ分析）では:
+
+```
+Drift 検出件数:
+  24h: 545 件
+  直近 1h: 73 件
+  consecutive_drift_detections: 12 まで増加
+```
+
+→ Phase 90γ-③ で **drift OR を should_emergency_stop から撤廃済** なので**取引拒否には繋がらない実害ゼロ**だったが、警告ログが過大化して観察ノイズに。
+
+### 検出特徴量 TOP15（24h 集計）
+
+```
+26  adx_14                      ← オシレーター（DI 系）
+16  cmf_20                      ← Chaikin Money Flow (-1〜+1)
+16  close_ma_20  (γ-③ で exclude 済)
+16  close_ma_10  (γ-③ で exclude 済)
+14  macd_x_volume (γ-③ で exclude 済)
+14  macd_lag_1   (γ-③ で exclude 済)
+14  macd         (γ-③ で exclude 済)
+13  rsi_14                      ← 0-100 正規化済み
+13  plus_di_14                  ← 0-100
+13  cci_20                      ← ±100 自己正規化
+12  volume_ema   (γ-③ で exclude 済)
+12  rsi_lag_1                   ← ラグ系（macd_lag_1 と同種だが漏れ）
+11  channel_position            ← 0-1 正規化済み
+11  bb_position                 ← 0-1 正規化済み
+10  close_std_20 (γ-③ で exclude 済)
+```
+
+→ Phase 90γ-③ で価格スケール連動の特徴量（OHLCV/MA/MACD 系）は exclude したが、**0-1 / 0-100 / -1〜+1 に自己正規化されたオシレーター類が漏れていた**。
+
+### 修正内容（コミット `0c40575b`）
+
+#### 修正 1: exclude_features 43→59 個拡張
+
+`config/core/thresholds.yaml` の `ml.drift.exclude_features` に 16 個追加:
+
+```yaml
+# オシレーター系（正規化済み相対値・24h 実測で漏れ発覚）
+- rsi_14
+- rsi_lag_1
+- adx_14
+- plus_di_14
+- minus_di_14
+- cci_20
+- cmf_20
+- bb_position
+- channel_position
+# volume ラグ系（macd_lag_1 と同種・念のため）
+- volume_lag_1
+- volume_lag_2
+- volume_lag_3
+# 価格 returns 系（close_std 系と同種・1 件観測あり）
+- returns_1
+- returns_2
+- returns_3
+- returns_10
+```
+
+#### 修正 2: min_instances 設定整合
+
+Phase 88 I3 で本番 Cloud Run は既に `min_instances=0`（CI workflow `MIN_INSTANCES="0"`）で稼働中だが、設定ファイル群は古い `1` のまま放置されていた。実態に整合:
+
+- `config/core/thresholds.yaml:60`: `cloud_run.min_instances: 1` → `0`
+- `config/infrastructure/gcp_config.yaml:44`: `deployment_modes.live.min_instances: 1` → `0`
+
+### 副次成果: 「24h+ 取引なし」原因究明
+
+外部 bitbank public API + ADX 計算で**Bot 内部のレジーム判定ロジックではなく一般的指標**で trending 相場かを検証:
+
+| 指標 | 値 | 一般的判定 |
+|------|-----|-----------|
+| 直近 1h ADX | 49.9 | トレンド相場（25-50） |
+| 24h 平均 ADX | **63.0** | 非常に強いトレンド |
+| 24h 最大 ADX | 78.8 | 極めて強いトレンド |
+| ADX > 25 だった時間 | **24/24h** | 24h 連続 trending |
+| ADX > 30 (strong) | **24/24h** | 24h 連続 strong trend |
+
+→ **Bot のレジーム判定は一般指標 ADX と完全一致**。Phase 85 trending 全停止仕様による意図的なエントリーゼロは設計通り。
+
+ただし価格絶対変動は小さく（24h で -1.44%）、直近 5h の 1h 値幅は 0.1-0.7% と「実質レンジ」状態。ADX が**遅行指標（過去 14h の平均）**で 5/23 16:00 の急落 -1% の影響を引きずって高止まりしていることが確認された。
+
+### Phase 90γ-④ への議論余地
+
+「**ADX 遅行性により、実価格はレンジ化しているのに Bot は trending 継続判定する**」現象が判明。改善候補:
+
+- ADX + 直近 4h 値幅の AND 条件で判定
+- ADX の変化率（下降中ならレンジ復帰と判定）を加味
+
+ただし Phase 85 全停止根拠（過去 30 日 trending 23 件で全シナリオ赤字・-8,500円）があるため、判定基準の緩和は慎重に検証が必要。
+
+### 関連ファイル
+
+- 計画: `~/.claude/plans/gcp-silly-frog.md`
+- 修正本体: `config/core/thresholds.yaml` `config/infrastructure/gcp_config.yaml`
+- テスト更新: 不要（既存テスト `test_exclude_features_filtered_out` は任意の exclude セットで動作することを検証する設計のため）
+
+### 検証手順（24h 後）
+
+```bash
+# Drift 検出 545 → 数十件以下に抑制されたか
+gcloud logging read 'textPayload=~"Phase 89-β: Drift 検出"' --freshness=24h | wc -l
+
+# 検出特徴量 TOP15 から rsi_14 / adx_14 / cci_20 / cmf_20 / bb_position / channel_position が消えたか
+gcloud logging read 'textPayload=~"Phase 89-β: Drift 検出"' --freshness=24h --format='value(textPayload)' | \
+  grep -oE "features=\[[^\]]+\]" | tr ',' '\n' | grep -oE "'[^']+'" | sort | uniq -c | sort -rn | head -15
+```
+
+---
+
 ## Phase 90γ-④ 候補（24h 観察後）
 
 運用層の異常を完全解消した後、ML 品質改善へ:
@@ -1242,3 +1358,4 @@ e529909e fix: Phase 90γ-③ 取引拒否 91% 解消 + Drift 検出再設計
 3. **CatBoost 追加** or RF 置換: ensemble 多様性向上
 4. **Optuna 試行数増** (50→100): XGBoost 過学習対策
 5. **Multi-Level VPIN + OFI 拡張**: マイクロ構造特徴強化
+6. **ADX 遅行性対策**: 価格は収束していても ADX が高止まりして trending 継続判定する問題（Phase 90γ-③.1 で発覚）。ADX + 直近 4h 値幅の AND 条件 or ADX 変化率を加味。Phase 85 全停止根拠の損失データあるため慎重検証が必要
