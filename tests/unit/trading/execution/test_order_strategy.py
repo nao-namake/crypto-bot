@@ -694,15 +694,16 @@ class TestMakerPriceCalculation:
         assert price == 14500001
 
     def test_buy_wide_spread(self):
-        """Phase 79: 買い注文・広いスプレッド（spread=100円）"""
+        """Phase 79 / 90γ-③.2: 買い注文・広いスプレッド（spread=100円）"""
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500100)
-        # improvement=max(1,min(int(100*0.1),99))=10
-        assert price == 14500010
+        # Phase 90γ-③.2: improvement=max(1,min(int(100*0.3),99))=30
+        assert price == 14500030
 
     def test_sell_wide_spread(self):
-        """Phase 79: 売り注文・広いスプレッド（spread=100円）"""
+        """Phase 79 / 90γ-③.2: 売り注文・広いスプレッド（spread=100円）"""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500100)
-        assert price == 14500090
+        # Phase 90γ-③.2: improvement=30 → best_ask - 30 = 14500070
+        assert price == 14500070
 
     def test_buy_1yen_spread(self):
         """Phase 79: スプレッド1円 → Maker不可（0返却）"""

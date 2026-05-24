@@ -495,8 +495,9 @@ class OrderStrategy:
             self.logger.warning(f"⚠️ Phase 79: スプレッド狭小({spread:.0f}円) - Maker配置不可")
             return 0
 
-        # スプレッド内に配置（best_bid/askから1円改善 or spread*10%の小さい方）
-        improvement = max(1, min(int(spread * 0.1), int(spread - 1)))
+        # スプレッド内に配置（best_bid/askから1円改善 or spread*30%の小さい方）
+        # Phase 90γ-③.2: 旧 spread*0.1 ではほぼ常に 1 円に張り付き約定確率が低かったため 0.3 に拡大
+        improvement = max(1, min(int(spread * 0.3), int(spread - 1)))
 
         if side.lower() == "buy":
             # best_bidより improvement円上（既存買い板より優先される位置）

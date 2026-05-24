@@ -1011,9 +1011,9 @@ order_execution:
   maker_strategy:
     enabled: true
     max_retries: 3
-    retry_interval_ms: 5000
+    retry_interval_ms: 2000           # Phase 90γ-③.2: 5000→2000（タイムアウト 60s 内で 3 回確実に試行 + 板変化を待てる）
     timeout_seconds: 60
-    price_adjustment_tick: 100
+    price_adjustment_tick: 5          # Phase 90γ-③.2: 100→5（BTC/JPY spread 2-20円範囲に合わせて微調整化）
     max_price_adjustment_ratio: 0.001
     fallback_to_taker: true
     disable_on_high_volatility: true
