@@ -299,14 +299,45 @@ class ExecutionService:
                 if maker_result and maker_result.success:
                     self.logger.info("✅ Phase 62.9: Maker約定成功 → 後続処理へ")
                 else:
-                    # Maker失敗 → Takerフォールバック判定
+                    # Phase 90γ-③.3: ML 信頼度ベース動的 Taker fallback
+                    # 高信頼度取引のみ Taker 進行を許可し、低信頼度は手数料回避のためスキップ
                     fallback_enabled = get_threshold(
                         "order_execution.maker_strategy.fallback_to_taker", True
                     )
-                    if fallback_enabled:
-                        self.logger.info("📡 Phase 62.9: Maker失敗 → Takerフォールバック")
-                        maker_result = None  # Takerロジックへ
+                    confidence_threshold = get_threshold(
+                        "order_execution.maker_strategy.taker_fallback_confidence_threshold",
+                        0.65,
+                    )
+                    confidence = float(evaluation.confidence_level or 0.0)
+
+                    if fallback_enabled and confidence >= confidence_threshold:
+                        self.logger.info(
+                            f"📡 Phase 90γ-③.3: Maker失敗 → Taker許可 "
+                            f"(信頼度 {confidence:.3f} >= {confidence_threshold})"
+                        )
+                        maker_result = None  # 既存 Takerロジックへ
+                    elif fallback_enabled:
+                        # 低信頼度時は Taker コスト回避でスキップ
+                        self.logger.warning(
+                            f"⏭️ Phase 90γ-③.3: Maker失敗 + 低信頼度でスキップ "
+                            f"(信頼度 {confidence:.3f} < {confidence_threshold})"
+                        )
+                        return ExecutionResult(
+                            success=False,
+                            mode=ExecutionMode.LIVE,
+                            order_id=None,
+                            price=0.0,
+                            amount=0.0,
+                            error_message=(
+                                f"Phase 90γ-③.3: Maker失敗 + 低信頼度 "
+                                f"({confidence:.3f}) でスキップ"
+                            ),
+                            side=side,
+                            fee=0.0,
+                            status=OrderStatus.FAILED,
+                        )
                     else:
+                        # 既存挙動: fallback 無効 → エントリー中止
                         self.logger.warning(
                             "⚠️ Phase 62.9: Maker失敗・フォールバック無効 → エントリー中止"
                         )

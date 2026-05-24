@@ -1016,6 +1016,11 @@ order_execution:
     price_adjustment_tick: 5          # Phase 90γ-③.2: 100→5（BTC/JPY spread 2-20円範囲に合わせて微調整化）
     max_price_adjustment_ratio: 0.001
     fallback_to_taker: true
+    # Phase 90γ-③.3: Maker 失敗時の Taker fallback を ML 信頼度で動的判定
+    # confidence >= 閾値 → Taker 進行（高品質取引は手数料払って取りに行く）
+    # confidence < 閾値 → エントリースキップ（Taker コスト回避）
+    # 0.65 根拠: 既存 high_confidence_failure_threshold (0.65) と整合・accept_threshold (0.58) より厳しめ
+    taker_fallback_confidence_threshold: 0.65
     disable_on_high_volatility: true
     volatility_threshold: 0.02
     min_spread_for_maker: 0

@@ -520,6 +520,124 @@ class TestExecuteTradeLiveMode:
         assert "50061" in result.error_message
 
 
+class TestPhase90Gamma33MakerFallbackConfidence:
+    """Phase 90γ-③.3: ML 信頼度ベース動的 Taker fallback テスト
+
+    Maker 失敗時、ML 信頼度で Taker 進行 / スキップを判定:
+    - confidence >= 0.65 → Taker 進行（高品質取引は手数料払って取りに行く）
+    - confidence < 0.65 → エントリースキップ（Taker コスト回避）
+    """
+
+    @staticmethod
+    def _mock_threshold_factory(fallback_enabled=True, threshold=0.65):
+        """Phase 90γ-③.3 用 mock_threshold ファクトリ"""
+
+        def mock_get_threshold(key, default=None):
+            threshold_map = {
+                "data.symbol": "BTC/JPY",
+                "risk.fallback_atr": 500000,
+                "risk.require_tpsl_recalculation": False,
+                "order_execution.maker_strategy.fallback_to_taker": fallback_enabled,
+                "order_execution.maker_strategy.taker_fallback_confidence_threshold": (threshold),
+            }
+            return threshold_map.get(key, default)
+
+        return mock_get_threshold
+
+    @staticmethod
+    def _make_failing_maker_strategy(use_maker=True):
+        """Maker戦略モック（execute_maker_order が None=失敗 を返す）"""
+        mock_strategy = AsyncMock()
+        mock_strategy.get_maker_execution_config = AsyncMock(
+            return_value={
+                "use_maker": use_maker,
+                "price": 13950000.0,
+                "best_bid": 13949000.0,
+                "best_ask": 13950000.0,
+                "spread_ratio": 0.0001,
+            }
+        )
+        mock_strategy.execute_maker_order = AsyncMock(return_value=None)  # Maker 失敗
+        mock_strategy.get_optimal_execution_config = AsyncMock(
+            return_value={"order_type": "market", "price": None, "strategy": "taker"}
+        )
+        mock_strategy.ensure_minimum_trade_size = MagicMock(side_effect=lambda e: e)
+        return mock_strategy
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.executor.get_threshold")
+    async def test_maker_fail_high_confidence_proceeds_to_taker(
+        self, mock_threshold, sample_evaluation, mock_bitbank_client
+    ):
+        """Maker 失敗 + 高信頼度 (0.70 >= 0.65) → Taker 進行"""
+        mock_threshold.side_effect = self._mock_threshold_factory(
+            fallback_enabled=True, threshold=0.65
+        )
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        mock_strategy = self._make_failing_maker_strategy()
+        service.inject_services(order_strategy=mock_strategy)
+
+        # 高信頼度（閾値以上）
+        sample_evaluation.confidence_level = 0.70
+
+        result = await service.execute_trade(sample_evaluation)
+
+        # Taker で進行して成功
+        assert result.success is True
+        # Taker注文経路に到達したことを確認
+        mock_strategy.get_optimal_execution_config.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.executor.get_threshold")
+    async def test_maker_fail_low_confidence_skips_entry(
+        self, mock_threshold, sample_evaluation, mock_bitbank_client
+    ):
+        """Maker 失敗 + 低信頼度 (0.55 < 0.65) → エントリースキップ"""
+        mock_threshold.side_effect = self._mock_threshold_factory(
+            fallback_enabled=True, threshold=0.65
+        )
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        mock_strategy = self._make_failing_maker_strategy()
+        service.inject_services(order_strategy=mock_strategy)
+
+        # 低信頼度（閾値未満）
+        sample_evaluation.confidence_level = 0.55
+
+        result = await service.execute_trade(sample_evaluation)
+
+        # スキップで失敗
+        assert result.success is False
+        assert result.status == OrderStatus.FAILED
+        assert "低信頼度" in result.error_message
+        # Taker注文は呼ばれない
+        mock_strategy.get_optimal_execution_config.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.executor.get_threshold")
+    async def test_maker_fail_fallback_disabled_cancels_entry(
+        self, mock_threshold, sample_evaluation, mock_bitbank_client
+    ):
+        """Maker 失敗 + fallback_to_taker=False → エントリー中止 (既存挙動)"""
+        mock_threshold.side_effect = self._mock_threshold_factory(
+            fallback_enabled=False, threshold=0.65
+        )
+        service = ExecutionService(mode="live", bitbank_client=mock_bitbank_client)
+        mock_strategy = self._make_failing_maker_strategy()
+        service.inject_services(order_strategy=mock_strategy)
+
+        # 高信頼度でも fallback 無効なら中止
+        sample_evaluation.confidence_level = 0.70
+
+        result = await service.execute_trade(sample_evaluation)
+
+        # 既存挙動（中止）
+        assert result.success is False
+        assert result.status == OrderStatus.FAILED
+        assert "フォールバック無効" in result.error_message
+        # Taker注文は呼ばれない
+        mock_strategy.get_optimal_execution_config.assert_not_called()
+
+
 class TestExecuteTradePaperMode:
     """ペーパートレード実行テスト"""
 
