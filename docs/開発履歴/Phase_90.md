@@ -1349,13 +1349,135 @@ gcloud logging read 'textPayload=~"Phase 89-β: Drift 検出"' --freshness=24h -
 
 ---
 
-## Phase 90γ-④ 候補（24h 観察後）
+## Phase 90γ-③.2: Maker 戦略の Taker フォールバック削減（2026-05-24 16:13 JST デプロイ・コミット `6996737a`）
 
-運用層の異常を完全解消した後、ML 品質改善へ:
+### 発見の経緯
 
-1. **Isotonic Calibration 修正**（v8e で失敗・`ProductionEnsemble` に `fit` メソッド不足）
-2. **Focal Loss** (LGB/XGB): クラス不均衡対策
-3. **CatBoost 追加** or RF 置換: ensemble 多様性向上
-4. **Optuna 試行数増** (50→100): XGBoost 過学習対策
-5. **Multi-Level VPIN + OFI 拡張**: マイクロ構造特徴強化
-6. **ADX 遅行性対策**: 価格は収束していても ADX が高止まりして trending 継続判定する問題（Phase 90γ-③.1 で発覚）。ADX + 直近 4h 値幅の AND 条件 or ADX 変化率を加味。Phase 85 全停止根拠の損失データあるため慎重検証が必要
+Phase 90γ-③.1 デプロイ後の `/loop` 観察フェーズで、ユーザーから「エントリーが Taker になる問題は解決できないか？」との指摘。CLAUDE.md 手数料設定:
+- Maker 成功時: 0%
+- Taker フォールバック時: 0.1%
+- 1 取引あたり約 180 円（注文額 18 万円 × 0.1%）
+
+GCP ログ 7 日間実測:
+
+| 原因 | 件数/7日 | 件数/日換算 |
+|-----|---------|-----------|
+| スプレッド狭小（<2 円）即 Taker | 68 | 約 10 |
+| Maker タイムアウト（60 秒未約定） | 68 | 約 10 |
+| **合計** | **136** | **約 20** |
+
+→ **手数料コスト 約 3,600 円/日**（取引活発時の試算）。
+
+### コード解析で判明した 3 つのボトルネック
+
+1. **`improvement = max(1, min(spread×0.1, spread-1))` がほぼ常に 1 円に張り付く** (`order_strategy.py:499`)
+   - spread=10 円 → improvement=1 → best_bid 直貼り → 約定確率低
+
+2. **`price_adjustment_tick: 100` 円が大きすぎる** (`thresholds.yaml:1016`)
+   - リトライ 3 回で 300 円乖離 → BTC/JPY spread 2-20 円範囲外 → 約定不可
+
+3. **`retry_interval_ms: 5000` で 15 秒消費** (`thresholds.yaml:1014`)
+   - 残り 45 秒に追加試行なし → タイムアウト
+
+### 修正内容（コミット `6996737a`）
+
+| 修正 | 旧 → 新 | 効果 |
+|------|--------|------|
+| `improvement` 計算 (`order_strategy.py:499`) | spread×0.1 → **spread×0.3** | spread=10 円で 1→3 円改善・約定確率向上 |
+| `price_adjustment_tick` | 100 → **5** 円 | リトライ 3 回で 300→15 円乖離・spread 範囲内 |
+| `retry_interval_ms` | 5000 → **2000** ms | 15 秒→6 秒消費・タイムアウト内に余裕 |
+| テスト更新 | `test_buy_wide_spread` / `test_sell_wide_spread` improvement 期待値 10→30 | 2 件のみ |
+
+### 実測効果（5/25 04:25 ライブ分析時点）
+
+- **Maker タイムアウトログ: 0 件/24h** ✅（リトライ系修正は完全成功）
+- Phase 79「スプレッド狭小」ログ: 17 件/24h（spread<2 円の物理制約・修正対象外）
+- Taker 100% は継続（→ Phase 90γ-③.3 で対処）
+
+### 修正対象外（→ Phase 90γ-③.3）
+
+- spread<2 円の即 Taker フォールバック: 物理的に Maker 配置不可（best_bid+1=best_ask で post_only reject）
+- TP Maker 失敗（bitbank 50062）: Phase 90γ-② で別系統対策済
+
+---
+
+## Phase 90γ-③.3: ML 信頼度ベース動的 Taker fallback（2026-05-25 デプロイ・コミット `a6b5fe1e`）
+
+### 発見の経緯
+
+Phase 90γ-③.2 デプロイ後 12 時間以上経過した 5/25 04:25 ライブ分析:
+- Drift 検出: **0 件/24h**（Phase 90γ-③.1 完全成功）
+- Bot 機能診断スコア: 85 → 101 点（大幅改善）
+- エントリー 3 件・勝率 100% / +¥1,500（取引機能再開）
+- **しかし Phase 86 Taker 率: 100%（Maker 0 / Taker 3）**
+
+詳細調査:
+- Maker タイムアウトログ: **0 件**（Phase 90γ-③.2 修正は機能）
+- Maker 約定成功ログ: 0 件
+- **Phase 79「スプレッド狭小(1円)」ログ: 17 件/24h**
+
+→ Taker 100% の真因は「Maker リトライ失敗」ではなく、**BTC/JPY スプレッド 1 円の時間帯にエントリー集中**したこと。spread=1 円では `best_bid+1=best_ask` で post_only reject が物理的に避けられないため Maker 配置不能 → 無条件 Taker フォールバックで 0.1% 手数料発生。
+
+### 修正方針: ML 信頼度ベース動的 Taker fallback
+
+`executor.py:302-323` の Maker 失敗時フォールバック分岐を ML 信頼度ベース動的判定に拡張:
+
+| 条件 | 挙動 | 設定値 |
+|------|------|--------|
+| `confidence_level >= 0.65` | Taker 進行（高品質取引は手数料払って取りに行く） | `taker_fallback_confidence_threshold: 0.65` |
+| `confidence_level < 0.65` | エントリースキップ（Taker コスト回避） | 同上 |
+| `fallback_to_taker=false` | エントリー中止（既存挙動） | 既存 |
+
+**0.65 の根拠**:
+- CLAUDE.md の `high_confidence_failure_threshold: 0.65`（ML 品質フィルタの「高信頼度失敗予測」閾値）と整合
+- 既存品質フィルタ `accept_threshold: 0.58` よりやや厳しめ（Taker コストを払う価値がある = 厳選）
+
+### 修正内容（コミット `a6b5fe1e`）
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `src/trading/execution/executor.py:302-323` | フォールバック分岐拡張（high/low/disabled の 3 経路）|
+| `config/core/thresholds.yaml` | `taker_fallback_confidence_threshold: 0.65` 追加（コメント含む 5 行）|
+| `tests/unit/trading/execution/test_executor.py` | `TestPhase90Gamma33MakerFallbackConfidence` クラスで 3 件追加 |
+
+### テスト追加
+
+| テスト | シナリオ | 検証 |
+|--------|---------|------|
+| `test_maker_fail_high_confidence_proceeds_to_taker` | Maker 失敗 + confidence 0.70 | Taker 進行・`get_optimal_execution_config` 呼出 |
+| `test_maker_fail_low_confidence_skips_entry` | Maker 失敗 + confidence 0.55 | スキップ・「低信頼度」エラーメッセージ |
+| `test_maker_fail_fallback_disabled_cancels_entry` | fallback_to_taker=false | 既存中止挙動・error_message "フォールバック無効" |
+
+### 期待効果
+
+- **手数料コスト 30-50% 削減**（低信頼度 Maker 失敗をスキップ）
+- **高品質取引は機会喪失ゼロ**（confidence >= 0.65 は従来通り Taker で確保）
+- **設定値で閾値調整可能**（緩めたければ 0.0 で旧挙動、厳しくしたければ 0.7 等）
+
+### 検証手順
+
+```bash
+# Phase 90γ-③.3 動的判定ログ（1h 観察）
+gcloud logging read 'textPayload=~"Phase 90γ-③.3.*Taker許可"' --freshness=1h | wc -l
+gcloud logging read 'textPayload=~"Phase 90γ-③.3.*スキップ"' --freshness=1h | wc -l
+
+# 7 日後の Maker / Taker / スキップ比率
+echo "Maker 約定:" && gcloud logging read 'textPayload=~"Maker約定成功"' --freshness=7d | wc -l
+echo "Taker 許可:" && gcloud logging read 'textPayload=~"Phase 90γ-③.3.*Taker許可"' --freshness=7d | wc -l
+echo "スキップ:"   && gcloud logging read 'textPayload=~"Phase 90γ-③.3.*スキップ"' --freshness=7d | wc -l
+```
+
+---
+
+## Phase 90γ-④ 候補（7 日観察後）
+
+運用層の異常を完全解消した後、ML 品質改善へ。**推奨「案 1: 短期 ROI 最大化」**（工数 4 時間・期待 +0.03-0.07 macro F1・最小リスク）:
+
+1. **Optuna 試行数増** (50→100) [最優先・容易・1 行変更で XGB 過学習対策]
+2. **Focal Loss** (LGB/XGB) [容易・SMOTE と相補・期待 +0.01-0.03]
+3. **Isotonic Calibration 修正**（v8e で失敗・`ProductionEnsemble` に `fit` メソッド不足）[容易・品質フィルタ精度向上]
+
+将来候補（Phase 90γ-⑤ 以降）:
+4. **CatBoost 追加** or RF 置換: ensemble 多様性向上 [中・コンテナ肥大化 30-40%]
+5. **Multi-Level VPIN + OFI 拡張**: マイクロ構造特徴強化 [困難・WebSocket 統合必要]
+6. **ADX 遅行性対策**: 価格は収束していても ADX が高止まりして trending 継続判定する問題（Phase 90γ-③.1 で発覚）。ADX + 直近 4h 値幅の AND 条件 or ADX 変化率を加味。**Phase 85 全停止根拠（過去 30 日 trending 23 件全シナリオ赤字）との両立検証が必須**
