@@ -401,7 +401,8 @@ class OrderStrategy:
         if price <= 0:
             return {"use_maker": False, "disable_reason": "price_calculation_failed"}
 
-        self.logger.info(
+        # Phase 90γ-③.4: 本番 LOG_LEVEL=WARNING (Phase 88 I1) で観察可能にするため warning 格上げ
+        self.logger.warning(
             f"📡 Phase 62.9: Maker戦略有効 - {evaluation.side} @ {price:.0f}円 "
             f"(スプレッド: {conditions['spread_ratio'] * 100:.3f}%)"
         )
@@ -502,7 +503,8 @@ class OrderStrategy:
         if side.lower() == "buy":
             # best_bidより improvement円上（既存買い板より優先される位置）
             price = best_bid + improvement
-            self.logger.info(
+            # Phase 90γ-③.4: warning 格上げ（観察可能化）
+            self.logger.warning(
                 f"📡 Phase 79: Maker買い価格 {price:.0f}円 "
                 f"(best_bid={best_bid:.0f} +{improvement}, スプレッド={spread:.0f}円)"
             )
@@ -511,7 +513,8 @@ class OrderStrategy:
         elif side.lower() == "sell":
             # best_askより improvement円下（既存売り板より優先される位置）
             price = best_ask - improvement
-            self.logger.info(
+            # Phase 90γ-③.4: warning 格上げ（観察可能化）
+            self.logger.warning(
                 f"📡 Phase 79: Maker売り価格 {price:.0f}円 "
                 f"(best_ask={best_ask:.0f} -{improvement}, スプレッド={spread:.0f}円)"
             )
@@ -574,7 +577,8 @@ class OrderStrategy:
                 return None
 
             try:
-                self.logger.info(
+                # Phase 90γ-③.4: warning 格上げ（観察可能化）
+                self.logger.warning(
                     f"📡 Phase 62.9: Maker注文試行 {attempt + 1}/{max_retries} - "
                     f"{side} {amount:.4f} BTC @ {current_price:.0f}円 (post_only)"
                 )
@@ -604,7 +608,8 @@ class OrderStrategy:
                     filled_price = filled.get("price", current_price)
                     filled_amount = filled.get("amount", amount)
 
-                    self.logger.info(
+                    # Phase 90γ-③.4: warning 格上げ（観察可能化）
+                    self.logger.warning(
                         f"✅ Phase 62.9: Maker約定成功 - "
                         f"ID: {order_id}, 価格: {filled_price:.0f}円, "
                         f"手数料: Maker(0%)"

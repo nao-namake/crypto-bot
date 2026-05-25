@@ -311,7 +311,8 @@ class ExecutionService:
                     confidence = float(evaluation.confidence_level or 0.0)
 
                     if fallback_enabled and confidence >= confidence_threshold:
-                        self.logger.info(
+                        # Phase 90γ-③.4: warning 格上げ（観察可能化）
+                        self.logger.warning(
                             f"📡 Phase 90γ-③.3: Maker失敗 → Taker許可 "
                             f"(信頼度 {confidence:.3f} >= {confidence_threshold})"
                         )

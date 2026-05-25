@@ -1010,9 +1010,9 @@ order_execution:
     check_interval_seconds: 60
   maker_strategy:
     enabled: true
-    max_retries: 3
-    retry_interval_ms: 2000           # Phase 90γ-③.2: 5000→2000（タイムアウト 60s 内で 3 回確実に試行 + 板変化を待てる）
-    timeout_seconds: 60
+    max_retries: 5                    # Phase 90γ-③.4: 3→5（120s timeout 内で最大 5 回試行）
+    retry_interval_ms: 1500           # Phase 90γ-③.4: 2000→1500（spread 変化を素早くキャッチ。Phase 90γ-③.2: 5000→2000）
+    timeout_seconds: 120              # Phase 90γ-③.4: 60→120（5 分 trigger サイクル内で 2 倍待機。spread 拡大を待つ）
     price_adjustment_tick: 5          # Phase 90γ-③.2: 100→5（BTC/JPY spread 2-20円範囲に合わせて微調整化）
     max_price_adjustment_ratio: 0.001
     fallback_to_taker: true
