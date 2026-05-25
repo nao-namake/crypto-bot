@@ -2,22 +2,23 @@
 
 ## 現在の状態
 
-**Phase 90γ-③.3 (ML 信頼度ベース動的 Taker fallback) 完了・本番デプロイ済（2026-05-25）**
+**Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 完了・本番デプロイ済（2026-05-26）**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | Phase 90γ-③.2 デプロイ後の 5/25 ライブ分析で **Drift 0 件 / Maker タイムアウト 0 件**（③.1・③.2 効果実証）達成。一方 **エントリー 3 件すべて Taker（Phase 86 警告）** を発見し、原因は BTC/JPY スプレッド 1 円の物理的制約と判定。ML 信頼度ベース動的 Taker fallback を実装：confidence ≥ 0.65 で Taker 進行・< 0.65 でエントリースキップ |
-| 🎯 Phase 90γ-③.3 根本発見 | Maker タイムアウト 0 件だが Phase 79「スプレッド狭小(1円)」が **17 件/24h**。spread=1 円では `best_bid+1=best_ask` で post_only reject が物理的に避けられず、無条件 Taker fallback で毎回 0.1% 手数料発生。**ML 信頼度判定で「高品質取引は手数料払って取りに行く・低品質はコスト回避でスキップ」という構造的トレードオフを明示化** |
+| 最新成果 | 5/26 ライブ分析で Phase 86 Taker 率 100% 継続を確認。詳細調査で 2 つの根本問題が判明：本番 `LOG_LEVEL=WARNING`（Phase 88 I1 コスト削減）により Maker 主要ログが**観察不能**だったこと + timeout 60s が 5 分 trigger サイクル内で短すぎたこと。対策として A. ログレベル格上げ（6 箇所 info→warning）+ B. timeout 60→120 秒 / retry 2000→1500ms / max_retries 3→5 を A+B 同時実装。**コードロジック変更ゼロで取引件数を減らさず Maker 化を狙う** |
+| 🎯 Phase 90γ-③.4 根本発見 | 本番 `LOG_LEVEL=WARNING` で Maker 戦略の主要ログ（Phase 62.9 / Phase 79 / Phase 90γ-③.3 Taker許可）がすべて **INFO レベル**で実装されていたため Cloud Logging に出ず、Phase 86 Taker 100% の真因が**観察不能**だった。残り 3 件の Taker は経路不明。コードロジック変更ゼロでログレベルを格上げ + timeout 拡張で「取引件数減らさず観察 + Maker 化」を同時達成 |
+| 🎯 Phase 90γ-③.3 根本発見 | Maker タイムアウト 0 件だが Phase 79「スプレッド狭小(1円)」が継続発生。spread=1 円では `best_bid+1=best_ask` で post_only reject が物理的に避けられず、無条件 Taker fallback で毎回 0.1% 手数料発生。**ML 信頼度判定で「高品質取引は手数料払って取りに行く・低品質はコスト回避でスキップ」という構造的トレードオフを明示化** |
 | 🎯 Phase 90γ-③.2 根本発見 | GCP ログ 7d 実測で Taker フォールバック 136 件/7日（スプレッド狭小 68 + Maker タイムアウト 68）。コード解析で 3 ボトルネック特定：improvement spread×0.1 張り付き / tick 100 円乖離 / retry 5000ms 浪費。3 値同時修正で Maker タイムアウト 0 件達成 |
 | 🎯 Phase 90γ-③.1 根本発見 | Phase 90γ-③ で価格スケール連動の特徴量（OHLCV/MA/MACD 系）は exclude したが、**0-1 / 0-100 / -1〜+1 に自己正規化されたオシレーター類が漏れていた**。should_emergency_stop からは drift OR 撤廃済（Phase 90γ-③）なので**実害ゼロ**だが警告ログが過大化。外部 bitbank API + ADX 計算で「24h+ 取引なし」は**trending 相場が本物**と確認（24h 平均 ADX 63.0・24h 全てで ADX>30 = 一般指標でも明確な trending）|
 | 🎯 Phase 90γ-③ 根本発見 | **Drift 連続 (consecutive=457) → should_emergency_stop True → 取引拒否 91%（8h で 493/544 拒否）+ ダミー secret で Auto Retraining HTTP 401 リトライ 306 件/8h** という連鎖。Phase 90γ-① で見落とした 26 個の特徴量（macd / close_ma_10/20 / volume_ema / funding/cross_asset/VPIN/HMM/時刻系）が drift 判定対象として残っていた |
 | 🎯 Phase 90γ-② 根本発見 | `trigger_server.py:112` が `cmdline_mode="trigger"` を渡すが `config/__init__.py:90` の `valid_modes` に "trigger" がなく ValueError → EMERGENCY_STOP → /health 503 → トラフィック流入停止 |
 | 🎯 Phase 90γ-① 根本発見 | Drift 検出が「reference 初回固定 + 価格絶対値を比較対象」という構造的欠陥で 440 回連続発火 |
-| Phase 90γ 修正規模 | **17 ファイル変更 + 1 ファイル新規 / 約 700 行追加 / テスト 25 件追加 / 2440+ tests PASS** |
-| 完了 Phase | Phase 87 / 88 / 89 / 90α / 90β / 90γ-① / 90γ-① レビュー / 90γ-② / 90γ-③ / 90γ-③.1 / 90γ-③.2 / **90γ-③.3** |
-| **次の予定** | 7 日観察で Maker / Taker 進行 / スキップの比率推移と手数料コスト削減効果を測定 → Phase 90γ-④ (ML 品質改善・推奨案 1: Optuna 50→100 + Focal Loss + Isotonic Calibration 修正) 着手判断 |
-| 本番効果（5/25 04:25 ライブ分析時点・Phase 90γ-③.2 デプロイ後）| **Drift 検出 0 件/24h**（Phase 90γ-③.1 完全成功）/ **Maker タイムアウト 0 件**（Phase 90γ-③.2 リトライ系修正成功）/ **エントリー 3 件・勝率 100% / +¥1,500**（取引機能再開）/ Phase 86 Taker 率 100%（Phase 90γ-③.3 で対処済）|
-| 最終更新 | 2026年5月25日 - Phase 90γ-③.2 (Maker タイムアウト対策) + Phase 90γ-③.3 (ML信頼度ベース動的 Taker fallback) 全実装完了 |
+| Phase 90γ 修正規模 | **18 ファイル変更 + 1 ファイル新規 / 約 715 行追加 / テスト 25 件追加 / 2440+ tests PASS** |
+| 完了 Phase | Phase 87 / 88 / 89 / 90α / 90β / 90γ-① / 90γ-① レビュー / 90γ-② / 90γ-③ / 90γ-③.1 / 90γ-③.2 / 90γ-③.3 / **90γ-③.4** |
+| **次の予定** | **24h 後（5/27 朝）に再度ライブ分析**で真の Maker 阻害要因特定 + Maker 化率を確認 → Phase 90γ-③.5 (post_only=False 並行試行) or Phase 90γ-④ (ML 改善) 着手判断 |
+| 本番効果（5/26 05:08 ライブ分析時点）| Drift 検出 13 件/24h（Phase 90γ-③.1 効果維持・許容範囲）/ Maker タイムアウト 0 件 / エントリー 3 件・勝率 100% / +¥1,500 / Phase 86 Taker 率 100% (5/5) → Phase 90γ-③.4 で観察可能化 + timeout 拡張デプロイ済（24h 後の再観察で効果測定）|
+| 最終更新 | 2026年5月26日 - Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 全実装完了 |
 
 ### Phase 90γ シリーズ修正サマリ
 
@@ -74,7 +75,16 @@
 | 2 | 設定追加 | `thresholds.yaml` に `taker_fallback_confidence_threshold: 0.65` 追加 | 既存 `high_confidence_failure_threshold` と整合・accept_threshold 0.58 より厳しめ |
 | 3 | テスト追加 | `TestPhase90Gamma33MakerFallbackConfidence` クラスで 3 件（高信頼度→Taker / 低信頼度→スキップ / fallback無効→中止）| 全テスト PASS |
 | 期待効果 | **手数料コスト 30-50% 削減**（低信頼度 Maker 失敗をスキップ）/ 高品質取引は機会喪失ゼロ | - |
-| 発見経緯 | 5/25 ライブ分析で「Phase 86 Taker 率 100%」発見 → Phase 79 ログ 17 件/24h（すべて spread<2 円）= BTC/JPY 板の物理的制約 → 構造的トレードオフを明示化 | - |
+| 発見経緯 | 5/25 ライブ分析で「Phase 86 Taker 率 100%」発見 → Phase 79 ログ（すべて spread<2 円）= BTC/JPY 板の物理的制約 → 構造的トレードオフを明示化 | - |
+
+#### Phase 90γ-③.4 (コミット `1dbaf0ec`)
+| # | 項目 | 修正箇所 | 効果 |
+|---|---|---|---|
+| A | ログレベル格上げ (5 箇所) | `order_strategy.py` の Maker戦略有効・Maker注文試行・Maker約定成功・Maker買い価格・Maker売り価格を info→warning | 本番 LOG_LEVEL=WARNING で観察可能化（コードロジック変更ゼロ）|
+| A | ログレベル格上げ (1 箇所) | `executor.py:314` の Phase 90γ-③.3 Taker許可を info→warning | 同上 |
+| B | timeout 拡張 | `thresholds.yaml`：timeout_seconds 60→120 / retry_interval_ms 2000→1500 / max_retries 3→5 | 5 分 trigger サイクル内で 2 倍待機 → spread 拡大を待てる |
+| 期待効果 | (1) 真の Maker 阻害要因が観察可能化（残り 3 件の Taker 経路が判明）(2) Maker 化率 0% → 40-70% 期待（取引件数減らず）| - |
+| 発見経緯 | 5/26 ライブ分析で Phase 86 Taker 率 100% 継続 → 本番 LOG_LEVEL=WARNING（Phase 88 I1）で Maker 主要ログ（INFO）が観察不能と判明 | - |
 
 ### Phase 90β 結果（履歴用）
 
