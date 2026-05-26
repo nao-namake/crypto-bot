@@ -1580,3 +1580,142 @@ venv/bin/python3 scripts/live/standard_analysis.py --hours 24
 4. **CatBoost 追加** or RF 置換: ensemble 多様性向上 [中・コンテナ肥大化 30-40%]
 5. **Multi-Level VPIN + OFI 拡張**: マイクロ構造特徴強化 [困難・WebSocket 統合必要]
 6. **ADX 遅行性対策**: 価格は収束していても ADX が高止まりして trending 継続判定する問題（Phase 90γ-③.1 で発覚）。ADX + 直近 4h 値幅の AND 条件 or ADX 変化率を加味。**Phase 85 全停止根拠（過去 30 日 trending 23 件全シナリオ赤字）との両立検証が必須**
+
+---
+
+## Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正（2026-05-27 ローカル実装完了）
+
+### 24h ライブ分析で判明した 3 つの独立問題（5/27 05:44）
+
+| 問題 | 観測値 | 原因 |
+|---|---|---|
+| **A. 分析スクリプト TP 件数乖離** | bitbank API TP:4 vs サマリ表示 TP:0 | `tp_triggered_count` を GCP ログベースで上書き（Phase 88 I1 LOG_LEVEL=WARNING で Phase 61.9 INFO ログが Cloud Logging に出ない） |
+| **B. Maker 化率の低さ** | spread<2 円で Taker fallback 4/5 件 | `_calculate_maker_price()` で spread<2 円→価格 0 返却（**Phase 79 のコメントが bitbank 仕様の誤読**） |
+| **C. bitbank 50062 連発** | 23:30 集中で 5 件 | SL 成行決済 → ポジ消滅後の同サイクル内で別経路の TP 配置が並行実行 |
+
+### 🚨 重大な発見: Phase 79 のコメントが bitbank 公式仕様の誤読だった
+
+`order_strategy.py:481-482` の旧ドキュストリング:
+```
+Phase 68の bug 修正: best_bid/askに直接配置すると post_only で必ずreject
+される（既存板にマッチするため）。スプレッド内に配置することで Maker 約定を実現。
+```
+
+**bitbank 公式仕様**（[Support サイト](https://support.bitbank.cc/hc/en-us/articles/900005145623-What-is-PostOnly)）:
+> *"the order will be canceled if there are any **opposing orders** on the book that could be partially executed"*
+
+→ post_only=true は「**反対側板**との即時マッチ時のみ cancel」。**自側板（buy なら best_bid）への発注は cancel されず queue 末尾に並ぶ → Maker 約定可能**。
+
+[HFTBacktest プロ向けチュートリアル](https://hftbacktest.readthedocs.io/en/latest/tutorials/Queue-Based%20Market%20Making%20in%20Large%20Tick%20Size%20Assets.html)も「Large Tick Size 資産（1 tick spread が頻発する銘柄）では best_bid/best_ask 配置 + queue 待機が標準的 Maker 戦略」と明記。
+
+**Phase 90γ-③.2/③.3/③.4 はこの仕様誤読の上に積み重ねられていた**ため、根本対処として Phase 90γ-③.5 で訂正。
+
+### 推奨実装順序: A → C → B（3 独立 PR）
+
+| PR | 規模 | リスク | 期待効果 |
+|---|---|---|---|
+| **A**: 分析スクリプト統一 | +30/-3 行 | 極小（観測系のみ） | TP/SL 件数の正確化 |
+| **C**: TP 配置前ポジ確認 | +60/-0 行 | 低 | 50062 エラー 5 件/日 → 0 件 |
+| **B**: 狭 spread best_bid 配置 | +70/-15 行 | 中 | Phase 86 Taker 率 83.3% → 30% 以下 |
+
+### 修正 A: 分析スクリプト TP/SL 集計の bitbank API 統一
+
+**改修ファイル**: `scripts/live/standard_analysis.py`
+
+**変更箇所**: `_fetch_trade_history()` の `if api_pnl is not None:` 分岐 (L1946-1976) に以下を追加:
+
+```python
+# Phase 90γ-③.5: bitbank API ベースで TP/SL 件数を上書き
+self.result.tp_triggered_count = win_count
+self.result.sl_triggered_count = loss_count
+if tp_from_logs != win_count or sl_from_logs != loss_count:
+    self.logger.warning(
+        f"⚠️ Phase 90γ-③.5: TP/SL 集計乖離検出 - "
+        f"GCPログ TP:{tp_from_logs}/SL:{sl_from_logs} vs "
+        f"API TP:{win_count}/SL:{loss_count}（API値を採用）"
+    )
+```
+
+**テスト追加**: `tests/unit/scripts/test_standard_analysis_tp_sl_count.py`（新規）5 件
+
+### 修正 C: Phase 90γ-⑤ TP/SL 配置前ポジション存在確認
+
+**改修ファイル**: `src/trading/execution/tp_sl_manager.py`
+
+**新規ヘルパー** `_check_position_exists()` (L46-83):
+- `fetch_margin_positions` を 1 回呼び `(exists: bool, actual_amount: float)` を返す
+- 閾値: 期待 amount の **50% 未満**でポジ消滅判定（SL 部分約定の例外も拾う）
+- API 例外時は `exists=True` で続行（誤検知防止）
+
+**ガード挿入** `place_take_profit()` / `place_stop_loss()` の `_wait_position_reflected()` 直前:
+```python
+if get_threshold("position_management.tp_sl_placement_guard.enabled", True):
+    exists, actual = await self._check_position_exists(amount, bitbank_client)
+    if not exists:
+        self.logger.warning(
+            f"⚠️ Phase 90γ-⑤: TP配置スキップ - ポジション消滅検出 "
+            f"(期待 {amount:.4f} > 実 {actual:.4f} BTC) - "
+            f"SL 成行決済等で消滅した可能性"
+        )
+        return None
+```
+
+**設定追加** `config/core/thresholds.yaml`:
+```yaml
+position_management:
+  tp_sl_placement_guard:
+    enabled: true
+    position_exists_threshold_ratio: 0.5
+```
+
+**テスト追加**: `TestPhase90Gamma5PositionGuard` (新規 8 件): ヘルパー単体 4 件 + place_tp/sl 統合 3 件 + feature flag 1 件
+
+### 修正 B: Phase 90γ-③.5 狭 spread での best_bid 直接配置
+
+**改修ファイル**:
+- `src/trading/execution/order_strategy.py`
+- `config/core/thresholds.yaml`
+
+**変更箇所**: `_calculate_maker_price()` (L477-580):
+- 旧 `if spread < 2: return 0` → spread<2 円で best_bid（buy）/ best_ask（sell）直接配置
+- spread<=0 円（異常クロス板）のみ 0 返却（安全側）
+- 旧 Phase 68/79 のドキュストリング「best_bid 直接配置で必ず reject」を訂正：bitbank 公式仕様（反対側板マッチ時のみ cancel）を明記
+
+**設定追加**:
+```yaml
+order_execution:
+  maker_strategy:
+    narrow_spread_strategy:
+      enabled: true  # false でロールバック（旧 return 0 即 Taker fallback 挙動）
+```
+
+**テスト**:
+- 既存 `TestMakerPriceCalculation` の `test_buy_1yen_spread` / `test_sell_1yen_spread` / `test_buy_returns_zero_on_narrow_spread` / `test_sell_returns_zero_on_narrow_spread` を Phase 90γ-③.5 挙動に更新
+- 新規 `TestPhase90Gamma35NarrowSpreadStrategy` クラス 5 件追加
+
+### デプロイ順序
+
+| Day | 修正 | 24h KPI |
+|---|---|---|
+| Day 1 | A (分析スクリプト統一) | 表示 TP 件数 == API TP 件数 |
+| Day 2-3 | C (TP/SL 配置前ポジ確認) | 50062 エラー 5 件/日 → 0 件 |
+| Day 4-7 | B (狭 spread best_bid 配置) | Phase 86 Taker 率 83.3% → ≤30% / Maker 約定数 1→5+/日 |
+
+各修正は `config/core/thresholds.yaml` の feature flag で即無効化可能。
+
+### 期待 KPI（Day 7 時点）
+
+| 指標 | 現状 (5/27) | 目標 (Day 7) |
+|---|---|---|
+| 表示 TP 件数 vs API TP 件数 | 不一致 (0 vs 4) | 一致 (4 vs 4) |
+| Phase 86 Taker 率 | 83.3% | ≤ 30% |
+| 50062 エラー /24h | 5 件 | 0 件 |
+| Maker 約定数 /24h | 1 件 | 5+ 件 |
+| エントリー件数 /24h | 5-10 件 | 維持（減らない） |
+
+### Phase 79 仕様誤読の教訓
+
+1. **コードコメントは仕様の根拠ではない**: Phase 68/79 のコメントを「事実」として後続フェーズが積み重なった
+2. **公式仕様の Web 確認は早期に**: Phase 90γ-③.2/③.3/③.4 で 4 サイクル使った末に bitbank Support の 1 文で判明
+3. **「物理的に不可能」を疑う**: ユーザーの「メイカーで約定させるって難しいのでしょうか？」の問いがブレイクスルーのきっかけ
+4. **HFT 業界の標準戦略を参照**: Queue-Based Market Making はプロ向けチュートリアルで標準として確立されている

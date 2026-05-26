@@ -12,12 +12,15 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 完了・本番デプロイ済（2026-05-26）→ 24h 後の真因観察フェーズ**
+**Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了（2026-05-27）→ 3 PR (A→C→B) 独立デプロイ予定**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | 5/26 ライブ分析で Phase 86 Taker 率 100% 継続を確認。詳細調査で 2 つの根本問題が判明：本番 `LOG_LEVEL=WARNING`（Phase 88 I1 コスト削減）により Maker 主要ログが**観察不能**だったこと + timeout 60s が 5 分 trigger サイクル内で短すぎたこと。対策として A. ログレベル格上げ（6 箇所 info→warning）+ B. timeout 60→120 秒 / retry 2000→1500ms / max_retries 3→5 を A+B 同時実装。**コードロジック変更ゼロで取引件数を減らさず Maker 化を狙う** |
-| 🎯 Phase 90γ-③.4 根本発見 | 本番 `LOG_LEVEL=WARNING` で Maker 戦略の主要ログ（Phase 62.9 / Phase 79 / Phase 90γ-③.3 Taker許可）がすべて **INFO レベル**で実装されていたため Cloud Logging に出ず、Phase 86 Taker 100% の真因が**観察不能**。GCP ログで見えるのは「スプレッド狭小 2 件 / タイムアウト 0 件 / スキップ 0 件」のみで、残り 3 件の Taker は経路不明。**取引件数を減らさない**という制約下で観察可能化 + Maker 化を同時達成する設計 |
+| 最新成果 | 5/27 24h ライブ分析で 3 つの独立問題判明：(A) 分析スクリプトのサマリ TP 件数が GCP ログ集計の不完全性で過少表示 (API TP:4 vs 表示 TP:0)、(B) spread<2 円で Maker 価格計算前に空振り (Taker fallback 4/5 件)、(C) SL 成行決済直後の TP 配置で bitbank 50062 連発 5 件。Web 調査で **Phase 79 のドキュストリング「best_bid 直接配置で post_only で必ず reject」が bitbank 公式仕様の誤読**と判明（公式: 反対側板マッチ時のみ cancel）。3 修正を独立 PR (A→C→B) で実装完了、ローカル品質チェック PASS |
+| 🎯 Phase 90γ-③.5 根本発見 | bitbank 公式仕様により post_only=true は「反対側板（buy なら best_ask 側）と即時マッチ時のみ cancel」であり、**best_bid（自側板）への post_only=true 発注は cancel されず queue 末尾に並ぶ → Maker 約定可能**。Phase 68/79 のコメント誤読を訂正し、spread<2 円で best_bid/best_ask 直接配置（queue 末尾待機戦略）を実装。HFTBacktest プロ向けチュートリアルも「Large Tick Size 資産では best_bid/best_ask 配置 + queue 待機が標準的 Maker 戦略」と確認 |
+| 🎯 Phase 90γ-⑤ 根本発見 | bitbank 50062「保有建玉数量超過」の経路解明：Phase 64.12 SL トリガー成行決済 → ポジ消滅 → 同サイクル内で別経路の TP 配置が並行実行 → 50062。`_check_position_exists()` ヘルパーで TP/SL 配置直前に実ポジ確認するガードを追加 |
+| 🎯 分析スクリプト修正根本発見 | `_fetch_pnl_from_bitbank_api()` は win/loss を正しく計算済みだが、L1942-1943 で GCP ログ集計が上書き。本番 `LOG_LEVEL=WARNING` で Phase 61.9 INFO ログが Cloud Logging に出ないため過少集計。API ベース win_count/loss_count で上書きする 2 行追加 + 乖離検出 WARNING ログで修正 |
+| 🎯 Phase 90γ-③.4 根本発見（履歴） | 本番 `LOG_LEVEL=WARNING` で Maker 戦略の主要ログ（INFO）が Cloud Logging に出ず、Phase 86 Taker 100% の真因が**観察不能**。コードロジック変更ゼロでログ格上げ + timeout 拡張で取引件数を減らさず観察 + Maker 化を同時達成 |
 | 🎯 Phase 90γ-③.3 根本発見 | Maker タイムアウトは 0 件だが Phase 79「スプレッド狭小(1円)」が継続発生。spread=1 円では `best_bid+1=best_ask` で post_only reject が物理的に避けられず、無条件 Taker fallback で毎回 0.1% 手数料発生。**ML 信頼度判定で「高品質取引は手数料払って取りに行く・低品質はコスト回避でスキップ」という構造的トレードオフを明示化** |
 | 🎯 Phase 90γ-③.2 根本発見 | GCP ログ 7d 実測で Taker フォールバック 136 件/7日（スプレッド狭小 68 + Maker タイムアウト 68）。コード解析で 3 ボトルネック特定：improvement spread×0.1 張り付き / tick 100 円乖離 / retry 5000ms 浪費。3 値同時修正で Maker タイムアウト 0 件達成 |
 | 🎯 Phase 90γ-③.1 根本発見 | Phase 90γ-③ で価格スケール連動の特徴量（OHLCV/MA/MACD 系）は exclude したが、**0-1 / 0-100 / -1〜+1 に自己正規化されたオシレーター類が漏れていた**。should_emergency_stop からは drift OR 撤廃済（Phase 90γ-③）なので **実害ゼロ** だが警告ログが過大化。外部 bitbank API + ADX 計算で「24h+ 取引なし」は **trending 相場が本物**と確認（24h 平均 ADX=63.0、24h 全てで ADX>30）|
@@ -31,10 +34,10 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
 | Phase 90γ 修正規模 | 18 ファイル変更 + 1 ファイル新規 / 約 715 行追加 / テスト 25 件追加 / **2440+ tests PASS** |
-| 本番効果（5/26 05:08 ライブ分析時点）| Drift 検出 **13 件/24h**（Phase 90γ-③.1 効果維持・許容範囲）/ Maker タイムアウト **0 件** / エントリー **3 件・勝率 100% / +¥1,500** / Phase 86 Taker 率 **100% (5/5)** → Phase 90γ-③.4 で観察可能化 + timeout 拡張デプロイ済（24h 後の再観察で効果測定）|
-| 次の予定 | **24h 後（5/27 朝）に再度ライブ分析**で真の Maker 阻害要因特定 + Maker 化率を確認 → Phase 90γ-③.5 (post_only=False 並行試行) or Phase 90γ-④ (ML 改善) 着手判断 |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/gcp-silly-frog.md`（γ-③.1 → γ-③.2 → γ-③.3 → γ-③.4 と上書き使用）/ `~/.claude/plans/gcp-humming-bear.md`（γ-① 〜 γ-③）|
-| 最終更新 | 2026年5月26日 - Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 全完了 |
+| 本番効果（5/27 05:44 ライブ分析時点）| エントリー **5 件・勝率 80% / +¥701** / Maker 約定 **1 件**（spread<2 円で 4 件 Taker fallback）/ Drift 検出 3 件 / **50062 エラー 5 件**（Phase 90γ-⑤ で対処予定）/ Phase 90γ-③.4 ログ格上げで Maker 経路完全観察可能化 → 真因解明 |
+| 次の予定 | **A→C→B の順で個別 PR デプロイ**（Day 1: 分析スクリプト統一 / Day 2-3: TP/SL 配置前ポジ確認 / Day 4-7: 狭 spread best_bid 直接配置）→ 各 24h ライブ分析で KPI 達成確認 |
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/tp-gcp-jazzy-harbor.md`（Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正の統合プラン）|
+| 最終更新 | 2026年5月27日 - Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了 |
 
 ---
 
@@ -235,4 +238,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年5月26日 - Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 完了・本番デプロイ済 → 24h 後の真因観察フェーズ
+**最終更新**: 2026年5月27日 - Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了 → 3 PR (A→C→B) 独立デプロイ予定

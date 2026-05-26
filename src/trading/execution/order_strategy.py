@@ -475,11 +475,21 @@ class OrderStrategy:
             return {"maker_viable": False, "disable_reason": f"error: {e}"}
 
     def _calculate_maker_price(self, side: str, best_bid: float, best_ask: float) -> float:
-        """
-        Phase 79: Maker価格計算（スプレッド内配置）
+        """Maker 価格計算（Phase 90γ-③.5 で仕様誤読を訂正）.
 
-        Phase 68の bug 修正: best_bid/askに直接配置すると post_only で必ずreject
-        される（既存板にマッチするため）。スプレッド内に配置することで Maker 約定を実現。
+        bitbank 公式仕様（Support サイト）:
+            post_only=true の指値は「**反対側板**と即時マッチして部分約定し得る場合のみ cancel」。
+            **自側板**（buy なら best_bid、sell なら best_ask）と同価格の場合は cancel されず、
+            queue 末尾に並んで Maker 約定可能。
+
+        旧 Phase 68/79 のコメント「best_bid/ask に直接配置すると必ず reject される」は
+        この仕様の誤読であり、Phase 90γ-③.5 で訂正した（広 spread では improvement を
+        加えて queue 先頭側に並ぶ既存戦略を維持しつつ、狭 spread<2 円では best_bid 直接
+        配置で Maker 約定を実現する）。
+
+        spread >= 2 円: best_bid + improvement または best_ask - improvement（既存戦略）。
+        spread < 2 円 (= BTC/JPY 1 tick 最小 spread): best_bid または best_ask 直接配置
+            （queue 末尾待機戦略・Phase 90γ-③.5）。
 
         Args:
             side: 売買方向（buy/sell）
@@ -491,17 +501,53 @@ class OrderStrategy:
         """
         spread = best_ask - best_bid
 
-        # スプレッドが2円未満の場合はMaker不可（best_bid+1=best_ask以上になる）
-        if spread < 2:
-            self.logger.warning(f"⚠️ Phase 79: スプレッド狭小({spread:.0f}円) - Maker配置不可")
+        # spread<=0 の異常ケース（best_bid >= best_ask = クロス板）は安全側で発注中止
+        if spread <= 0:
+            self.logger.warning(
+                f"⚠️ Phase 90γ-③.5: 異常 spread {spread:.0f}円 (best_bid={best_bid:.0f} >= "
+                f"best_ask={best_ask:.0f}) - Maker配置中止"
+            )
             return 0
 
-        # スプレッド内に配置（best_bid/askから1円改善 or spread*30%の小さい方）
+        # Phase 90γ-③.5: 狭 spread（< 2 円・BTC/JPY 1 tick 最小 spread）での best_bid 直接配置戦略
+        # 旧 Phase 79 では return 0 で即 Taker fallback → 24h で Taker fallback 4 件発生
+        # bitbank 公式仕様により自側板への post_only=true は cancel されず Maker 約定可能
+        narrow_strategy_enabled = bool(
+            get_threshold(
+                "order_execution.maker_strategy.narrow_spread_strategy.enabled",
+                True,
+            )
+        )
+        if spread < 2:
+            if not narrow_strategy_enabled:
+                # feature flag false: 旧挙動（即 Taker fallback）
+                self.logger.warning(f"⚠️ Phase 79: スプレッド狭小({spread:.0f}円) - Maker配置不可")
+                return 0
+
+            if side.lower() == "buy":
+                price = best_bid  # 自側板（既存買い板の最高値）に並ぶ
+                self.logger.warning(
+                    f"📡 Phase 90γ-③.5: 狭spread Maker買い価格 {price:.0f}円 "
+                    f"(spread={spread:.0f}円, best_bid直接配置・queue末尾待機)"
+                )
+                return round(price)
+            elif side.lower() == "sell":
+                price = best_ask  # 自側板（既存売り板の最安値）に並ぶ
+                self.logger.warning(
+                    f"📡 Phase 90γ-③.5: 狭spread Maker売り価格 {price:.0f}円 "
+                    f"(spread={spread:.0f}円, best_ask直接配置・queue末尾待機)"
+                )
+                return round(price)
+            else:
+                self.logger.error(f"❌ Phase 62.9: 不正なside: {side}")
+                return 0
+
+        # 広 spread (>= 2 円): improvement で queue 先頭側に並ぶ既存戦略
         # Phase 90γ-③.2: 旧 spread*0.1 ではほぼ常に 1 円に張り付き約定確率が低かったため 0.3 に拡大
         improvement = max(1, min(int(spread * 0.3), int(spread - 1)))
 
         if side.lower() == "buy":
-            # best_bidより improvement円上（既存買い板より優先される位置）
+            # best_bidより improvement円上（既存買い板より優先される位置・post_only は best_ask 未到達なので安全）
             price = best_bid + improvement
             # Phase 90γ-③.4: warning 格上げ（観察可能化）
             self.logger.warning(

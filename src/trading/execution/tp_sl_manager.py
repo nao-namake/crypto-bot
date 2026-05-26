@@ -47,6 +47,45 @@ class TPSLManager:
     # Phase 64: 個別TP/SL配置メソッド（stop_manager.pyから移動）
     # ========================================
 
+    async def _check_position_exists(
+        self,
+        expected_amount: float,
+        bitbank_client: BitbankClient,
+    ) -> Tuple[bool, float]:
+        """Phase 90γ-⑤: TP/SL 配置直前のポジション存在確認（50062 対策）。
+
+        SL トリガー成行決済 → ポジ消滅後の同サイクル内で、別経路の TP/SL 配置試行が
+        並行実行されると bitbank 50062「保有建玉数量超過」エラーが発生する。本関数は
+        TP/SL 配置直前に実ポジション量を確認し、消滅検出時は配置を中止する。
+
+        `_wait_position_reflected` は「ポジ増加方向の反映待ち」だが、本関数は
+        「ポジ消滅方向の確定検出」を担う相補的な役割。
+
+        Args:
+            expected_amount: 期待されるポジション数量 (BTC)
+            bitbank_client: BitbankClient インスタンス
+
+        Returns:
+            (exists, actual_amount): ポジ存在判定（閾値以上なら True）と実数量
+        """
+        try:
+            positions = await bitbank_client.fetch_margin_positions()
+            actual = sum(abs(float(p.get("amount", 0))) for p in positions or [])
+        except Exception as e:
+            self.logger.warning(
+                f"⚠️ Phase 90γ-⑤: ポジション確認 API 失敗 - 配置続行（API再試行に委譲）: {e}"
+            )
+            return True, expected_amount
+
+        threshold_ratio = float(
+            get_threshold(
+                "position_management.tp_sl_placement_guard.position_exists_threshold_ratio",
+                0.5,
+            )
+        )
+        exists = actual >= expected_amount * threshold_ratio
+        return exists, actual
+
     async def _wait_position_reflected(
         self,
         expected_amount: float,
@@ -125,6 +164,17 @@ class TPSLManager:
 
         if take_profit_price <= 0:
             raise TradingError("TP価格が不正（0以下）")
+
+        # Phase 90γ-⑤: TP 配置前ポジション存在確認（SL 成行決済直後の 50062 対策）
+        if get_threshold("position_management.tp_sl_placement_guard.enabled", True):
+            exists, actual = await self._check_position_exists(amount, bitbank_client)
+            if not exists:
+                self.logger.warning(
+                    f"⚠️ Phase 90γ-⑤: TP配置スキップ - ポジション消滅検出 "
+                    f"(期待 {amount:.4f} > 実 {actual:.4f} BTC) - "
+                    f"SL 成行決済等で消滅した可能性"
+                )
+                return None
 
         # Phase 90γ-②: bitbank API ポジション反映待ち（50062 対策）
         await self._wait_position_reflected(amount, bitbank_client)
@@ -373,6 +423,17 @@ class TPSLManager:
                 f"(SL: {stop_loss_price:.0f}円, Entry: {entry_price:.0f}円). "
                 f"ダスト/微小ポジションまたは計算バグの可能性。"
             )
+
+        # Phase 90γ-⑤: SL 配置前ポジション存在確認（並行成行決済との競合対策）
+        if get_threshold("position_management.tp_sl_placement_guard.enabled", True):
+            exists, actual = await self._check_position_exists(amount, bitbank_client)
+            if not exists:
+                self.logger.warning(
+                    f"⚠️ Phase 90γ-⑤: SL配置スキップ - ポジション消滅検出 "
+                    f"(期待 {amount:.4f} > 実 {actual:.4f} BTC) - "
+                    f"並行成行決済等で消滅した可能性"
+                )
+                return None
 
         # Phase 90γ-②: bitbank API ポジション反映待ち（50062 対策）
         # 全バリデーション通過後に実行（不正データで無駄に 5 秒待たない）

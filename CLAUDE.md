@@ -4,10 +4,13 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 完了・本番デプロイ済（2026-05-26）** |
-| **直前の作業** | 2026-05-26 ライブ分析 24h で Phase 86 Taker 率 100% 継続を確認。詳細調査で 2 つの根本問題が判明：(1) 本番 `LOG_LEVEL=WARNING`（Phase 88 I1 コスト削減）により Maker 主要ログ（INFO）が Cloud Logging に出ず**残り 3 件の Taker 真因が観察不能**、(2) timeout 60s が 5 分 trigger サイクル内で短すぎる。対策として A. ログレベル格上げ（6 箇所 info→warning）で観察可能性回復 + B. timeout 60→120 秒 / retry 2000→1500ms / max_retries 3→5 を A+B 同時実装 |
-| **次の予定** | **24h 後（5/27 朝）に再度ライブ分析を実行** → 真の Maker 阻害要因の特定 + Maker 化率の改善を確認 → Phase 90γ-③.5 or Phase 90γ-④ 着手判断 |
-| **🎯 Phase 90γ-③.4 最重要発見** | 本番 `LOG_LEVEL=WARNING`（Phase 88 I1）により Maker 戦略の主要ログ（Phase 62.9 / Phase 79 / Phase 90γ-③.3 Taker許可）が**すべて INFO レベル**で実装されていたため Cloud Logging に出ず、Phase 86 Taker 100% の真因が**観察不能**だった。GCP ログで見えるのは「スプレッド狭小 2 件 / タイムアウト 0 件 / スキップ 0 件」のみで、残り 3 件の Taker は経路不明。コードロジック変更ゼロでログレベルを格上げ + timeout 拡張で取引件数を減らさず観察 + Maker 化を同時達成 |
+| **現在Phase** | **Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了（2026-05-27）・3 PR 独立デプロイ待ち** |
+| **直前の作業** | 2026-05-27 24h ライブ分析で 3 つの独立問題判明：(A) サマリ TP 件数が GCP ログ集計の不完全性で過少表示 (API TP:4 vs 表示 TP:0)、(B) spread<2 円で Maker 価格計算前に空振り (Taker fallback 4/5 件)、(C) SL 成行決済直後の TP 配置で bitbank 50062 連発 (5 件)。Web 調査で **Phase 79 の「best_bid 直接配置は post_only で必ず reject」コメントが bitbank 公式仕様の誤読**と判明。3 修正を独立 PR (A→C→B) で実装完了、ローカル品質チェック PASS |
+| **次の予定** | **A→C→B の順で個別 PR デプロイ**（Day 1: 分析スクリプト統一 / Day 2-3: TP/SL 配置前ポジ確認 / Day 4-7: 狭 spread best_bid 直接配置）→ 各 24h ライブ分析で KPI 達成確認 |
+| **🎯 Phase 90γ-③.5 最重要発見（Phase 79 コメント誤読の訂正）** | Web 調査で **bitbank post_only=true は「反対側板（buy なら best_ask 側）と即時マッチ時のみ cancel」**と判明。**best_bid（自側板）への post_only=true 発注は cancel されず queue 末尾に並ぶ → Maker 約定可能**。Phase 68/79 のドキュストリング「best_bid に直接配置すると post_only で必ず reject」は仕様誤読で、Phase 90γ-③.2/③.3/③.4 はその誤った前提の上に積み重ねられていた。Phase 90γ-③.5 で spread<2 円も best_bid/best_ask 直接配置（queue 末尾待機戦略）を導入 + 誤解コメント訂正。HFTBacktest プロ向けチュートリアルでも「Large Tick Size 資産では best_bid/best_ask 配置 + queue 待機」が標準と確認 |
+| **🎯 Phase 90γ-⑤ 最重要発見** | bitbank 50062「保有建玉数量超過」5 件/24h の経路解明：Phase 64.12 SL トリガー成行決済 → `virtual_positions` 削除 → 同サイクル内で別経路の `place_take_profit()` が並行実行 → ポジ 0 で TP 配置試行 → 50062。Phase 90γ-② `_wait_position_reflected()` は「ポジ増加方向の反映待ち」のみで「ポジ消滅方向の確定検出」は未カバーだった。`_check_position_exists()` ヘルパー追加で TP/SL 配置直前に実ポジション量を再確認 |
+| **🎯 分析スクリプト修正最重要発見** | `_fetch_pnl_from_bitbank_api()` (L1729) は `win_count=4 / loss_count=1` を**正しく計算済み**だが、L1942-1943 で `tp_triggered_count` を GCP ログベース (`tp_from_logs`) で上書きしていた。本番 `LOG_LEVEL=WARNING`（Phase 88 I1）で Phase 61.9 "TP自動執行検知"（INFO）が Cloud Logging に出ないため過少集計。API ベース win_count/loss_count で上書きする 2 行追加で修正、GCP ログとの乖離は WARNING で観測継続 |
+| **🎯 Phase 90γ-③.4 達成（履歴）** | 本番 `LOG_LEVEL=WARNING`（Phase 88 I1）により Maker 戦略の主要ログ（Phase 62.9 / Phase 79 / Phase 90γ-③.3 Taker許可）が**すべて INFO レベル**で実装されていたため Cloud Logging に出ず、Phase 86 Taker 100% の真因が**観察不能**だった。コードロジック変更ゼロでログレベルを格上げ + timeout 拡張で取引件数を減らさず観察 + Maker 化を同時達成 |
 | **🎯 Phase 90γ-③.3 最重要発見** | Phase 90γ-③.2 デプロイ後の Maker タイムアウト 0 件で「リトライ系の修正は完了」だが、Taker 100% が継続。GCP ログで `スプレッド狭小(1円) - Maker 配置不可` を確認。BTC/JPY 板の物理的制約（spread=1 円では post_only 不可能）に対し、無条件 Taker fallback では 0.1% 手数料を毎回支払う構造的問題。ML 信頼度判定で「高品質取引は手数料払ってでも取る・低品質は機会損失より手数料回避」というトレードオフを明示化 |
 | **🎯 Phase 90γ-③.2 最重要発見** | GCP ログ 7d 実測で Taker フォールバック 136 件/7日（スプレッド狭小 68 + Maker タイムアウト 68）を確認。コード解析で 3 つのボトルネック特定：① `improvement = max(1, min(spread×0.1, spread-1))` がほぼ常に 1 円張り付き ② `price_adjustment_tick: 100` 円が BTC/JPY spread 範囲外に乖離 ③ `retry_interval_ms: 5000` で 15 秒消費。3 値を同時修正（×0.3 / tick 5 / interval 2000ms）|
 | **🎯 Phase 90γ-③.1 最重要発見** | Phase 90γ-③ で価格スケール連動の特徴量（OHLCV/MA/MACD 系）は exclude したが、**0-1 / 0-100 / -1〜+1 に自己正規化されたオシレーター類が漏れていた**。should_emergency_stop からは drift OR 撤廃済（Phase 90γ-③）なので**実害ゼロ**だが、警告ログが過大で観察ノイズに。さらに外部 bitbank API + ADX 計算で **「24h+ 取引なし」はトレンド相場が本物**と確認（24h 平均 ADX=63.0・24h 全てで ADX>30）。Bot 判定（trending = エントリー停止）は一般指標 ADX とも一致 |
@@ -28,55 +31,111 @@
 | **Phase 90γ-③.2 達成** | Maker 戦略の Taker フォールバック削減：improvement spread×0.1→×0.3 + price_adjustment_tick 100→5 円 + retry_interval_ms 5000→2000 ms（既存テスト 2 件更新で対応）|
 | **Phase 90γ-③.3 達成** | ML 信頼度ベース動的 Taker fallback：confidence >= 0.65 で Taker 進行・< 0.65 でエントリースキップ（thresholds.yaml に taker_fallback_confidence_threshold: 0.65 追加 + テスト 3 件新規追加）|
 | **Phase 90γ-③.4 達成** | Maker 戦略 6 ログを info→warning 格上げ（観察可能性回復・コードロジック変更ゼロ）+ thresholds.yaml の timeout 60→120 秒 / retry_interval 2000→1500ms / max_retries 3→5（取引件数を減らさず Maker 化率向上）|
+| **Phase 90γ-③.5 達成** | 狭 spread (<2円) で best_bid/best_ask 直接配置（queue末尾待機戦略）+ Phase 68/79 の仕様誤読ドキュストリング訂正 + `narrow_spread_strategy.enabled` feature flag 追加 + テスト 9 件（5 件更新 + 4 件新規）|
+| **Phase 90γ-⑤ 達成** | TP/SL 配置前ポジション存在確認 `_check_position_exists()` 追加 + 50062 連発 5 件/24h 対策 + `tp_sl_placement_guard.enabled` feature flag 追加 + テスト 8 件新規追加 |
+| **分析スクリプト修正達成** | `_fetch_trade_history` で API ベース win_count/loss_count を tp/sl_triggered_count に上書き + 乖離検出 warning ログ + テスト 5 件新規追加 |
 | **特徴量数** | 37 → **55**（Phase 89-β/γ/δ で 6 カテゴリ追加）|
 | **ML モデル** | 3 → **4**（N-BEATS 追加・LGB 34%/XGB 34%/RF 17%/N-BEATS 15%） |
 | **🎉 v8e (2 クラスメタラベリング) macro F1** | LGB CV 0.546 / Test 0.486・XGB CV 0.459・RF CV 0.530・N-BEATS CV 0.514 Test 0.524（naive 0.41 比 **+0.10〜+0.14 で真の予測力獲得**）|
-| **本番効果（5/26 05:08 ライブ分析 24h 時点）** | Drift 検出 **13 件/24h**（Phase 90γ-③.1 効果維持・微増だが許容範囲）/ Maker タイムアウト **0 件** / エントリー **3 件・勝率 100% / +¥1,500** / Phase 86 Taker 率 **100%（5/5・要対処）** → Phase 90γ-③.4 で観察可能化 + timeout 拡張デプロイ済（24h 後再確認） |
+| **本番効果（5/27 05:44 ライブ分析 24h 時点）** | エントリー **5 件・勝率 80% / +¥701** / Maker 約定 **1 件**（spread<2 円で 4 件 Taker fallback）/ Drift 検出 3 件（許容範囲）/ **50062 エラー 5 件発生**（Phase 90γ-⑤ で対処）/ Phase 90γ-③.4 ログ格上げで Maker 経路完全観察可能化 → 真因解明 |
 | **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
 | **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
-| **最終更新** | 2026年5月26日 - Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 実装完了 |
+| **最終更新** | 2026年5月27日 - Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了・3 PR デプロイ待ち |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
-> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/c-gleaming-ladybug.md`（Phase 89 修正 + N-BEATS 完全版プラン）
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-77）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_89.md`
+> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/tp-gcp-jazzy-harbor.md`（Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正の統合プラン）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-90γ-③.5）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_90.md`
 
 ---
 
-## 🚀 セッション再開時の最優先タスク（2026-05-26 時点・Phase 90γ-③.4 完了 → 24h 後の真因観察フェーズ）
+## 🚀 セッション再開時の最優先タスク（2026-05-27 時点・Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了 → 3 PR 独立デプロイ段階）
 
-**Phase 90γ シリーズ (γ-①・γ-① レビュー・γ-②・γ-③・γ-③.1・γ-③.2・γ-③.3・γ-③.4) 全工程完了・本番デプロイ済**。
-**24h 後（5/27 朝想定）に再度ライブ分析を実行**して、ログ格上げで新しく見えるようになった Maker 経路と timeout 拡張による Maker 化効果を確認 → Phase 90γ-③.5 (or ④) 着手判断。
+**ローカル品質チェック PASS**（全テスト・カバレッジ 72%+・flake8/black/isort）。**未コミット状態**で 3 修正が共存（feature flag で段階解放可能）。次セッションは PR 分割コミット → デプロイ → 24h KPI 確認。
 
-### 24h 後（5/27 朝）の確認手順
+統合プラン書: [`~/.claude/plans/tp-gcp-jazzy-harbor.md`](~/.claude/plans/tp-gcp-jazzy-harbor.md)
+
+### Step 1: PR 分割コミット（推奨 A→C→B 独立 3 PR）
 
 ```bash
-# Step 1: ライブ分析（最重要・Phase 86 Taker 率の変化を確認）
-venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+# PR A: 分析スクリプト統一（最小リスク・即恩恵）
+git add scripts/live/standard_analysis.py tests/unit/scripts/test_standard_analysis_tp_sl_count.py
+git commit -m "fix: Phase 90γ-③.5 分析スクリプト TP/SL 集計を bitbank API ベースに統一"
 
-# Step 2: Phase 90γ-③.4 で新しく WARNING で見えるログ群（24h）
-echo "=== Maker 経路追跡 ==="
-echo "Maker 戦略有効:"     && gcloud logging read 'textPayload=~"Phase 62.9: Maker戦略有効"'   --freshness=24h --format='value(timestamp)' | wc -l
-echo "Maker 注文試行:"     && gcloud logging read 'textPayload=~"Phase 62.9: Maker注文試行"'   --freshness=24h --format='value(timestamp)' | wc -l
-echo "Maker 約定成功:"     && gcloud logging read 'textPayload=~"Maker約定成功"'              --freshness=24h --format='value(timestamp)' | wc -l
-echo "Maker 価格計算成功:"  && gcloud logging read 'textPayload=~"Phase 79: Maker(買い|売り)価格"' --freshness=24h --format='value(timestamp)' | wc -l
-echo "Taker 許可:"        && gcloud logging read 'textPayload=~"Phase 90γ-③.3: Maker失敗 → Taker許可"' --freshness=24h --format='value(timestamp)' | wc -l
+# PR C: TP/SL 配置前ポジ確認（50062 連発対策）
+git add src/trading/execution/tp_sl_manager.py tests/unit/trading/execution/test_tp_sl_manager.py
+git add config/core/thresholds.yaml  # 注: PR B でも修正するので分割するなら git add -p 推奨
+git commit -m "fix: Phase 90γ-⑤ TP/SL 配置前ポジション存在確認で 50062 連発対策"
 
-echo "=== Maker 失敗系（WARNING 既存）==="
-echo "スプレッド狭小:"    && gcloud logging read 'textPayload=~"Phase 79: スプレッド狭小"' --freshness=24h --format='value(timestamp)' | wc -l
-echo "Maker タイムアウト:" && gcloud logging read 'textPayload=~"Makerタイムアウト"' --freshness=24h --format='value(timestamp)' | wc -l
-echo "Phase 90γ-③.3 スキップ:" && gcloud logging read 'textPayload=~"Phase 90γ-③.3.*スキップ"' --freshness=24h --format='value(timestamp)' | wc -l
+# PR B: 狭 spread best_bid 配置 + 仕様誤読コメント訂正
+git add src/trading/execution/order_strategy.py tests/unit/trading/execution/test_order_strategy.py
+git commit -m "fix: Phase 90γ-③.5 狭 spread での best_bid 直接配置 + Phase 68/79 仕様誤読訂正"
+
+# ドキュメント更新（4 ファイル）は最後に統合 or PR ごとに分配
+git add CLAUDE.md README.md docs/開発履歴/Phase_90.md docs/開発計画/ToDo.md
+git commit -m "docs: Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正完了に伴うドキュメント更新"
 ```
 
-### 24h 観察結果による着手判断ロジック
+または統合 1 コミット（全 feature flag 有効化済・段階解放は config 切替で対応）も可能。
 
-| 観察結果 | 次フェーズ |
-|---------|-----------|
-| Maker 約定率 ≥ 50% かつ Phase 86 Taker 率 ≤ 50% | ✅ **Phase 90γ-④ (ML 改善) 着手**（Optuna 50→100 + Focal Loss + Calibration）|
-| Maker タイムアウト多発（10+ 件/24h） | timeout を 120→180 秒にさらに延長検討 |
-| スプレッド狭小多発（20+ 件/24h） | Phase 90γ-③.5：**post_only=False limit 並行試行**実装 |
-| Maker 戦略有効ログが 0 件 | Maker コードに到達していない別経路を再調査（Phase 90γ-③.6）|
-| Maker 化率改善せず timeout=120s でも全件 spread<2 | 流動性の問題確定 → Phase 90γ-③.5 or 取引時間帯フィルタ検討 |
+### Step 2: 各 PR デプロイ後の 24h KPI 確認
+
+**Day 1（A デプロイ後）**: 分析スクリプトの集計正確化を確認
+```bash
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+# 期待: 「取引数: エントリーN件 / 決済M件 (TP:x SL:y)」が bitbank API の win_count/loss_count と一致
+# 期待: Phase 90γ-③.5 乖離検出 WARNING ログが 0 件 or 微小（API 値が正・GCP ログは不完全）
+```
+
+**Day 2-3（C デプロイ後）**: 50062 エラー解消を確認
+```bash
+gcloud logging read 'textPayload=~"50062"' --freshness=24h | wc -l  # 期待: 0
+gcloud logging read 'textPayload=~"Phase 90γ-⑤.*配置スキップ"' --freshness=24h | wc -l  # 期待: SL 成行決済時に該当
+```
+
+**Day 4-7（B デプロイ後）**: Maker 化率向上を確認
+```bash
+echo -n "狭spread Maker: " && gcloud logging read 'textPayload=~"Phase 90γ-③.5: 狭spread Maker"' --freshness=24h --format='value(timestamp)' | wc -l
+echo -n "Maker 約定成功: " && gcloud logging read 'textPayload=~"Maker約定成功"' --freshness=24h --format='value(timestamp)' | wc -l
+# 期待: Phase 86 Taker 率 83.3% → ≤30% / Maker 約定数 1→5+/日 / エントリー件数維持
+```
+
+### Step 3: 各修正の KPI 達成判定
+
+| 指標 | 現状 (5/27) | 目標 (Day 7) | ロールバック判断 |
+|---|---|---|---|
+| 表示 TP 件数 vs API TP 件数 | 不一致 (0 vs 4) | 一致 (4 vs 4) | A: GCP 乖離 WARNING 多発で `count_logs` 取得そのものを停止検討 |
+| Phase 86 Taker 率 | 83.3% | ≤ 30% | B: 改善ゼロ or 約定 0 件多発 → narrow_spread_strategy.enabled=false |
+| 50062 エラー /24h | 5 件 | 0 件 | C: 正常 TP 配置がスキップされて TP 未設置事故 → tp_sl_placement_guard.enabled=false |
+| Maker 約定数 /24h | 1 件 | 5+ 件 | （B と連動）|
+| エントリー件数 /24h | 5-10 件 | 維持 | （B で エントリー減検出時 ロールバック）|
+
+### Step 4: ロールバック手順（緊急時・5 分以内）
+
+```bash
+# 修正 B 無効化（最もリスク高）
+yq -i '.order_execution.maker_strategy.narrow_spread_strategy.enabled = false' config/core/thresholds.yaml
+git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-③.5 狭 spread 配置無効化" && git push origin main
+
+# 修正 C 無効化
+yq -i '.position_management.tp_sl_placement_guard.enabled = false' config/core/thresholds.yaml
+git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-⑤ TP/SL 配置前ガード無効化" && git push origin main
+
+# コード revert（必要時のみ）
+git revert <コミットハッシュ>
+git push origin main
+```
+
+修正 A は観測系のため revert 不要（取引ロジック無影響）。
+
+### 24h 観察結果による次フェーズ着手判断
+
+| Day 7 結果 | 次フェーズ |
+|---|---|
+| 3 修正すべて KPI 達成 | ✅ **Phase 90γ-④ (ML 改善) 着手**（Optuna 50→100 + Focal Loss + Calibration）|
+| B で Maker 化率改善せず queue 末尾で約定遅延 | Phase 90γ-③.6: queue position 推定 + 価格再評価ロジック追加検討 |
+| C で誤検知による TP 未設置事故 | position_exists_threshold_ratio 0.5 → 0.2 緩和、または `_wait_position_reflected` の戻り値併用 |
+| 50062 が別経路で再発 | Phase 64.12 SL 成行決済時に明示的に TP キャンセル追加（副案検討）|
 
 ### Phase 90γ シリーズ修正サマリ
 
@@ -735,15 +794,18 @@ SL距離: `max((SL目標 - エントリー手数料(0.1%) - 決済手数料(Take
 | 連敗サイズ縮小 | 5回:50% / 6回:40% / 7回:25% / 8回:停止 |
 | 同方向ポジション上限 | **1件**（Phase 85: 2→1 ロールバック・Phase 84で損失40%増幅） |
 
-### Maker戦略（Phase 79修正）
+### Maker戦略（Phase 90γ-③.5 仕様訂正）
 
 | 設定 | 値 |
 |------|-----|
-| 価格配置 | スプレッド内（Phase 79: best_bid直接配置→spread内に修正） |
-| improvement | max(1, min(spread×0.1, spread-1)) |
-| spread<2円 | Maker不可、即Takerフォールバック |
-| timeout | 60秒、リトライ3回 |
-| fallback | Maker失敗時はTakerで成行注文 |
+| 価格配置 (spread≥2円) | best_bid + improvement / best_ask - improvement（queue 先頭側に並ぶ既存戦略）|
+| 価格配置 (spread<2円) | **Phase 90γ-③.5**: best_bid / best_ask 直接配置（queue 末尾待機戦略・bitbank post_only は反対側板マッチ時のみ cancel という公式仕様に基づく） |
+| improvement | max(1, min(int(spread×0.3), spread-1))（Phase 90γ-③.2 で ×0.1→×0.3）|
+| spread<=0円（クロス板） | 配置中止（異常検出） |
+| timeout | 120秒（Phase 90γ-③.4: 60→120）、リトライ 5 回（Phase 90γ-③.4: 3→5）|
+| retry_interval_ms | 1500（Phase 90γ-③.4: 2000→1500）|
+| Maker 失敗時 fallback | Phase 90γ-③.3 ML信頼度動的判定：confidence≥0.65 で Taker 進行、<0.65 でスキップ |
+| 注: Phase 79 コメント | 「best_bid 直接配置で必ず reject」は仕様誤読・Phase 90γ-③.5 で訂正 |
 
 ### ML品質フィルタ（Phase 85 再学習）
 

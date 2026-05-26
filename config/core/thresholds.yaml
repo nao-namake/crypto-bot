@@ -794,6 +794,14 @@ position_management:
   # SL未設置の孤児ポジを最大5分以内に検出し、自動修復するためのインターバル
   orphan_scan:
     interval_seconds: 300
+  # Phase 90γ-⑤: TP/SL 配置前ポジション存在確認（50062 連発対策）
+  # SL トリガー成行決済 → ポジ消滅後の同サイクル内で残存 TP 配置試行が並行実行され
+  # bitbank 50062「保有建玉数量超過」が発生する事象への対処。
+  # _wait_position_reflected (ポジ増加方向) と相補的に「ポジ消滅方向の確定検出」を担う。
+  tp_sl_placement_guard:
+    enabled: true
+    # 期待 amount の何倍未満を「ポジ消滅」と判定するか（SL 部分約定の例外も拾う）
+    position_exists_threshold_ratio: 0.5
   cooldown_minutes: 15
   min_trade_size: 0.0001
   # Phase 82: ダスト/微小ポジション判定下限（これ未満はTP/SL配置スキップ）
@@ -1024,6 +1032,14 @@ order_execution:
     disable_on_high_volatility: true
     volatility_threshold: 0.02
     min_spread_for_maker: 0
+    # Phase 90γ-③.5: 狭 spread（<2円・BTC/JPY 1 tick 最小 spread）での Maker 配置戦略
+    # bitbank 公式仕様により post_only=true は「反対側板と即時マッチ時のみ cancel」。
+    # 自側板（best_bid for buy）への post_only=true は cancel されず queue 末尾に並ぶ。
+    # 旧 Phase 79 では spread<2円で即 Taker fallback → 24h で Taker fallback 4 件発生
+    # → Phase 90γ-③.5 で best_bid/best_ask 直接配置を導入（queue 末尾待機戦略）。
+    # enabled: false でロールバック（旧 return 0 即 Taker fallback 挙動）
+    narrow_spread_strategy:
+      enabled: true
 balance_alert:
   enabled: true
   min_required_margin: 14000.0

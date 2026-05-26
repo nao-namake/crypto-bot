@@ -1955,6 +1955,11 @@ class LiveAnalyzer:
                 self.result.max_profit = api_pnl["max_profit"]
                 self.result.max_loss = api_pnl["max_loss"]
                 self.result.trades_count = api_pnl["entry_count"] + exit_count
+                # Phase 90γ-③.5: bitbank API ベースで TP/SL 件数を上書き
+                # 本番 LOG_LEVEL=WARNING（Phase 88 I1）で "TP自動執行検知"（INFO）が GCP に出ないため
+                # GCP ログ集計（tp_from_logs / sl_from_logs）は不完全。profit_loss から確定的に算出。
+                self.result.tp_triggered_count = win_count
+                self.result.sl_triggered_count = loss_count
                 self.logger.info(
                     f"📊 Phase 69.7: bitbank API PnL使用 - "
                     f"エントリー{api_pnl['entry_count']}件, "
@@ -1962,6 +1967,12 @@ class LiveAnalyzer:
                     f"損益: ¥{self.result.total_pnl:,.0f}, "
                     f"手数料: ¥{self.result.total_fee:,.0f}"
                 )
+                if tp_from_logs != win_count or sl_from_logs != loss_count:
+                    self.logger.warning(
+                        f"⚠️ Phase 90γ-③.5: TP/SL 集計乖離検出 - "
+                        f"GCPログ TP:{tp_from_logs}/SL:{sl_from_logs} vs "
+                        f"API TP:{win_count}/SL:{loss_count}（API値を採用）"
+                    )
             elif trades:
                 # フォールバック: DB PnL（API取得失敗時のみ）
                 # Phase 61.11: pnlがすべてNULLかどうか確認

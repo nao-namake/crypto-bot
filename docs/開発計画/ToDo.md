@@ -2,6 +2,22 @@
 
 ## 現在の状態
 
+**Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了（2026-05-27）・3 PR 独立デプロイ待ち**
+
+### Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 概要
+
+統合プラン書: [`~/.claude/plans/tp-gcp-jazzy-harbor.md`](~/.claude/plans/tp-gcp-jazzy-harbor.md)
+
+| PR | 修正対象 | 主要変更 |
+|---|---|---|
+| **A** (Day 1 デプロイ) | `scripts/live/standard_analysis.py` | `_fetch_trade_history` で API ベース win_count/loss_count を tp/sl_triggered_count に上書き + 乖離検出 WARNING |
+| **C** (Day 2-3 デプロイ) | `src/trading/execution/tp_sl_manager.py` + `config/core/thresholds.yaml` | `_check_position_exists()` ヘルパー + `place_take_profit`/`place_stop_loss` にポジ消滅ガード追加 |
+| **B** (Day 4-7 デプロイ) | `src/trading/execution/order_strategy.py` + `config/core/thresholds.yaml` | `_calculate_maker_price()` で spread<2 円も best_bid/best_ask 直接配置 + Phase 68/79 仕様誤読コメント訂正 |
+
+**最重要発見**: Phase 79 のドキュストリング「best_bid 直接配置で post_only で必ず reject」は **bitbank 公式仕様の誤読**。公式仕様は「反対側板マッチ時のみ cancel」であり、自側板への post_only=true は cancel されず queue 末尾に並ぶ → Maker 約定可能。Phase 90γ-③.2/③.3/③.4 はこの誤読の上に積み重ねられていた。
+
+### 過去の Phase（履歴）
+
 **Phase 90γ-③.4 (Maker 観察可能化 + timeout 拡張) 完了・本番デプロイ済（2026-05-26）**
 
 | 項目 | 値 |

@@ -2278,3 +2278,201 @@ class TestPhase90GammaWaitPositionReflected:
 
         assert result is True
         assert client.fetch_margin_positions.call_count == 2
+
+
+class TestPhase90Gamma5PositionGuard:
+    """Phase 90γ-⑤: TP/SL 配置前ポジション存在確認（50062 連発対策）.
+
+    SL 成行決済直後にポジ消滅した状態で別経路の TP 配置が並行実行されると
+    bitbank 50062 が発生する。本ガードで TP/SL 配置直前に実ポジションを再確認し
+    消滅検出時は配置をスキップする。
+    """
+
+    @pytest.fixture
+    def tp_sl_manager(self):
+        return TPSLManager()
+
+    async def test_check_position_exists_returns_true_when_full(self, tp_sl_manager):
+        """ポジションが期待数量と一致 → exists=True"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[{"amount": "0.015"}])
+
+        exists, actual = await tp_sl_manager._check_position_exists(
+            expected_amount=0.015,
+            bitbank_client=client,
+        )
+
+        assert exists is True
+        assert actual == pytest.approx(0.015)
+
+    async def test_check_position_exists_returns_false_when_empty(self, tp_sl_manager):
+        """ポジションが空 → exists=False（消滅判定）"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+
+        exists, actual = await tp_sl_manager._check_position_exists(
+            expected_amount=0.015,
+            bitbank_client=client,
+        )
+
+        assert exists is False
+        assert actual == 0.0
+
+    async def test_check_position_exists_below_threshold(self, tp_sl_manager):
+        """閾値 0.5 倍未満は消滅判定（部分約定の例外も拾う）"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        # 期待 0.015 BTC・実 0.005 BTC（33%）→ 0.5 倍未満で消滅扱い
+        client.fetch_margin_positions = AsyncMock(return_value=[{"amount": "0.005"}])
+
+        exists, actual = await tp_sl_manager._check_position_exists(
+            expected_amount=0.015,
+            bitbank_client=client,
+        )
+
+        assert exists is False
+        assert actual == pytest.approx(0.005)
+
+    async def test_check_position_exists_api_error_returns_true(self, tp_sl_manager):
+        """API 例外時は exists=True で続行（API 再試行に委譲・誤検知防止）"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(side_effect=Exception("network err"))
+
+        exists, actual = await tp_sl_manager._check_position_exists(
+            expected_amount=0.015,
+            bitbank_client=client,
+        )
+
+        # API 失敗で誤って配置スキップすると本物の TP 未設置になるので、続行が安全
+        assert exists is True
+        assert actual == 0.015
+
+    async def test_place_take_profit_skipped_when_position_disappeared(self, tp_sl_manager):
+        """SL 成行決済後の空ポジ状態で place_take_profit → スキップ"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+        # 注文発行 API が呼ばれないことを後で検証するため
+        client.create_order = AsyncMock()
+
+        result = await tp_sl_manager.place_take_profit(
+            side="buy",
+            amount=0.015,
+            entry_price=12_100_000,
+            take_profit_price=12_200_000,
+            symbol="BTC/JPY",
+            bitbank_client=client,
+        )
+
+        assert result is None
+        # bitbank API への注文発行は行われない
+        client.create_order.assert_not_called()
+
+    async def test_place_stop_loss_skipped_when_position_disappeared(self, tp_sl_manager):
+        """空ポジ状態で place_stop_loss → スキップ"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+        client.create_order = AsyncMock()
+
+        result = await tp_sl_manager.place_stop_loss(
+            side="buy",
+            amount=0.015,
+            entry_price=12_100_000,
+            stop_loss_price=12_000_000,
+            symbol="BTC/JPY",
+            bitbank_client=client,
+        )
+
+        assert result is None
+        client.create_order.assert_not_called()
+
+    async def test_place_take_profit_proceeds_when_position_exists(self, tp_sl_manager):
+        """ポジション存在 → 通常の TP 配置経路に進む（API 失敗で None 戻りも許容）"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[{"amount": "0.015"}])
+        # 後続処理を簡単に通過させるため Maker 無効化
+        with patch("src.trading.execution.tp_sl_manager.get_threshold") as mock_get:
+            # tp_sl_placement_guard.enabled=True, position_exists_threshold_ratio=0.5
+            # tp_config={"enabled": True, "maker_strategy": {"enabled": False}}
+            def _side(key, default=None):
+                if "tp_sl_placement_guard.enabled" in key:
+                    return True
+                if "position_exists_threshold_ratio" in key:
+                    return 0.5
+                if "take_profit" in key or "tp_config" in key:
+                    return {"enabled": True, "maker_strategy": {"enabled": False}}
+                return default
+
+            mock_get.side_effect = _side
+
+            # _place_tp_native をモックして単純な戻り値に
+            with patch.object(
+                tp_sl_manager,
+                "_place_tp_native",
+                new=AsyncMock(return_value={"order_id": "tp_001", "price": 12_200_000}),
+            ):
+                result = await tp_sl_manager.place_take_profit(
+                    side="buy",
+                    amount=0.015,
+                    entry_price=12_100_000,
+                    take_profit_price=12_200_000,
+                    symbol="BTC/JPY",
+                    bitbank_client=client,
+                )
+
+        # スキップではなく注文配置経路に到達した
+        assert result is not None
+        assert result.get("order_id") == "tp_001"
+
+    async def test_guard_disabled_by_feature_flag(self, tp_sl_manager):
+        """feature flag false で旧挙動（ポジション確認スキップ）"""
+        from unittest.mock import AsyncMock
+
+        client = MagicMock()
+        client.fetch_margin_positions = AsyncMock(return_value=[])
+
+        with patch("src.trading.execution.tp_sl_manager.get_threshold") as mock_get:
+
+            def _side(key, default=None):
+                if "tp_sl_placement_guard.enabled" in key:
+                    return False  # ガード無効化
+                if "take_profit" in key or "tp_config" in key:
+                    return {"enabled": True, "maker_strategy": {"enabled": False}}
+                return default
+
+            mock_get.side_effect = _side
+
+            with (
+                patch.object(
+                    tp_sl_manager, "_wait_position_reflected", new=AsyncMock(return_value=False)
+                ),
+                patch.object(
+                    tp_sl_manager,
+                    "_place_tp_native",
+                    new=AsyncMock(return_value={"order_id": "tp_002", "price": 12_200_000}),
+                ),
+            ):
+                result = await tp_sl_manager.place_take_profit(
+                    side="buy",
+                    amount=0.015,
+                    entry_price=12_100_000,
+                    take_profit_price=12_200_000,
+                    symbol="BTC/JPY",
+                    bitbank_client=client,
+                )
+
+        # ガード無効化なら配置経路に到達（fetch_margin_positions も呼ばれない）
+        assert result is not None
+        client.fetch_margin_positions.assert_not_called()

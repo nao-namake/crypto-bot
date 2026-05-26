@@ -1,7 +1,7 @@
-# 開発履歴サマリー（Phase 1-82）
+# 開発履歴サマリー（Phase 1-90γ-③.5）
 
 **作成日**: 2025年12月14日
-**最終更新**: 2026年4月16日
+**最終更新**: 2026年5月27日
 **プロジェクト**: 暗号資産AI自動取引システム（bitbank BTC/JPY信用取引）
 
 ---
@@ -64,6 +64,18 @@
 | **2026/4/6** | **77** | **特徴量最適化（55→37特徴量SHAP+Forward Selection・アンサンブル重み最適化）** |
 | 2026/4/7-9 | 78-81 | **SL注文タイプロールバック・stop_limitデッドコード削除（stop専用設計）** |
 | **2026/4/16** | **82** | **ゴーストポジションTP/SL異常値バグ修正・SL目標1000→800円・ML再学習（運用整合）** |
+| **2026/4/24-5/8** | **83** | **TP1000/SL500/floor撤廃 + 包括バグ修正13件・ML再学習35,036件** |
+| **2026/5/10** | **84** | **エントリー機会拡大（ML閾値yaml化・同方向制限緩和・ADXTrendStrength強トレンド継続）** |
+| **2026/5/11** | **85** | **レジーム別TP/SL再構築・sl_simulation手数料バグ発見・trending全停止** |
+| **2026/5/12** | **86** | **TP/SL/Entry根本再構築・TPSLCalculator単一実装・bitbank API wrapper強化** |
+| **2026/5/13-14** | **87** | **SL CANCELED_UNFILLED 検出層構築・9エージェント並列調査28欠陥確定・Critical 5+High 10完了** |
+| **2026/5/15** | **88** | **GCPコスト削減 + 孤児SL再発防止（min_instances=0 + Cloud Scheduler）** |
+| **2026/5/15-18** | **89** | **取引gating + 4モデルアンサンブル + 55特徴量・Fractional Kelly・Drift検出・N-BEATS・HMM** |
+| **2026/5/17** | **90α** | **メタラベリング有効化（`--meta-label`フラグ追加で macro F1 0.347→0.546）** |
+| **2026/5/21** | **90β** | **本番運用リスク 7 件根本修正・反対方向ポジ制限・必要証拠金率動的対応** |
+| **2026/5/22-23** | **90γ-①〜③** | **Drift 検出再設計・trigger EMERGENCY_STOP 解消・取引拒否91%解消** |
+| **2026/5/24-26** | **90γ-③.1〜③.4** | **Drift オシレーター漏れ修正・Maker fallback 段階改善・観察可能化** |
+| **2026/5/27** | **90γ-③.5 + γ-⑤** | **Phase 79 仕様誤読訂正・狭 spread best_bid 直接配置・50062 連発対策・分析スクリプト統一** |
 
 ---
 
@@ -116,6 +128,14 @@
 | **84** | **エントリー機会拡大** | **2026/5/10** | **ML閾値yaml化(0.55→0.65)・同方向制限1→2・ADXTrendStrength強トレンド継続順張り(ADX≥30+DI差≥8、DIクロス不要)** | [詳細](Phase_84.md) |
 | **85** | **レジーム別TP/SL再構築** | **2026/5/11** | **sl_simulation.py手数料加算バグ発見・真の運用シミュ106件で全シナリオ赤字判明・tight TP1500/SL2000+floor0.7%・normal TP500/SL1500・trending全停止・同方向1ロールバック** | [詳細](Phase_85.md) |
 | **86** | **TP/SL/Entryアーキテクチャ根本再構築** | **2026/5/12** | **TPSLCalculator単一実装(4箇所分散解消)・TP entry_fee加算バグ修正・bitbank API wrapper強化(trigger_price検証+配置後確認)・Atomic Entry緊急成行決済・起動時SL自動修復・分析スクリプトAPI実態検証** | [詳細](Phase_86.md) |
+| **87** | **SL CANCELED_UNFILLED 検出層構築** | **2026/5/13-14** | **9エージェント並列調査で28欠陥確定・Critical 5+High 10 完了・SLMonitor 新規実装・ML信頼度 predicted_class_proba 統一・5分ループ内SL health check・24h timeout判定・サーキットブレーカ・H4-5 Firestore永続化・H6 レジーム別品質フィルタ・H10 バックテスト/ライブ整合性** | [詳細](Phase_87.md) |
+| **88** | **GCPコスト削減 + 孤児SL再発防止 + クリーンアップ** | **2026/5/15** | **I1 Logging WARNING化・I2 Artifact Registry cleanup・I3 min_instances=0 + Cloud Scheduler駆動・I4 メモリ1Gi→512Mi・H11 孤児SL自動キャンセル(指数バックオフ・70004ハンドリング)・M1-M5 + L1-L3 完了** | [詳細](Phase_88.md) |
+| **89** | **取引gating + 4モデルアンサンブル + 55特徴量** | **2026/5/15-18** | **α: trigger gating で trading cycle 70%削減・β: Fractional Kelly + Drift検出・γ: N-BEATS + HMM + Auto Retraining・δ: WebSocket + BTC-ETH相関・特徴量37→55・3→4モデル(LGB34/XGB34/RF17/N-BEATS15)** | [詳細](Phase_89.md) |
+| **90α** | **メタラベリング有効化・学習/運用整合性回復** | **2026/5/17** | **CI workflow に `--meta-label` フラグ追加(6行)で macro F1 LGB CV 0.347→0.546・v8e クラス分布 success 30.8%/failure 69.2% (Triple Barrier 理想)・naive baseline +0.14 で真の予測力獲得・N-BEATS macOS スレッド競合修正(`torch.set_num_threads(1)`)** | [詳細](Phase_90.md) |
+| **90β** | **本番運用リスク 7 件根本修正** | **2026/5/21** | **必要証拠金率 50%固定→bitbank動的30-50%対応・反対方向ポジ制限 limits.py 実装・予測トレース・Auto Retraining env/secrets 整合・SLMonitor validator・5/21 維持率66%強制ロスカット間際事案の再発防止** | [詳細](Phase_90.md) |
+| **90γ-①〜③** | **Drift 検出再設計 + trigger EMERGENCY_STOP 解消 + 取引拒否91%解消** | **2026/5/22-23** | **γ-①: exclude_features OHLCV系除外・168h reset・significant_feature_min 厳格化・γ-②: trigger ValueError → env MODE 判定 + bitbank 50062 反映待ち・γ-③: should_emergency_stop から drift OR 撤廃・ダミー token skip・exclude_features 40個に拡張** | [詳細](Phase_90.md) |
+| **90γ-③.1〜③.4** | **Drift オシレーター漏れ修正 + Maker fallback 段階改善** | **2026/5/24-26** | **③.1: exclude_features 59個拡張・min_instances 整合・③.2: improvement spread×0.1→×0.3・tick 100→5・retry 5000→2000ms (Maker タイムアウト 0 達成)・③.3: ML信頼度ベース動的 Taker fallback (confidence≥0.65)・③.4: Maker 6 ログ INFO→WARNING + timeout 60→120s** | [詳細](Phase_90.md) |
+| **90γ-③.5 + γ-⑤** | **Phase 79 仕様誤読訂正 + 50062 連発対策 + 分析スクリプト統一** | **2026/5/27** | **Web 調査で bitbank post_only=true は反対側板マッチ時のみ cancel と判明 → Phase 68/79 「best_bid 直接配置で必ず reject」コメントが仕様誤読と確定・spread<2 円も best_bid/best_ask 直接配置(queue 末尾待機)導入・TP/SL 配置前ポジション存在確認 `_check_position_exists()` で 50062 連発対策・分析スクリプトの TP/SL 集計を bitbank API ベースで上書き** | [詳細](Phase_90.md) |
 
 ---
 

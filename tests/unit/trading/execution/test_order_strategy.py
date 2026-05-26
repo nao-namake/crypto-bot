@@ -706,22 +706,26 @@ class TestMakerPriceCalculation:
         assert price == 14500070
 
     def test_buy_1yen_spread(self):
-        """Phase 79: スプレッド1円 → Maker不可（0返却）"""
+        """Phase 90γ-③.5: スプレッド1円・buy → best_bid 直接配置（queue末尾待機）.
+
+        旧 Phase 79: 0 返却（仕様誤読により Maker 不可と判定）→ Phase 90γ-③.5 で訂正。
+        bitbank post_only は反対側板マッチ時のみ cancel なので、best_bid（自側板）は安全。
+        """
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500001)
-        assert price == 0
+        assert price == 14500000
 
     def test_sell_1yen_spread(self):
-        """Phase 79: スプレッド1円 → Maker不可（0返却）"""
+        """Phase 90γ-③.5: スプレッド1円・sell → best_ask 直接配置（queue末尾待機）."""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500001)
-        assert price == 0
+        assert price == 14500001
 
     def test_buy_zero_spread(self):
-        """Phase 79: スプレッド0円 → Maker不可（0返却）"""
+        """Phase 90γ-③.5: spread<=0 (異常クロス板) → Maker 配置中止（0返却）"""
         price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000)
         assert price == 0
 
     def test_sell_zero_spread(self):
-        """Phase 79: スプレッド0円 → Maker不可（0返却）"""
+        """Phase 90γ-③.5: spread<=0 (異常クロス板) → Maker 配置中止（0返却）"""
         price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000)
         assert price == 0
 
@@ -730,24 +734,76 @@ class TestMakerPriceCalculation:
         price = self.order_strategy._calculate_maker_price("invalid", 14500000, 14500002)
         assert price == 0
 
-    def test_buy_returns_zero_on_narrow_spread(self):
-        """Phase 79: 狭スプレッド時はMaker不可で0返却"""
-        # spread<2でMaker不可、spread>=2で価格返却
-        for spread in [0, 1]:
-            price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000 + spread)
-            assert price == 0, f"spread={spread}は0が返るべき"
-        for spread in [2, 5, 100]:
+    def test_buy_narrow_and_wide_spread_distinction(self):
+        """Phase 90γ-③.5: spread=0 は 0、spread>=1 は価格を返す."""
+        # spread=0 (異常クロス板) のみ 0
+        price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000)
+        assert price == 0, "spread=0は0が返るべき"
+        # spread>=1 はすべて Maker 配置可能
+        for spread in [1, 2, 5, 100]:
             price = self.order_strategy._calculate_maker_price("buy", 14500000, 14500000 + spread)
             assert price > 0, f"spread={spread}は価格を返すべき"
 
-    def test_sell_returns_zero_on_narrow_spread(self):
-        """Phase 79: 狭スプレッド時はMaker不可で0返却"""
-        for spread in [0, 1]:
-            price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000 + spread)
-            assert price == 0, f"spread={spread}は0が返るべき"
-        for spread in [2, 5, 100]:
+    def test_sell_narrow_and_wide_spread_distinction(self):
+        """Phase 90γ-③.5: sell 側も spread=0 のみ 0、spread>=1 は価格返却."""
+        price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000)
+        assert price == 0, "spread=0は0が返るべき"
+        for spread in [1, 2, 5, 100]:
             price = self.order_strategy._calculate_maker_price("sell", 14500000, 14500000 + spread)
             assert price > 0, f"spread={spread}は価格を返すべき"
+
+
+class TestPhase90Gamma35NarrowSpreadStrategy:
+    """Phase 90γ-③.5: 狭 spread (<2円) での best_bid 直接配置戦略.
+
+    bitbank 公式仕様: post_only=true は「反対側板と即時マッチ時のみ cancel」。
+    best_bid (自側板) への post_only=true 発注 → cancel されず queue 末尾に並ぶ。
+    旧 Phase 79 では spread<2 円で即 0 返却（Taker fallback）していたが、
+    Phase 90γ-③.5 で best_bid/best_ask 直接配置に変更（queue 末尾待機戦略）。
+    """
+
+    def setup_method(self):
+        self.order_strategy = OrderStrategy()
+
+    def test_buy_spread_1_uses_best_bid(self):
+        """spread=1円・buy → best_bid に直接配置"""
+        price = self.order_strategy._calculate_maker_price("buy", 12_100_000, 12_100_001)
+        assert price == 12_100_000
+
+    def test_sell_spread_1_uses_best_ask(self):
+        """spread=1円・sell → best_ask に直接配置"""
+        price = self.order_strategy._calculate_maker_price("sell", 12_100_000, 12_100_001)
+        assert price == 12_100_001
+
+    def test_wide_spread_uses_improvement_logic(self):
+        """spread>=2円 では既存 improvement 経路（best_bid+improvement）に進む"""
+        # spread=10円 → improvement=max(1, min(3, 9))=3
+        price_buy = self.order_strategy._calculate_maker_price("buy", 12_100_000, 12_100_010)
+        assert price_buy == 12_100_003
+
+        price_sell = self.order_strategy._calculate_maker_price("sell", 12_100_000, 12_100_010)
+        assert price_sell == 12_100_007
+
+    def test_narrow_spread_disabled_by_feature_flag(self):
+        """feature flag false で旧挙動（spread<2円で 0 返却・即 Taker fallback）"""
+        from unittest.mock import patch
+
+        with patch("src.trading.execution.order_strategy.get_threshold") as mock_get:
+
+            def _side(key, default=None):
+                if "narrow_spread_strategy.enabled" in key:
+                    return False  # feature flag 無効化
+                return default
+
+            mock_get.side_effect = _side
+            price = self.order_strategy._calculate_maker_price("buy", 12_100_000, 12_100_001)
+            assert price == 0  # 旧挙動: 即 Taker fallback
+
+    def test_crossed_book_returns_zero(self):
+        """異常クロス板 (best_bid >= best_ask) → 配置中止"""
+        # spread = -1 (クロス板)
+        price = self.order_strategy._calculate_maker_price("buy", 12_100_001, 12_100_000)
+        assert price == 0
 
 
 class TestOrderStrategyErrorHandling:
