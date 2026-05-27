@@ -433,15 +433,24 @@ class OrderStrategy:
             orderbook = await asyncio.to_thread(client.fetch_order_book, "BTC/JPY", 5)
 
             if not orderbook or "bids" not in orderbook or "asks" not in orderbook:
+                # Phase 90γ-⑥: Maker 経路スキップ理由を WARNING で観察可能化
+                self.logger.warning(
+                    "📊 Phase 90γ-⑥: Maker 経路スキップ - reason=orderbook_unavailable"
+                )
                 return {"maker_viable": False, "disable_reason": "orderbook_unavailable"}
 
             if not orderbook["bids"] or not orderbook["asks"]:
+                self.logger.warning("📊 Phase 90γ-⑥: Maker 経路スキップ - reason=empty_orderbook")
                 return {"maker_viable": False, "disable_reason": "empty_orderbook"}
 
             best_bid = float(orderbook["bids"][0][0])
             best_ask = float(orderbook["asks"][0][0])
 
             if best_bid <= 0 or best_ask <= 0:
+                self.logger.warning(
+                    f"📊 Phase 90γ-⑥: Maker 経路スキップ - reason=invalid_prices "
+                    f"(best_bid={best_bid}, best_ask={best_ask})"
+                )
                 return {"maker_viable": False, "disable_reason": "invalid_prices"}
 
             spread_ratio = (best_ask - best_bid) / best_bid
@@ -450,16 +459,21 @@ class OrderStrategy:
             # Phase 65.4: min_spread=0でチェック無効化（post_onlyで保護）
             min_spread = config.get("min_spread_for_maker", 0)
             if min_spread > 0 and spread_ratio < min_spread:
-                self.logger.info(
-                    f"📡 Phase 62.9: スプレッド狭すぎ {spread_ratio * 100:.4f}% < {min_spread * 100:.3f}%"
+                # Phase 90γ-⑥: info→warning（spread_too_narrow 経路の観察可能化）
+                self.logger.warning(
+                    f"📊 Phase 90γ-⑥: Maker 経路スキップ - reason=spread_too_narrow "
+                    f"({spread_ratio * 100:.4f}% < {min_spread * 100:.3f}%)"
                 )
                 return {"maker_viable": False, "disable_reason": "spread_too_narrow"}
 
             # 高ボラティリティ確認（Maker危険）
             volatility_threshold = config.get("volatility_threshold", 0.02)
             if spread_ratio > volatility_threshold:
-                self.logger.debug(
-                    f"📡 Phase 62.9: 高ボラティリティ {spread_ratio * 100:.3f}% > {volatility_threshold * 100:.1f}%"
+                # Phase 90γ-⑥: debug→warning（高ボラ判定経路の観察可能化）
+                # Taker 87.5% の主因仮説 - threshold=0.02 (2%) が厳しすぎる可能性
+                self.logger.warning(
+                    f"📊 Phase 90γ-⑥: Maker 経路スキップ - reason=high_volatility "
+                    f"({spread_ratio * 100:.3f}% > {volatility_threshold * 100:.1f}%)"
                 )
                 return {"maker_viable": False, "disable_reason": "high_volatility"}
 

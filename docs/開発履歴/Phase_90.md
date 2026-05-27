@@ -1719,3 +1719,157 @@ order_execution:
 2. **公式仕様の Web 確認は早期に**: Phase 90γ-③.2/③.3/③.4 で 4 サイクル使った末に bitbank Support の 1 文で判明
 3. **「物理的に不可能」を疑う**: ユーザーの「メイカーで約定させるって難しいのでしょうか？」の問いがブレイクスルーのきっかけ
 4. **HFT 業界の標準戦略を参照**: Queue-Based Market Making はプロ向けチュートリアルで標準として確立されている
+
+---
+
+# Phase 90γ-⑥: TP/SL confidence 属性名バグ修正 + TP 配置観察可能化 + Maker disable_reason 観察可能化（2026-05-28）
+
+**期間**: 2026-05-28
+**状態**: ローカル実装完了・本番デプロイ待ち
+**plan**: `~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`
+
+## エグゼクティブサマリ
+
+ユーザーの「TP が 500 円で発火するケースが多いが、SL は 2000 円前後で RR が悪い」観察から、**bitbank API 実取引履歴 168h を直接取得**して分析した結果、**Phase 68.8（2026-03-13）以降 約 2.5 ヶ月間継続していた致命的バグ**を発見。
+
+`src/trading/execution/tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が `TradeEvaluation` の実在フィールド名（`confidence_level` / `adjusted_confidence`）と不一致のため、**confidence_based 上書きが全エントリーでスキップ**されていた。結果として `regime_based.normal_range.fixed_amount_target=500` がそのまま採用される事象が発生（tight_range では偶然 1500 が選ばれ正しく見えていた）。
+
+## 経緯
+
+### 5/28 ライブ分析と bitbank API 実取引履歴の直接確認
+
+ユーザー観察「TP=500 円が混在」→ ライブ分析で **Taker 率 87.5% (Maker 1 / Taker 7)** を確認。bitbank API `fetch_my_trades` で過去 168h 取得し、エントリー→決済ペアの実 TP/SL 距離を計算:
+
+| 日時 | TP 距離（実測）| 距離% | gross | NET | 推定 target |
+|---|---|---|---|---|---|
+| 05/22 21:15 | 112,346 円 | 0.910% | +1,685 | +1,500 | **1500 円** ✓ |
+| 05/26 09:53 | 109,296 円 | 0.898% | +1,639 | +1,455 | **1500 円** ✓ |
+| 05/27 00:45 | 37,180 円 | 0.305% | +744 | +500 | **500 円** ⚠️ |
+| 05/28 02:47 | 36,930 円 | 0.309% | +735 | +496 | **500 円** ⚠️ |
+
+→ TPSLCalculator 計算式 `gross_needed = target + entry_fee` で `target=500 / entry_fee=244` を逆算すると実測 37,180 円と完全一致。
+
+### コード調査でバグ確定
+
+`tp_sl_manager.py:2221`:
+```python
+eval_confidence = getattr(evaluation, "confidence", None)
+```
+
+`TradeEvaluation`（`src/trading/core/types.py:23-46`）には:
+- ✅ `confidence_level: float`（必須）
+- ✅ `ml_confidence: Optional[float]`
+- ✅ `adjusted_confidence: Optional[float]`（Phase 59.3 で追加）
+- ❌ `confidence` ← **存在しない**
+
+→ `getattr` は常に `None` を返す
+→ `strategy_utils.py:518` の `if confidence is not None and tp_confidence_config.get("enabled", False):` が **常に False**
+→ `confidence_based` 上書きが効かない
+→ `regime_based.normal_range.fixed_amount_target=500` がそのまま採用
+
+### 観察可能化不足の併発問題
+
+1. **TP 配置時のキーログ 4 箇所が INFO レベル** → 本番 `LOG_LEVEL=WARNING`（Phase 88 I1）で見えない → バグが 2.5 ヶ月発見されなかった原因
+2. **Maker 経路スキップ理由ログが DEBUG レベル** → Maker 試行 2 件/エントリー 13 件 (15%) という極端な数字の原因が観察不能
+
+## 修正内容
+
+### 修正 ①: TP/SL confidence 属性名バグ修正（最重要）
+
+**ファイル**: `src/trading/execution/tp_sl_manager.py:2221`
+
+```diff
+- eval_confidence = getattr(evaluation, "confidence", None)
++ # Phase 90γ-⑥: TradeEvaluation には `confidence` フィールド無し（types.py L23-46）。
++ # Phase 68 以降 getattr が常に None を返し confidence_based 上書きが全エントリーで
++ # スキップされる致命的バグ → regime_based のみで TP/SL 決定 → normal_range で
++ # TP=500 円が採用される事象が約 2.5 ヶ月継続。
++ # 修正: adjusted_confidence (penalty/bonus 適用後・Phase 59.3) → confidence_level
++ # (必須・常に有効) の優先順位で取得。
++ eval_confidence = (
++     evaluation.adjusted_confidence
++     if evaluation.adjusted_confidence is not None
++     else evaluation.confidence_level
++ )
+```
+
+### 修正 ②: TP 配置ログ INFO→WARNING 格上げ（観察可能化）
+
+4 箇所をコードロジック変更ゼロで格上げ:
+
+| # | ファイル:行 | ログ |
+|---|---|---|
+| 1 | `src/strategies/utils/strategy_utils.py:543-548` | 🎯 Phase 61.7: 固定金額TP適用（TP target_net_profit と信頼度ラベル含む）|
+| 2 | `src/trading/execution/tp_sl_manager.py:282-286` | ✅ Phase 62.10: TP Maker配置成功 |
+| 3 | `src/trading/execution/tp_sl_manager.py:1377-1381` | 📊 Phase 65.2/66.6: 固定金額TP/SL使用 |
+| 4 | `src/trading/risk/manager.py:362-368` | 🔄 Phase 66.4: TP再計算 |
+
+### 修正 ③: Maker disable_reason 観察可能化（診断用）
+
+**ファイル**: `src/trading/execution/order_strategy.py:431-475` の `_assess_maker_conditions`
+
+5 つの `maker_viable=False` 経路すべてに WARNING ログを追加:
+- `orderbook_unavailable` / `empty_orderbook` / `invalid_prices` / `spread_too_narrow` / `high_volatility`
+
+特に `high_volatility`（spread_ratio > 0.02）は Taker 87.5% の主因仮説。本番ログで disable_reason の分布が定量化され、`volatility_threshold` 調整可否が次セッションで判断可能になる。
+
+## テスト追加
+
+`tests/unit/trading/execution/test_tp_sl_manager.py` に `TestPhase90Gamma6ConfidenceAttribute` クラス（4 件）:
+1. `test_trade_evaluation_has_no_confidence_attribute`: 回帰防止（`confidence` フィールドが追加されたら警告）
+2. `test_confidence_extraction_adjusted_priority`: adjusted_confidence が優先される
+3. `test_confidence_extraction_fallback_to_confidence_level`: adjusted_confidence None で fallback
+4. `test_old_getattr_pattern_returns_none`: 旧バグの再現確認
+
+全 PASS（ローカル品質チェック `bash scripts/testing/checks.sh` 全項目 PASS / カバレッジ 72%+）。
+
+## 期待効果
+
+| 指標 | 現状 (5/28 48h) | 目標 (Day 7) |
+|---|---|---|
+| TP 平均距離 | 0.3% (normal) / 0.9% (tight) 混在 | **0.7-0.9% 統一** |
+| 実 NET TP | +500 円 / +1500 円 混在 | **+1,200 円以上**（信頼度 high の 1500 target - 手数料 244 円）|
+| 実効 RR 比 | 0.25:1 (normal) / 0.75:1 (tight) | **0.6-0.75:1 統一** |
+| TP 配置 WARNING ログ | 0 件/48h | エントリー件数と同等 |
+| Maker スキップ理由 | 不可視（DEBUG）| disable_reason 分布可視化 |
+
+## 副作用評価
+
+- ✅ 高信頼度時の TP/SL は CLAUDE.md Phase 85 設計通り（tight_range 相当 = 過去 30 日勝率 67.9% の構成）
+- ⚠️ normal_range 時の SL 距離が 1500 → 2000 円に拡大 → SL ヒット率減・1 回損失増（実証データで黒字確認済 → リスク許容）
+- ✅ 既存ポジションの TP/SL は変更されない（新規エントリーから適用）
+
+## ロールバック手順
+
+```bash
+# 修正 ① だけ revert（TP target=500 + tight 1500 混在に戻すが安全な旧状態）
+git revert <Phase 90γ-⑥ コミットハッシュ>
+git push origin main
+
+# または、設定で confidence_based を一時的に無効化（コード無変更で旧挙動再現）
+yq -i '.position_management.take_profit.fixed_amount.confidence_based.enabled = false' config/core/thresholds.yaml
+yq -i '.position_management.stop_loss.fixed_amount.confidence_based.enabled = false' config/core/thresholds.yaml
+```
+
+修正 ②③ は観察系のみのため revert 不要。
+
+## 教訓
+
+1. **「ユーザーの直感」を軽視しない**: 「500 円が手数料に消える」理論を信じかけたが、ユーザーが「1000 円消える計算はおかしい」と指摘してくれたことで真因に辿り着いた。手数料 244 円で gross 744 円 → net 500 円という計算は、target=500 円である証拠だった。
+2. **bitbank API 実取引履歴の直接確認は決定的**: GCP ログは INFO レベルで見えなかったが、実約定価格 vs エントリー価格の差は API で確実に取れる。これでバグの実態が定量化された。
+3. **`getattr(obj, "string_attr", default)` は型安全でない**: dataclass のフィールド名と文字列リテラルが乖離した場合に発見されにくい。`obj.field_name` 直アクセスなら mypy で検出可能。
+4. **「Phase 68 以降 2.5 ヶ月放置」は観察不足の典型**: WARNING ログレベル運用（Phase 88 I1 コスト削減）で INFO ログを隠した副作用。Phase 90γ-③.4 で Maker 戦略ログを格上げした際に、TP 配置側も同時に対処すべきだった。
+
+## 関連ファイル
+
+### 修正
+- `src/trading/execution/tp_sl_manager.py` (L2221 本体修正・L282/L1377 ログ格上げ)
+- `src/strategies/utils/strategy_utils.py` (L543 ログ格上げ)
+- `src/trading/risk/manager.py` (L362 ログ格上げ)
+- `src/trading/execution/order_strategy.py` (L436-475 disable_reason 観察可能化)
+
+### テスト
+- `tests/unit/trading/execution/test_tp_sl_manager.py` (TestPhase90Gamma6ConfidenceAttribute 4 件追加)
+
+### plan
+- `~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`

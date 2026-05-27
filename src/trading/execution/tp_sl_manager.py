@@ -279,7 +279,8 @@ class TPSLManager:
                 # 配置成功 → 旧 order_id を更新（成功時はそのまま返却するので保持不要）
                 last_order_id = str(order_id)
 
-                self.logger.info(
+                # Phase 90γ-⑥: info→warning（本番 LOG_LEVEL=WARNING で TP 約定価格を観察可能化）
+                self.logger.warning(
                     f"✅ Phase 62.10: TP Maker配置成功 - "
                     f"ID: {order_id}, 価格: {take_profit_price:.0f}円, "
                     f"試行: {attempt + 1}/{max_retries}"
@@ -1374,7 +1375,8 @@ class TPSLManager:
                 sl_price = self._calculate_fixed_amount_sl_for_position(
                     position_side, amount, avg_price
                 )
-            self.logger.info(
+            # Phase 90γ-⑥: info→warning（統合ポジ用 TP/SL 復旧経路の確定値を観察可能化）
+            self.logger.warning(
                 f"📊 Phase 65.2/66.6: 固定金額TP/SL使用 - "
                 f"TP={tp_price:.0f}円, SL={sl_price:.0f}円 "
                 f"(avg={avg_price:.0f}円, amount={amount:.4f} BTC)"
@@ -2218,7 +2220,17 @@ class TPSLManager:
                 # Phase 58.6: 土日判定用にcurrent_time追加
                 # Phase 61.7: 固定金額TP用にfee_data, position_amount追加
                 # Phase 68.8: 信頼度別TP/SL用にconfidence追加
-                eval_confidence = getattr(evaluation, "confidence", None)
+                # Phase 90γ-⑥: TradeEvaluation には `confidence` フィールド無し（types.py L23-46）。
+                # Phase 68 以降 getattr が常に None を返し confidence_based 上書きが全エントリーで
+                # スキップされる致命的バグ → regime_based のみで TP/SL 決定 → normal_range で
+                # TP=500 円が採用される事象が約 2.5 ヶ月継続。
+                # 修正: adjusted_confidence (penalty/bonus 適用後・Phase 59.3) → confidence_level
+                # (必須・常に有効) の優先順位で取得。
+                eval_confidence = (
+                    evaluation.adjusted_confidence
+                    if evaluation.adjusted_confidence is not None
+                    else evaluation.confidence_level
+                )
                 recalculated_sl, recalculated_tp = RiskManager.calculate_stop_loss_take_profit(
                     side,
                     actual_filled_price,

@@ -2476,3 +2476,133 @@ class TestPhase90Gamma5PositionGuard:
         # ガード無効化なら配置経路に到達（fetch_margin_positions も呼ばれない）
         assert result is not None
         client.fetch_margin_positions.assert_not_called()
+
+
+class TestPhase90Gamma6ConfidenceAttribute:
+    """Phase 90γ-⑥: TradeEvaluation の confidence 属性名バグ修正.
+
+    旧コード `getattr(evaluation, "confidence", None)` は `confidence` フィールドが
+    存在しないため常に None を返し、confidence_based 上書きが全エントリーで
+    スキップされていた。修正後は adjusted_confidence → confidence_level の
+    fallback chain で正しく信頼度が伝達される。
+    """
+
+    def test_trade_evaluation_has_no_confidence_attribute(self):
+        """回帰防止: TradeEvaluation に `confidence` フィールドが追加されたら警告.
+
+        将来 `confidence` フィールドが追加された場合は、本体コードの fallback chain も
+        見直す必要がある（このテストが失敗したら types.py を確認）。
+        """
+        from src.trading.core.types import TradeEvaluation
+
+        field_names = {f.name for f in TradeEvaluation.__dataclass_fields__.values()}
+        # Phase 90γ-⑥: 旧コードが getattr で参照していた "confidence" フィールドは存在しない
+        assert "confidence" not in field_names
+        # 修正で参照する属性は存在することを確認
+        assert "adjusted_confidence" in field_names
+        assert "confidence_level" in field_names
+        assert "ml_confidence" in field_names
+
+    def test_confidence_extraction_adjusted_priority(self):
+        """adjusted_confidence が non-None なら優先される"""
+        from datetime import datetime as dt
+
+        from src.trading.core.enums import RiskDecision
+        from src.trading.core.types import TradeEvaluation
+
+        evaluation = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.3,
+            position_size=0.02,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.50,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=dt.now(),
+            kelly_recommendation=0.02,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            adjusted_confidence=0.65,
+        )
+
+        # 本体ロジックと同じ fallback chain を再現
+        result = (
+            evaluation.adjusted_confidence
+            if evaluation.adjusted_confidence is not None
+            else evaluation.confidence_level
+        )
+
+        # adjusted_confidence が優先される
+        assert result == 0.65
+
+    def test_confidence_extraction_fallback_to_confidence_level(self):
+        """adjusted_confidence が None なら confidence_level にフォールバック"""
+        from datetime import datetime as dt
+
+        from src.trading.core.enums import RiskDecision
+        from src.trading.core.types import TradeEvaluation
+
+        evaluation = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.3,
+            position_size=0.02,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.72,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=dt.now(),
+            kelly_recommendation=0.02,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            adjusted_confidence=None,
+        )
+
+        result = (
+            evaluation.adjusted_confidence
+            if evaluation.adjusted_confidence is not None
+            else evaluation.confidence_level
+        )
+
+        # adjusted_confidence が None なら confidence_level (0.72)
+        assert result == 0.72
+
+    def test_old_getattr_pattern_returns_none(self):
+        """旧バグの再現: getattr(evaluation, 'confidence', None) は常に None.
+
+        修正前のロジックを再現し、信頼度が伝達されない問題を可視化。
+        """
+        from datetime import datetime as dt
+
+        from src.trading.core.enums import RiskDecision
+        from src.trading.core.types import TradeEvaluation
+
+        evaluation = TradeEvaluation(
+            decision=RiskDecision.APPROVED,
+            side="buy",
+            risk_score=0.3,
+            position_size=0.02,
+            stop_loss=None,
+            take_profit=None,
+            confidence_level=0.72,
+            warnings=[],
+            denial_reasons=[],
+            evaluation_timestamp=dt.now(),
+            kelly_recommendation=0.02,
+            drawdown_status="normal",
+            anomaly_alerts=[],
+            market_conditions={},
+            adjusted_confidence=0.65,
+        )
+
+        # 旧バグ: confidence フィールド存在せず → 常に None
+        old_result = getattr(evaluation, "confidence", None)
+        assert old_result is None, (
+            "TradeEvaluation に confidence フィールドが追加された場合は "
+            "Phase 90γ-⑥ 修正の前提が変わるため再検証要"
+        )

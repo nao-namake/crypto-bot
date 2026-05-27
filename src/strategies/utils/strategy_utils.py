@@ -540,7 +540,8 @@ class RiskManager:
 
                 if fixed_tp:
                     take_profit = fixed_tp
-                    logger.info(
+                    # Phase 90γ-⑥: info→warning（本番 LOG_LEVEL=WARNING で TP 目標値・信頼度ラベルを観察可能化）
+                    logger.warning(
                         f"🎯 Phase 61.7: 固定金額TP適用 - "
                         f"目標純利益={fixed_amount_config.get('target_net_profit', 1500):.0f}円"
                         f"{tp_confidence_label}, "

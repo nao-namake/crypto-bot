@@ -359,7 +359,8 @@ class IntegratedRiskManager:
                                     config=fixed_tp_config,
                                 )
                                 if recalculated_tp:
-                                    self.logger.info(
+                                    # Phase 90γ-⑥: info→warning（TP 再計算経路の確定値を観察可能化）
+                                    self.logger.warning(
                                         f"🔄 Phase 66.4: TP再計算 - "
                                         f"シグナルTP={take_profit:.0f}円→"
                                         f"再計算TP={recalculated_tp:.0f}円 "

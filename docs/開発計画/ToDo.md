@@ -2,7 +2,31 @@
 
 ## 現在の状態
 
+**Phase 90γ-⑥ ローカル実装完了（2026-05-28）・本番デプロイ待ち**
+
+### Phase 90γ-⑥ 概要
+
+ユーザーの「TP=500 円・SL=2000 円で RR 悪い」観察 + bitbank API 168h 実取引履歴の直接確認で **Phase 68.8 (2026-03-13) 以降 約 2.5 ヶ月継続していた致命バグ** を発見:
+
+`src/trading/execution/tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が `TradeEvaluation` の実在フィールド名（`confidence_level` / `adjusted_confidence`）と不一致のため、**confidence_based 上書きが全エントリーでスキップ**。結果として normal_range で TP=500 / tight_range で TP=1500 が混在していた。
+
+| 修正 | 内容 | ファイル |
+|---|---|---|
+| **①** | confidence 取得を `adjusted_confidence or confidence_level` の fallback chain に変更 | `tp_sl_manager.py:2221` |
+| **②** | TP 配置ログ 4 箇所を INFO→WARNING 格上げ（観察可能化） | `strategy_utils.py:543` / `tp_sl_manager.py:282, 1377` / `risk/manager.py:362` |
+| **③** | Maker disable_reason ログを WARNING 化（Taker 87.5% の主因調査用） | `order_strategy.py:436-475` |
+
+テスト 4 件追加（`TestPhase90Gamma6ConfidenceAttribute`）。ローカル品質チェック PASS（カバレッジ 72%+）。
+
+**期待効果（Day 7 後）**: TP 距離 0.3%/0.9% 混在 → **0.7-0.9% 統一** / 実 NET TP +500 円 → **+1,200 円以上** / 実効 RR 0.25:1 → **0.6-0.75:1**
+
+統合プラン: [`~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`](~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md)
+
+### 前の状態（履歴）
+
 **Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了（2026-05-27）・3 PR 独立デプロイ待ち**
+
+→ Phase 90γ-⑥ と合わせて 1 PR で統合デプロイ予定
 
 ### Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 概要
 
@@ -15,6 +39,69 @@
 | **B** (Day 4-7 デプロイ) | `src/trading/execution/order_strategy.py` + `config/core/thresholds.yaml` | `_calculate_maker_price()` で spread<2 円も best_bid/best_ask 直接配置 + Phase 68/79 仕様誤読コメント訂正 |
 
 **最重要発見**: Phase 79 のドキュストリング「best_bid 直接配置で post_only で必ず reject」は **bitbank 公式仕様の誤読**。公式仕様は「反対側板マッチ時のみ cancel」であり、自側板への post_only=true は cancel されず queue 末尾に並ぶ → Maker 約定可能。Phase 90γ-③.2/③.3/③.4 はこの誤読の上に積み重ねられていた。
+
+---
+
+## 🟡 技術的負債・将来対応必要事項
+
+### [2026-09-16 期限] GitHub Actions Node.js 20 EOL → Node.js 24 へ移行
+
+**発見日**: 2026-05-27（Phase 90γ-③.5 デプロイ CI run #26477489295 で警告検出）
+**期限**: 2026年9月16日（Node.js 20 が GitHub Actions runner から完全削除）
+**強制移行日**: 2026年6月2日（デフォルトが Node.js 24 に変更・互換性問題があると CI 失敗の可能性）
+
+#### 警告内容（CI annotation 抜粋）
+
+> Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@v4, actions/setup-python@v5, google-github-actions/auth@v2, google-github-actions/setup-gcloud@v2. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026.
+
+参考: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+
+#### 影響する Actions
+
+CI/CD Pipeline で使用中（Node.js 20 動作）:
+- `actions/checkout@v4` — リポジトリチェックアウト
+- `actions/setup-python@v5` — Python セットアップ
+- `google-github-actions/auth@v2` — GCP 認証
+- `google-github-actions/setup-gcloud@v2` — gcloud SDK セットアップ
+
+#### 対応方針（候補）
+
+| 案 | 内容 | リスク | 推奨時期 |
+|---|---|---|---|
+| **A. 暫定対応**（推奨・即時可） | `.github/workflows/ci.yml` の env に `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` を追加して Node.js 24 強制実行 → 互換性事前検証 | 中（Node 24 で各 action が動作するか要検証）| 2026/6/2 までに完了 |
+| **B. action バージョン更新** | 各 action の Node.js 24 対応版がリリースされたら更新（例: `actions/checkout@v5` 等）| 低（公式更新待ち）| 各 action の v5 リリース後 |
+| **C. 何もせず 6/2 を迎える** | デフォルトが Node.js 24 に変わるので自動移行（運次第）| 高（互換性問題で CI 失敗の可能性）| 非推奨 |
+
+#### 推奨実装手順（案 A → 案 B 段階移行）
+
+1. **案 A 即時実装**（2026/6/2 までに）:
+   ```yaml
+   # .github/workflows/ci.yml の env セクションに追加
+   env:
+     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+   ```
+   - 効果: 全 job で Node.js 24 強制実行・互換性問題を事前検出可能
+   - ロールバック: `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true` で一時的に Node.js 20 復帰可能
+
+2. **案 B フォローアップ**（各 action の v5 リリース後）:
+   - 公式が v5 をリリースし次第バージョン更新
+   - 例: `actions/checkout@v5`, `actions/setup-python@v6` 等
+
+#### 検証方法
+
+```bash
+# 案 A 適用後の CI 動作確認
+gh workflow run ci.yml --ref <test-branch>
+gh run watch
+# 全ジョブ ✓ で互換性 OK・失敗があれば該当 action を旧 Node.js 20 で固定
+```
+
+#### 関連ファイル
+- `.github/workflows/ci.yml`（メイン CI/CD パイプライン）
+- `.github/workflows/model-training.yml`（週次 ML 再学習・同様の action 使用）
+- 他に `.github/workflows/` 配下の全 yml で同じ action 使用箇所を確認必要
+
+---
 
 ### 過去の Phase（履歴）
 
