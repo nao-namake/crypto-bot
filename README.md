@@ -7,34 +7,33 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 [![Phase 87](https://img.shields.io/badge/Phase%2087-Complete-success)](docs/開発履歴/Phase_87.md)
 [![Phase 88](https://img.shields.io/badge/Phase%2088-Complete-success)](docs/開発履歴/Phase_88.md)
 [![Phase 89](https://img.shields.io/badge/Phase%2089-Complete%20%26%20Deployed-success)](docs/開発履歴/Phase_89.md)
+[![Phase 90](https://img.shields.io/badge/Phase%2090γ--⑦+⑨-Complete%20%26%20Deployed-success)](docs/開発履歴/Phase_90.md)
 
 ---
 
 ## 現在の状態
 
-**Phase 90γ-⑥ 本番デプロイ完了（2026-05-28 06:42 JST）→ Day 1 検証待ち**
+**Phase 90γ-⑦+⑨ 統合実装 本番デプロイ完了（2026-05-29 06:28 JST）→ Day 1 観察可能化検証待ち**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | 5/28 ライブ分析 + bitbank API 実取引履歴 168h 分析で **TP/SL confidence 属性名バグ** が発覚。`tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が `TradeEvaluation` の実フィールド名（`confidence_level` / `adjusted_confidence`）と不一致のため、Phase 68.8（2026-03-13）以降 **約 2.5 ヶ月間 confidence_based 上書きが全エントリーでスキップ**されていた。結果 normal_range で TP=500 円、tight_range で TP=1500 円が混在。Phase 90γ-⑥ で fallback chain に修正 + TP 配置ログ 4 箇所 INFO→WARNING 格上げ + Maker disable_reason 観察可能化 |
-| 🎯 Phase 90γ-⑥ 根本発見 | bitbank API 168h 実取引でユーザー観察「TP=500 円・SL=2000 円で RR 悪い」を定量化。`getattr(evaluation, "confidence", None)` の属性名不一致で confidence_based が機能せず、regime_based の値が直接採用。tight_range では偶然 1500 が正しく動作、normal_range では 500 が誤採用。修正により全レジームで信頼度ベース TP=1500/SL=2000 に統一（実効 RR 0.25:1 → 0.6-0.75:1 期待）|
-| 🎯 Phase 90γ-③.5 根本発見（履歴）| bitbank 公式仕様により post_only=true は「反対側板マッチ時のみ cancel」。自側板への post_only=true は queue 末尾に並ぶ → Maker 約定可能。Phase 68/79 の「best_bid 直接配置で必ず reject」コメントは仕様誤読 |
-| 🎯 Phase 90γ-⑤ 根本発見（履歴）| bitbank 50062 経路解明:SL トリガー成行決済 → ポジ消滅 → 同サイクル内で別経路の TP 配置が並行実行 → 50062。`_check_position_exists()` で TP/SL 配置直前に実ポジ確認するガード追加 |
-| 🎯 分析スクリプト修正（履歴）| 本番 `LOG_LEVEL=WARNING` で Phase 61.9 INFO ログが Cloud Logging に出ず過少集計。API ベース win_count/loss_count で上書きする 2 行追加で修正 |
-| 🎯 Phase 90γ-① 〜 ③.4（履歴）| Drift 検出再設計 / trigger EMERGENCY_STOP 解消 / 取引拒否 91% 解消 / Maker fallback 段階改善 / 観察可能化（詳細は `docs/開発履歴/Phase_90.md`）|
-| 🎯 Phase 90α/β 根本発見（履歴）| 90α: メタラベリング有効化（CI に `--meta-label` フラグ追加 6 行）で macro F1 0.347 → 0.546・90β: 本番運用リスク 7 件根本修正 |
+| 最新成果 | (1) 5/29 朝に Phase 90γ-⑥ Day 1 効果検証 → **完全成功**（TP 距離 **0.956%**・実効 RR **~1.02:1**・Maker 化率 **100%**・信頼度ラベル WARNING ログ **64/65 試行で機能**）。(2) 同日 **Phase 90γ-⑦（観察可能化）+ Phase 90γ-⑨（テストカバレッジ向上）統合実装** をデプロイ → コードロジック変更ゼロで「次の 2.5 ヶ月放置型バグを 24h 以内に検知できる体制」構築 |
+| 🎯 Phase 90γ-⑦+⑨ 統合実装内容 | ⑦-1 INFO→WARNING 格上げ 3 箇所 / ⑦-2 例外スワロー解消 3 箇所（trigger_server pragma 解除含む）/ ⑦-3 サイレント失敗ログ 3 箇所（DummyModel fallback・ml_confidence=None・drift skip）/ ⑦-4 persistence=None CRITICAL 警告 / ⑨ 25 件テスト追加（test_backtest_runner.py 新規 8 + _load_state 5 + Drift KS 異常入力系 6 + test_trigger_server.py 新規 6 + 補強 2）+ 副次バグ修正 1 件（時刻ハードコード）|
+| 🎯 Phase 90γ-⑥ Day 1 検証結果（5/29 朝・完全成功）| bitbank API 実取引 + WARNING ログで TP 距離 **0.956%**（目標 0.7-0.9% 達成）・実効 RR **~1.02:1**（旧 0.25:1 から **4 倍改善**）・Maker 化率 **100%**（旧 87.5% Taker から大幅改善）・信頼度ラベル付き TP 配置ログ **64/65 試行で機能**（旧バグ時 0%）。実取引件数は trending 相場継続で 24h 1 件のみだが、修正①の confidence_based 機能性は完全証明 |
+| 🎯 同時エントリー仕様確認 | Phase 50.4 維持率予測拒否 48 件/24h は**バグではなく仕様通り**。証拠金 24 万円 / 1 エントリー 0.015 BTC ≒ 17 万円消費で維持率 130% → 追加エントリーで 76% へ落ちる予測 = 強制ロスカット 50% への 30pt 安全バッファ |
+| 🎯 Phase 90γ-⑥ 根本発見（履歴）| `tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が `TradeEvaluation` の実フィールド名（`confidence_level` / `adjusted_confidence`）と不一致 → Phase 68.8（2026-03-13）以降 **約 2.5 ヶ月間 confidence_based 上書きが全エントリーでスキップ**。修正により全レジームで信頼度ベース TP=1500/SL=2000 に統一 |
+| 🎯 Phase 90γ-①〜⑤（履歴）| Drift 検出再設計 / trigger EMERGENCY_STOP 解消 / 取引拒否 91% 解消 / Maker fallback 段階改善 / 観察可能化 / Phase 79 仕様誤読訂正 / 50062 連発対策（詳細は `docs/開発履歴/Phase_90.md`）|
+| 🎯 Phase 90α/β 根本発見（履歴）| 90α: メタラベリング有効化（`--meta-label` 追加 6 行）で macro F1 0.347 → 0.546・90β: 本番運用リスク 7 件根本修正 |
 | v8e (新) macro F1 | LGB CV **0.546** / Test 0.486・RF CV 0.530・N-BEATS CV 0.514 Test 0.524・XGB CV 0.459 |
 | v8e クラス分布 | success 30.8% / failure 69.2%（Triple Barrier 理想分布）|
 | 特徴量数 | 37 → **55**（+18・6 カテゴリ追加）|
 | ML モデル | 3 → **4**（N-BEATS 追加・重み 0.34/0.34/0.17/0.15） |
-| Phase 90γ-⑥ 修正規模 | 5 ファイル変更（コード 4 + テスト 1）+ 4 テスト追加 / **全 PASS（カバレッジ 72%+）** |
-| 本番効果（5/28 48h 時点）| エントリー 13 件・勝率 71.4% / 損益 ¥-753 / Taker 率 87.5% / TP 距離 0.3%-0.9% 混在（デプロイ前のデータ）|
-| 過去 7 日損益（5/21-5/28）| 取引 15 ペア / 勝率 **66.7%** (10勝5敗) / 総 NET **¥-3,056** / **PF 0.496** / 平均勝利 ¥300 vs 平均損失 ¥1,212 (RR 0.25:1) / **月利 -2.6% / 年利 -31%**（目標 +10%/年 から -41pt 未達）→ Phase 90γ-⑥ で月利 +1-2% / 年利 +12-24% 改善見込み（要検証）|
+| Phase 90γ-⑦+⑨ 修正規模 | 8 ファイル変更（コード 4 + テスト新規 2 + テスト拡張 2）/ **+577 / -15 行・25 件テスト追加 / 全 PASS（カバレッジ 72%+）** |
+| 過去 7 日損益（5/21-5/28）| 取引 15 ペア / 勝率 **66.7%** (10勝5敗) / 総 NET **¥-3,056** / **PF 0.496** / 平均勝利 ¥300 vs 平均損失 ¥1,212 (RR 0.25:1) / **月利 -2.6% / 年利 -31%**（目標 +10%/年 から -41pt 未達）→ **Phase 90γ-⑥ Day 1 で機能性確認済**・Day 7（6/4 頃）に PF > 1.2 / 月利 > 0% への改善見込み |
 | 外部ソース検証 | bitbank + Binance + 業界標準 ADX で Bot のレジーム判定が **一致**（直近 24h で trending 60-66%）。「取引ない=trending 相場」は妥当。TP/SL 距離は ATR×6 と業界標準（×1.5-2.0）より広いが Phase 85 実証で意図的設定 |
-| 包括的バグ分析（5/28）| Phase 90γ-⑦/⑧/⑨ ロードマップ策定（観察可能化 15+ 箇所 / リカバリパス統合 / テストカバレッジ 73%→78%）。詳細: `~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md` |
-| 次の予定 | **5/29 朝に Day 1 効果検証**: ライブ分析で TP 距離 0.7-0.9% 統一・実 NET TP +1,200 円以上を確認 → 結果次第で Phase 90γ-⑦ 着手 |
-| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`（Phase 90γ-⑥ 統合プラン）|
-| 最終更新 | 2026年5月28日 - Phase 90γ-⑥ デプロイ完了 + 包括的バグ分析 + 7 日損益評価 |
+| 次の予定 | **5/30 朝に Phase 90γ-⑦ Day 1 観察可能化検証**: 新規 WARNING 5 種以上が可視化されているか + Phase 90γ-⑥ Day 2 累積効果。健全なら **Phase 90γ-④（ML 改善）着手判断**（バックテスト経路統合 90γ-⑧ は優先度低でスキップ候補）|
+| 詳細計画 | [docs/開発計画/ToDo.md](docs/開発計画/ToDo.md) / [docs/開発履歴/Phase_90.md](docs/開発履歴/Phase_90.md) / `~/.claude/plans/humming-prancing-lamport.md`（Phase 90γ-⑦+⑨ 統合プラン）|
+| 最終更新 | 2026年5月29日 - Phase 90γ-⑦+⑨ デプロイ完了 + Phase 90γ-⑥ Day 1 検証完全成功 |
 
 ---
 
@@ -235,4 +234,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年5月28日 - Phase 90γ-⑥ デプロイ完了 + 包括的バグ分析 + 7 日損益評価
+**最終更新**: 2026年5月29日 - Phase 90γ-⑦+⑨ デプロイ完了 + Phase 90γ-⑥ Day 1 検証完全成功

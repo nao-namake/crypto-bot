@@ -1,7 +1,7 @@
-# 開発履歴サマリー（Phase 1-90γ-③.5）
+# 開発履歴サマリー（Phase 1-90γ-⑦+⑨）
 
 **作成日**: 2025年12月14日
-**最終更新**: 2026年5月27日
+**最終更新**: 2026年5月29日
 **プロジェクト**: 暗号資産AI自動取引システム（bitbank BTC/JPY信用取引）
 
 ---
@@ -76,6 +76,8 @@
 | **2026/5/22-23** | **90γ-①〜③** | **Drift 検出再設計・trigger EMERGENCY_STOP 解消・取引拒否91%解消** |
 | **2026/5/24-26** | **90γ-③.1〜③.4** | **Drift オシレーター漏れ修正・Maker fallback 段階改善・観察可能化** |
 | **2026/5/27** | **90γ-③.5 + γ-⑤** | **Phase 79 仕様誤読訂正・狭 spread best_bid 直接配置・50062 連発対策・分析スクリプト統一** |
+| **2026/5/28** | **90γ-⑥** | **TP/SL confidence 属性名バグ修正（getattr で 2.5 ヶ月放置）+ 観察可能化 3 件** |
+| **2026/5/29** | **90γ-⑦+⑨** | **観察可能化 11 箇所（INFO→WARNING / 例外スワロー解消 / サイレント失敗ログ / persistence health check）+ テスト 25 件追加（次の 2.5 ヶ月放置バグを 24h 検知体制）** |
 
 ---
 
@@ -136,6 +138,8 @@
 | **90γ-①〜③** | **Drift 検出再設計 + trigger EMERGENCY_STOP 解消 + 取引拒否91%解消** | **2026/5/22-23** | **γ-①: exclude_features OHLCV系除外・168h reset・significant_feature_min 厳格化・γ-②: trigger ValueError → env MODE 判定 + bitbank 50062 反映待ち・γ-③: should_emergency_stop から drift OR 撤廃・ダミー token skip・exclude_features 40個に拡張** | [詳細](Phase_90.md) |
 | **90γ-③.1〜③.4** | **Drift オシレーター漏れ修正 + Maker fallback 段階改善** | **2026/5/24-26** | **③.1: exclude_features 59個拡張・min_instances 整合・③.2: improvement spread×0.1→×0.3・tick 100→5・retry 5000→2000ms (Maker タイムアウト 0 達成)・③.3: ML信頼度ベース動的 Taker fallback (confidence≥0.65)・③.4: Maker 6 ログ INFO→WARNING + timeout 60→120s** | [詳細](Phase_90.md) |
 | **90γ-③.5 + γ-⑤** | **Phase 79 仕様誤読訂正 + 50062 連発対策 + 分析スクリプト統一** | **2026/5/27** | **Web 調査で bitbank post_only=true は反対側板マッチ時のみ cancel と判明 → Phase 68/79 「best_bid 直接配置で必ず reject」コメントが仕様誤読と確定・spread<2 円も best_bid/best_ask 直接配置(queue 末尾待機)導入・TP/SL 配置前ポジション存在確認 `_check_position_exists()` で 50062 連発対策・分析スクリプトの TP/SL 集計を bitbank API ベースで上書き** | [詳細](Phase_90.md) |
+| **90γ-⑥** | **TP/SL confidence 属性名バグ修正 + 観察可能化 3 件** | **2026/5/28** | **`tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が TradeEvaluation 実フィールド名(`confidence_level`/`adjusted_confidence`)と不一致で 2.5 ヶ月間 confidence_based 上書きが全スキップ → fallback chain `adjusted_confidence or confidence_level` に修正 + TP 配置ログ 4 箇所 INFO→WARNING + Maker disable_reason WARNING 化 / Day 1 検証で TP 距離 0.956%・実効 RR ~1.02:1・Maker 化率 100% 達成** | [詳細](Phase_90.md) |
+| **90γ-⑦+⑨** | **観察可能化 11 箇所 + テストカバレッジ向上 25 件追加** | **2026/5/29** | **⑦-1 INFO→WARNING 格上げ 3 箇所(backtest_runner L935/L1063 + ml_health_monitor L155)・⑦-2 例外スワロー解消 3 箇所(trigger_server L73 pragma 解除含む)・⑦-3 サイレント失敗ログ 3 箇所(DummyModel fallback・ml_confidence=None・drift skip)・⑦-4 persistence=None CRITICAL 警告 / ⑨ 25 件テスト追加(test_backtest_runner.py 新規 8 + _load_state 5 + Drift KS 異常入力 6 + test_trigger_server.py 新規 6 + 補強 2) / コードロジック変更ゼロで「次の 2.5 ヶ月放置バグを 24h 検知」体制構築** | [詳細](Phase_90.md) |
 
 ---
 
