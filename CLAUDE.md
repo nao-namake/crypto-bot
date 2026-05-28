@@ -4,160 +4,120 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 90γ-⑥ ローカル実装完了（2026-05-28）・本番デプロイ待ち**（Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 は未デプロイのまま統合）|
-| **直前の作業** | 5/28 ライブ分析 + bitbank API 実取引履歴 168h 分析で **TP/SL confidence 属性名バグ** が発覚。`tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が `TradeEvaluation` の実在フィールド名（`confidence_level` / `adjusted_confidence`）と不一致のため、**Phase 68.8（2026-03-13）以降 約 2.5 ヶ月間 confidence_based 上書きが全エントリーでスキップ**されていた。結果 normal_range で TP=500 円・tight_range で TP=1500 円が混在。修正により全レジームで信頼度ベース TP=1500/SL=2000 に統一 |
-| **次の予定** | Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 + **γ-⑥** の 4 修正をまとめて 1 PR デプロイ → 24h ライブ分析で TP 距離 0.3% → 0.7-0.9% / 実 NET +500 円 → +1,200 円以上 / RR 0.25:1 → 0.6:1 を確認 |
-| **🎯 Phase 90γ-⑥ 最重要発見** | bitbank API 実取引 168h で **TP 距離が 0.3% (NET +500) と 0.9% (NET +1500) で混在** とユーザー観察。原因は `TradeEvaluation` に `confidence` フィールドが存在しないのに `getattr(evaluation, "confidence", None)` で取得していた致命バグ。tight_range では regime_based 1500 が偶然正しく動作、normal_range では regime_based 500 が誤って採用されていた。Phase 90γ-⑥ で `evaluation.adjusted_confidence or evaluation.confidence_level` の fallback chain に修正 + TP 配置ログ 4 箇所 INFO→WARNING 格上げ + Maker disable_reason WARNING 化 |
-| **特徴量数** | 37 → **55**（Phase 89-β/γ/δ で 6 カテゴリ追加）|
-| **ML モデル** | 3 → **4**（N-BEATS 追加・LGB 34%/XGB 34%/RF 17%/N-BEATS 15%） |
-| **🎉 v8e (2 クラスメタラベリング) macro F1** | LGB CV 0.546 / Test 0.486・XGB CV 0.459・RF CV 0.530・N-BEATS CV 0.514 Test 0.524（naive 0.41 比 **+0.10〜+0.14 で真の予測力獲得**）|
-| **本番効果（5/27 05:44 ライブ分析 24h 時点）** | エントリー **5 件・勝率 80% / +¥701** / Maker 約定 **1 件**（spread<2 円で 4 件 Taker fallback）/ Drift 検出 3 件（許容範囲）/ **50062 エラー 5 件発生**（Phase 90γ-⑤ で対処）/ Phase 90γ-③.4 ログ格上げで Maker 経路完全観察可能化 → 真因解明 |
-| **追加課金** | **ゼロ**（GPU 不採用 / LLM 不採用 / 全て無料 API） |
-| **GCP 月額** | 現状 ¥3,000 → Stage 1+3 後 **¥1,400-1,700 見込み**（実測待ち） |
-| **最終更新** | 2026年5月28日 - Phase 90γ-⑥ TP/SL confidence 属性名バグ修正 + 観察可能化 3 件 ローカル実装完了・デプロイ待ち |
+| **現在Phase** | **Phase 90γ-⑥ 本番デプロイ完了（2026-05-28 06:42 JST）→ Day 1 効果検証待ち**（5/29 朝）|
+| **直前の作業** | 5/28 にユーザー観察「TP 500 円混在」+ bitbank API 168h 実取引で **TP/SL confidence 属性名バグ** 発覚（`tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が TradeEvaluation の実フィールド名と不一致で約 2.5 ヶ月間 confidence_based 上書きが全スキップ）。修正 + 観察可能化 3 件をデプロイ完了（commit `68cf68e3`・revision `...-0527-2137`）。同日に **包括的バグ分析 (Phase 1) 実施**し Phase 90γ-⑦/⑧/⑨ ロードマップ確定。**過去 7 日損益 ¥-3,056 / PF 0.5 / 年利 -31%** という赤字状態を確認（バグの累積影響と推定）|
+| **次の予定** | **明朝（5/29 06:00 JST 頃）に Day 1 効果検証**：(1) ライブ分析で TP 距離 0.3% → 0.7-0.9% / NET +500 → +1,200 円以上 (2) WARNING ログで TP target=1500・信頼度ラベル可視化 (3) Maker disable_reason 分布の定量化 → 結果次第で Phase 90γ-⑦（観察可能化）着手 |
+| **🎯 Phase 90γ-⑥ 最重要発見** | bitbank API 7 日実取引で TP 平均勝利 ¥300・平均損失 ¥1,212・実効 RR 0.25:1 と判明。原因は `TradeEvaluation` に `confidence` フィールドが存在しないのに `getattr(evaluation, "confidence", None)` で取得していた致命バグ。tight_range では regime_based 1500 が偶然正しく動作、normal_range では regime_based 500 が誤って採用されていた。修正で `evaluation.adjusted_confidence or evaluation.confidence_level` の fallback chain に変更 |
+| **🎯 包括的バグ分析結果（5/28・Phase 90γ-⑦/⑧/⑨ ロードマップ）** | 3 並列 Explore で「2.5 ヶ月放置型バグの温床」を多数特定。Phase 90γ-⑦ (観察可能化・INFO→WARNING 15+箇所・例外スワロー解消)・Phase 90γ-⑧ (リカバリパス統合・バックテスト手数料整合化)・Phase 90γ-⑨ (テストカバレッジ 73%→78%) として段階修正計画を策定。詳細: `~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md` |
+| **🎯 外部ソース検証結果（5/28）** | bitbank・Binance・業界標準 ADX で Bot のレジーム判定が一致確認（直近 24h で trending 60-66%）。「取引ない = trending 相場」は妥当。TP/SL 距離は ATR×6 と業界標準（×1.5-2.0）より広いが Phase 85 実証で意図的設定 |
+| **過去 7 日実績（5/21-5/28）** | 取引 15 ペア / 勝率 **66.7%** (10勝5敗) / 総 NET **¥-3,056** / 総手数料 ¥2,489 / **PF 0.496** / 平均勝利 ¥300 vs 平均損失 ¥1,212 (RR 0.25:1) / **月利 -2.6% / 年利 -31%**（目標 +10%/年 から -41pt 未達）|
+| **総合評価** | 短期赤字だが**バグの累積影響**と推定。**勝率 66.7% は健全・レジーム判定は外部ソースで妥当性確認済・観察可能性向上で次のバグ検知能力 UP**。Phase 90γ-⑥ 効果で月利 +1-2% / 年利 +12-24% へ改善見込み（要検証・Day 7 確定）。**Bot 停止は非推奨・観察継続を推奨** |
+| **特徴量数 / ML モデル** | 37 → **55** / 3 → **4**（LGB 34%/XGB 34%/RF 17%/N-BEATS 15%）|
+| **v8e macro F1** | LGB CV 0.546 / Test 0.486・XGB CV 0.459・RF CV 0.530・N-BEATS CV 0.514（naive 0.41 比 +0.10〜+0.14）|
+| **追加課金 / GCP 月額** | ゼロ（GPU・LLM 不採用）/ 現状 ¥1,400-1,700 |
+| **最終更新** | 2026年5月28日 - Phase 90γ-⑥ デプロイ完了 + 包括的バグ分析 + 7 日損益評価 |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
-> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/tp-gcp-jazzy-harbor.md`（Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正の統合プラン）
-> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-90γ-③.5）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_90.md`
+> 詳細計画: `docs/開発計画/ToDo.md` / `~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`（Phase 90γ-⑥ 統合 + Phase 90γ-⑦/⑧/⑨ ロードマップ）
+> 開発履歴: `docs/開発履歴/SUMMARY.md`（Phase 1-90γ-⑥）、`docs/開発履歴/Phase_71-81.md`、`Phase_82.md`〜`Phase_90.md`
 
 ---
 
-## 🚀 セッション再開時の最優先タスク（2026-05-27 時点・Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了 → 3 PR 独立デプロイ段階）
+## 🚀 セッション再開時の最優先タスク（2026-05-28 時点・Phase 90γ-⑥ デプロイ完了 → Day 1 検証段階）
 
-**ローカル品質チェック PASS**（全テスト・カバレッジ 72%+・flake8/black/isort）。**未コミット状態**で 3 修正が共存（feature flag で段階解放可能）。次セッションは PR 分割コミット → デプロイ → 24h KPI 確認。
+Phase 90γ-⑥ + ③.5 + ⑤ + 分析スクリプト修正の統合 PR は commit `68cf68e3` で本番デプロイ完了（5/28 06:42 JST / revision `crypto-bot-service-prod-phase89a-cost-opt-0527-2137`）。CI/CD 全 PASS（14m35s）。
 
-統合プラン書: [`~/.claude/plans/tp-gcp-jazzy-harbor.md`](~/.claude/plans/tp-gcp-jazzy-harbor.md)
+統合プラン: [`~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`](~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md)（Phase 90γ-⑥ 統合 + Phase 90γ-⑦/⑧/⑨ ロードマップ）
 
-### Step 1: PR 分割コミット（推奨 A→C→B 独立 3 PR）
+### Step 1: Phase 90γ-⑥ Day 1 効果検証（5/29 朝・5 分）
 
 ```bash
-# PR A: 分析スクリプト統一（最小リスク・即恩恵）
-git add scripts/live/standard_analysis.py tests/unit/scripts/test_standard_analysis_tp_sl_count.py
-git commit -m "fix: Phase 90γ-③.5 分析スクリプト TP/SL 集計を bitbank API ベースに統一"
-
-# PR C: TP/SL 配置前ポジ確認（50062 連発対策）
-git add src/trading/execution/tp_sl_manager.py tests/unit/trading/execution/test_tp_sl_manager.py
-git add config/core/thresholds.yaml  # 注: PR B でも修正するので分割するなら git add -p 推奨
-git commit -m "fix: Phase 90γ-⑤ TP/SL 配置前ポジション存在確認で 50062 連発対策"
-
-# PR B: 狭 spread best_bid 配置 + 仕様誤読コメント訂正
-git add src/trading/execution/order_strategy.py tests/unit/trading/execution/test_order_strategy.py
-git commit -m "fix: Phase 90γ-③.5 狭 spread での best_bid 直接配置 + Phase 68/79 仕様誤読訂正"
-
-# ドキュメント更新（4 ファイル）は最後に統合 or PR ごとに分配
-git add CLAUDE.md README.md docs/開発履歴/Phase_90.md docs/開発計画/ToDo.md
-git commit -m "docs: Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正完了に伴うドキュメント更新"
-```
-
-または統合 1 コミット（全 feature flag 有効化済・段階解放は config 切替で対応）も可能。
-
-### Step 2: 各 PR デプロイ後の 24h KPI 確認
-
-**Day 1（A デプロイ後）**: 分析スクリプトの集計正確化を確認
-```bash
+# (1) ライブ分析 24h（最重要・TP 距離が 0.7-0.9% で発火するか）
 venv/bin/python3 scripts/live/standard_analysis.py --hours 24
-# 期待: 「取引数: エントリーN件 / 決済M件 (TP:x SL:y)」が bitbank API の win_count/loss_count と一致
-# 期待: Phase 90γ-③.5 乖離検出 WARNING ログが 0 件 or 微小（API 値が正・GCP ログは不完全）
+
+# (2) TP 配置 WARNING ログ（信頼度ラベル付き）
+gcloud logging read 'textPayload=~"Phase 61.7: 固定金額TP適用"' --freshness=24h --format='value(textPayload)' | head -20
+# 期待: 「目標純利益=1500円(高信頼度≥0.4)」が観察可能化される
+
+# (3) Maker disable_reason 分布（Taker 87.5% の主因調査）
+gcloud logging read 'textPayload=~"Phase 90γ-⑥: Maker 経路スキップ"' --freshness=24h --format='value(textPayload)' | grep -oE 'reason=[a-z_]+' | sort | uniq -c | sort -rn
+
+# (4) bitbank API で実 TP 距離検証
+venv/bin/python3 -c "
+import ccxt, os, time
+from dotenv import load_dotenv; load_dotenv('config/secrets/.env')
+ex = ccxt.bitbank({'apiKey': os.getenv('BITBANK_API_KEY'), 'secret': os.getenv('BITBANK_API_SECRET'), 'options': {'defaultType': 'margin'}})
+trades = ex.fetch_my_trades('BTC/JPY', since=int((time.time()-24*3600)*1000), limit=50)
+# エントリー→決済ペアで TP 距離が 0.7-0.9% に統一されているか確認
+"
 ```
 
-**Day 2-3（C デプロイ後）**: 50062 エラー解消を確認
-```bash
-gcloud logging read 'textPayload=~"50062"' --freshness=24h | wc -l  # 期待: 0
-gcloud logging read 'textPayload=~"Phase 90γ-⑤.*配置スキップ"' --freshness=24h | wc -l  # 期待: SL 成行決済時に該当
-```
+### Step 2: KPI 達成判定マトリクス（Day 1）
 
-**Day 4-7（B デプロイ後）**: Maker 化率向上を確認
-```bash
-echo -n "狭spread Maker: " && gcloud logging read 'textPayload=~"Phase 90γ-③.5: 狭spread Maker"' --freshness=24h --format='value(timestamp)' | wc -l
-echo -n "Maker 約定成功: " && gcloud logging read 'textPayload=~"Maker約定成功"' --freshness=24h --format='value(timestamp)' | wc -l
-# 期待: Phase 86 Taker 率 83.3% → ≤30% / Maker 約定数 1→5+/日 / エントリー件数維持
-```
-
-### Step 3: 各修正の KPI 達成判定
-
-| 指標 | 現状 (5/27) | 目標 (Day 7) | ロールバック判断 |
+| 指標 | 現状 (5/28 48h) | 目標 (Day 1) | 不達時 |
 |---|---|---|---|
-| 表示 TP 件数 vs API TP 件数 | 不一致 (0 vs 4) | 一致 (4 vs 4) | A: GCP 乖離 WARNING 多発で `count_logs` 取得そのものを停止検討 |
-| Phase 86 Taker 率 | 83.3% | ≤ 30% | B: 改善ゼロ or 約定 0 件多発 → narrow_spread_strategy.enabled=false |
-| 50062 エラー /24h | 5 件 | 0 件 | C: 正常 TP 配置がスキップされて TP 未設置事故 → tp_sl_placement_guard.enabled=false |
-| Maker 約定数 /24h | 1 件 | 5+ 件 | （B と連動）|
-| エントリー件数 /24h | 5-10 件 | 維持 | （B で エントリー減検出時 ロールバック）|
+| TP 距離 | 0.3%/0.9% 混在 | **0.7-0.9% 統一** | 修正 ① 経路の追加調査 |
+| 実 NET TP | +500/+1500 混在 | **+1,200 円以上** | 同上 |
+| 実効 RR 比 | 0.25:1 | **0.6:1 以上** | < 0.4:1 → 修正① revert |
+| Taker 率 | 87.5% | **≤ 30%** | 改善なし → Phase 90γ-⑦ で disable_reason 分析 |
 
-### Step 4: ロールバック手順（緊急時・5 分以内）
+### Step 3: Day 1 結果に応じた次フェーズ判断
 
-```bash
-# 修正 B 無効化（最もリスク高）
-yq -i '.order_execution.maker_strategy.narrow_spread_strategy.enabled = false' config/core/thresholds.yaml
-git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-③.5 狭 spread 配置無効化" && git push origin main
+| Day 1 結果 | 次フェーズ | 着手時期 |
+|---|---|---|
+| ✅ TP 距離 0.7-0.9% で統一 + Taker 率改善 | **Phase 90γ-⑦（観察可能化 15+ 箇所）着手** | 5/29-30 |
+| 🟡 TP 距離正常化したが Taker 率高止まり | **Phase 90γ-⑦ ⑦-1 (Maker disable_reason 集計)** + 必要なら閾値調整 | 5/29-30 |
+| 🔴 TP=500 円のまま | **修正①の追加調査**（経路別 confidence 伝達検証）優先 | 5/29 |
+| trending 相場継続でデータ少 | **Day 2 待ち**（5/30）+ Phase 90γ-⑦ 並行実装 | 5/30 |
 
-# 修正 C 無効化
-yq -i '.position_management.tp_sl_placement_guard.enabled = false' config/core/thresholds.yaml
-git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-⑤ TP/SL 配置前ガード無効化" && git push origin main
-
-# コード revert（必要時のみ）
-git revert <コミットハッシュ>
-git push origin main
-```
-
-修正 A は観測系のため revert 不要（取引ロジック無影響）。
-
-### 24h 観察結果による次フェーズ着手判断
-
-| Day 7 結果 | 次フェーズ |
-|---|---|
-| 3 修正すべて KPI 達成 | ✅ **Phase 90γ-④ (ML 改善) 着手**（Optuna 50→100 + Focal Loss + Calibration）|
-| B で Maker 化率改善せず queue 末尾で約定遅延 | Phase 90γ-③.6: queue position 推定 + 価格再評価ロジック追加検討 |
-| C で誤検知による TP 未設置事故 | position_exists_threshold_ratio 0.5 → 0.2 緩和、または `_wait_position_reflected` の戻り値併用 |
-| 50062 が別経路で再発 | Phase 64.12 SL 成行決済時に明示的に TP キャンセル追加（副案検討）|
-
-
-### セッション再開時 Step 2: SLMonitor DRY_RUN→false 切替判定（7 日後・既存）
+### Step 4: 緊急ロールバック（5 分以内）
 
 ```bash
-# 誤発火率算出
-venv/bin/python3 scripts/analysis/sl_monitor_validator.py --days 7
+# 修正 ① だけ無効化（最重要・コード変更なし）
+yq -i '.position_management.take_profit.fixed_amount.confidence_based.enabled = false' config/core/thresholds.yaml
+yq -i '.position_management.stop_loss.fixed_amount.confidence_based.enabled = false' config/core/thresholds.yaml
+git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-⑥ confidence_based 無効化" && git push origin main
 
-# 終了コード 0 (SAFE) なら config/core/thresholds.yaml:806 で dry_run: false に切替
+# または完全 revert
+git revert 68cf68e3 && git push origin main
 ```
 
-### セッション再開時 Step 3: Phase 90γ-④ 着手判断
+### Phase 90γ-⑦/⑧/⑨ ロードマップ（包括的バグ分析結果）
 
-7 日観察結果に基づき以下を判定:
-- Maker 約定数 増 / Taker 許可数 ≧ スキップ数 → Phase 90γ-③.2/③.3 完全成功 → Phase 90γ-④ (ML 改善) 着手
-- スキップが過剰（取引機会喪失大）→ taker_fallback_confidence_threshold を 0.65 → 0.60 に緩和検討
+| Phase | 内容 | 規模 | 着手時期 |
+|---|---|---|---|
+| **90γ-⑦** | 観察可能化（INFO→WARNING 15+ 箇所・例外スワロー解消・Drift health check）| 約 20 ファイル・ロジック変更ゼロ | Day 1 確認後（5/29-30）|
+| **90γ-⑧** | リカバリパス統合 + バックテスト/ライブ手数料整合化 + YAML cleanup | 約 5 ファイル | 5/31-6/3 |
+| **90γ-⑨** | テストカバレッジ向上 73% → 78%（ML predictor / Drift / Trigger server）| テスト追加のみ | 6/5+ |
 
-Phase 90γ-④ 候補（Phase 90α からの継続課題・推奨「案 1: 短期 ROI 最大化」）:
-1. **Optuna 試行数増** (50→100) [最優先・容易・1 行変更で XGB 過学習対策・期待 +0.02-0.05]
-2. **Focal Loss** (LGB/XGB) [容易・SMOTE と相補・期待 +0.01-0.03]
-3. **Isotonic Calibration 修正**（v8e で失敗・`ProductionEnsemble` に `fit` メソッド不足）[容易・品質フィルタ精度向上]
-4. **CatBoost 追加** or RF 置換: ensemble 多様性向上 [中・コンテナ肥大化 30-40%]
-5. **Multi-Level VPIN + OFI 拡張**: マイクロ構造特徴強化 [困難・WebSocket 統合必要]
-6. **ADX 遅行性対策（要慎重検証）**: 価格は収束していても ADX が高止まりして trending 継続判定する問題。Phase 85 全停止根拠（過去 30 日 trending 23 件全シナリオ赤字）との両立検証が必須。
+詳細は `~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md` 参照。
 
-### Phase 90γ 異常時のロールバック
+### 過去 7 日損益サマリ（5/21-5/28）
 
-```bash
-# 個別コミット revert
-git revert 1dbaf0ec  # γ-③.4 取消（Maker 観察可能化 + timeout 拡張）
-git revert a6b5fe1e  # γ-③.3 取消（ML 信頼度ベース動的 fallback）
-git revert 6996737a  # γ-③.2 取消（Maker タイムアウト対策）
-git revert 0c40575b  # γ-③.1 取消（exclude_features 拡張 + min_instances 整合）
-git revert e529909e  # γ-③ 取消
-git revert 488c820f  # γ-② 取消
-git revert 8c55dc71  # γ-① レビュー修正取消
-git revert 6aa26ea9  # γ-① 取消
-git push origin main
+| 指標 | 実績 | 評価 |
+|---|---|---|
+| 取引数 | 15 ペア（クリーン）| 月 60 件相当 |
+| 勝率 | **66.7%** (10勝5敗)| ✅ 業界平均超 |
+| 総 NET | **¥-3,056** | 🔴 赤字 |
+| PF | **0.496** | 🔴 不採算 |
+| 平均勝利 vs 平均損失 | ¥300 vs ¥1,212 | 🔴 RR 0.25:1 |
+| 月利・年利換算 | **-2.6% / -31%** | 🔴 目標 +10% から -41pt |
 
-# Phase 90γ-③.3 の閾値だけ無効化（コード変更は残す・旧挙動と同等）
-yq -i '.order_execution.maker_strategy.taker_fallback_confidence_threshold = 0.0' config/core/thresholds.yaml
-git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-③.3 動的判定無効化" && git push origin main
+→ 主因は Phase 90γ-⑥ で修正した confidence 属性バグの累積影響と推定。**Phase 90γ-⑥ 効果で月利 +1-2% / 年利 +12-24% へ改善見込み**（要 Day 7 検証）。
 
-# Drift 検出設定だけ旧に戻す（exclude_features 無効化）
-yq -i '.ml.drift.exclude_features = []' config/core/thresholds.yaml
-yq -i '.ml.drift.significant_feature_min = 3' config/core/thresholds.yaml
-git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-① 設定無効化" && git push origin main
-```
+### 外部ソース検証結果（5/28）
+
+- bitbank + Binance + 業界標準 ADX で **Bot のレジーム判定が一致**（直近 24h で trending 60-66%）
+- 「取引ない = trending 相場」は妥当
+- TP/SL 距離は ATR×6 と業界標準（×1.5-2.0）より広いが Phase 85 実証で意図的設定
+- 価格は bitbank が Binance より +3.9% プレミアム（日本国内取引所の典型）
+
+### 関連コミット
+
+- `68cf68e3` fix: Phase 90γ-⑥ TP/SL confidence 属性名バグ + 観察可能化 3 件（2026-05-28 デプロイ済）
+- `8bc2cd53` fix: Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正
+- `1dbaf0ec` fix: Phase 90γ-③.4 Maker 観察可能化 + timeout 拡張
 
 ---
 

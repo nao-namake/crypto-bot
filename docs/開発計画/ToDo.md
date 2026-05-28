@@ -2,9 +2,92 @@
 
 ## 現在の状態
 
-**Phase 90γ-⑥ ローカル実装完了（2026-05-28）・本番デプロイ待ち**
+**Phase 90γ-⑥ 本番デプロイ完了（2026-05-28 06:42 JST）→ Day 1 効果検証待ち（5/29 朝）**
 
-### Phase 90γ-⑥ 概要
+### セッション再開時の手順
+
+1. **Day 1 効果検証**（5/29 朝・5 分）
+
+```bash
+# (1) ライブ分析 24h（最重要）
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+
+# (2) TP 配置 WARNING ログ（信頼度ラベル付きで TP target が見えるはず）
+gcloud logging read 'textPayload=~"Phase 61.7: 固定金額TP適用"' --freshness=24h --format='value(textPayload)' | head -20
+
+# (3) Maker disable_reason 分布（Taker 87.5% の主因調査）
+gcloud logging read 'textPayload=~"Phase 90γ-⑥: Maker 経路スキップ"' --freshness=24h --format='value(textPayload)' | grep -oE 'reason=[a-z_]+' | sort | uniq -c | sort -rn
+
+# (4) bitbank API で実 TP 距離検証（過去 24h）
+venv/bin/python3 -c "
+import ccxt, os, time
+from dotenv import load_dotenv; load_dotenv('config/secrets/.env')
+ex = ccxt.bitbank({'apiKey': os.getenv('BITBANK_API_KEY'), 'secret': os.getenv('BITBANK_API_SECRET'), 'options': {'defaultType': 'margin'}})
+trades = ex.fetch_my_trades('BTC/JPY', since=int((time.time()-24*3600)*1000), limit=50)
+print(f'過去 24h の取引: {len(trades)} 件')
+# エントリー→決済ペアで TP 距離が 0.7-0.9% に統一されているか確認
+"
+```
+
+2. **KPI 達成判定**
+
+| 指標 | 現状 (5/28 48h) | 目標 (Day 1) | 不達時 |
+|---|---|---|---|
+| TP 距離 | 0.3%/0.9% 混在 | **0.7-0.9% 統一** | 修正 ① 経路の追加調査 |
+| 実 NET TP | +500/+1500 混在 | **+1,200 円以上** | 同上 |
+| 実効 RR 比 | 0.25:1 | **0.6:1 以上** | < 0.4:1 → 修正① revert |
+| Taker 率 | 87.5% | **≤ 30%** | 改善なし → Phase 90γ-⑦ で disable_reason 分析 |
+
+3. **次フェーズ判断**
+
+| Day 1 結果 | 次フェーズ | 着手時期 |
+|---|---|---|
+| ✅ TP 距離 0.7-0.9% で統一 + Taker 率改善 | **Phase 90γ-⑦（観察可能化 15+ 箇所）着手** | 5/29-30 |
+| 🟡 TP 距離正常化したが Taker 率高止まり | **Phase 90γ-⑦ + Maker disable_reason 分析** | 5/29-30 |
+| 🔴 TP=500 円のまま | **修正①の追加調査**（経路別 confidence 伝達検証）優先 | 5/29 |
+| trending 相場継続でデータ少 | **Day 2 待ち**（5/30）+ Phase 90γ-⑦ 並行実装 | 5/30 |
+
+### 過去 7 日損益サマリ（5/21-5/28・5/28 評価時点）
+
+| 指標 | 実績 | 評価 |
+|---|---|---|
+| 取引数 | 15 ペア（クリーン）| 月 60 件相当 |
+| 勝率 | **66.7%** (10勝5敗) | ✅ 業界平均超 |
+| 総 NET | **¥-3,056** | 🔴 赤字 |
+| 総手数料 | ¥+2,489 (gross の 439%) | 🔴 過大 |
+| PF | **0.496** | 🔴 不採算 |
+| 平均勝利 vs 平均損失 | ¥300 vs ¥1,212 (RR 0.25:1) | 🔴 |
+| Maker 比率 | 40% | 🟡 改善余地 |
+| 月利・年利換算 | **-2.6% / -31%** | 🔴 目標 +10% から -41pt |
+
+→ 主因は Phase 90γ-⑥ で修正した confidence 属性バグの累積影響と推定。Phase 90γ-⑥ 修正により改善見込み（要 Day 7 検証）。
+
+### 外部ソース検証結果（5/28）
+
+- **bitbank + Binance + 業界標準 ADX で Bot のレジーム判定が一致**（直近 24h で trending 60-66%）
+- 「取引ない = trending 相場」は妥当
+- TP/SL 距離は ATR×6 と業界標準（×1.5-2.0）より広いが Phase 85 実証で意図的設定
+- 価格は bitbank が Binance より +3.9% プレミアム（日本国内取引所の典型）
+
+### 総合評価（5/28 時点）
+
+| 観点 | 評価 |
+|---|---|
+| 短期実績 | 🔴 7 日 NET ¥-3,056 / 年利 -31% |
+| 勝率 | ✅ 66.7%（業界平均超）|
+| バグ発見・修正能力 | ✅ 2.5 ヶ月放置バグを実取引データから特定・修正 |
+| 観察可能性 | 🟡 Phase 90γ-⑦ で更に向上予定 |
+| インフラ | ✅ 稼働率 100%・コスト目標達成 |
+| **判定** | **Bot 停止は非推奨・観察継続を推奨**（Phase 90γ-⑥ 効果検証待ち）|
+
+### Phase 90γ-⑥ デプロイ情報
+
+- コミット: `68cf68e3` fix: Phase 90γ-⑥ TP/SL confidence 属性名バグ + 観察可能化 3 件
+- デプロイ完了: 2026-05-28 06:42 JST（CI 14m35s・全 PASS）
+- Cloud Run リビジョン: `crypto-bot-service-prod-phase89a-cost-opt-0527-2137`
+- 統合プラン: [`~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`](~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md)
+
+### Phase 90γ-⑥ 概要（履歴）
 
 ユーザーの「TP=500 円・SL=2000 円で RR 悪い」観察 + bitbank API 168h 実取引履歴の直接確認で **Phase 68.8 (2026-03-13) 以降 約 2.5 ヶ月継続していた致命バグ** を発見:
 
@@ -20,13 +103,35 @@
 
 **期待効果（Day 7 後）**: TP 距離 0.3%/0.9% 混在 → **0.7-0.9% 統一** / 実 NET TP +500 円 → **+1,200 円以上** / 実効 RR 0.25:1 → **0.6-0.75:1**
 
-統合プラン: [`~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`](~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md)
+### Phase 90γ-⑦/⑧/⑨ ロードマップ（包括的バグ分析結果・5/28 策定）
+
+3 並列 Explore で「Phase 90γ-⑥ と同種の 2.5 ヶ月放置型バグの温床」を多数特定:
+
+| Phase | 内容 | 規模 | 着手時期 |
+|---|---|---|---|
+| **90γ-⑦** | 観察可能化（INFO→WARNING 15+ 箇所・例外スワロー解消・Drift health check）| 約 20 ファイル・ロジック変更ゼロ | Day 1 確認後（5/29-30）|
+| **90γ-⑧** | リカバリパス統合（`_calculate_fixed_amount_tp_for_position`）+ バックテスト/ライブ手数料整合化 + YAML cleanup | 約 5 ファイル | 5/31-6/3 |
+| **90γ-⑨** | テストカバレッジ向上 73% → 78%（ML predictor / Drift / Trigger server）| テスト追加のみ | 6/5+ |
+
+詳細: [`~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md`](~/.claude/plans/tp-tp-sl-tp-rr-gcp-atomic-spark.md)
+
+### 緊急ロールバック手順（5 分以内）
+
+```bash
+# 修正 ① のみ無効化（コード変更なし）
+yq -i '.position_management.take_profit.fixed_amount.confidence_based.enabled = false' config/core/thresholds.yaml
+yq -i '.position_management.stop_loss.fixed_amount.confidence_based.enabled = false' config/core/thresholds.yaml
+git add config/core/thresholds.yaml && git commit -m "rollback: Phase 90γ-⑥ confidence_based 無効化" && git push origin main
+
+# または完全 revert
+git revert 68cf68e3 && git push origin main
+```
 
 ### 前の状態（履歴）
 
-**Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了（2026-05-27）・3 PR 独立デプロイ待ち**
+**Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 ローカル実装完了（2026-05-27）**
 
-→ Phase 90γ-⑥ と合わせて 1 PR で統合デプロイ予定
+→ Phase 90γ-⑥ と合わせて 1 PR で統合デプロイ済（commit `68cf68e3`）
 
 ### Phase 90γ-③.5 + γ-⑤ + 分析スクリプト修正 概要
 
