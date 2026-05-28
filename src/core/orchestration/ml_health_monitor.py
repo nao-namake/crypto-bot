@@ -124,6 +124,9 @@ class MLHealthMonitor:
             # 明示的に渡された値（None 含む）をそのまま使用
             self.persistence = persistence
 
+        # Phase 90γ-⑦: persistence=None の状態を初回 save 時に CRITICAL ログ（重複防止フラグ）
+        self._persistence_warned = False
+
         if auto_load:
             self._load_state()
 
@@ -152,7 +155,8 @@ class MLHealthMonitor:
     def reset_on_success(self) -> None:
         """ML predict 成功時に呼ぶ。カウントが 0 でなければリセット + 永続化。"""
         if self.consecutive_failures > 0:
-            self.logger.info(
+            # Phase 90γ-⑦: INFO→WARNING 格上げ（本番 LOG_LEVEL=WARNING で復旧イベント観察可能化）
+            self.logger.warning(
                 f"✅ Phase 87 C4: ML予測復旧 (was consecutive={self.consecutive_failures})"
             )
             self.consecutive_failures = 0
@@ -208,6 +212,11 @@ class MLHealthMonitor:
         """
         feature_values = self._extract_feature_values(features)
         if not feature_values:
+            # Phase 90γ-⑦: 特徴量抽出失敗の可視化（drift 判定スキップ理由を明示）
+            self.logger.warning(
+                "⚠️ Phase 90γ-⑦: feature_values 空 → drift 判定スキップ "
+                "(features 型不正 or 全特徴量が exclude_features に該当の可能性)"
+            )
             return False
 
         # Phase 90γ-①: reference 分布の期限切れ判定（古い reference との永続乖離を防止）
@@ -289,9 +298,11 @@ class MLHealthMonitor:
 
         # 有意特徴量が下限未満（偽陽性 or 局所変動）→ drift 判定せず・カウンタ維持
         if drift_features:
-            self.logger.info(
-                f"Phase 89 H4: 有意特徴量 {len(drift_features)} 個 "
-                f"< {self._drift_significant_feature_min} → drift 未判定（偽陽性抑制）"
+            # Phase 90γ-⑦: INFO→WARNING 格上げ（drift スキップ理由を本番ログで観察可能化）
+            self.logger.warning(
+                f"⚠️ Phase 90γ-⑦/Phase 89 H4: 有意特徴量 {len(drift_features)} 個 "
+                f"< {self._drift_significant_feature_min} → drift 未判定（偽陽性抑制） "
+                f"features={drift_features[:5]}{'...' if len(drift_features) > 5 else ''}"
             )
             return False
 
@@ -323,7 +334,10 @@ class MLHealthMonitor:
                     if features[col].dtype.kind in "fi"  # 数値型のみ
                 }
         except ImportError:
-            pass
+            # Phase 90γ-⑦: pandas 不在は dict 経由にフォールバック（無音継続を防止）
+            self.logger.warning(
+                "⚠️ Phase 90γ-⑦: pandas 未インストール → dict 経由で特徴量抽出にフォールバック"
+            )
 
         if not result and isinstance(features, dict):
             for name, values in features.items():
@@ -514,6 +528,16 @@ class MLHealthMonitor:
 
     def _save_state(self) -> None:
         if self.persistence is None:
+            # Phase 90γ-⑦: persistence=None でカウンタが Container 再起動で消失する事実を
+            # 初回 save 時に CRITICAL で 1 回だけログ出力（毎回スパムを避ける）
+            if not self._persistence_warned:
+                self.logger.critical(
+                    f"🚨🚨 Phase 90γ-⑦: MLHealthMonitor persistence=None "
+                    f"→ Container 再起動で drift カウンタ ({self.consecutive_drift_detections}) "
+                    f"+ failure カウンタ ({self.consecutive_failures}) が消失する "
+                    f"(以降この警告は抑制)"
+                )
+                self._persistence_warned = True
             return
         try:
             # 既存 state を読んで Auto Retraining trigger 時刻を保持しつつ merge save

@@ -13,6 +13,7 @@ INFO ログが出ないため不完全。Phase 90γ-③.5 で API の profit_los
 
 import importlib.util
 import itertools
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -31,9 +32,14 @@ _order_id_counter = itertools.count(1)
 
 
 def _make_trade(profit_loss, side="buy", position_side="long", maker_taker="taker"):
-    """bitbank API trades のモックエントリ生成（order_id はユニーク）"""
+    """bitbank API trades のモックエントリ生成（order_id はユニーク）.
+
+    Phase 90γ-⑦/⑨: datetime は実行時の現在 UTC を使用。
+    旧実装は "2026-05-27T00:00:00Z" 固定で、24h カットオフ後（2026-05-28 以降）に
+    period_trades が空となり全テストが失敗していた。
+    """
     return {
-        "datetime": "2026-05-27T00:00:00Z",
+        "datetime": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "order": f"order_{next(_order_id_counter)}",
         "info": {
             "profit_loss": str(profit_loss),

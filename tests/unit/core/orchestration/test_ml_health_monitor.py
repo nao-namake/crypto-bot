@@ -595,3 +595,199 @@ class TestPhase90GammaThirdFixes:
 
         assert result is True
         mock_post.assert_called_once()
+
+
+class TestMLHealthMonitorStateRecovery:
+    """Phase 90γ-⑨: _load_state の異常系（無効 ISO・tz 欠落・型不一致）"""
+
+    def test_load_state_with_empty_persistence_is_noop(self, persistence):
+        """persistence.load が None を返したとき何もしない（state 既定値維持）."""
+        from unittest.mock import patch
+
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        with patch.object(persistence, "load", return_value=None):
+            m._load_state()
+
+        assert m.consecutive_failures == 0
+        assert m.last_failure_at is None
+        assert m._reference_initialized_at is None
+
+    def test_load_state_recovers_naive_datetime_with_utc(self, persistence):
+        """timezone 欠落の ISO 文字列でも UTC を自動付与して復元."""
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+
+        naive_iso = "2026-05-15T10:00:00"  # tz なし
+        state = {
+            "consecutive_failures": 0,
+            "reference_initialized_at": naive_iso,
+        }
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        with patch.object(persistence, "load", return_value=state):
+            m._load_state()
+
+        assert m._reference_initialized_at is not None
+        assert m._reference_initialized_at.tzinfo == timezone.utc
+        assert m._reference_initialized_at == datetime(2026, 5, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+    def test_load_state_invalid_iso_format_falls_back_to_none(self, persistence):
+        """無効 ISO フォーマット（ValueError）→ reference_initialized_at=None."""
+        from unittest.mock import patch
+
+        state = {
+            "consecutive_failures": 2,
+            "reference_initialized_at": "not-a-valid-date",
+        }
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        with patch.object(persistence, "load", return_value=state):
+            m._load_state()
+
+        # failure カウンタは復元、reference 初期化時刻は None に fallback
+        assert m.consecutive_failures == 2
+        assert m._reference_initialized_at is None
+
+    def test_load_state_handles_string_failure_count(self, persistence):
+        """consecutive_failures が文字列でも int() で安全に変換."""
+        from unittest.mock import patch
+
+        state = {
+            "consecutive_failures": "5",
+            "consecutive_drift_detections": "3",
+        }
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        with patch.object(persistence, "load", return_value=state):
+            m._load_state()
+
+        assert m.consecutive_failures == 5
+        assert m.consecutive_drift_detections == 3
+
+    def test_load_state_none_persistence_short_circuits(self):
+        """persistence=None でも _load_state が安全に no-op."""
+        m = MLHealthMonitor(persistence=None, threshold=3, auto_load=False)
+        # ここで例外が出ないこと
+        m._load_state()
+        assert m.consecutive_failures == 0
+
+
+class TestPhase90GammaDriftAnomalyInputs:
+    """Phase 90γ-⑨: Drift KS テストの異常入力系（NaN / inf / empty / single sample）"""
+
+    @pytest.fixture
+    def monitor_drift(self, persistence):
+        m = MLHealthMonitor(persistence=persistence, threshold=3, auto_load=False)
+        m._drift_consecutive_threshold = 2
+        m._drift_window = 50
+        m._drift_ks_alpha = 0.01
+        m._drift_significant_feature_min = 1
+        m._drift_auto_retraining = False
+        return m
+
+    def test_nan_values_filtered_by_dropna(self, monitor_drift):
+        """NaN 含む DataFrame でも dropna() で除外されるので KS テスト可能."""
+        import numpy as np
+        import pandas as pd
+
+        np.random.seed(1)
+        data = np.random.normal(0, 1, 200).astype(float)
+        data[::10] = np.nan
+        df = pd.DataFrame({"f1": data})
+
+        # 例外で落ちないこと
+        detected = monitor_drift.record_feature_distribution(df)
+        assert detected is False  # 初回は reference 化のみ
+        assert "f1" in monitor_drift._reference_distribution
+
+    def test_empty_dataframe_returns_false_without_error(self, monitor_drift):
+        """空 DataFrame → feature_values 空 → False を返す（クラッシュなし）."""
+        import pandas as pd
+
+        df = pd.DataFrame()
+        detected = monitor_drift.record_feature_distribution(df)
+        assert detected is False
+        assert monitor_drift._reference_distribution == {}
+
+    def test_infinite_values_handled_gracefully(self, monitor_drift):
+        """inf 値を含む配列でも KS テスト経路で例外が伝播しない."""
+        import numpy as np
+        import pandas as pd
+
+        # reference は普通の分布
+        np.random.seed(2)
+        ref = pd.DataFrame({"f1": np.random.normal(0, 1, 200)})
+        monitor_drift.record_feature_distribution(ref)
+
+        # recent に inf 含む配列
+        data = np.random.normal(0, 1, 200)
+        data[0] = np.inf
+        data[1] = -np.inf
+        recent = pd.DataFrame({"f1": data})
+
+        # 例外で落ちないこと（戻り値の真偽は問わない）
+        monitor_drift.record_feature_distribution(recent)
+
+    def test_single_sample_distribution_skipped(self, monitor_drift):
+        """サンプル数 < 10 の特徴量は comparable から除外され KS テスト対象外."""
+        import pandas as pd
+
+        # reference には十分なサンプル
+        ref = pd.DataFrame({"f1": list(range(200))})
+        monitor_drift.record_feature_distribution(ref)
+
+        # recent は 1 サンプルのみ → comparable に入らない
+        recent = pd.DataFrame({"f1": [9999.0]})
+        detected = monitor_drift.record_feature_distribution(recent)
+        assert detected is False
+
+    def test_non_numeric_column_ignored(self, monitor_drift):
+        """文字列カラムは _extract_feature_values で除外される（数値型のみ抽出）."""
+        import pandas as pd
+
+        df = pd.DataFrame({"f1": [1.0, 2.0, 3.0], "label": ["a", "b", "c"]})
+        monitor_drift.record_feature_distribution(df)
+        # f1 だけが reference に入っている
+        assert "f1" in monitor_drift._reference_distribution
+        assert "label" not in monitor_drift._reference_distribution
+
+    def test_dict_input_supported_when_pandas_extract_yields_nothing(self, monitor_drift):
+        """dict 形式入力でも record_feature_distribution が動作する."""
+        features = {"f1": [1.0, 2.0, 3.0, 4.0, 5.0]}
+        detected = monitor_drift.record_feature_distribution(features)
+        assert detected is False
+        assert "f1" in monitor_drift._reference_distribution
+
+
+class TestPhase90Gamma7PersistenceWarning:
+    """Phase 90γ-⑦: persistence=None 時の CRITICAL 警告（重複防止フラグ）"""
+
+    def test_first_save_with_none_persistence_logs_critical(self, caplog):
+        """persistence=None で最初の _save_state 呼び出し時に CRITICAL ログ."""
+        import logging
+
+        m = MLHealthMonitor(persistence=None, threshold=3, auto_load=False)
+        # logger を caplog でキャプチャするために propagate を有効化
+        m.logger.propagate = True
+
+        with caplog.at_level(logging.CRITICAL):
+            m._save_state()
+
+        critical_records = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+        assert any(
+            "Phase 90γ-⑦" in r.message and "persistence=None" in r.message for r in critical_records
+        )
+        # フラグが立つ
+        assert m._persistence_warned is True
+
+    def test_second_save_with_none_persistence_suppressed(self, caplog):
+        """2 回目以降の _save_state 呼び出しでは CRITICAL を再出力しない."""
+        import logging
+
+        m = MLHealthMonitor(persistence=None, threshold=3, auto_load=False)
+        m.logger.propagate = True
+
+        with caplog.at_level(logging.CRITICAL):
+            m._save_state()  # 1 回目
+            caplog.clear()
+            m._save_state()  # 2 回目
+
+        critical_records = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+        assert len(critical_records) == 0

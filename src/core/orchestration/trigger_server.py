@@ -67,11 +67,15 @@ def _verify_firestore_io(fs_client: FirestoreStateClient, logger) -> tuple:
         loaded = fs_client.load("health_check", "ping")
         if not isinstance(loaded, dict) or "ts" not in loaded:
             return False, "firestore_load_mismatch"
-        # 後始末（失敗してもよい・無視）
+        # 後始末（失敗してもよい・但しログには残す）
         try:
             fs_client.delete("health_check", "ping")
-        except Exception:  # pragma: no cover
-            pass
+        except Exception as cleanup_err:
+            # Phase 90γ-⑦: 後始末失敗を可視化（pragma no cover 解除 + WARNING ログ）
+            logger.warning(
+                f"⚠️ Phase 90γ-⑦: Firestore health_check ping 削除失敗（無害・継続）- "
+                f"{type(cleanup_err).__name__}: {cleanup_err}"
+            )
         return True, None
     except Exception as e:
         logger.warning(f"⚠️ Phase R-Mb: Firestore I/O 検証で例外: {e}")

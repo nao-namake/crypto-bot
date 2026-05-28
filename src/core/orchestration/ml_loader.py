@@ -80,6 +80,12 @@ class MLModelLoader:
             return self.model
 
         # Level 3: 最終フォールバック - ダミーモデル
+        # Phase 90γ-⑦: ここに到達した経緯（Level 1/2/2.5 全失敗）を明示
+        self.logger.warning(
+            f"🚨 Phase 90γ-⑦: 全レベル失敗 → DummyModel フォールバック - "
+            f"target_level={target_level}, feature_count={feature_count} "
+            f"(Level 1/2/2.5 全てロード失敗・全 hold シグナルで稼働継続)"
+        )
         self._load_dummy_model()
         return self.model
 

@@ -701,6 +701,20 @@ class BacktestRunner(BaseRunner):
                                                 probabilities[i]
                                             )
                                             ml_prediction = int(predictions[i])
+                                        else:
+                                            # Phase 90γ-⑦: precomputed 範囲外 → ml_confidence=None で記録継続を明示
+                                            self.logger.warning(
+                                                f"⚠️ Phase 90γ-⑦: precomputed ML 予測範囲外 "
+                                                f"(i={i} >= len={len(predictions)}) → "
+                                                f"ml_confidence=None で TradeTracker 記録継続"
+                                            )
+                                    else:
+                                        # Phase 90γ-⑦: precomputed_ml_predictions に main_timeframe が無い
+                                        self.logger.warning(
+                                            f"⚠️ Phase 90γ-⑦: precomputed_ml_predictions に "
+                                            f"main_timeframe='{main_timeframe}' が不在 → "
+                                            f"ml_confidence=None で TradeTracker 記録継続"
+                                        )
 
                                     # Phase 59.3: 調整済み信頼度を取得（positionから）
                                     adjusted_confidence = position.get(
@@ -932,7 +946,8 @@ class BacktestRunner(BaseRunner):
                     trigger_type = "TP" if tp_triggered else "SL"
                     exit_price = take_profit if tp_triggered else stop_loss
 
-                    self.logger.info(
+                    # Phase 90γ-⑦: INFO→WARNING 格上げ（本番 LOG_LEVEL=WARNING でも観察可能化）
+                    self.logger.warning(
                         f"✅ Phase 49.2: {trigger_type}トリガー - "
                         f"{side} {amount} BTC @ {exit_price:.0f}円 "
                         f"(エントリー: {entry_price:.0f}円, 戦略: {strategy_name}) - {timestamp}"
@@ -1060,7 +1075,8 @@ class BacktestRunner(BaseRunner):
                                 exit_reason=f"{trigger_type}トリガー",
                             )
 
-                        self.logger.info(
+                        # Phase 90γ-⑦: INFO→WARNING 格上げ（本番 LOG_LEVEL=WARNING でも観察可能化）
+                        self.logger.warning(
                             f"✅ Phase 49.2: ポジション決済完了 - "
                             f"ID: {order_id}, {trigger_type}価格: {exit_price:.0f}円"
                         )
@@ -1296,9 +1312,12 @@ class BacktestRunner(BaseRunner):
                     ml_prediction_payload["adjusted_confidence_factor"] = (
                         qf_result.adjusted_confidence_factor
                     )
-                except Exception:
-                    # QualityFilter 初期化失敗時は素通し（バックテスト継続優先）
-                    pass
+                except Exception as qf_error:
+                    # Phase 90γ-⑦: QualityFilter 失敗時もログに残す（無音継続を防止）
+                    self.logger.warning(
+                        f"⚠️ Phase 90γ-⑦: QualityFilter 評価失敗（素通し継続）- "
+                        f"regime={regime}, error={type(qf_error).__name__}: {qf_error}"
+                    )
 
             # data_serviceにML予測を設定
             self.orchestrator.data_service.set_backtest_ml_prediction(ml_prediction_payload)
