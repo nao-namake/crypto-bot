@@ -836,8 +836,11 @@ class BitbankClient:
             )
 
             # Phase 62.9: post_onlyパラメータ追加（Maker戦略）
+            # Phase 90δ: bitbank API は snake_case "post_only" を期待。ccxt 4.5.x の
+            # create_order は params をそのまま extend するだけで camelCase→snake_case
+            # 変換をしないため、"postOnly" だと無視され通常指値化（テイカー約定）していた。
             if post_only and order_type == "limit":
-                params["postOnly"] = True
+                params["post_only"] = True
                 self.logger.info(
                     f"📡 Phase 62.9: post_only注文 - {side} {amount:.4f} BTC @ {price:.0f}円"
                 )

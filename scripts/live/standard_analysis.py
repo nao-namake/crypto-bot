@@ -958,11 +958,12 @@ class BotFunctionChecker:
                 "expected": 0.10,
                 "default": 0.20,
             },
-            # Phase 85: TP/SL固定金額（tight基準 TP1500/SL2000 + floor 0.7%復活、レジーム別はregime_basedで個別）
+            # Phase 90δ: TP1500→1200 引き下げ（実運用は confidence_based 高1200/低1000、
+            # SL は 2000 維持。regime_based は未適用 dead code）
             "固定金額TP目標": {
                 "path": "position_management.take_profit.fixed_amount.target_net_profit",
-                "expected": 1500,
-                "default": 1500,
+                "expected": 1200,
+                "default": 1200,
             },
             "固定金額SL目標": {
                 "path": "position_management.stop_loss.fixed_amount.target_max_loss",
@@ -1172,8 +1173,13 @@ class BotFunctionChecker:
         )
 
         # Phase 64.12: 緊急成行決済
+        # Phase 90δ: 実発注を伴う成功ログのみカウント。旧クエリの "緊急成行決済" 部分一致は
+        # DRY_RUN ログ（🧪 Phase 87 C1 [DRY_RUN]: 緊急成行決済シミュレーション ... 実発注なし）
+        # を誤カウントしていた（実発注ゼロなのに件数が立つ）。
         self.result.emergency_market_close = self._count_logs(
-            'textPayload:"Phase 64.12: SL超過検出" OR textPayload:"緊急成行決済"', 10
+            'textPayload:"Phase 87 C1: 緊急成行決済成功"'
+            ' OR textPayload:"Phase 86: 緊急成行決済成功"',
+            10,
         )
 
     # =========================================================================

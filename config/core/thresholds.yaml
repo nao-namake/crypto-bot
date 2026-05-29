@@ -802,6 +802,13 @@ position_management:
     enabled: true
     # 期待 amount の何倍未満を「ポジ消滅」と判定するか（SL 部分約定の例外も拾う）
     position_exists_threshold_ratio: 0.5
+  # Phase 90δ: 決済発注前ポジション存在確認（50062 レース対策）。
+  # SL トリガー成行決済（Phase 64.12）等で同サイクル内に建玉が既に消滅している場合の
+  # 重複決済発注（bitbank 50062）を、発注前のポジ再確認で回避する。
+  # フェイルオープン設計（ポジ確認 API 失敗時は決済続行＝取りこぼし防止）。
+  position_exit_guard:
+    enabled: true
+    position_exists_threshold_ratio: 0.5
   cooldown_minutes: 15
   min_trade_size: 0.0001
   # Phase 82: ダスト/微小ポジション判定下限（これ未満はTP/SL配置スキップ）
@@ -856,18 +863,28 @@ position_management:
       enabled: true
       # Phase 85: tight_range基準のTP目標。レジーム別はregime_basedで個別設定
       # 過去30日 tight 29件で TP1500/SL2000 floor 0.7% が勝率67.9%/+362円/件 黒字確認
-      target_net_profit: 1500
+      # Phase 90δ: 1500→1200（confidence_based 無効時のフォールバックも新基準に統一）
+      target_net_profit: 1200
+      # Phase 90δ (2026-05-30): TP を high 1500→1200 / low 1200→1000 に引き下げ。
+      # TP距離 0.956%→0.79%（高信頼度）で利確しやすくし、長時間保有→SL反転リスクを低減。
+      # SL は維持（ノイズ耐性優先）のため RR は 1.02→0.83 を許容。
+      # 注: 実運用では全エントリーがこの confidence_based で決まり、regime_based（L877〜）は
+      #     常に上書きされ未適用（dead code）。詳細は CLAUDE.md / docs/開発履歴/Phase_90.md。
       confidence_based:
         enabled: true
         threshold: 0.4
-        low: 1200
-        high: 1500
+        low: 1000  # Phase 90δ: 1200→1000
+        high: 1200  # Phase 90δ: 1500→1200
       include_entry_fee: true
       include_exit_fee_rebate: true
       include_interest: true
       fallback_entry_fee_rate: 0.001
       fallback_exit_fee_rate: 0.0
     regime_based:
+      # ⚠️ Phase 90δ: 現状この regime_based は未適用（dead code）。
+      # strategy_utils.py で confidence_based（上記）が常に上書きするため、tight/normal で
+      # TP金額は変わらず全エントリーが信頼度別（高1200/低1000）で決まる。
+      # post_only 修正後の実 MFE データでレジーム別の要否を再評価予定。
       enabled: true
       # Phase 85: レジーム別TP目標を実証データで再設計（過去30日106件分析より）
       tight_range:
@@ -940,6 +957,9 @@ position_management:
       include_exit_fee: true
       fallback_exit_fee_rate: 0.001
     regime_based:
+      # ⚠️ Phase 90δ: 現状この regime_based は未適用（dead code）。
+      # strategy_utils.py で confidence_based（上記）が常に上書きするため、全エントリーが
+      # 信頼度別（高2000/低1500）で決まる。post_only 修正後の実データで再評価予定。
       enabled: true
       # Phase 85: レジーム別SL目標を実証データで再設計
       tight_range:

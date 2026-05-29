@@ -668,11 +668,13 @@ class OrderStrategy:
                     filled_price = filled.get("price", current_price)
                     filled_amount = filled.get("amount", amount)
 
-                    # Phase 90γ-③.4: warning 格上げ（観察可能化）
-                    self.logger.warning(
-                        f"✅ Phase 62.9: Maker約定成功 - "
-                        f"ID: {order_id}, 価格: {filled_price:.0f}円, "
-                        f"手数料: Maker(0%)"
+                    # Phase 90δ: 約定種別(maker/taker)と実手数料を bitbank 約定履歴から取得し
+                    # 「Maker(0%)」の決め打ちログ・fee=0.0 ハードコードを実態ベースに是正
+                    taker_or_maker, fee_cost = await self._resolve_fill_type(
+                        order_id, symbol, bitbank_client
+                    )
+                    self._log_maker_fill_result(
+                        order_id, filled_price, current_price, taker_or_maker, fee_cost
                     )
 
                     return ExecutionResult(
@@ -685,9 +687,9 @@ class OrderStrategy:
                         filled_amount=filled_amount,
                         error_message=None,
                         side=side,
-                        fee=0.0,  # Makerリベートは後で計算
+                        fee=fee_cost if fee_cost is not None else 0.0,
                         status=OrderStatus.FILLED,
-                        notes="Phase 62.9: Maker約定",
+                        notes=f"Phase 62.9: Maker約定 (約定種別={taker_or_maker or '不明'})",
                     )
 
                 # 未約定 → キャンセル
@@ -701,19 +703,27 @@ class OrderStrategy:
                     # キャンセル失敗=約定済みの可能性があるので再確認
                     filled = await self._wait_for_maker_fill(order_id, symbol, 2, bitbank_client)
                     if filled:
+                        filled_price = filled.get("price", current_price)
+                        # Phase 90δ: キャンセル後確認の約定も種別・実手数料を取得
+                        taker_or_maker, fee_cost = await self._resolve_fill_type(
+                            order_id, symbol, bitbank_client
+                        )
+                        self._log_maker_fill_result(
+                            order_id, filled_price, current_price, taker_or_maker, fee_cost
+                        )
                         return ExecutionResult(
                             success=True,
                             mode=ExecutionMode.LIVE,
                             order_id=order_id,
-                            price=filled.get("price", current_price),
+                            price=filled_price,
                             amount=filled.get("amount", amount),
-                            filled_price=filled.get("price", current_price),
+                            filled_price=filled_price,
                             filled_amount=filled.get("amount", amount),
                             error_message=None,
                             side=side,
-                            fee=0.0,
+                            fee=fee_cost if fee_cost is not None else 0.0,
                             status=OrderStatus.FILLED,
-                            notes="Phase 62.9: Maker約定（キャンセル後確認）",
+                            notes=f"Phase 62.9: Maker約定（キャンセル後確認・種別={taker_or_maker or '不明'}）",
                         )
 
             except PostOnlyCancelledException as e:
@@ -795,6 +805,71 @@ class OrderStrategy:
             await asyncio.sleep(check_interval)
 
         return None
+
+    async def _resolve_fill_type(
+        self,
+        order_id: str,
+        symbol: str,
+        bitbank_client: BitbankClient,
+    ) -> tuple:
+        """Phase 90δ: 約定種別(maker/taker)と実手数料を bitbank 約定履歴から取得。
+
+        ccxt の parse_order は fee/種別を埋めないため、fetch_my_trades から
+        order_id に紐づく約定を集約する。取得失敗・該当なしの場合は (None, None)
+        を返し、呼び出し側は「種別不明」として扱う。
+
+        Returns:
+            tuple: (taker_or_maker: Optional[str], fee_cost: Optional[float])
+        """
+        try:
+            trades = await asyncio.to_thread(
+                bitbank_client.exchange.fetch_my_trades, symbol, None, 20
+            )
+            matched = [t for t in (trades or []) if str(t.get("order")) == str(order_id)]
+            if not matched:
+                return None, None
+
+            taker_or_maker = None
+            fee_cost = 0.0
+            has_fee = False
+            for t in matched:
+                # 最後に取れた種別を採用（同一注文の約定は通常同種別）
+                taker_or_maker = t.get("takerOrMaker") or taker_or_maker
+                fee = t.get("fee") or {}
+                cost = fee.get("cost")
+                if cost is not None:
+                    fee_cost += float(cost)
+                    has_fee = True
+
+            return taker_or_maker, (fee_cost if has_fee else None)
+        except Exception as e:
+            self.logger.debug(f"📡 Phase 90δ: 約定種別取得失敗（種別不明として続行）: {e}")
+            return None, None
+
+    def _log_maker_fill_result(
+        self,
+        order_id: str,
+        filled_price: float,
+        limit_price: float,
+        taker_or_maker: Optional[str],
+        fee_cost: Optional[float],
+    ) -> None:
+        """Phase 90δ: 約定種別に応じた約定ログを出力（虚偽 Maker 記録の是正）。"""
+        fee_str = f"{fee_cost:.1f}円" if fee_cost is not None else "不明"
+        if taker_or_maker == "taker":
+            # post_only 指定にもかかわらず Taker 約定＝価格が即時約定側に食い込んだ
+            self.logger.warning(
+                f"⚠️ Phase 90δ: post_only指定だがTaker約定 - "
+                f"ID: {order_id}, 約定価格: {filled_price:.0f}円 "
+                f"(指値: {limit_price:.0f}円), 実手数料: {fee_str}"
+            )
+        else:
+            label = "Maker" if taker_or_maker == "maker" else "約定種別不明"
+            self.logger.warning(
+                f"✅ Phase 62.9: Maker約定成功 - "
+                f"ID: {order_id}, 価格: {filled_price:.0f}円, "
+                f"手数料: {label}({fee_str})"
+            )
 
     def ensure_minimum_trade_size(self, evaluation: TradeEvaluation) -> TradeEvaluation:
         """

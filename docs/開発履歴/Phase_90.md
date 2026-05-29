@@ -2291,3 +2291,59 @@ Drift KS テストの異常入力系：
 - ⑨ 新規テスト: `tests/unit/backtest/test_backtest_runner.py` / `tests/unit/core/orchestration/test_trigger_server.py`
 - ⑨ 拡張テスト: `tests/unit/core/orchestration/test_ml_health_monitor.py`
 - 副次修正: `tests/unit/scripts/test_standard_analysis_tp_sl_count.py`
+
+---
+
+# Phase 90δ: Maker戦略 実効性修正 + 観察精度改善（2026-05-30）
+
+## 背景・発見の経緯
+
+ライブ分析調査中、ユーザーが bitbank 取引画面の約定履歴で「5/30 04:00 のエントリーがテイカー、5/28 22:15 はメイカー」と指摘。Bot の GCP ログは同一約定を `✅ Phase 62.9: Maker約定成功 ... 手数料:Maker(0%)` と記録しており、**Bot の記録と実態が乖離**していた。
+
+## 根本原因（本番ログ・コード・ccxt 実装・bitbank 仕様の4面調査で確定）
+
+### 核心: post_only パラメータ名の誤り
+- `src/data/bitbank_client.py:840` が `params["postOnly"] = True`（camelCase）を送信
+- bitbank API が期待するのは `post_only`（snake_case）— `docs/運用ガイド/bitbank_APIリファレンス.md:178`・ccxt レスポンス例 `bitbank.py:801,845` で確認
+- **ccxt 4.5.1 の `create_order`（`bitbank.py:759-767`）は `self.extend(request, params)` で params をそのまま送るだけで camelCase→snake_case 変換をしない**（`has['postOnly']=None`＝未実装）
+- 結果 `postOnly` は未知パラメータとして無視され、**全 Maker 注文（エントリー・TP 両方が唯一の経路 `create_order` を通る）が通常指値として処理**される
+- 即時約定しない価格に置けた時だけ偶然 Maker 約定（5/28）。価格が即時約定側に食い込むと reject されずテイカー約定（5/30：約定価格 11,685,990 > 指値 11,685,306＝指値より高く売れた＝相手の買いを食った決定的証拠）
+
+### 副次: 約定種別の未検証（虚偽記録）
+- `order_strategy.py` の `_wait_for_maker_fill` は `status=="closed"` を見るだけで `taker_or_maker`/`fee` を取得せず、`Maker約定成功`・`fee=0.0` をハードコード
+- 実態がテイカーでも「Maker(0%)」と虚偽記録 → **Phase 90γ-⑥ Day1 の「Maker化率100%達成」は虚偽**（実際はテイカー手数料を払っていた可能性。7日 PF 0.496・実効 RR 悪化の一因になり得る）
+
+## 実装内容
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| 1-A | `bitbank_client.py:840` | `postOnly`→`post_only`（snake_case）。post_only を実際に効かせ、即時約定注文は bitbank reject → リトライ/fallback に回す |
+| 1-B | `order_strategy.py` | `_resolve_fill_type` 新設（fetch_my_trades から `takerOrMaker`/実 fee 取得）+ `_log_maker_fill_result`（taker 約定時 WARNING・fee 実値化）。虚偽 Maker 記録を是正 |
+| 2-C | `standard_analysis.py:1178` | 緊急成行決済カウントを実発注成功ログのみに（DRY_RUN シミュレーションの誤カウント除去）|
+| 2-D | `stop_manager.py` + `thresholds.yaml` | 決済発注前ポジ再確認ガード（50062 レース対策・フェイルオープン設計）。`position_management.position_exit_guard` 設定追加 |
+
+テスト 18 件追加（1-A:3 / 1-B:7 / 2-C:3 / 2-D:5）・`checks.sh` 全 PASS（72%+ カバレッジ）。
+
+## 追加調査・調整（同日）
+
+### レジーム別TP/SL が未適用（dead code）と判明
+`strategy_utils.py:518-531`（TP）/`440-447`（SL）で `confidence_based` が `regime_based` を**常に上書き**。confidence は通常 None でないため、レジーム別（tight1500/normal500 等）は一度も適用されない。
+- 実証: 5/29 のTP適用99回中 88回がTP1500（高信頼度）・11回がTP1200（低信頼度）。**normal_range TP500 は0回**。
+- 方針: 当面は信頼度別を維持（ML信頼度が実質一律で弁別が効かず、レジーム別設定値も旧バグ込みシミュ由来）。`thresholds.yaml` の `regime_based` に「未適用」コメント追記、CLAUDE.md/README を実態訂正。post_only 修正後の実 MFE で再評価。
+
+### TP金額引き下げ（案C）
+TP1500（距離0.956%）が遠く、+1000円付近で反転→TP未達→SL のケースが発生（ユーザー観察）。
+- `thresholds.yaml`: `take_profit.fixed_amount.confidence_based` high 1500→**1200** / low 1200→**1000**、`target_net_profit` 1500→1200。**SL は維持**（ノイズ耐性優先）。
+- 結果: 高信頼度 TP距離 0.956%→**0.79%** / RR 1.02→0.83。`standard_analysis._verify_config` の期待値も 1200 に更新。
+
+## 検証方法（デプロイ後）
+
+1. post_only reject ログ増加（即時約定注文が弾かれている証跡）
+2. 実 Maker 化率（bitbank API `maker_taker` ベース）+ 新 WARNING `Phase 90δ: post_only指定だがTaker約定` の有無を取引画面 M/T 列と突合
+3. エントリー成立率が過度に低下していないか（fallback が機能しているか）
+4. `50062` ERROR/WARNING 件数（24h/7d）の減少 + 孤児SL が増えていないこと
+5. 緊急成行決済カウントが実発注ベースの正しい件数になること
+
+## プラン
+
+`~/.claude/plans/snoopy-juggling-kahn.md`

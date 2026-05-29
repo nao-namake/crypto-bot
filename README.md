@@ -7,19 +7,20 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 [![Phase 87](https://img.shields.io/badge/Phase%2087-Complete-success)](docs/開発履歴/Phase_87.md)
 [![Phase 88](https://img.shields.io/badge/Phase%2088-Complete-success)](docs/開発履歴/Phase_88.md)
 [![Phase 89](https://img.shields.io/badge/Phase%2089-Complete%20%26%20Deployed-success)](docs/開発履歴/Phase_89.md)
-[![Phase 90](https://img.shields.io/badge/Phase%2090γ--⑦+⑨-Complete%20%26%20Deployed-success)](docs/開発履歴/Phase_90.md)
+[![Phase 90](https://img.shields.io/badge/Phase%2090δ-Implemented-success)](docs/開発履歴/Phase_90.md)
 
 ---
 
 ## 現在の状態
 
-**Phase 90γ-⑦+⑨ 統合実装 本番デプロイ完了（2026-05-29 06:28 JST）→ Day 1 観察可能化検証待ち**
+**Phase 90δ Maker戦略実効性修正 + 観察精度改善 実装完了（2026-05-30）→ コミット/デプロイ・Day 1 検証待ち**
 
 | 項目 | 値 |
 |------|-----|
-| 最新成果 | (1) 5/29 朝に Phase 90γ-⑥ Day 1 効果検証 → **完全成功**（TP 距離 **0.956%**・実効 RR **~1.02:1**・Maker 化率 **100%**・信頼度ラベル WARNING ログ **64/65 試行で機能**）。(2) 同日 **Phase 90γ-⑦（観察可能化）+ Phase 90γ-⑨（テストカバレッジ向上）統合実装** をデプロイ → コードロジック変更ゼロで「次の 2.5 ヶ月放置型バグを 24h 以内に検知できる体制」構築 |
+| 最新成果 | ライブ分析調査で **Maker 戦略の致命バグを発見・修正（Phase 90δ）**：`bitbank_client.py:840` が `postOnly`（camelCase）を送信していたが bitbank は `post_only`（snake_case）を期待し、ccxt 4.5.1 は変換しないため **post_only が全注文で無視され通常指値化＝即時約定時テイカー約定**していた。旧「Maker 化率 100%」は約定種別を実 API で検証しない虚偽記録。post_only 名前修正 + 約定種別の真実観測 + 緊急決済 DRY_RUN 誤カウント修正 + 50062 レース対策の 4 件を実装、18 テスト追加・`checks.sh` 全 PASS |
+| 🎯 Phase 90δ 追加調整 | (1) **レジーム別TP/SL が未適用（dead code）と判明**：`confidence_based` が `regime_based` を常に上書き（5/29 実証: TP適用99回全て信頼度別・normal TP500 は0回）。実態は全エントリーが信頼度別 → ドキュメント訂正。(2) **TP 引き下げ**：TP1500（距離0.956%）が遠く +1000円付近で反転→SL のケース多発のため、高 TP1500→1200 / 低 TP1200→1000 に引き下げ（SL維持・RR 0.83:1 許容）|
 | 🎯 Phase 90γ-⑦+⑨ 統合実装内容 | ⑦-1 INFO→WARNING 格上げ 3 箇所 / ⑦-2 例外スワロー解消 3 箇所（trigger_server pragma 解除含む）/ ⑦-3 サイレント失敗ログ 3 箇所（DummyModel fallback・ml_confidence=None・drift skip）/ ⑦-4 persistence=None CRITICAL 警告 / ⑨ 25 件テスト追加（test_backtest_runner.py 新規 8 + _load_state 5 + Drift KS 異常入力系 6 + test_trigger_server.py 新規 6 + 補強 2）+ 副次バグ修正 1 件（時刻ハードコード）|
-| 🎯 Phase 90γ-⑥ Day 1 検証結果（5/29 朝・完全成功）| bitbank API 実取引 + WARNING ログで TP 距離 **0.956%**（目標 0.7-0.9% 達成）・実効 RR **~1.02:1**（旧 0.25:1 から **4 倍改善**）・Maker 化率 **100%**（旧 87.5% Taker から大幅改善）・信頼度ラベル付き TP 配置ログ **64/65 試行で機能**（旧バグ時 0%）。実取引件数は trending 相場継続で 24h 1 件のみだが、修正①の confidence_based 機能性は完全証明 |
+| 🎯 Phase 90γ-⑥ Day 1 検証結果（5/29 朝・完全成功）| bitbank API 実取引 + WARNING ログで TP 距離 **0.956%**（目標 0.7-0.9% 達成）・実効 RR **~1.02:1**（旧 0.25:1 から **4 倍改善**）・~~Maker 化率 100%~~（⚠️ **Phase 90δ で虚偽判明**：post_only 未機能で約定種別未検証だったため実態はテイカー約定）・信頼度ラベル付き TP 配置ログ **64/65 試行で機能**（旧バグ時 0%）。実取引件数は trending 相場継続で 24h 1 件のみだが、修正①の confidence_based 機能性は完全証明 |
 | 🎯 同時エントリー仕様確認 | Phase 50.4 維持率予測拒否 48 件/24h は**バグではなく仕様通り**。証拠金 24 万円 / 1 エントリー 0.015 BTC ≒ 17 万円消費で維持率 130% → 追加エントリーで 76% へ落ちる予測 = 強制ロスカット 50% への 30pt 安全バッファ |
 | 🎯 Phase 90γ-⑥ 根本発見（履歴）| `tp_sl_manager.py:2221` の `getattr(evaluation, "confidence", None)` が `TradeEvaluation` の実フィールド名（`confidence_level` / `adjusted_confidence`）と不一致 → Phase 68.8（2026-03-13）以降 **約 2.5 ヶ月間 confidence_based 上書きが全エントリーでスキップ**。修正により全レジームで信頼度ベース TP=1500/SL=2000 に統一 |
 | 🎯 Phase 90γ-①〜⑤（履歴）| Drift 検出再設計 / trigger EMERGENCY_STOP 解消 / 取引拒否 91% 解消 / Maker fallback 段階改善 / 観察可能化 / Phase 79 仕様誤読訂正 / 50062 連発対策（詳細は `docs/開発履歴/Phase_90.md`）|
@@ -234,4 +235,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年5月29日 - Phase 90γ-⑦+⑨ デプロイ完了 + Phase 90γ-⑥ Day 1 検証完全成功
+**最終更新**: 2026年5月30日 - Phase 90δ Maker戦略実効性修正（post_only バグ）+ 観察精度改善 実装完了

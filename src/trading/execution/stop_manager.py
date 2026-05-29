@@ -986,6 +986,53 @@ class StopManager:
                     entry_position_side = "long" if entry_side.lower() == "buy" else "short"
                     symbol = "BTC/JPY"
 
+                    # Phase 90δ: 決済発注直前のポジション存在確認（50062 レース対策）。
+                    # SL トリガー成行決済（Phase 64.12）等で同サイクル内に建玉が既に消滅して
+                    # いる場合、消滅済みポジへの重複決済発注が bitbank 50062「保有建玉数量超過」
+                    # を誘発する。発注前に実ポジを確認し、消滅検出時は発注をスキップして
+                    # 「既決済」として正常終了する。tp_sl_manager._check_position_exists と
+                    # 同一の判定基準（sum(abs(amount)) < expected * ratio）。
+                    exit_guard = get_threshold("position_management.position_exit_guard", {})
+                    if exit_guard.get("enabled", True):
+                        try:
+                            positions = await bitbank_client.fetch_margin_positions()
+                            actual = sum(abs(float(p.get("amount", 0))) for p in positions or [])
+                            ratio = float(exit_guard.get("position_exists_threshold_ratio", 0.5))
+                            if actual < amount * ratio:
+                                self.logger.warning(
+                                    f"⚠️ Phase 90δ: 決済スキップ - ポジション既消滅検出 "
+                                    f"(期待 {amount:.4f} > 実 {actual:.4f} BTC) - "
+                                    f"SL成行決済等で決済済みの可能性。50062 回避のため発注省略"
+                                )
+                                return ExecutionResult(
+                                    success=True,
+                                    mode=(
+                                        ExecutionMode.PAPER
+                                        if mode == "paper"
+                                        else ExecutionMode.LIVE
+                                    ),
+                                    order_id=(
+                                        f"exit_already_closed_"
+                                        f"{position.get('order_id', 'unknown')}"
+                                    ),
+                                    price=current_price,
+                                    amount=0,
+                                    filled_price=0,
+                                    filled_amount=0,
+                                    error_message=None,
+                                    side=exit_side,
+                                    fee=0.0,
+                                    status=OrderStatus.FILLED,
+                                    paper_pnl=0,
+                                    timestamp=datetime.now(),
+                                )
+                        except Exception as guard_e:
+                            # フェイルオープン: ポジ確認失敗時は決済を続行（取りこぼし防止）
+                            self.logger.warning(
+                                f"⚠️ Phase 90δ: 決済前ポジ確認失敗 - "
+                                f"決済続行（フェイルオープン）: {guard_e}"
+                            )
+
                     close_order = await asyncio.to_thread(
                         bitbank_client.create_order,
                         symbol=symbol,
