@@ -461,9 +461,11 @@ class InfrastructureChecker:
             'textPayload:"Phase 83C: ポジションサイズ倍率変化"', 20
         )
 
-        # Phase 83B: SL=0.20% 適用率検証（C1修正の効果確認）
+        # 固定金額SL適用率検証
+        # Phase 90ζ: 実コードが出すログ文字列は "Phase 86: 固定金額SL適用（TPSLCalculator統一）"。
+        # 旧 grep "Phase 70.2: 固定金額SL適用" は Phase 86 移行時から空振り（常に0）だったため修正。
         self.result.phase70_2_fixed_sl_count = self._count_gcp_logs(
-            'textPayload:"Phase 70.2: 固定金額SL適用"', 100
+            'textPayload:"Phase 86: 固定金額SL適用"', 100
         )
         self.result.phase49_16_tp_sl_count = self._count_gcp_logs(
             'textPayload:"Phase 49.16 TP/SL確定"', 100
@@ -589,8 +591,8 @@ class InfrastructureChecker:
 class BotFunctionCheckResult:
     """Bot機能診断結果"""
 
-    # 37特徴量システム
-    feature_37_count: int = 0
+    # 特徴量システム（Phase 89-β/γ/δ で 37→55 拡張・FULL=55）
+    feature_full_count: int = 0
     feature_fallback_count: int = 0
     dummy_model_count: int = 0
 
@@ -626,6 +628,14 @@ class BotFunctionCheckResult:
     tp_maker_success_count: int = 0
     tp_maker_fallback_count: int = 0
     tp_post_only_cancelled_count: int = 0
+
+    # Phase 90δ: post_only指定だが実Taker約定（約定種別の真実観測）
+    post_only_taker_conflict_count: int = 0
+
+    # Phase 90ε/90ζ: 土日TP/SL縮小の観察
+    weekend_tp_500_count: int = 0
+    weekend_sl_reduce_count: int = 0
+    fixed_sl_applied_count: int = 0
 
     # Phase 67.4/67.5: エントリー実行フロー
     fill_polling_success: int = 0
@@ -711,6 +721,7 @@ class BotFunctionChecker:
             self._check_phase89_features()
             # Phase 90α v8e メタラベリング動作確認（quality_filter / ML 予測分布 / モデル整合性）
             self._check_phase90_features()
+            self._check_phase90_weekend_tpsl()  # Phase 90ε/90ζ: 土日TP/SL縮小確認
 
         # 総合スコア計算
         self.result.total_score = (
@@ -730,15 +741,17 @@ class BotFunctionChecker:
         return self.infra_checker._count_gcp_logs(query, limit)
 
     def _check_feature_system(self):
-        """37特徴量システム確認"""
-        self.logger.info("📊 37特徴量システム確認")
-        self.result.feature_37_count = self._count_logs(
-            'textPayload:"37特徴量" OR textPayload:"37個の特徴量"', 15
+        """特徴量システム確認（FULL=55特徴量）"""
+        self.logger.info("📊 55特徴量システム確認")
+        # Phase 90ζ: 実コードは "特徴量レベル判定: full (55特徴量)" / "...55特徴量)" を出力。
+        # 旧 grep "37特徴量" は 37→55 拡張後（Phase 89-β/γ/δ）に空振りしていたため修正。
+        self.result.feature_full_count = self._count_logs(
+            'textPayload:"55特徴量" OR textPayload:"特徴量レベル判定: full"', 15
         )
         self.result.feature_fallback_count = self._count_logs('textPayload:"基本特徴量のみ"', 15)
         self.result.dummy_model_count = self._count_logs('textPayload:"DummyModel"', 15)
 
-        if self.result.feature_37_count > 0 and self.result.dummy_model_count == 0:
+        if self.result.feature_full_count > 0 and self.result.dummy_model_count == 0:
             self.result.normal_checks += 1
         elif self.result.feature_fallback_count > 0 and self.result.dummy_model_count == 0:
             self.result.warning_issues += 1
@@ -879,6 +892,19 @@ class BotFunctionChecker:
         self.result.tp_post_only_cancelled_count = self._count_logs(
             'textPayload:"Phase 62.10: TP post_onlyキャンセル"', 20
         )
+
+        # Phase 90δ: post_only指定だが実Taker約定（約定種別の真実観測）。
+        # bitbank reject 未発生で通常指値化→即時約定時にTaker約定したケースを検出。
+        self.result.post_only_taker_conflict_count = self._count_logs(
+            'textPayload:"Phase 90δ: post_only指定だがTaker約定"', 30
+        )
+        if self.result.post_only_taker_conflict_count > 0:
+            self.logger.warning(
+                f"⚠️ Phase 90δ: post_only指定だが実Taker約定 "
+                f"{self.result.post_only_taker_conflict_count}件 - "
+                f"post_only実効性低下の可能性（即時約定でMaker化失敗）"
+            )
+            self.result.warning_issues += 1
 
         # 評価: Maker戦略が動作していれば正常
         total_entry = self.result.entry_maker_success_count + self.result.entry_maker_fallback_count
@@ -1411,6 +1437,45 @@ class BotFunctionChecker:
 
         except Exception as e:
             self.logger.warning(f"⚠️ Phase 90α 機能カバレッジ確認失敗: {e}")
+
+    def _check_phase90_weekend_tpsl(self):
+        """Phase 90ε/90ζ: 土日TP/SL縮小の動作確認.
+
+        - Phase 90ε: 土日TP一律500円（固定金額TP適用ログに (土日一律縮小) ラベル付与）
+        - Phase 90ζ: 固定金額SL適用ログを INFO→WARNING 昇格 + (土日縮小→N円) ラベル
+        平日 or 土日に取引機会がない場合は記録ゼロが正常（土日帯のみ出現する設計）。
+        """
+        self.logger.info("📅 Phase 90ε/90ζ: 土日TP/SL縮小確認")
+        try:
+            # Phase 90ε: 土日TP一律500円（"(土日一律縮小)" ラベル）
+            self.result.weekend_tp_500_count = self._count_logs('textPayload:"土日一律縮小"', 50)
+            # Phase 90ζ: 土日SL縮小ラベル（"(土日縮小→N円)"）
+            self.result.weekend_sl_reduce_count = self._count_logs('textPayload:"土日縮小"', 50)
+            # Phase 90ζ: 固定金額SL適用ログ（WARNING昇格で本番観察可能化）
+            self.result.fixed_sl_applied_count = self._count_logs(
+                'textPayload:"Phase 86: 固定金額SL適用"', 50
+            )
+
+            if self.result.fixed_sl_applied_count > 0:
+                self.logger.info(
+                    f"  ✅ Phase 90ζ: 固定金額SL適用ログ {self.result.fixed_sl_applied_count}件 "
+                    f"(WARNING昇格で本番観察可能)"
+                )
+                self.result.normal_checks += 1
+
+            if self.result.weekend_tp_500_count > 0 or self.result.weekend_sl_reduce_count > 0:
+                self.logger.info(
+                    f"  ✅ Phase 90ε/90ζ: 土日縮小適用 - "
+                    f"TP500 {self.result.weekend_tp_500_count}件 / "
+                    f"SL縮小 {self.result.weekend_sl_reduce_count}件"
+                )
+                self.result.normal_checks += 1
+            else:
+                self.logger.info(
+                    "  ℹ️ Phase 90ε/90ζ: 土日縮小の記録なし（平日 or 土日取引なし＝正常）"
+                )
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 90ε/90ζ 土日TP/SL確認失敗: {e}")
 
 
 @dataclass
@@ -3648,7 +3713,7 @@ def _generate_diagnostic_markdown(
         "",
         "| 項目 | 結果 |",
         "|------|------|",
-        f"| 37特徴量検出 | {bot_result.feature_37_count}回 |",
+        f"| 55特徴量検出 | {bot_result.feature_full_count}回 |",
         f"| フォールバック | {bot_result.feature_fallback_count}回 |",
         f"| DummyModel使用 | {bot_result.dummy_model_count}回 |",
         f"| シグナル生成 | {bot_result.signal_count}回 |",
