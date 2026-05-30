@@ -8,11 +8,13 @@
 import os
 import sys
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 # プロジェクトルートをパスに追加
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../../"))
 
+from src.core.logger import JST
 from src.strategies.utils import EntryAction, RiskManager
 
 
@@ -711,6 +713,166 @@ class TestConfidenceBasedTPSL(unittest.TestCase):
         entry_fee = self.current_price * 0.01 * 0.001
         total_loss = sl_gross + exit_fee + entry_fee
         self.assertAlmostEqual(total_loss, 500, delta=1)
+
+
+class TestPhase90EpsilonWeekendTPSL(unittest.TestCase):
+    """Phase 90ε: 土日TP/SL縮小（confidence_based 経路への土日上書き）テスト
+
+    仕様:
+    - 土日(JST weekday>=5)は TP を一律 500円 に縮小（信頼度に関係なく）
+    - 土日は SL 目標も縮小（本テストは floor 無効でターゲット厳密検証）
+    - 平日は従来通り confidence_based（高 TP1200/SL2000・低 TP1000/SL1500）
+    - weekend.enabled=False なら土日でも上書きしない
+    """
+
+    def setUp(self):
+        self.current_price = 10_000_000.0  # 1000万円（BTC/JPY想定）
+        self.current_atr = 500_000.0
+        self.amount = 0.01
+        self.basic_config = {
+            "stop_loss_atr_multiplier": 2.0,
+            "take_profit_ratio": 1.29,
+            "max_loss_ratio": 0.007,
+            "min_profit_ratio": 0.009,
+            "default_atr_multiplier": 2.0,
+        }
+        # JST の確定した土曜・平日（水曜）
+        self.saturday_jst = datetime(2026, 5, 30, 12, 0, tzinfo=JST)  # 土曜
+        self.wednesday_jst = datetime(2026, 5, 27, 12, 0, tzinfo=JST)  # 水曜
+
+    def _side_effect(self, tp_weekend_enabled=True, sl_weekend_enabled=True):
+        """本番相当の confidence_based + weekend 設定（floor は未設定＝無効）"""
+
+        def side_effect(key, default=None):
+            thresholds = {
+                "position_management.take_profit.regime_based.enabled": False,
+                "position_management.weekend_adjustment.enabled": False,
+                "position_management.stop_loss.max_loss_ratio": 0.007,
+                "position_management.take_profit.min_profit_ratio": 0.009,
+                "position_management.take_profit.default_ratio": 1.29,
+                "position_management.stop_loss.fixed_amount": {
+                    "enabled": True,
+                    "target_max_loss": 2000,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 1500,
+                        "high": 2000,
+                    },
+                    "weekend": {
+                        "enabled": sl_weekend_enabled,
+                        "target_max_loss": 1000,
+                    },
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.001,
+                    "include_entry_fee": True,
+                },
+                "position_management.take_profit.fixed_amount": {
+                    "enabled": True,
+                    "target_net_profit": 1200,
+                    "confidence_based": {
+                        "enabled": True,
+                        "threshold": 0.40,
+                        "low": 1000,
+                        "high": 1200,
+                    },
+                    "weekend": {
+                        "enabled": tp_weekend_enabled,
+                        "target_net_profit": 500,
+                    },
+                    "include_entry_fee": True,
+                    "include_exit_fee_rebate": True,
+                    "include_interest": True,
+                    "fallback_entry_fee_rate": 0.001,
+                    "fallback_exit_fee_rate": 0.0,
+                },
+            }
+            return thresholds.get(key, default)
+
+        return side_effect
+
+    def _net_tp(self, take_profit):
+        tp_gross = (take_profit - self.current_price) * self.amount
+        tp_entry_fee = self.current_price * self.amount * 0.001
+        tp_exit_fee = self.current_price * self.amount * 0.0  # Maker 0%
+        return tp_gross - tp_entry_fee - tp_exit_fee
+
+    def _total_sl_loss(self, stop_loss):
+        sl_gross = (self.current_price - stop_loss) * self.amount
+        exit_fee = self.current_price * self.amount * 0.001
+        entry_fee = self.current_price * self.amount * 0.001
+        return sl_gross + exit_fee + entry_fee
+
+    def _run(self, current_time, confidence):
+        return RiskManager.calculate_stop_loss_take_profit(
+            action=EntryAction.BUY,
+            current_price=self.current_price,
+            current_atr=self.current_atr,
+            config=self.basic_config.copy(),
+            current_time=current_time,
+            position_amount=self.amount,
+            confidence=confidence,
+        )
+
+    @patch("src.core.config.get_threshold")
+    def test_weekday_high_confidence_no_override(self, mock_get_threshold):
+        """平日(水)・高信頼度 → confidence_based 維持（TP1200/SL2000）"""
+        mock_get_threshold.side_effect = self._side_effect()
+        sl, tp = self._run(self.wednesday_jst, confidence=0.50)
+        assert sl is not None and tp is not None
+        self.assertAlmostEqual(self._net_tp(tp), 1200, delta=1)
+        self.assertAlmostEqual(self._total_sl_loss(sl), 2000, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_weekend_high_confidence_tp_flat_500(self, mock_get_threshold):
+        """土曜・高信頼度 → 土日上書きで TP500/SL1000（confidence高1200を上書き）"""
+        mock_get_threshold.side_effect = self._side_effect()
+        sl, tp = self._run(self.saturday_jst, confidence=0.50)
+        assert sl is not None and tp is not None
+        self.assertAlmostEqual(self._net_tp(tp), 500, delta=1)
+        self.assertAlmostEqual(self._total_sl_loss(sl), 1000, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_weekend_low_confidence_tp_flat_500(self, mock_get_threshold):
+        """土曜・低信頼度 → TP は一律500（信頼度に依存しない）"""
+        mock_get_threshold.side_effect = self._side_effect()
+        sl, tp = self._run(self.saturday_jst, confidence=0.30)
+        assert sl is not None and tp is not None
+        self.assertAlmostEqual(self._net_tp(tp), 500, delta=1)
+        self.assertAlmostEqual(self._total_sl_loss(sl), 1000, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_weekend_disabled_no_override(self, mock_get_threshold):
+        """土曜でも weekend.enabled=False なら confidence_based 維持"""
+        mock_get_threshold.side_effect = self._side_effect(
+            tp_weekend_enabled=False, sl_weekend_enabled=False
+        )
+        sl, tp = self._run(self.saturday_jst, confidence=0.50)
+        assert sl is not None and tp is not None
+        self.assertAlmostEqual(self._net_tp(tp), 1200, delta=1)
+        self.assertAlmostEqual(self._total_sl_loss(sl), 2000, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_weekend_naive_datetime_jst_conversion(self, mock_get_threshold):
+        """naive datetime(UTC扱い)→JST変換で土日判定（金16:00 UTC = 土01:00 JST）"""
+        mock_get_threshold.side_effect = self._side_effect()
+        # 2026-05-29 は金曜。16:00 UTC + 9h = 2026-05-30 01:00 JST(土) → 土日扱い
+        friday_utc_naive = datetime(2026, 5, 29, 16, 0)
+        self.assertIsNone(friday_utc_naive.tzinfo)
+        sl, tp = self._run(friday_utc_naive, confidence=0.50)
+        assert sl is not None and tp is not None
+        self.assertAlmostEqual(self._net_tp(tp), 500, delta=1)
+        self.assertAlmostEqual(self._total_sl_loss(sl), 1000, delta=1)
+
+    @patch("src.core.config.get_threshold")
+    def test_weekday_naive_datetime_jst_conversion(self, mock_get_threshold):
+        """naive datetime: 水02:00 UTC = 水11:00 JST → 平日扱い（上書きされない）"""
+        mock_get_threshold.side_effect = self._side_effect()
+        wednesday_utc_naive = datetime(2026, 5, 27, 2, 0)  # 水11:00 JST
+        sl, tp = self._run(wednesday_utc_naive, confidence=0.50)
+        assert sl is not None and tp is not None
+        self.assertAlmostEqual(self._net_tp(tp), 1200, delta=1)
+        self.assertAlmostEqual(self._total_sl_loss(sl), 2000, delta=1)
 
 
 class TestPhase83CSLFallThrough(unittest.TestCase):

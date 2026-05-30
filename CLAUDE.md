@@ -4,9 +4,10 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 90δ Maker戦略実効性修正 + 観察精度改善 実装完了（2026-05-30）→ コミット/デプロイ・Day 1 検証待ち**|
-| **直前の作業** | ライブ分析調査でユーザー指摘（取引画面の M/T 列がテイカー）を起点に **Maker 戦略の致命バグを発見**：`bitbank_client.py:840` が `postOnly`（camelCase）を送信していたが bitbank API は `post_only`（snake_case）を期待し、ccxt 4.5.1 は変換しないため **post_only が全注文で無視され通常指値化 → 即時約定時にテイカー約定**していた。**Phase 90γ-⑥ Day1 の「Maker 化率100%」は虚偽記録**（約定種別を実 API で検証せず「Maker(0%)」決め打ちだった）。Phase 90δ で 4 修正実装（1-A post_only 名前修正 / 1-B 約定種別の真実観測 / 2-C 緊急成行決済の DRY_RUN 誤カウント修正 / 2-D 50062 レース対策）+ 18 テスト追加・`checks.sh` 全 PASS（72%+ カバレッジ）|
-| **次の予定** | コミット・本番デプロイ → **Day 1 検証**：post_only reject ログ増加・実 Maker 化率（bitbank API `maker_taker` ベース）・新 WARNING `Phase 90δ: post_only指定だがTaker約定` の有無・エントリー成立率・50062 件数減・**TP約定率/平均保有時間（TP1200引き下げ効果）**。並行で Phase 90γ-⑥ 累積効果（PF・月利）も継続観察。数日後に実 MFE 分布でレジーム別TP/SL の要否を再評価 |
+| **現在Phase** | **Phase 90ε 土日TP/SL縮小 実装完了（2026-05-30）→ コミット/デプロイ待ち**（Phase 90δ はコミット済 `1e86e8e7`）|
+| **直前の作業** | ユーザー指摘「日本の土日祝はBTCが狭いレンジに収まりやすく、TP1000-1200円では約定しないまま月曜を迎える」を起点に **Phase 90ε 土日TP/SL縮小** を実装。実運用の confidence_based（固定金額）経路に **JST土日判定**（Phase 83C のJST明示変換を踏襲・`weekday()>=5`）を追加し、**土日は信頼度に関係なくTPを一律500円**（距離≒0.36%でレンジ内利確優先）に上書き。SLは target1000円へ下げるが **floor 0.7% 据え置き（A案）** のため実効SL≒0.70%（≒1,733円@0.015BTC・平日2000円より縮小しつつノイズ耐性維持）。祝日は対象外（jpholiday 不採用・追加依存ゼロ）。変更3ファイル（thresholds.yaml / strategy_utils.py / test_risk_manager.py）・テスト6件追加・black/isort/flake8 PASS・実config E2E確認済|
+| **直前の作業（Phase 90δ）** | ライブ分析調査でユーザー指摘（取引画面の M/T 列がテイカー）を起点に **Maker 戦略の致命バグを発見**：`bitbank_client.py:840` が `postOnly`（camelCase）を送信していたが bitbank API は `post_only`（snake_case）を期待し、ccxt 4.5.1 は変換しないため **post_only が全注文で無視され通常指値化 → 即時約定時にテイカー約定**していた。**Phase 90γ-⑥ Day1 の「Maker 化率100%」は虚偽記録**（約定種別を実 API で検証せず「Maker(0%)」決め打ちだった）。Phase 90δ で 4 修正実装（1-A post_only 名前修正 / 1-B 約定種別の真実観測 / 2-C 緊急成行決済の DRY_RUN 誤カウント修正 / 2-D 50062 レース対策）+ 18 テスト追加・`checks.sh` 全 PASS（72%+ カバレッジ）|
+| **次の予定** | コミット・本番デプロイ → **Day 1 検証**：(Phase 90ε) 土日に WARNING `目標純利益=500円(...)(土日一律縮小)` が出ているか・**土日のTP約定率/平均保有時間**（月曜持ち越し減）。(Phase 90δ) post_only reject ログ増加・実 Maker 化率（bitbank API `maker_taker` ベース）・新 WARNING `Phase 90δ: post_only指定だがTaker約定` の有無・エントリー成立率・50062 件数減・**TP約定率/平均保有時間（TP1200引き下げ効果）**。並行で Phase 90γ-⑥ 累積効果（PF・月利）も継続観察。数日後に実 MFE 分布でレジーム別TP/SL の要否を再評価 |
 | **🎯 Phase 90γ-⑦+⑨ 統合実装内容** | ⑦-1 INFO→WARNING 格上げ 3 箇所 (backtest_runner L935/L1063, ml_health_monitor L155) / ⑦-2 例外スワロー解消 3 箇所 (trigger_server L73 pragma 解除含む) / ⑦-3 サイレント失敗ログ 3 箇所 (DummyModel fallback / ml_confidence=None / drift skip) / ⑦-4 persistence=None CRITICAL 警告 (初回のみ・重複防止) / ⑨ 25 件テスト追加（8+5+6+6+2）。**カバレッジ目標 73→78% / コードロジック変更ゼロ・観察可能性のみ強化** |
 | **🎯 Phase 90γ-⑥ Day 1 検証結果（5/29 朝・完全成功）** | bitbank API 実取引で TP 距離 **0.956%**（目標 0.7-0.9% を上回り達成）・実効 RR **~1.02:1**（旧 0.25:1 から 4 倍改善）・~~Maker 化率 100%~~（⚠️ **Phase 90δ で虚偽判明**：post_only 未機能で約定種別未検証だったため実態はテイカー約定）・信頼度ラベル WARNING ログ **64/65 試行で機能**（旧バグ時 0%）。実取引件数は trending 相場継続で 1 件のみだが、修正①の confidence_based 機能性は完全証明 |
 | **🎯 同時エントリー仕様確認** | Phase 50.4 維持率予測拒否 48 件/24h は**バグではなく仕様通り**。証拠金 24 万円 / 1 エントリー 0.015 BTC ≒ 17 万円消費で維持率 130%・追加エントリーで 76% へ落ちる予測 → 強制ロスカット 50% への 30pt 安全バッファとして妥当。同時エントリー数増加は証拠金増額が正攻法 |
@@ -17,7 +18,7 @@
 | **特徴量数 / ML モデル** | 37 → **55** / 3 → **4**（LGB 34%/XGB 34%/RF 17%/N-BEATS 15%）|
 | **v8e macro F1** | LGB CV 0.546 / Test 0.486・XGB CV 0.459・RF CV 0.530・N-BEATS CV 0.514（naive 0.41 比 +0.10〜+0.14）|
 | **追加課金 / GCP 月額** | ゼロ（GPU・LLM 不採用）/ 現状 ¥1,400-1,700 |
-| **最終更新** | 2026年5月30日 - Phase 90δ Maker戦略実効性修正（post_only バグ）+ 観察精度改善 実装完了 |
+| **最終更新** | 2026年5月30日 - Phase 90ε 土日TP/SL縮小（土日TP一律500円・SLはfloor 0.7%据え置きで縮小）実装完了 |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
@@ -372,11 +373,11 @@ dynamic_strategy_selection:
 | normal_range | 0.65% | 0.45% |
 | trending | 1.0% | 0.65% |
 
-### 固定金額TP/SL（Phase 85 + Phase 90δ）
+### 固定金額TP/SL（Phase 85 + Phase 90δ + Phase 90ε 土日縮小）
 
 > ⚠️ **Phase 90δ 重要訂正**: 下の「レジーム別TP/SL目標」は **実装上は未適用（dead code）**。`strategy_utils.py:518-531`（TP）/`440-447`（SL）で `confidence_based` が `regime_based` を常に上書きするため、**全エントリーが信頼度別TP/SLで決まる**（5/29 実証: TP適用99回が全て信頼度別、normal TP500 は0回）。`regime_based` は post_only 修正後の実 MFE データで要否を再評価予定。trending はそもそもエントリー停止（重み0）。
 
-#### 信頼度別TP/SL目標（実運用で常用・Phase 90δ で TP 引き下げ）
+#### 信頼度別TP/SL目標（平日・実運用で常用・Phase 90δ で TP 引き下げ）
 
 | 信頼度 | 閾値 | TP金額 | SL金額 | TP距離 | SL距離 | RR |
 |--------|------|--------|--------|--------|--------|-----|
@@ -384,6 +385,18 @@ dynamic_strategy_selection:
 | 高 | >=0.40 | **1,200円**（旧1,500）| 2,000円 | 0.79% | 0.94% | 0.83:1 |
 
 **Phase 90δ TP引き下げ理由（2026-05-30）**: TP1500（距離0.956%）は遠く、+1000円付近で反転→TP未達→SL のケースが発生。TP を高1200/低1000 に下げて利確しやすくし、長時間保有→SL反転リスクを低減。SL はノイズ耐性維持のため据え置き（RR 1.02→0.83 を許容）。
+
+#### 土日TP/SL（Phase 90ε・2026-05-30 追加）
+
+| 区分 | TP金額 | SL目標 | 実TP距離 | 実SL距離 | 備考 |
+|------|--------|--------|---------|---------|------|
+| **土日（土・日 JST）** | **一律500円**（信頼度無関係）| 1,000円 → **floor 0.7% で実効≒1,733円** | **0.36%** | **0.70%** | 月曜持ち越し回避 |
+
+**Phase 90ε 導入理由**: 日本の土日はBTCが特別イベント無き限り狭いレンジに収まりやすく、平日基準のTP1000-1200円（距離0.79%）では約定しないまま月曜を迎えるケースが多発。**土日のみ**（祝日は対象外・jpholiday 不採用）TP を一律500円（距離0.36%）に縮小しレンジ内利確を優先。SL は target1000円へ下げるが **A案（floor 0.7% 据え置き）** のため実効SL≒0.70%（平日2000円より縮小しつつノイズ耐性維持）。
+
+**実装**: `strategy_utils.py` の固定金額 confidence_based 経路に JST土日判定 `is_weekend_jst`（`weekday()>=5`・Phase 83C のJST明示変換踏襲）を追加し、信頼度判定の**後に最終上書き**。設定は `thresholds.yaml` の `take_profit.fixed_amount.weekend`（target_net_profit:500）/ `stop_loss.fixed_amount.weekend`（target_max_loss:1000）でトグル化。ログに `(土日一律縮小)` ラベル出力で観察可能。
+
+> 注: 既存 Phase 58.6 の `weekend_adjustment` + `regime_based.{regime}.weekend_ratio` は **%ベース（dead code）** にしか効かず実運用では無効。Phase 90ε はそれとは独立に、実際に動く固定金額経路へ土日縮小を導入したもの。
 
 #### レジーム別TP/SL目標（⚠️ 現状未適用・参考）
 

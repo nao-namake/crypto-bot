@@ -875,6 +875,14 @@ position_management:
         threshold: 0.4
         low: 1000  # Phase 90δ: 1200→1000
         high: 1200  # Phase 90δ: 1500→1200
+      # Phase 90ε (2026-05-30): 土日TP一律縮小。
+      # 日本の土日はBTCが狭いレンジに収まりやすく、TP1000-1200円（距離0.79%）では
+      # 約定しないまま月曜を迎えるケースが多発。土日は信頼度に関係なくTPを500円
+      # （距離≒0.36%）に縮小し、レンジ内での利確率を優先する。
+      # JST判定（confidence_based の後に最終上書き・weekday()>=5）。祝日は対象外。
+      weekend:
+        enabled: true
+        target_net_profit: 500
       include_entry_fee: true
       include_exit_fee_rebate: true
       include_interest: true
@@ -952,6 +960,14 @@ position_management:
         threshold: 0.4
         low: 1500
         high: 2000
+      # Phase 90ε (2026-05-30): 土日SL縮小（A案: floor 0.7% は据え置き）。
+      # 土日はTPを500円に縮めるため、SL目標も1000円へ下げてバランスを取る。
+      # ただし min_distance floor 0.7%（≒1,350円@0.015BTC）が効くため、実効SLは
+      # 約0.7%で下限張り付き＝平日(高2000/低1500≒0.84-0.94%)より縮小しつつノイズ耐性は維持。
+      # JST判定（confidence_based の後に最終上書き・weekday()>=5）。祝日は対象外。
+      weekend:
+        enabled: true
+        target_max_loss: 1000
       include_entry_fee: true
       fallback_entry_fee_rate: 0.001
       include_exit_fee: true

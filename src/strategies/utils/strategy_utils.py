@@ -393,6 +393,24 @@ class RiskManager:
                         else f"📅 Phase 58.6: 土日判定 ({check_time.strftime('%a')}) - 設定なし"
                     )
 
+            # ========================================
+            # Phase 90ε: 固定金額（confidence_based）経路用 土日判定
+            # ========================================
+            # Phase 58.6 の土日縮小は %ベース(regime_based・dead code)にしか効かなかったため、
+            # 実運用の固定金額×信頼度別 経路にも土日判定を導入する。
+            # weekend_adjustment.enabled トグルとは独立に判定し、各 fixed_amount.weekend で個別制御。
+            # Phase 83C のJST明示変換を踏襲（naive datetime は UTC とみなして JST 変換）。
+            from ...core.logger import JST
+
+            if current_time is not None:
+                if current_time.tzinfo is None:
+                    wk_check_time = current_time.replace(tzinfo=timezone.utc).astimezone(JST)
+                else:
+                    wk_check_time = current_time.astimezone(JST)
+            else:
+                wk_check_time = datetime.now(JST)
+            is_weekend_jst = wk_check_time.weekday() >= 5  # 5=土, 6=日
+
             # === SL距離計算（max_loss_ratio優先） ===
             # Phase 51.6: ハードコード削除・設定ファイル一元管理（SL 0.7%）
             # Phase 52.0: レジーム別設定が適用済み（上記で反映）
@@ -445,6 +463,13 @@ class RiskManager:
                     else:
                         sl_target = confidence_config.get("low", 400)
                         confidence_label = f"(低信頼度<{threshold})"
+
+                # Phase 90ε: 土日はSL目標を縮小（信頼度判定の後に最終上書き）
+                # A案: floor 0.7% は据え置きのため実効SLは約0.7%で下限張り付き。
+                sl_weekend_config = fixed_sl_config.get("weekend", {})
+                if is_weekend_jst and sl_weekend_config.get("enabled", False):
+                    sl_target = sl_weekend_config.get("target_max_loss", 1000)
+                    confidence_label += f"(土日縮小→{sl_target:.0f}円)"
 
                 # Phase 86: TPSLCalculator に統一（floor強制を計算層に集約）
                 from src.trading.execution.tpsl_calculator import TPSLCalculator
@@ -529,6 +554,15 @@ class RiskManager:
                             "low", 400
                         )
                         tp_confidence_label = f"(低信頼度<{tp_threshold})"
+
+                # Phase 90ε: 土日はTPを一律縮小（信頼度に関係なく最終上書き）
+                tp_weekend_config = fixed_amount_config.get("weekend", {})
+                if is_weekend_jst and tp_weekend_config.get("enabled", False):
+                    fixed_amount_config = dict(fixed_amount_config)
+                    fixed_amount_config["target_net_profit"] = tp_weekend_config.get(
+                        "target_net_profit", 500
+                    )
+                    tp_confidence_label += "(土日一律縮小)"
 
                 fixed_tp = RiskManager.calculate_fixed_amount_tp(
                     action=action,
