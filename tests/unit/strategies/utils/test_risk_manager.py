@@ -874,6 +874,23 @@ class TestPhase90EpsilonWeekendTPSL(unittest.TestCase):
         self.assertAlmostEqual(self._net_tp(tp), 1200, delta=1)
         self.assertAlmostEqual(self._total_sl_loss(sl), 2000, delta=1)
 
+    @patch("src.core.config.get_threshold")
+    def test_weekend_sl_log_emitted_at_warning(self, mock_get_threshold):
+        """Phase 90ζ: 固定金額SL適用ログが WARNING で土日縮小ラベル付き出力されること
+
+        本番 LOG_LEVEL=WARNING でSL土日縮小を観察可能にするための昇格を担保。
+        """
+        mock_get_threshold.side_effect = self._side_effect()
+        with self.assertLogs("crypto_bot", level="WARNING") as cm:
+            sl, tp = self._run(self.saturday_jst, confidence=0.50)
+        assert sl is not None and tp is not None
+        sl_logs = [m for m in cm.output if "固定金額SL適用" in m]
+        self.assertTrue(sl_logs, "固定金額SL適用ログが WARNING で出力されていない")
+        self.assertTrue(
+            any("土日縮小→" in m for m in sl_logs),
+            "SLログに土日縮小ラベルが含まれていない",
+        )
+
 
 class TestPhase83CSLFallThrough(unittest.TestCase):
     """Phase 83C: SL予算 < 手数料合計時の暗黙 regime fallback バグ修正テスト"""

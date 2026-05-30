@@ -13,10 +13,11 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 90ε 土日TP/SL縮小 実装完了（2026-05-30）→ コミット/デプロイ待ち**（Phase 90δ はコミット済 `1e86e8e7`）
+**Phase 90ζ SL土日縮小の観察可能化 + 特徴量数37→55整合 実装完了（2026-05-31）→ コミット/デプロイ待ち**（Phase 90ε はコミット済 `b75d2f63`・本番で土日TP500ログ確認済）
 
 | 項目 | 値 |
 |------|-----|
+| 🎯 Phase 90ζ 観察可能化+整合 | Phase 90ε デプロイ後のライブ分析で①SL土日縮小が本番ログで見えない（SL適用ログが INFO で WARNING抑制）→ `strategy_utils.py` の SL適用ログを INFO→WARNING 昇格（TP昇格と対称・`(土日縮小→N円)` ラベル付きで検証可能化）、②特徴量数37/55の不整合（README図・checks.sh ログが旧37）→ 55に統一。テスト1件追加・取引挙動は不変 |
 | 🎯 Phase 90ε 土日TP/SL縮小 | ユーザー指摘「日本の土日祝はBTCが狭いレンジに収まりやすく、TP1000-1200円では約定しないまま月曜を迎える」を起点に実装。実運用の confidence_based（固定金額）経路に **JST土日判定**（`weekday()>=5`・Phase 83C のJST明示変換踏襲）を追加し、**土日は信頼度に関係なくTPを一律500円**（距離≒0.36%でレンジ内利確優先）に上書き。SLは target1000円へ下げるが **floor 0.7% 据え置き（A案）** のため実効SL≒0.70%（≒1,733円@0.015BTC・平日2000円より縮小しつつノイズ耐性維持）。祝日は対象外（jpholiday 不採用・追加依存ゼロ）。変更3ファイル・テスト6件追加・black/isort/flake8 PASS・実config E2E確認済 |
 | 最新成果（Phase 90δ）| ライブ分析調査で **Maker 戦略の致命バグを発見・修正（Phase 90δ）**：`bitbank_client.py:840` が `postOnly`（camelCase）を送信していたが bitbank は `post_only`（snake_case）を期待し、ccxt 4.5.1 は変換しないため **post_only が全注文で無視され通常指値化＝即時約定時テイカー約定**していた。旧「Maker 化率 100%」は約定種別を実 API で検証しない虚偽記録。post_only 名前修正 + 約定種別の真実観測 + 緊急決済 DRY_RUN 誤カウント修正 + 50062 レース対策の 4 件を実装、18 テスト追加・`checks.sh` 全 PASS |
 | 🎯 Phase 90δ 追加調整 | (1) **レジーム別TP/SL が未適用（dead code）と判明**：`confidence_based` が `regime_based` を常に上書き（5/29 実証: TP適用99回全て信頼度別・normal TP500 は0回）。実態は全エントリーが信頼度別 → ドキュメント訂正。(2) **TP 引き下げ**：TP1500（距離0.956%）が遠く +1000円付近で反転→SL のケース多発のため、高 TP1500→1200 / 低 TP1200→1000 に引き下げ（SL維持・RR 0.83:1 許容）|
@@ -124,7 +125,7 @@ python3 scripts/live/standard_analysis.py --hours 24
 レイヤードアーキテクチャ設計
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  Data Layer     │───▶│ Feature Layer   │───▶│ Strategy Layer  │
-│  (Bitbank API)  │    │ (37 Indicators) │    │ (6 Strategies)  │
+│  (Bitbank API)  │    │ (55 Features)   │    │ (6 Strategies)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
           │                       │                       │
           ▼                       ▼                       ▼
@@ -140,7 +141,7 @@ python3 scripts/live/standard_analysis.py --hours 24
 src/
 ├── core/           # 基盤システム（設定・実行制御・レポート）
 ├── data/           # データ層（Bitbank API・キャッシュ）
-├── features/       # 特徴量生成（37指標）
+├── features/       # 特徴量生成（55特徴量・Phase 89-β/γ/δ で 37→55 拡張）
 ├── strategies/     # 6戦略（Registry Pattern）
 ├── ml/             # ML統合（3モデルアンサンブル）
 ├── trading/        # 取引管理層（5層アーキテクチャ）
@@ -236,4 +237,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年5月30日 - Phase 90ε 土日TP/SL縮小（土日TP一律500円・SLはfloor 0.7%据え置きで縮小）実装完了
+**最終更新**: 2026年5月31日 - Phase 90ζ SL土日縮小の観察可能化（INFO→WARNING）+ 特徴量数37→55ドキュメント整合 実装完了

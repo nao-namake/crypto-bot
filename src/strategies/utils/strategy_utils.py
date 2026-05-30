@@ -503,7 +503,10 @@ class RiskManager:
                 # 妥当性チェック（10%超は異常値）
                 if fixed_sl_distance <= current_price * 0.10:
                     stop_loss_distance = fixed_sl_distance
-                    logger.info(
+                    # Phase 90ζ: info→warning 昇格（本番 LOG_LEVEL=WARNING で SL目標・信頼度/土日ラベル・
+                    # SL距離を観察可能化）。TP適用ログ(L544 warning)と対称。confidence_label には
+                    # Phase 90ε の (土日縮小→N円) が含まれ、土日SL縮小が本番ログで検証可能になる。
+                    logger.warning(
                         f"🛡️ Phase 86: 固定金額SL適用（TPSLCalculator統一） - "
                         f"目標最大損失={sl_target:.0f}円{confidence_label}, "
                         f"entry_fee_rate={entry_fee_rate}, exit_fee_rate={exit_fee_rate}, "
