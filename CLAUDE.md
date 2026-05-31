@@ -4,7 +4,7 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 90ζ SL土日縮小の観察可能化 + 特徴量数37→55ドキュメント整合 デプロイ完了（2026-05-31）→ Day 1 検証待ち**（コミット `003d3a32` / CI/CD success 14m27s / revision `crypto-bot-service-prod-phase89a-cost-opt-0530-2034` 5/31 05:34 JST）。Phase 90ε（`b75d2f63`）も本番稼働・土日TP500ログ確認済 |
+| **現在Phase** | **Phase 90η 稼働中Bot健全性監査 + 不具合修正 実装完了（2026-06-01）→ コミット・デプロイ待ち**。Day 1検証で①土日縮小（90ε/ζ）正常動作・②GCPコスト最適化（I3 scale-to-zero）完璧（課金1.1%・Cloud Run compute月~110円）・③取引機能/設定/Maker約定すべて正常を確認。**致命的バグなし**。発見した不整合3件を修正: (A)稼働率46.8%誤表示=分析スクリプトが7分間隔前提だったバグ（実態は5分trigger×15分足gatingで実質100%稼働）→15分ベースに訂正、(B)WebSocket NOT_STARTED誤警告=triggerモード(min_instances=0)では非常駐が正常→SKIPPED扱いに修正、(C)**SLMonitor(Phase 87 C1)誤発火率100%**（11日18件全件）=canceled_unfilled検出が正常SLトリガーを誤判定→**緊急決済前ポジ残量ガード(`position_close_guard`)で根本修正**（dry_run継続・実SL決済はPhase 64.12が担保）。Phase 90ζ（`003d3a32`）も本番稼働中 |
 | **直前の作業（Phase 90ζ）** | Phase 90ε デプロイ後のライブ分析で判明した観察性の穴を補修。①**SL土日縮小が本番ログで見えない**問題（SL適用ログが INFO で LOG_LEVEL=WARNING に抑制）→ `strategy_utils.py` の `🛡️ 固定金額SL適用` を INFO→WARNING 昇格（Phase 90γ-⑥ のTP昇格と対称）。`confidence_label` に Phase 90ε の `(土日縮小→N円)` 含むため土日SL縮小が検証可能に。②**特徴量数の37/55不整合**（README図・checks.sh ログが旧37のまま）→ 現在形参照を55に統一。テスト1件追加（assertLogs でWARNING昇格担保）。**取引挙動は不変・ログレベルと文言のみ**。③**ライブ分析スクリプト `standard_analysis.py` を直近修正に追従**（5点）：90δ post_only実Taker約定WARNING監視追加 / 90ε土日TP500監視 / 90ζ SL適用ログ(Phase 86)監視 + SL grep空振り修正(`Phase 70.2`→`Phase 86`) / 特徴量grep 37→55 修正(`feature_37_count`→`feature_full_count`)。テスト5件追加・quick分析で実行確認済（土日TP500を50件検出・SL WARNINGはデプロイ後計算機会待ち）|
 | **直前の作業** | ユーザー指摘「日本の土日祝はBTCが狭いレンジに収まりやすく、TP1000-1200円では約定しないまま月曜を迎える」を起点に **Phase 90ε 土日TP/SL縮小** を実装。実運用の confidence_based（固定金額）経路に **JST土日判定**（Phase 83C のJST明示変換を踏襲・`weekday()>=5`）を追加し、**土日は信頼度に関係なくTPを一律500円**（距離≒0.36%でレンジ内利確優先）に上書き。SLは target1000円へ下げるが **floor 0.7% 据え置き（A案）** のため実効SL≒0.70%（≒1,733円@0.015BTC・平日2000円より縮小しつつノイズ耐性維持）。祝日は対象外（jpholiday 不採用・追加依存ゼロ）。変更3ファイル（thresholds.yaml / strategy_utils.py / test_risk_manager.py）・テスト6件追加・black/isort/flake8 PASS・実config E2E確認済|
 | **直前の作業（Phase 90δ）** | ライブ分析調査でユーザー指摘（取引画面の M/T 列がテイカー）を起点に **Maker 戦略の致命バグを発見**：`bitbank_client.py:840` が `postOnly`（camelCase）を送信していたが bitbank API は `post_only`（snake_case）を期待し、ccxt 4.5.1 は変換しないため **post_only が全注文で無視され通常指値化 → 即時約定時にテイカー約定**していた。**Phase 90γ-⑥ Day1 の「Maker 化率100%」は虚偽記録**（約定種別を実 API で検証せず「Maker(0%)」決め打ちだった）。Phase 90δ で 4 修正実装（1-A post_only 名前修正 / 1-B 約定種別の真実観測 / 2-C 緊急成行決済の DRY_RUN 誤カウント修正 / 2-D 50062 レース対策）+ 18 テスト追加・`checks.sh` 全 PASS（72%+ カバレッジ）|
@@ -18,8 +18,8 @@
 | **総合評価** | ✅ **Phase 90γ-⑥ Day 1 完全成功で核バグ修正済・Phase 90γ-⑦+⑨ で観察体制も強化**。勝率 66.7% は健全、レジーム判定は外部ソースで妥当性確認済。**Phase 90δ で Maker 戦略の致命バグ（post_only 未機能）を修正済**（旧「Maker 化率 100%」は虚偽）。**次の 2.5 ヶ月放置型バグを 24h 以内に検知できる体制**を構築。Bot 継続稼働推奨・Day 7 で年利改善を最終判定 |
 | **特徴量数 / ML モデル** | 37 → **55** / 3 → **4**（LGB 34%/XGB 34%/RF 17%/N-BEATS 15%）|
 | **v8e macro F1** | LGB CV 0.546 / Test 0.486・XGB CV 0.459・RF CV 0.530・N-BEATS CV 0.514（naive 0.41 比 +0.10〜+0.14）|
-| **追加課金 / GCP 月額** | ゼロ（GPU・LLM 不採用）/ 現状 ¥1,400-1,700 |
-| **最終更新** | 2026年5月31日 - Phase 90ζ SL土日縮小の観察可能化（INFO→WARNING）+ 特徴量数37→55ドキュメント整合 実装完了 |
+| **追加課金 / GCP 月額** | ゼロ（GPU・LLM 不採用）/ 現状 ¥1,400-1,700（うち Cloud Run compute は Phase 88 I3 scale-to-zero で月~110円・課金インスタンス時間1.1%。残りは Logging/Artifact Registry 等）|
+| **最終更新** | 2026年6月1日 - Phase 90η 稼働中Bot健全性監査（致命的バグなし）+ SLMonitor誤発火率100%根本修正（緊急決済前ポジ残量ガード）+ 稼働率計算/WebSocket誤警告のtriggerモード考慮修正 実装完了 |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >

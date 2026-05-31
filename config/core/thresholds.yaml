@@ -924,9 +924,20 @@ position_management:
     # Phase 87 C1/C5: SL CANCELED_UNFILLED 検出 + 緊急成行決済
     sl_monitor:
       enabled: true
-      # Phase 90β (2026-05-21): scripts/analysis/sl_monitor_validator.py で 7 日間ログ検証後に false へ切替予定
+      # Phase 90β (2026-05-21): 7 日間ログ検証後に false へ切替予定だった。
+      # → Phase 90η (2026-06-01): sl_monitor_validator.py で誤発火率 100%（11日18件全件誤発火）を確認。
+      #   canceled_unfilled 検出が「正常なSLトリガー（stop発動で板から消える）」を異常と誤判定していた。
+      #   dry_run は継続必須。下記 position_close_guard（緊急決済前ポジ残量再確認）導入後、
+      #   sl_monitor_validator.py で誤発火率を再測定し、改善確認後に別タスクで dry_run 解除を判断する。
+      #   実SL決済は Phase 64.12（SLトリガー超過→成行決済）が担保しているため dry_run でも実害なし。
       # 切替手順: 統合運用ガイド第7部「SLMonitor DRY_RUN 解除」参照
       dry_run: true
+      # Phase 90η: 緊急成行決済の前に実ポジション残量を再確認し、既決済（建玉消滅）を
+      # canceled_unfilled/expired/rejected と誤判定して誤発火するのを防ぐ。判定式は
+      # Phase 90δ/90γ-⑤ と統一（sum(abs(amount)) < expected * position_exists_threshold_ratio）。
+      position_close_guard:
+        enabled: true
+        position_exists_threshold_ratio: 0.5
     # Phase 88 H11: 孤児SL注文（ポジション無しで残存）の検出・自動キャンセル
     # 2026-05-14 09:05 BUYポジ TP約定後の SL cancel が bitbank 70004 で失敗 → 12時間孤児SL放置
     # 対策: 指数バックオフ 1s/2s/4s でキャンセル試行、3回失敗時は次5分サイクルで再試行

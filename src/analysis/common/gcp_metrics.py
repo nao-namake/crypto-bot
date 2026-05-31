@@ -672,8 +672,21 @@ def count_phase89_websocket_status(
         "bitbank ETH/JPY ticker 取得失敗", hours=hours, service_name=service_name
     )
     verdict = "OK"
+    trigger_mode = False
     if ws_started == 0:
-        verdict = "NOT_STARTED (起動シーケンスに WebSocket 呼出がない可能性)"
+        # Phase 90η: trigger モード（Cloud Scheduler 駆動・min_instances=0）では
+        # WebSocket 常駐不可のため起動しないのが正常（orchestrator.py is_trigger_runtime で
+        # スキップ）。trigger 運用ログを検出したら NOT_STARTED 警告ではなく SKIPPED 扱いにする。
+        trigger_runs = run_gcloud_logging_count(
+            "Phase 89-α Stage 1: gating 通過|取引サイクル開始",
+            hours=hours,
+            service_name=service_name,
+        )
+        if trigger_runs > 0:
+            trigger_mode = True
+            verdict = "SKIPPED_TRIGGER_MODE (min_instances=0・WebSocket 非常駐が正常)"
+        else:
+            verdict = "NOT_STARTED (起動シーケンスに WebSocket 呼出がない可能性)"
     elif ws_failed > 0:
         verdict = f"FAILED ({ws_failed} 件・REST フォールバック動作中)"
     return {
@@ -681,6 +694,7 @@ def count_phase89_websocket_status(
         "websocket_start_failure": ws_failed,
         "websocket_clean_disconnect": ws_disconnect,
         "eth_ticker_fetch_failure": eth_ticker_fail,
+        "trigger_mode_skipped": trigger_mode,
         "verdict": verdict,
     }
 

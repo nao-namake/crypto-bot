@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
+from ...core.config import get_threshold
 from ...core.logger import CryptoBotLogger, get_logger
 
 # 24h タイムアウトのデフォルト（thresholds.yaml から override 可能）
@@ -45,6 +46,7 @@ class SLHealthResult:
     is_healthy: bool
     failure_reason: Optional[str] = None
     # "canceled_unfilled" / "expired" / "rejected" / "timeout_24h" / "not_found" / "fetch_error"
+    # / "already_closed"（Phase 90η: ステータス異常だが実ポジ消滅済み＝既決済とみなしスキップ）
     requires_emergency_close: bool = False
     order_info: Optional[Dict[str, Any]] = None
 
@@ -123,21 +125,99 @@ class SLMonitor:
         except (TypeError, ValueError):
             return False
 
+    # ========================================
+    # Phase 90η: 緊急決済前ポジション残量ガード（誤発火率100%の根本修正）
+    # ========================================
+
+    async def _position_already_closed(
+        self, amount: Optional[float], bitbank_client: Any, symbol: str
+    ) -> bool:
+        """緊急決済の前に実ポジション残量を確認し「既決済」かを判定する。
+
+        bitbank の stop注文はトリガー発火時に CANCELED_UNFILLED 等を *正常な中間状態*
+        として経由してから成行約定する。ステータスのみで緊急決済すると、既決済の
+        ポジションを二重決済しようとして誤発火する（Phase 90η 以前は誤発火率100%）。
+        判定式は Phase 90δ/90γ-⑤ と統一: sum(abs(amount)) < expected * ratio。
+
+        Returns:
+            True  : 建玉消滅（既決済）→ 緊急決済を抑止すべき
+            False : 残あり（真の裸ポジ）→ 緊急決済を続行すべき
+
+        フェイルセーフ（Phase 90η・抑止優先）: 残量取得に失敗した場合は True（抑止）を
+        返す。fetch_order 一時エラー時に誤発火させない既存 check_sl_health の思想と
+        一貫させ、実SL決済を担保する Phase 64.12 経路を信頼する。
+        """
+        guard = get_threshold("position_management.stop_loss.sl_monitor.position_close_guard", {})
+        if not guard.get("enabled", True):
+            return False  # ガード無効時は従来挙動（緊急決済を抑止しない）
+        if amount is None or float(amount) <= 0:
+            return True  # 決済対象なし → 抑止
+        try:
+            positions = await bitbank_client.fetch_margin_positions(symbol)
+            actual = sum(abs(float(p.get("amount", 0))) for p in positions or [])
+        except Exception as e:
+            self.logger.warning(
+                f"⚠️ Phase 90η: SLMonitor ポジ残量確認失敗 - " f"抑止優先で緊急決済を見送り: {e}"
+            )
+            return True  # 抑止優先（フェイルセーフ）
+        ratio = float(guard.get("position_exists_threshold_ratio", 0.5))
+        return actual < float(amount) * ratio
+
+    async def _emergency_or_skip(
+        self,
+        reason: str,
+        order: Dict[str, Any],
+        amount: Optional[float],
+        bitbank_client: Any,
+        symbol: str,
+    ) -> SLHealthResult:
+        """ステータス異常検出時、ポジ残量を確認して「緊急決済」か「既決済スキップ」を返す。
+
+        amount が None（呼び出し元が未対応）の場合はガードを実行せず従来挙動
+        （緊急決済必須）を維持する＝後方互換。
+        """
+        if amount is not None:
+            closed = await self._position_already_closed(float(amount), bitbank_client, symbol)
+            if closed:
+                self.logger.info(
+                    f"✅ Phase 90η: SL {reason} 検出だがポジション既消滅 → "
+                    f"既決済とみなしスキップ (expected={float(amount):.6f} BTC) - "
+                    f"SLトリガー正常約定済みの可能性。緊急決済抑止"
+                )
+                return SLHealthResult(
+                    is_healthy=True,
+                    failure_reason="already_closed",
+                    requires_emergency_close=False,
+                    order_info=order,
+                )
+        return SLHealthResult(
+            is_healthy=False,
+            failure_reason=reason,
+            requires_emergency_close=True,
+            order_info=order,
+        )
+
     async def check_sl_health(
         self,
         sl_order_id: Optional[str],
         sl_placed_at_iso: Optional[str],
         bitbank_client: Any,
         symbol: str = "BTC/JPY",
+        amount: Optional[float] = None,
     ) -> SLHealthResult:
         """SL注文の健全性を判定する。
 
         判定優先順位:
           1. sl_order_id が空 → not_found / 緊急決済必須
           2. fetch_order の info.status が CANCELED_UNFILLED / EXPIRED / REJECTED
-             → 該当 reason / 緊急決済必須
-          3. sl_placed_at から timeout_hours 超過 → timeout_24h / 緊急決済必須
+             → Phase 90η: 実ポジ残量を確認し、既消滅なら already_closed（緊急決済抑止）、
+               残ありなら該当 reason / 緊急決済必須
+          3. sl_placed_at から timeout_hours 超過 → timeout_24h（同ガード適用）/ 緊急決済必須
           4. それ以外 → healthy
+
+        Args:
+            amount: 期待ポジション量（Phase 90η）。None の場合は残量ガードを実行せず
+                従来挙動（ステータス異常で無条件に緊急決済必須）を維持＝後方互換。
         """
         if not sl_order_id:
             return SLHealthResult(
@@ -194,35 +274,19 @@ class SLMonitor:
             )
 
         if self.is_canceled_unfilled(order):
-            return SLHealthResult(
-                is_healthy=False,
-                failure_reason="canceled_unfilled",
-                requires_emergency_close=True,
-                order_info=order,
+            return await self._emergency_or_skip(
+                "canceled_unfilled", order, amount, bitbank_client, symbol
             )
 
         if self.is_expired(order):
-            return SLHealthResult(
-                is_healthy=False,
-                failure_reason="expired",
-                requires_emergency_close=True,
-                order_info=order,
-            )
+            return await self._emergency_or_skip("expired", order, amount, bitbank_client, symbol)
 
         if self.is_rejected(order):
-            return SLHealthResult(
-                is_healthy=False,
-                failure_reason="rejected",
-                requires_emergency_close=True,
-                order_info=order,
-            )
+            return await self._emergency_or_skip("rejected", order, amount, bitbank_client, symbol)
 
         if self._is_timed_out(sl_placed_at_iso):
-            return SLHealthResult(
-                is_healthy=False,
-                failure_reason="timeout_24h",
-                requires_emergency_close=True,
-                order_info=order,
+            return await self._emergency_or_skip(
+                "timeout_24h", order, amount, bitbank_client, symbol
             )
 
         return SLHealthResult(is_healthy=True, order_info=order)

@@ -839,6 +839,7 @@ class TPSLManager:
                             sl_order_id=str(sl_order_id),
                             sl_placed_at_iso=vp.get("sl_placed_at"),
                             bitbank_client=bitbank_client,
+                            amount=float(vp.get("amount") or 0.0),
                         )
                     except Exception as health_err:
                         self.logger.warning(

@@ -1550,10 +1550,18 @@ class TestPhase87C5HealthCheckIntegration:
         virtual_positions = [vp_unhealthy]
 
         # bitbank_client: fetch_order で CANCELED_UNFILLED ステータスを返す
+        from unittest.mock import AsyncMock as _AsyncMock
+
         mock_client = MagicMock()
         mock_client.fetch_order = MagicMock(return_value={"info": {"status": "CANCELED_UNFILLED"}})
-        # margin_positions は空（後続処理に進まないようにする）
-        mock_client.fetch_margin_positions = MagicMock(return_value=[])
+        # Phase 90η: check_sl_health 内のポジ残量確認は「残あり」を返して緊急決済を発動させ、
+        # その後 Step1 の建玉取得は空を返す（後続処理に進まない）。呼び出し順に side_effect で切替。
+        mock_client.fetch_margin_positions = _AsyncMock(
+            side_effect=[
+                [{"side": "long", "amount": 0.015}],  # check_sl_health: 残あり → emergency
+                [],  # Step1: 空（後続処理停止）
+            ]
+        )
 
         await mgr.ensure_tp_sl_for_existing_positions(
             virtual_positions=virtual_positions,

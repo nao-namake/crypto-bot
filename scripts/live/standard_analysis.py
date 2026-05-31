@@ -1336,7 +1336,13 @@ class BotFunctionChecker:
 
             # WebSocket
             ws = metrics["websocket"]
-            if ws["websocket_start_success"] == 0 and ws["websocket_start_failure"] == 0:
+            if ws.get("trigger_mode_skipped") or str(ws.get("verdict", "")).startswith("SKIPPED"):
+                # Phase 90η: trigger モード（min_instances=0）では WebSocket 非常駐が正常
+                self.logger.info(
+                    "  ✅ Phase 89-δ WebSocket: trigger モード運用のため非常駐（正常・REST 経路）"
+                )
+                self.result.normal_checks += 1
+            elif ws["websocket_start_success"] == 0 and ws["websocket_start_failure"] == 0:
                 self.logger.warning(
                     "  ⚠️ Phase 89-δ WebSocket: 起動ログ未検出（orchestrator 呼出確認）"
                 )
@@ -2489,9 +2495,13 @@ class LiveAnalyzer:
                 logs = json.loads(result.stdout) if result.stdout.strip() else []
                 actual_runs = len(logs)
 
-                # 期待される実行回数（7分間隔: 処理時間2分+待機5分）
-                # Phase 60.2: 5分→7分に修正（実測値に基づく）
-                runs_per_hour = 60 / 7  # 約8.57回/時間
+                # 期待される実行回数（15分間隔）
+                # Phase 90ζ: 7分→15分に修正。Cloud Scheduler は */5（5分間隔）で
+                # trigger するが、Phase 89-α gating により新しい 15分足確定時のみ
+                # フル取引サイクル（=「取引サイクル開始」ログ）を実行する設計（残り
+                # 約66.6%は monitor_only で軽量スキップ）。よって本ログの期待間隔は
+                # 5分でも7分でもなく 15分。実測値とも一致（72h で 289回≒288回）。
+                runs_per_hour = 60 / 15  # 4回/時間（15分足ごとのフル実行）
                 expected_runs = int(self.period_hours * runs_per_hour)
 
                 # 結果を保存
@@ -2501,7 +2511,7 @@ class LiveAnalyzer:
                 if expected_runs > 0:
                     self.result.uptime_rate = min(100.0, (actual_runs / expected_runs) * 100)
                     missed_runs = max(0, expected_runs - actual_runs)
-                    self.result.total_downtime_minutes = missed_runs * 7  # 7分間隔
+                    self.result.total_downtime_minutes = missed_runs * 15  # 15分間隔
 
                 self.logger.info(
                     f"稼働率計算完了 - {self.result.uptime_rate:.1f}% "
