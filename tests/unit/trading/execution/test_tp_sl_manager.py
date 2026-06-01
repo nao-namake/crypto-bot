@@ -1528,6 +1528,10 @@ class TestPhase87C5HealthCheckIntegration:
         mgr.sl_monitor.emergency_market_close = _AsyncMock(
             return_value={"order_id": "close-c5", "dry_run": True, "reason": "x"}
         )
+        # Phase 90θ: canceled_unfilled は連続検出カウンタで昇格するが、本テストは C5 の配線
+        # （emergency_market_close 起動 → VP 削除）検証が目的のため、閾値=1 で単一サイクル昇格に
+        # する（リトライ計数ロジック自体は test_sl_monitor.py の単体テストで網羅）。
+        mgr.sl_monitor.max_canceled_unfilled_retries = 1
         return mgr
 
     @pytest.mark.asyncio

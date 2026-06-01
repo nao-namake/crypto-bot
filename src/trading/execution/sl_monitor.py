@@ -38,6 +38,11 @@ PLACEHOLDER_ORDER_IDS: frozenset = frozenset({"existing", "none", "null", "unkno
 # Phase 89 C7: 同一 sl_order_id で fetch_order が連続失敗した時に緊急決済へ昇格する閾値
 DEFAULT_MAX_FETCH_FAILURES: int = 3
 
+# Phase 90θ: 同一 sl_order_id が CANCELED_UNFILLED（stop約定の正常な中間状態）かつ実ポジ残存の
+# まま連続検出された時に初めて緊急決済へ昇格する閾値。中間状態は 1-2 サイクルで解消するため、
+# 1回スナップショットでの誤発火を構造的に防ぐ（DEFAULT_MAX_FETCH_FAILURES と同型のフィルタ）。
+DEFAULT_MAX_CANCELED_UNFILLED_RETRIES: int = 3
+
 
 @dataclass
 class SLHealthResult:
@@ -78,6 +83,18 @@ class SLMonitor:
         # Phase 89 C7: sl_order_id ごとの fetch_order 連続失敗カウンタ
         self.max_fetch_failures = max(1, int(max_fetch_failures))
         self._fetch_failure_counts: Dict[str, int] = {}
+        # Phase 90θ: sl_order_id ごとの CANCELED_UNFILLED 連続検出カウンタ（実ポジ残存時のみ加算）
+        self.max_canceled_unfilled_retries = max(
+            1,
+            int(
+                get_threshold(
+                    "position_management.stop_loss.sl_monitor."
+                    "position_close_guard.max_canceled_unfilled_retries",
+                    DEFAULT_MAX_CANCELED_UNFILLED_RETRIES,
+                )
+            ),
+        )
+        self._canceled_unfilled_counts: Dict[str, int] = {}
 
     # ========================================
     # ステータス判定（純粋関数）
@@ -273,16 +290,28 @@ class SLMonitor:
                 requires_emergency_close=False,
             )
 
+        sl_id_key = str(sl_order_id)
+
         if self.is_canceled_unfilled(order):
-            return await self._emergency_or_skip(
-                "canceled_unfilled", order, amount, bitbank_client, symbol
+            return await self._handle_canceled_unfilled(
+                sl_id_key, order, amount, bitbank_client, symbol
             )
+        # canceled_unfilled でなくなった → 連続検出カウンタをリセット（Phase 90θ）
+        self._canceled_unfilled_counts.pop(sl_id_key, None)
 
         if self.is_expired(order):
             return await self._emergency_or_skip("expired", order, amount, bitbank_client, symbol)
 
+        # Phase 90θ: REJECTED は「注文却下＝SL未配置・ポジ健在」で stop約定の中間状態を経由しない。
+        # 残量ガード（既決済スキップ）を通すと、たまたま実0のときに必要な緊急決済を見送る逆リスク
+        # があるため、無条件に緊急決済必須とする（Phase 90η 以前の挙動に戻す）。
         if self.is_rejected(order):
-            return await self._emergency_or_skip("rejected", order, amount, bitbank_client, symbol)
+            return SLHealthResult(
+                is_healthy=False,
+                failure_reason="rejected",
+                requires_emergency_close=True,
+                order_info=order,
+            )
 
         if self._is_timed_out(sl_placed_at_iso):
             return await self._emergency_or_skip(
@@ -290,6 +319,75 @@ class SLMonitor:
             )
 
         return SLHealthResult(is_healthy=True, order_info=order)
+
+    async def _handle_canceled_unfilled(
+        self,
+        sl_id_key: str,
+        order: Dict[str, Any],
+        amount: Optional[float],
+        bitbank_client: Any,
+        symbol: str,
+    ) -> SLHealthResult:
+        """CANCELED_UNFILLED（bitbank stop約定の正常な中間状態）を処理する（Phase 90θ）。
+
+        1回のスナップショットでは「約定中で建玉が一時残存している状態」と「真の裸ポジ」を
+        区別できない（Phase 90η の残量ガードが誤発火を止めきれなかった根本原因）。そのため:
+          1. 実ポジ消滅 → 既決済スキップ（カウンタリセット）。
+          2. 実ポジ残存 → 連続検出カウンタを加算し、max_canceled_unfilled_retries 回連続で
+             残存し続けた時のみ「真の裸ポジ」として緊急決済へ昇格（中間状態は 1-2 サイクルで
+             解消するため自然にフィルタされる）。実SL決済は Phase 64.12 が毎サイクル担保。
+          3. amount=None（既存呼び出し）→ 残量確認不能のため従来どおり即緊急決済（後方互換）。
+        """
+        if amount is None:
+            return SLHealthResult(
+                is_healthy=False,
+                failure_reason="canceled_unfilled",
+                requires_emergency_close=True,
+                order_info=order,
+            )
+
+        closed = await self._position_already_closed(float(amount), bitbank_client, symbol)
+        if closed:
+            self._canceled_unfilled_counts.pop(sl_id_key, None)
+            self.logger.info(
+                f"✅ Phase 90η: SL canceled_unfilled 検出だがポジション既消滅 → "
+                f"既決済とみなしスキップ (expected={float(amount):.6f} BTC) - "
+                f"SLトリガー正常約定済みの可能性。緊急決済抑止"
+            )
+            return SLHealthResult(
+                is_healthy=True,
+                failure_reason="already_closed",
+                requires_emergency_close=False,
+                order_info=order,
+            )
+
+        count = self._canceled_unfilled_counts.get(sl_id_key, 0) + 1
+        self._canceled_unfilled_counts[sl_id_key] = count
+        if count >= self.max_canceled_unfilled_retries:
+            self._canceled_unfilled_counts.pop(sl_id_key, None)
+            self.logger.critical(
+                f"🚨 Phase 90θ: SL canceled_unfilled + 建玉残存が "
+                f"{count}/{self.max_canceled_unfilled_retries} 回連続 - "
+                f"stop約定の中間状態でなく真の裸ポジと判定し緊急決済へ昇格"
+            )
+            return SLHealthResult(
+                is_healthy=False,
+                failure_reason="canceled_unfilled",
+                requires_emergency_close=True,
+                order_info=order,
+            )
+
+        self.logger.warning(
+            f"⏳ Phase 90θ: SL canceled_unfilled_pending - 建玉残存だが stop約定の中間状態の"
+            f"可能性 ({count}/{self.max_canceled_unfilled_retries} 回)。次サイクルで再確認し"
+            f"誤発火を抑止（実SL決済は Phase 64.12 が担保）"
+        )
+        return SLHealthResult(
+            is_healthy=True,
+            failure_reason="canceled_unfilled_pending",
+            requires_emergency_close=False,
+            order_info=order,
+        )
 
     # ========================================
     # 緊急成行決済

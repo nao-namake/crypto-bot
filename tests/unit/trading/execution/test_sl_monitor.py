@@ -367,6 +367,9 @@ _GUARD_CFG = {"enabled": True, "position_exists_threshold_ratio": 0.5}
 
 
 def _guard_threshold(key, default=None):
+    # Phase 90θ: 連続検出カウンタ閾値は int を返す（dict の _GUARD_CFG を返すと int() で失敗）
+    if key.endswith("max_canceled_unfilled_retries"):
+        return 3
     if "position_close_guard" in key:
         return _GUARD_CFG
     return default
@@ -403,17 +406,68 @@ class TestPhase90EtaPositionGuard:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)
-    async def test_canceled_unfilled_position_remains_triggers_emergency(self, _gt):
-        """CANCELED_UNFILLED + 建玉残あり → 真の裸ポジとして緊急決済"""
+    async def test_canceled_unfilled_position_remains_escalates_after_retries(self, _gt):
+        """Phase 90θ: CANCELED_UNFILLED + 建玉残あり → 即発火せず N 回連続でのみ緊急決済へ昇格。
+
+        CANCELED_UNFILLED は stop約定の中間状態で建玉が一時残存するため、1回目は pending、
+        max_canceled_unfilled_retries(=3) 回連続で残存し続けた時のみ真の裸ポジと判定する。
+        """
         monitor = SLMonitor(logger=MagicMock())
         client = _make_client_with_positions(
             {"info": {"status": "CANCELED_UNFILLED"}},
             positions=[{"side": "long", "amount": 0.015}],
         )
+        # 1回目・2回目は pending（誤発火させない）
+        for _ in range(2):
+            result = await monitor.check_sl_health("OID-H2", None, client, amount=0.015)
+            assert result.is_healthy is True
+            assert result.failure_reason == "canceled_unfilled_pending"
+            assert result.requires_emergency_close is False
+        # 3回目（max 到達）で真の裸ポジと判定し緊急決済へ昇格
         result = await monitor.check_sl_health("OID-H2", None, client, amount=0.015)
         assert result.is_healthy is False
         assert result.failure_reason == "canceled_unfilled"
         assert result.requires_emergency_close is True
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)
+    async def test_canceled_unfilled_pending_resets_when_position_closes(self, _gt):
+        """Phase 90θ: pending 途中で建玉消滅 → already_closed スキップ + カウンタリセット"""
+        monitor = SLMonitor(logger=MagicMock())
+        remains = _make_client_with_positions(
+            {"info": {"status": "CANCELED_UNFILLED"}},
+            positions=[{"side": "long", "amount": 0.015}],
+        )
+        # 1回目: 残存 → pending（カウント=1）
+        r1 = await monitor.check_sl_health("OID-H2b", None, remains, amount=0.015)
+        assert r1.failure_reason == "canceled_unfilled_pending"
+        # 2回目: 建玉消滅 → already_closed スキップ
+        closed = _make_client_with_positions(
+            {"info": {"status": "CANCELED_UNFILLED"}}, positions=[]
+        )
+        r2 = await monitor.check_sl_health("OID-H2b", None, closed, amount=0.015)
+        assert r2.failure_reason == "already_closed"
+        assert r2.requires_emergency_close is False
+        # カウンタがリセットされている（内部状態確認）
+        assert "OID-H2b" not in monitor._canceled_unfilled_counts
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)
+    async def test_canceled_unfilled_counter_resets_on_recovery(self, _gt):
+        """Phase 90θ: pending 後に SL が ACTIVE 復帰 → カウンタリセットで誤発火しない"""
+        monitor = SLMonitor(logger=MagicMock())
+        remains = _make_client_with_positions(
+            {"info": {"status": "CANCELED_UNFILLED"}},
+            positions=[{"side": "long", "amount": 0.015}],
+        )
+        await monitor.check_sl_health("OID-H2c", None, remains, amount=0.015)  # pending(1)
+        # SL が ACTIVE に復帰
+        active = _make_client_with_positions({"info": {"status": "ACTIVE"}}, positions=[])
+        recent = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+        r = await monitor.check_sl_health("OID-H2c", recent, active, amount=0.015)
+        assert r.is_healthy is True
+        assert r.requires_emergency_close is False
+        assert "OID-H2c" not in monitor._canceled_unfilled_counts
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)
@@ -426,12 +480,25 @@ class TestPhase90EtaPositionGuard:
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)
-    async def test_rejected_position_closed_skips(self, _gt):
+    async def test_rejected_always_triggers_emergency(self, _gt):
+        """Phase 90θ: REJECTED は「注文却下＝SL未配置・ポジ健在」で中間状態を経由しないため、
+        残量ガードを通さず無条件に緊急決済必須。実0でも既決済スキップしない（逆リスク回避）。"""
         monitor = SLMonitor(logger=MagicMock())
-        client = _make_client_with_positions({"info": {"status": "REJECTED"}}, positions=[])
-        result = await monitor.check_sl_health("OID-H4", None, client, amount=0.015)
-        assert result.is_healthy is True
-        assert result.failure_reason == "already_closed"
+        # 実ポジ0でも REJECTED は緊急決済必須（ガードを通さない）
+        closed = _make_client_with_positions({"info": {"status": "REJECTED"}}, positions=[])
+        r_closed = await monitor.check_sl_health("OID-H4", None, closed, amount=0.015)
+        assert r_closed.is_healthy is False
+        assert r_closed.failure_reason == "rejected"
+        assert r_closed.requires_emergency_close is True
+        # ガードを通さない＝ポジ残量確認は呼ばれない
+        closed.fetch_margin_positions.assert_not_called()
+        # 実ポジ残存でも当然緊急決済必須
+        remains = _make_client_with_positions(
+            {"info": {"status": "REJECTED"}}, positions=[{"side": "long", "amount": 0.015}]
+        )
+        r_remains = await monitor.check_sl_health("OID-H4b", None, remains, amount=0.015)
+        assert r_remains.failure_reason == "rejected"
+        assert r_remains.requires_emergency_close is True
 
     @pytest.mark.asyncio
     @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)

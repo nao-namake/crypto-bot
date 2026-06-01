@@ -938,6 +938,11 @@ position_management:
       position_close_guard:
         enabled: true
         position_exists_threshold_ratio: 0.5
+        # Phase 90θ: CANCELED_UNFILLED は bitbank stop注文の「トリガー約定→約定完了」の正常な
+        # 中間状態であり、その瞬間は建玉が一時残存して残量ガードをすり抜ける（誤発火の根本原因）。
+        # 同一 sl_order_id が canceled_unfilled かつ実ポジ残存のまま N 回連続検出された時だけ
+        # 「真の裸ポジ」として緊急決済へ昇格する。中間状態は 1-2 サイクルで解消するため誤発火を防ぐ。
+        max_canceled_unfilled_retries: 3
     # Phase 88 H11: 孤児SL注文（ポジション無しで残存）の検出・自動キャンセル
     # 2026-05-14 09:05 BUYポジ TP約定後の SL cancel が bitbank 70004 で失敗 → 12時間孤児SL放置
     # 対策: 指数バックオフ 1s/2s/4s でキャンセル試行、3回失敗時は次5分サイクルで再試行

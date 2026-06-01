@@ -648,6 +648,12 @@ class BotFunctionCheckResult:
     sl_breach_postcheck: int = 0
     emergency_market_close: int = 0
 
+    # Phase 90θ: SLMonitor 誤発火監視（DRY_RUN緊急決済シミュレーション発火数）
+    # dry_run 中は実害ないが、canceled_unfilled 中間状態の誤発火を検出する計器。
+    # 従来は emergency_market_close が実発注成功のみカウントするため盲点だった。
+    sl_monitor_dry_run_fire_count: int = 0
+    sl_canceled_unfilled_pending_count: int = 0
+
     # 設定検証
     config_checks: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     config_check_passed: int = 0
@@ -1207,6 +1213,26 @@ class BotFunctionChecker:
             ' OR textPayload:"Phase 86: 緊急成行決済成功"',
             10,
         )
+
+        # Phase 90θ: SLMonitor 誤発火（DRY_RUN緊急決済シミュレーション）を監視。
+        # dry_run 中は実害ないが、canceled_unfilled 中間状態の誤発火を検出できないと
+        # 「正常」と誤報告する盲点になるため計器化する。
+        self.result.sl_monitor_dry_run_fire_count = self._count_logs(
+            'textPayload:"🧪 Phase 87 C1 [DRY_RUN]"', 20
+        )
+        # Phase 90θ: 健全な抑止（中間状態を pending として見送り）の可視化
+        self.result.sl_canceled_unfilled_pending_count = self._count_logs(
+            'textPayload:"canceled_unfilled_pending"', 20
+        )
+        if self.result.sl_monitor_dry_run_fire_count > 0:
+            self.logger.warning(
+                f"⚠️ Phase 90θ: SLMonitor DRY_RUN 誤発火 "
+                f"{self.result.sl_monitor_dry_run_fire_count} 件検出 - "
+                f"canceled_unfilled 中間状態の誤判定が継続している可能性（dry_run中で実害なし）"
+            )
+            self.result.warning_issues += 1
+        else:
+            self.result.normal_checks += 1
 
     # =========================================================================
     # Phase 87/88 動作確認カバレッジ拡充（H11 / M5 / H8 / H6 / I3 lifespan）
@@ -3355,6 +3381,14 @@ async def main():
             print(f"   SL超過事後検出: {bot_result.sl_breach_postcheck}回")
             print(f"   緊急成行決済: {bot_result.emergency_market_close}回")
 
+        # Phase 90θ: SLMonitor 誤発火（total_breach に依存せず常に表示）
+        if bot_result.sl_monitor_dry_run_fire_count > 0:
+            print(
+                f"\n⚠️ SLMonitor DRY_RUN誤発火: "
+                f"{bot_result.sl_monitor_dry_run_fire_count}回 "
+                f"(canceled_unfilled抑止pending: {bot_result.sl_canceled_unfilled_pending_count}回)"
+            )
+
         exit_code = determine_exit_code(infra_result, bot_result, live_result=None)
         status_map = {
             0: "🟢 正常",
@@ -3602,6 +3636,14 @@ async def main():
         print(f"   SL超過事後検出: {bot_result.sl_breach_postcheck}回")
         print(f"   緊急成行決済: {bot_result.emergency_market_close}回")
 
+    # Phase 90θ: SLMonitor 誤発火（total_breach に依存せず常に表示）
+    if bot_result.sl_monitor_dry_run_fire_count > 0:
+        print(
+            f"\n⚠️ SLMonitor DRY_RUN誤発火: "
+            f"{bot_result.sl_monitor_dry_run_fire_count}回 "
+            f"(canceled_unfilled抑止pending: {bot_result.sl_canceled_unfilled_pending_count}回)"
+        )
+
     # SLパターン分析サマリー
     if result.sl_pattern_total_executions > 0:
         total = result.sl_pattern_total_executions
@@ -3833,6 +3875,22 @@ def _generate_diagnostic_markdown(
                 f"| SL超過事前検出 | {bot_result.sl_breach_precheck}回 | キャンセル前チェック |",
                 f"| SL超過事後検出 | {bot_result.sl_breach_postcheck}回 | キャンセル後セーフティネット |",
                 f"| 緊急成行決済 | {bot_result.emergency_market_close}回 | Phase 64.12最終防御 |",
+            ]
+        )
+
+    # Phase 90θ: SLMonitor 誤発火監視（total_breach に依存せず誤発火があれば常に表示）
+    if bot_result.sl_monitor_dry_run_fire_count > 0:
+        lines.extend(
+            [
+                "",
+                "### SLMonitor 誤発火監視（Phase 90θ）",
+                "",
+                "| 項目 | 回数 | 備考 |",
+                "|------|------|------|",
+                f"| DRY_RUN緊急決済誤発火 | {bot_result.sl_monitor_dry_run_fire_count}回 "
+                "| dry_run中で実害なし・canceled_unfilled誤判定の監視 |",
+                f"| canceled_unfilled抑止(pending) | "
+                f"{bot_result.sl_canceled_unfilled_pending_count}回 | 中間状態を健全に見送り |",
             ]
         )
 

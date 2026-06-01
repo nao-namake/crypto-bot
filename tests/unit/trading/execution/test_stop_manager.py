@@ -906,6 +906,72 @@ class TestPhase619AutoExecutionDetection:
         mock_bitbank_client.cancel_order.assert_called_once_with("tp_002", "BTC/JPY")
 
     @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_detect_sl_canceled_unfilled_execution(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 90θ: SL注文が CANCELED_UNFILLED（stop約定の中間状態）でも SL約定として検知。
+
+        bitbank の stop注文はトリガー約定時に CANCELED_UNFILLED を返すことがあり、
+        旧実装は status=="closed" のみで判定したため幽霊VPが残り C5 誤発火を生んでいた。
+        """
+
+        def threshold_side_effect(key, default=None):
+            if key == "tp_sl_auto_detection":
+                return {"enabled": True, "log_level": "info"}
+            elif key == "trading.fees.entry_taker_rate":
+                return 0.001
+            elif key == "trading.fees.exit_taker_rate":
+                return 0.001
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        virtual_positions = [
+            {
+                "order_id": "entry_cu",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_cu",
+                "sl_order_id": "sl_cu",
+                "strategy_name": "ATRBased",
+            }
+        ]
+
+        # 実ポジション空（消失）
+        actual_positions = []
+
+        # TP未約定、SL は ccxt status=canceled だが info.status=CANCELED_UNFILLED
+        def mock_fetch_order(order_id, symbol):
+            if order_id == "tp_cu":
+                return {"status": "open", "price": 14300000.0}
+            elif order_id == "sl_cu":
+                return {
+                    "status": "canceled",
+                    "info": {"status": "CANCELED_UNFILLED"},
+                    "average": 13700000.0,
+                    "price": 13700000.0,
+                }
+            return {}
+
+        mock_bitbank_client.fetch_order = MagicMock(side_effect=mock_fetch_order)
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # CANCELED_UNFILLED が stop_loss 約定として検知され、VP除去対象になる
+        assert len(result) == 1
+        assert result[0]["execution_type"] == "stop_loss"
+        assert result[0]["order_id"] == "entry_cu"
+        assert result[0]["exit_price"] == 13700000.0
+        # 残TP注文がキャンセルされる
+        mock_bitbank_client.cancel_order.assert_called_once_with("tp_cu", "BTC/JPY")
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
     async def test_no_disappeared_positions(
         self, mock_threshold, stop_manager, mock_bitbank_client
     ):

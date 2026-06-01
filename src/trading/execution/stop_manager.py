@@ -291,7 +291,11 @@ class StopManager:
         if not execution_type and sl_order_id:
             try:
                 sl_order = await asyncio.to_thread(bitbank_client.fetch_order, sl_order_id, symbol)
-                if sl_order.get("status") == "closed":
+                # Phase 90θ: bitbank の stop注文はトリガー約定時に CANCELED_UNFILLED を返す
+                # （成行約定の中間〜完了状態）。実ポジが消失したVPなら、これを SL約定とみなして
+                # VPを除去しないと、毎5分サイクルで C5 (check_sl_health) の対象になり続け
+                # canceled_unfilled の誤発火を生む（幽霊VPクリーンアップ漏れの根本対処）。
+                if sl_order.get("status") == "closed" or SLMonitor.is_canceled_unfilled(sl_order):
                     execution_type = "stop_loss"
                     exit_price = float(sl_order.get("average") or sl_order.get("price") or 0)
                     executed_order_id = sl_order_id
