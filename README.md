@@ -237,4 +237,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年6月3日 - Phase 90ι 収益構造のデータ駆動分析（90日MFE/MAEでnormal順エッジ黒字・tight逆エッジ赤字・trending停止を確定）＋tight逆行の観察可能化（レジーム判定にADX/EMA傾き併記・エントリーログに戦略名/レジーム併記しWARNING昇格・MFE/MAE分析ツール追加）実装完了
+**最終更新**: 2026年6月3日 - Phase 90κ Maker約定率の改善（GCPログ30日精査でpost_onlyキャンセル0件・リトライ実質1回バグ・queue末尾44%を確定→per_attempt分割でリトライ実動化＋リトライ毎best気配追従・「板の奥へ」廃止。timeout120→60/max_retries5→4）実装完了

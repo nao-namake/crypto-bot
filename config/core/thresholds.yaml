@@ -1070,11 +1070,11 @@ order_execution:
     check_interval_seconds: 60
   maker_strategy:
     enabled: true
-    max_retries: 5                    # Phase 90γ-③.4: 3→5（120s timeout 内で最大 5 回試行）
+    max_retries: 4                    # Phase 90κ: 5→4（per_attempt=timeout//max_retries≈15秒で実効4回）
     retry_interval_ms: 1500           # Phase 90γ-③.4: 2000→1500（spread 変化を素早くキャッチ。Phase 90γ-③.2: 5000→2000）
-    timeout_seconds: 120              # Phase 90γ-③.4: 60→120（5 分 trigger サイクル内で 2 倍待機。spread 拡大を待つ）
-    price_adjustment_tick: 5          # Phase 90γ-③.2: 100→5（BTC/JPY spread 2-20円範囲に合わせて微調整化）
-    max_price_adjustment_ratio: 0.001
+    timeout_seconds: 60               # Phase 90κ: 120→60（30日データでリトライ実質1回・「約定は即/来ないものは来ない」と判明。per_attempt分割でリトライ実動化しサイクル占有も半減）
+    price_adjustment_tick: 5          # Phase 90κ: 未使用化（リトライ時は best 気配へ追従。Phase 90γ-③.2: 100→5）
+    max_price_adjustment_ratio: 0.001 # Phase 90κ: best 追従の初期価格からの乖離上限（暴走防止）
     fallback_to_taker: true
     # Phase 90γ-③.3: Maker 失敗時の Taker fallback を ML 信頼度で動的判定
     # confidence >= 閾値 → Taker 進行（高品質取引は手数料払って取りに行く）

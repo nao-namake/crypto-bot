@@ -617,8 +617,12 @@ class OrderStrategy:
         max_retries = config.get("max_retries", 3)
         retry_interval = config.get("retry_interval_ms", 500) / 1000
         timeout = config.get("timeout_seconds", 30)
-        tick = config.get("price_adjustment_tick", 1)
         max_adj = config.get("max_price_adjustment_ratio", 0.001)
+        # Phase 90κ: 1試行あたりの待機を timeout/max_retries に分割し、リトライを実際に複数回回す。
+        # 旧実装は初回試行に残り総時間(~120秒)をフルで渡し、試行1回で全体timeoutを消費して
+        # リトライに進まなかった（30日データで試行2が2件のみ＝max_retries=5が機能していなかった）。
+        # 下限5秒で _wait_for_maker_fill の 0.5秒間隔×10回チェックを保証。
+        per_attempt_timeout = max(5, int(timeout // max(1, max_retries)))
 
         initial_price = maker_config.get("price", 0)
         if initial_price <= 0:
@@ -658,10 +662,12 @@ class OrderStrategy:
                     self.logger.warning("⚠️ Phase 62.9: 注文IDなし")
                     continue
 
-                # 約定待機
-                remaining_timeout = timeout - (datetime.now() - start).total_seconds()
+                # 約定待機（Phase 90κ: per-attempt 枠と残り総時間の小さい方で待つ。
+                # これによりリトライが実際に複数回回り、各回で最新 best 気配へ追従できる）
+                remaining_total = timeout - (datetime.now() - start).total_seconds()
+                wait_timeout = max(5, min(per_attempt_timeout, remaining_total))
                 filled = await self._wait_for_maker_fill(
-                    order_id, symbol, max(remaining_timeout, 5), bitbank_client
+                    order_id, symbol, wait_timeout, bitbank_client
                 )
 
                 if filled:
@@ -732,21 +738,30 @@ class OrderStrategy:
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 62.9: Maker注文エラー: {e}")
 
-            # Phase 68: 価格調整（板の奥へ — Maker確定を維持）
-            if side.lower() == "buy":
-                current_price -= tick  # 買いは安く（板の奥へ）
-                if current_price < initial_price * (1 - max_adj):
-                    self.logger.warning(
-                        f"⚠️ Phase 68: 価格調整下限到達 {current_price:.0f} < {initial_price * (1 - max_adj):.0f}"
-                    )
-                    return None
-            else:
-                current_price += tick  # 売りは高く（板の奥へ）
-                if current_price > initial_price * (1 + max_adj):
-                    self.logger.warning(
-                        f"⚠️ Phase 68: 価格調整上限到達 {current_price:.0f} > {initial_price * (1 + max_adj):.0f}"
-                    )
-                    return None
+            # Phase 90κ: リトライ時は最新の best 気配を再取得して価格追従する。
+            # 旧実装（Phase 68）は「板の奥へ tick ずらす」設計で、約定から遠ざかり、かつ価格が
+            # 動いても追従しなかった。post_only キャンセルは 30日で 0件＝自側 best への再配置は
+            # リジェクトされないため、best へ追従する方が queue末尾で価格到達時に約定できる。
+            conditions = await self._assess_maker_conditions(bitbank_client, config)
+            if not conditions.get("maker_viable"):
+                self.logger.info(
+                    "📡 Phase 90κ: リトライ時の板再取得で Maker 不可 → 中止 "
+                    f"(reason={conditions.get('disable_reason')})"
+                )
+                return None
+            new_price = self._calculate_maker_price(
+                side, conditions["best_bid"], conditions["best_ask"]
+            )
+            if new_price <= 0:
+                return None  # クロス板等 → fallback へ
+            # 初期価格からの乖離上限ガード（暴走防止・Phase 68 の max_adj を踏襲）
+            if abs(new_price - initial_price) > initial_price * max_adj:
+                self.logger.warning(
+                    f"⚠️ Phase 90κ: best 追従が乖離上限超過 "
+                    f"({new_price:.0f} vs 初期 {initial_price:.0f}, 上限 {max_adj * 100:.2f}%) → 中止"
+                )
+                return None
+            current_price = new_price
 
             await asyncio.sleep(retry_interval)
 
