@@ -2,28 +2,39 @@
 
 ## 現在の状態
 
-**Phase 90γ-⑦+⑨ 統合実装 本番デプロイ完了（2026-05-29 06:28 JST）→ Day 1 観察可能化検証待ち（5/30 朝）**
+**Phase 90θ/ι/κ 実装・デプロイ完了（2026-06-03）→ デプロイ後検証待ち**
 
-### セッション再開時の手順
+- **Phase 90θ**: SLMonitor誤発火 真因特定＆根本修正（幽霊VPクリーンアップ漏れ＋canceled_unfilled中間状態のタイミング競合の2層・コミット`96ab5525`）
+- **Phase 90ι**: 収益構造のデータ駆動分析＋tight逆行の観察可能化（`165e0dcb`）
+- **Phase 90κ**: Maker約定率の改善（リトライ実動化＋best気配追従・`f338ce61`）
 
-1. **Phase 90γ-⑦ Day 1 観察可能化検証**（5/30 朝・5 分）
+### 収益分析の結論（Phase 90ι・最重要）
+90日277エントリーのMFE/MAE分析で確定:
+- **normal_range=順エッジ黒字**（MFE0.609%>MAE0.424%・+333〜500円）/ **tight_range=逆エッジ赤字**（MFE0.355%<MAE0.583%・主力56%）/ **trending=停止維持**
+- 手数料はMaker率改善では減らせず、**収益の本丸はレジーム別の方向性エッジ**。tight赤字はTP/SLでは救えず**エントリー品質（ML・戦略の方向性精度）が根本**
+- `scripts/analysis/full_entry_simulation.py --mfe-mae --days N` でMFE/MAE再測定可（レジームログはCloud Logging保持30日が上限）
+
+### セッション再開時の手順（デプロイ後検証）
 
 ```bash
-# (1) 新規 WARNING ログ全件（Phase 90γ-⑦ で可視化したイベント）
-gcloud logging read 'textPayload=~"Phase 90γ-⑦"' --freshness=24h --format='value(textPayload)' | head -30
+# Phase 90θ: SLMonitor誤発火が止まったか
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24   # sl_monitor_dry_run_fire_count=0 を確認
+venv/bin/python3 scripts/analysis/sl_monitor_validator.py --days 3   # 誤発火率100%→0%付近
+gcloud logging read 'textPayload=~"canceled_unfilled_pending"' --freshness=24h --format='value(textPayload)' | head
 
-# (2) イベント別出現数（健全性チェック）
-for ev in "feature_values 空" "precomputed ML 予測範囲外" "全レベル失敗 → DummyModel" \
-          "MLHealthMonitor persistence=None" "Firestore health_check ping 削除失敗" \
-          "QualityFilter 評価失敗" "pandas 未インストール" "有意特徴量"; do
-  count=$(gcloud logging read "textPayload=~\"$ev\"" --freshness=24h --format='value(timestamp)' | wc -l)
-  echo "  $ev: $count 件"
-done
+# Phase 90κ: Makerリトライが実動しMaker率が上がったか
+# → ライブ分析の「リトライ実動: 試行N回中M回が試行2回目以降」「api_entry_taker_rate」をbefore/after比較
+gcloud logging read 'textPayload=~"Maker注文試行 2/" OR textPayload=~"Maker注文試行 3/"' --freshness=24h --format='value(timestamp)' | wc -l
 
-# (3) Phase 90γ-⑥ Day 2 累積効果
-gcloud logging read 'textPayload=~"Phase 61.7: 固定金額TP適用"' --freshness=24h --format='value(textPayload)' | head -20
-venv/bin/python3 scripts/live/standard_analysis.py --hours 24
+# Phase 90ι: 戦略×レジーム別エントリーを蓄積分析（6/6頃）→ tight_rangeで逆行する戦略を特定
+gcloud logging read 'textPayload=~"Step 1/3: エントリー成功"' --freshness=72h --format='value(textPayload)' | head -20
 ```
+
+**6/6頃に tight逆行の戦略を特定 → ATRBased反転確認 / tight判定厳格化 / レジーム別TP/SL有効化 のいずれかで的を射た修正へ。**
+
+---
+
+### （過去）Phase 90γ-⑦ Day 1 観察可能化検証の手順
 
 2. **KPI 達成判定**
 

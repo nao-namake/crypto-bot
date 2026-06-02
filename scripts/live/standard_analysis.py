@@ -629,6 +629,10 @@ class BotFunctionCheckResult:
     tp_maker_fallback_count: int = 0
     tp_post_only_cancelled_count: int = 0
 
+    # Phase 90κ: Maker注文リトライ実動の検知（per_attempt分割でリトライが回るようになったか）
+    maker_trial_total: int = 0  # 「Maker注文試行 N/」の総数
+    maker_retry_actual: int = 0  # 試行2回目以降の数（リトライが実際に回った証拠）
+
     # Phase 90δ: post_only指定だが実Taker約定（約定種別の真実観測）
     post_only_taker_conflict_count: int = 0
 
@@ -886,6 +890,17 @@ class BotFunctionChecker:
         self.result.entry_post_only_cancelled_count = self._count_logs(
             'textPayload:"Phase 62.9: post_onlyキャンセル"', 20
         )
+        # Phase 90κ: Makerリトライ実動の検知。旧実装は試行1回で全体timeoutを消費し
+        # リトライが回らなかった（試行2以降がほぼ0）。per_attempt分割修正後は試行2以降が
+        # 増えるはず。maker_retry_actual / maker_trial_total でリトライ実動率を測る。
+        self.result.maker_trial_total = self._count_logs(
+            'textPayload:"Phase 62.9: Maker注文試行"', 50
+        )
+        self.result.maker_retry_actual = self._count_logs(
+            'textPayload:"Maker注文試行 2/" OR textPayload:"Maker注文試行 3/" '
+            'OR textPayload:"Maker注文試行 4/" OR textPayload:"Maker注文試行 5/"',
+            50,
+        )
 
         # Phase 62.10: TP Maker戦略
         self.result.tp_maker_success_count = self._count_logs(
@@ -930,6 +945,15 @@ class BotFunctionChecker:
                 f"{self.result.entry_maker_fallback_count}FB ({entry_success_rate:.0f}%), "
                 f"TP: {self.result.tp_maker_success_count}成功/"
                 f"{self.result.tp_maker_fallback_count}FB ({tp_success_rate:.0f}%)"
+            )
+
+        # Phase 90κ: Makerリトライ実動率（per_attempt分割修正の効果測定）
+        if self.result.maker_trial_total > 0:
+            retry_rate = self.result.maker_retry_actual / self.result.maker_trial_total * 100
+            self.logger.info(
+                f"📊 Phase 90κ: Maker試行 {self.result.maker_trial_total}回中 "
+                f"リトライ(試行2回目以降) {self.result.maker_retry_actual}回 ({retry_rate:.0f}%) "
+                f"- 修正前は試行1回のみでリトライ機能せず（≒0%）"
             )
 
             # 成功率80%以上なら正常
@@ -1064,10 +1088,12 @@ class BotFunctionChecker:
             'textPayload:"トレンドフィルタ" AND textPayload:"信頼度削減"', 20
         )
 
-        # 戦略別エントリー数（GCPログのエントリー分析記録から）
+        # 戦略別エントリー数（Phase 90ι: エントリー成功ログの戦略名から集計。
+        # 旧「エントリー分析記録」は本番で出ず strategy_entry_counts が常に0だったため切替。
+        # レジーム別(regime_count)と併せ tight_range でどの戦略が逆行するか追跡可能になる）
         for strategy in self.STRATEGIES:
             count = self._count_logs(
-                f'textPayload:"エントリー分析記録" AND textPayload:"戦略={strategy}"', 20
+                f'textPayload:"Step 1/3: エントリー成功" AND textPayload:"戦略={strategy}"', 20
             )
             self.result.strategy_entry_counts[strategy] = count
 
@@ -3524,6 +3550,13 @@ async def main():
             print(
                 f"   TP決済: {bot_result.tp_maker_success_count}成功/"
                 f"{bot_result.tp_maker_fallback_count}FB ({tp_rate:.0f}%)"
+            )
+        # Phase 90κ: Makerリトライ実動率（修正前は試行1回のみ≒0%）
+        if bot_result.maker_trial_total > 0:
+            retry_rate = bot_result.maker_retry_actual / bot_result.maker_trial_total * 100
+            print(
+                f"   リトライ実動: 試行{bot_result.maker_trial_total}回中"
+                f"{bot_result.maker_retry_actual}回が試行2回目以降 ({retry_rate:.0f}%)"
             )
         # Phase 62.19: 推定削減額（設定参照で一元化）
         maker_success = bot_result.entry_maker_success_count + bot_result.tp_maker_success_count
