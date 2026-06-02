@@ -176,16 +176,17 @@ class MarketRegimeClassifier:
             # 3. 狭いレンジ判定（Phase 71: EMA傾き拒否条件付き）
             max_ema_slope = get_threshold("market_regime.tight_range.max_ema_slope", 0.0008)
             if self._is_tight_range(bb_width, price_range) and abs(ema_slope_long) <= max_ema_slope:
+                # Phase 90ι: tight_range 逆行診断のため ADX・EMA傾き(長期)を併記。
+                # tight 判定なのに ADX が高め（トレンド初期の誤判定）かを後でログから検証する。
+                _tr_detail = (
+                    f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
+                    f"価格変動={price_range:.4f} (< {tr_price_threshold}), "
+                    f"ADX={adx:.2f}, EMA傾き長期={ema_slope_long:.5f} (|.|<={max_ema_slope})"
+                )
                 if os.environ.get("BACKTEST_MODE") == "true":
-                    self.logger.debug(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
-                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
-                    )
+                    self.logger.debug(_tr_detail)
                 else:
-                    self.logger.warning(
-                        f"📊 狭いレンジ検出: BB幅={bb_width:.4f} (< {tr_bb_threshold}), "
-                        f"価格変動={price_range:.4f} (< {tr_price_threshold})"
-                    )
+                    self.logger.warning(_tr_detail)
                 return RegimeType.TIGHT_RANGE
 
             # 4. 通常レンジ判定

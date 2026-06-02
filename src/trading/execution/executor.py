@@ -649,9 +649,14 @@ class ExecutionService:
 
                 try:
                     # Step 1/3: エントリー注文実行済み
-                    self.logger.info(
+                    # Phase 90ι: 戦略名・レジームを併記し WARNING 昇格（本番 LOG_LEVEL=WARNING で
+                    # 観察可能に）。後で MFE/MAE 分析と紐付け「どの戦略がどのレジームで逆行するか」
+                    # を特定するための診断ログ。取引挙動は不変。
+                    self.logger.warning(
                         f"✅ Phase 51.6 Step 1/3: エントリー成功 - "
-                        f"ID: {result.order_id}, 価格: {actual_filled_price:.0f}円"
+                        f"ID: {result.order_id}, 価格: {actual_filled_price:.0f}円, "
+                        f"戦略={evaluation.strategy_name}, "
+                        f"レジーム={evaluation.market_conditions.get('regime_value', 'unknown')}"
                     )
 
                     # Step 2/3: TP注文配置（リトライ付き）
@@ -1418,7 +1423,7 @@ class ExecutionService:
                                 self.logger.warning(f"⚠️ Phase 62.18: exit記録失敗: {e}")
                         else:
                             self.logger.warning(
-                                f"⚠️ Phase 62.18: trade_recorder未初期化のためexit記録スキップ"
+                                "⚠️ Phase 62.18: trade_recorder未初期化のためexit記録スキップ"
                             )
             except Exception as e:
                 self.logger.warning(f"⚠️ Phase 61.9: 自動執行検知エラー: {e}")

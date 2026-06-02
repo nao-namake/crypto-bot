@@ -282,12 +282,162 @@ def find_regime_at(regime_log, target_dt):
     return best[1]
 
 
+def calculate_mfe_mae(entries, candles, max_window_min):
+    """各エントリーの MFE/MAE を実15分足から算出（Phase 90ι）。
+
+    MFE (Maximum Favorable Excursion): エントリー後に有利方向へ動いた最大値幅。
+    MAE (Maximum Adverse Excursion): 逆行した最大値幅。
+    距離(円)・距離率(%)・標準ロット0.015BTC換算の円益/損で返す。
+
+    Returns:
+        list[dict]: order_id/datetime/side/regime/entry_price/amount/
+                    mfe_dist/mae_dist/mfe_pct/mae_pct/mfe_jpy_015/mae_jpy_015
+    """
+    std_amount = 0.015  # 円換算の基準ロット（信頼度別固定サイズ）
+    results = []
+    for e in entries:
+        entry_dt = pd.to_datetime(e["timestamp_ms"], unit="ms", utc=True)
+        entry_price = e["entry_price"]
+        side = e["side"]
+        end_dt = entry_dt + timedelta(minutes=max_window_min)
+        window = candles[(candles.index >= entry_dt) & (candles.index <= end_dt)]
+        if window.empty:
+            continue
+        hi = float(window["high"].max())
+        lo = float(window["low"].min())
+        if side == "buy":
+            mfe_dist = hi - entry_price  # 有利＝上昇
+            mae_dist = entry_price - lo  # 逆行＝下落
+        else:  # sell(short)
+            mfe_dist = entry_price - lo  # 有利＝下落
+            mae_dist = hi - entry_price  # 逆行＝上昇
+        # MFE/MAE は定義上 0 以上（逆行/有利が無ければ 0）
+        mfe_dist = max(mfe_dist, 0.0)
+        mae_dist = max(mae_dist, 0.0)
+        results.append(
+            {
+                "order_id": e["order_id"],
+                "datetime": e["datetime"],
+                "side": side,
+                "regime": e.get("regime", "unknown"),
+                "entry_price": entry_price,
+                "amount": e["amount"],
+                "mfe_dist": mfe_dist,
+                "mae_dist": mae_dist,
+                "mfe_pct": mfe_dist / entry_price * 100,
+                "mae_pct": mae_dist / entry_price * 100,
+                "mfe_jpy_015": mfe_dist * std_amount,
+                "mae_jpy_015": mae_dist * std_amount,
+            }
+        )
+    return results
+
+
+def _pct_stats(vals):
+    """昇順ソート後に平均・分位(25/50/75/90)を返す。空なら None。"""
+    vals = sorted(vals)
+    n = len(vals)
+    if n == 0:
+        return None
+
+    def q(p):
+        return vals[min(n - 1, int(n * p))]
+
+    return {
+        "n": n,
+        "mean": sum(vals) / n,
+        "p25": q(0.25),
+        "p50": q(0.50),
+        "p75": q(0.75),
+        "p90": q(0.90),
+    }
+
+
+def analyze_mfe_mae_statistics(data):
+    """MFE/MAE の全体＋レジーム別分布を集計（Phase 90ι）。
+
+    Returns:
+        dict: {"overall": {...}, "by_regime": {regime: {...}}}
+              各ブロックに mfe_pct/mae_pct/mfe_jpy_015/mae_jpy_015 の分位統計。
+    """
+
+    def block(rows):
+        return {
+            "count": len(rows),
+            "mfe_pct": _pct_stats([r["mfe_pct"] for r in rows]),
+            "mae_pct": _pct_stats([r["mae_pct"] for r in rows]),
+            "mfe_jpy_015": _pct_stats([r["mfe_jpy_015"] for r in rows]),
+            "mae_jpy_015": _pct_stats([r["mae_jpy_015"] for r in rows]),
+        }
+
+    by_regime = {}
+    regimes = sorted({r["regime"] for r in data})
+    for rg in regimes:
+        rows = [r for r in data if r["regime"] == rg]
+        by_regime[rg] = block(rows)
+    return {"overall": block(data), "by_regime": by_regime}
+
+
+def print_mfe_mae_report(data, stats, days, max_window_min):
+    """MFE/MAE 分析レポートを標準出力（Phase 90ι）。"""
+    # 現行設定の距離率（標準: entry~1170万・amount0.015）の参考値
+    # TP目標1200円: 距離≈(1200+entry_fee)/amount → %換算は実エントリーごとに異なるため
+    # ここでは MFE/MAE 実測の分位に対し、現行 TP/SL 距離率の代表値を併記する。
+    tp_ref_pct = 0.79  # 現行 TP1200 の代表距離率（CLAUDE.md）
+    sl_ref_pct = 0.94  # 現行 SL2000 の代表距離率（floor0.7%）
+
+    def fmt(s):
+        if s is None:
+            return "  データなし"
+        return (
+            f"  n={s['n']:>3} 平均={s['mean']:.3f} | "
+            f"p25={s['p25']:.3f} p50={s['p50']:.3f} p75={s['p75']:.3f} p90={s['p90']:.3f}"
+        )
+
+    print("=" * 100)
+    print(f"📊 MFE/MAE 分析（過去{days}日・保有窓{max_window_min}分={max_window_min / 60:.0f}h）")
+    print("=" * 100)
+    ov = stats["overall"]
+    print(f"\n■ 全体 ({ov['count']}件)")
+    print(f"  MFE距離%（有利方向の最大伸び）:\n  {fmt(ov['mfe_pct'])}")
+    print(f"  MAE距離%（逆行の最大幅）    :\n  {fmt(ov['mae_pct'])}")
+    print(f"  MFE円(0.015BTC換算)         :\n  {fmt(ov['mfe_jpy_015'])}")
+    print(f"  MAE円(0.015BTC換算)         :\n  {fmt(ov['mae_jpy_015'])}")
+
+    # 現行TP/SLとの突き合わせ
+    if data:
+        tp_reached = sum(1 for r in data if r["mfe_pct"] >= tp_ref_pct)
+        sl_reached = sum(1 for r in data if r["mae_pct"] >= sl_ref_pct)
+        n = len(data)
+        print(f"\n■ 現行設定との突き合わせ（代表距離率: TP={tp_ref_pct}% / SL={sl_ref_pct}%）")
+        print(
+            f"  MFEが現行TP距離({tp_ref_pct}%)到達: {tp_reached}/{n} ({tp_reached / n * 100:.1f}%)"
+        )
+        print(
+            f"  MAEが現行SL距離({sl_ref_pct}%)到達: {sl_reached}/{n} ({sl_reached / n * 100:.1f}%)"
+        )
+
+    print("\n■ レジーム別")
+    for rg, b in stats["by_regime"].items():
+        if b["count"] == 0:
+            continue
+        print(f"\n  ▼ {rg} ({b['count']}件)")
+        print(f"    MFE距離%: {fmt(b['mfe_pct'])}")
+        print(f"    MAE距離%: {fmt(b['mae_pct'])}")
+    print("=" * 100)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=30)
     parser.add_argument("--max-window-min", type=int, default=1440)
     parser.add_argument(
         "--regime-log", default="/tmp/regime_logs.txt", help="GCPレジームログのパス"
+    )
+    parser.add_argument(
+        "--mfe-mae",
+        action="store_true",
+        help="Phase 90ι: TP/SLシナリオ分析の代わりに MFE/MAE 分布を出力",
     )
     args = parser.parse_args()
 
@@ -342,6 +492,16 @@ def main():
         e["regime"] = find_regime_at(regime_log, entry_dt) or "unknown"
         regime_counts[e["regime"]] = regime_counts.get(e["regime"], 0) + 1
     print(f"   エントリー時レジーム内訳: {regime_counts}\n")
+
+    # Phase 90ι: MFE/MAE 分析モード（TP/SL最適化の根拠データ）
+    if args.mfe_mae:
+        mfe_mae_data = calculate_mfe_mae(entries, candles, args.max_window_min)
+        if not mfe_mae_data:
+            print("MFE/MAE 算出対象なし（ローソク足窓が空）")
+            return
+        stats = analyze_mfe_mae_statistics(mfe_mae_data)
+        print_mfe_mae_report(mfe_mae_data, stats, args.days, args.max_window_min)
+        return
 
     # 5. 各シナリオでシミュ + レジーム別集計
     results = {
