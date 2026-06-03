@@ -642,6 +642,14 @@ class TPSLManager:
         "rate limit",
     )
 
+    # Phase 90λ: 「注文が既に存在しない」系エラー。孤児SLキャンセルの目的（注文消滅）が
+    # 既に達成された状態のため失敗ではなく成功扱いとする（小文字部分一致）。
+    _DEFAULT_ALREADY_RESOLVED_PATTERNS: tuple = (
+        "50026",
+        "order not found",
+        "ordernotfound",
+    )
+
     async def _detect_and_cancel_orphan_sl(
         self,
         margin_positions: List[Dict[str, Any]],
@@ -737,13 +745,21 @@ class TPSLManager:
         retryable_patterns = tuple(
             config.get("retryable_patterns", self._DEFAULT_RETRYABLE_PATTERNS)
         )
+        already_resolved_patterns = tuple(
+            config.get("already_resolved_patterns", self._DEFAULT_ALREADY_RESOLVED_PATTERNS)
+        )
 
         for order in orphan_orders:
             order_id = str(order.get("id", ""))
             if not order_id:
                 continue
             await self._cancel_with_exponential_backoff(
-                order_id, bitbank_client, max_retries, base_delay, retryable_patterns
+                order_id,
+                bitbank_client,
+                max_retries,
+                base_delay,
+                retryable_patterns,
+                already_resolved_patterns,
             )
 
     async def _cancel_with_exponential_backoff(
@@ -753,6 +769,7 @@ class TPSLManager:
         max_retries: int,
         base_delay: float,
         retryable_patterns: tuple = _DEFAULT_RETRYABLE_PATTERNS,
+        already_resolved_patterns: tuple = _DEFAULT_ALREADY_RESOLVED_PATTERNS,
     ) -> bool:
         """
         Phase 88 H11: 指数バックオフでキャンセル試行。
@@ -760,6 +777,10 @@ class TPSLManager:
         Phase R-C1: retryable_patterns に該当するエラーのみリトライし、
         それ以外（permission 不足・order id 不正など恒久的エラー）は即時中断。
         無駄な 7 秒遅延・API quota 消費・他取引への影響を防ぐ。
+
+        Phase 90λ: already_resolved_patterns（bitbank 50026=注文が既に存在しない等）は
+        孤児SLキャンセルの目的（注文消滅）が既に達成された状態のため成功扱い（True）とし、
+        CRITICAL ノイズと次サイクルの再検出を解消する。
 
         bitbank エラー 70004 (transaction currently suspended) 等の一時的エラー対応。
         3回失敗時は critical ログのみ・次の 5分サイクルで再試行（呼び元委譲）。
@@ -774,6 +795,13 @@ class TPSLManager:
                 return True
             except Exception as e:
                 err_msg = str(e).lower()
+                # Phase 90λ: 「注文が既に存在しない」は孤児解消済み＝成功扱い（CRITICAL 化しない）
+                if any(p in err_msg for p in already_resolved_patterns):
+                    self.logger.info(
+                        f"✅ Phase 90λ: 孤児SL は既に消滅済み＝解消済みとして確定 "
+                        f"(ID={order_id}, 試行{attempt + 1}/{max_retries}): {e}"
+                    )
+                    return True
                 is_retryable = any(p in err_msg for p in retryable_patterns)
                 if not is_retryable:
                     # Phase R-C1: リトライ不可エラー → 即時中断

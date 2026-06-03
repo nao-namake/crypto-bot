@@ -961,6 +961,13 @@ position_management:
         - "timeout"
         - "connection"
         - "rate limit"
+      # Phase 90λ: 「注文が既に存在しない」系エラーは孤児SLキャンセルの目的達成済み（注文消滅）。
+      # 失敗ではなく成功扱いとし、CRITICAL ノイズと再検出を解消する（小文字部分一致）。
+      # bitbank 50026=該当注文なし / ccxt OrderNotFound。
+      already_resolved_patterns:
+        - "50026"
+        - "order not found"
+        - "ordernotfound"
     default_atr_multiplier: 2.0
     max_loss_ratio: 0.007
     override_strategy_sl: false

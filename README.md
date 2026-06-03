@@ -13,7 +13,7 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 90θ SLMonitor誤発火 真因特定＆根本修正 実装完了（2026-06-02）→ コミット・デプロイ待ち**。Phase 90η のポジ残量ガードはデプロイ済（6/1 07:03 JST）だが、ライブ分析＋GCPログ精査で**デプロイ後も誤発火が継続**（実ポジ0なのにDRY_RUN緊急決済発火）と判明。真因は2層: **(1)幽霊VPクリーンアップ漏れ**（`CANCELED_UNFILLED`をSL約定検知できず実0VPが残存し毎5分C5対象）、**(2)C5ガードの設計限界**（`CANCELED_UNFILLED`はstop約定の正常な中間状態で建玉が一時残存し1回の残量確認をすり抜ける）。P0-A 幽霊VP即除去 / P0-B canceled_unfilled連続検出カウンタ / P1 REJECTED逆リスク除外 / P3 ライブ分析に誤発火監視追加で修正（dry_run継続・実SL決済はPhase 64.12担保）。Phase 90η/90ζ 本番稼働中
+**Phase 90κ Maker約定率の改善 本番デプロイ完了（2026-06-03 06:34 JST・リビジョン`0602-2134`／headSha`1c2918de`）→ 本番稼働中**。6/4 ライブ分析で致命的問題ゼロ・本番ML `ProductionEnsemble_FULL`稼働・drift WARNINGは偽陽性抑制の正常動作・trending全停止機能を確認。以下は直前の Phase 90θ 記録。**Phase 90θ SLMonitor誤発火 真因特定＆根本修正 実装・デプロイ完了（2026-06-02）**。Phase 90η のポジ残量ガードはデプロイ済（6/1 07:03 JST）だが、ライブ分析＋GCPログ精査で**デプロイ後も誤発火が継続**（実ポジ0なのにDRY_RUN緊急決済発火）と判明。真因は2層: **(1)幽霊VPクリーンアップ漏れ**（`CANCELED_UNFILLED`をSL約定検知できず実0VPが残存し毎5分C5対象）、**(2)C5ガードの設計限界**（`CANCELED_UNFILLED`はstop約定の正常な中間状態で建玉が一時残存し1回の残量確認をすり抜ける）。P0-A 幽霊VP即除去 / P0-B canceled_unfilled連続検出カウンタ / P1 REJECTED逆リスク除外 / P3 ライブ分析に誤発火監視追加で修正（dry_run継続・実SL決済はPhase 64.12担保）。Phase 90η/90ζ 本番稼働中
 
 | 項目 | 値 |
 |------|-----|
@@ -237,4 +237,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年6月3日 - Phase 90κ Maker約定率の改善（GCPログ30日精査でpost_onlyキャンセル0件・リトライ実質1回バグ・queue末尾44%を確定→per_attempt分割でリトライ実動化＋リトライ毎best気配追従・「板の奥へ」廃止。timeout120→60/max_retries5→4）実装完了
+**最終更新**: 2026年6月4日 - Phase 90κ Maker約定率の改善が本番デプロイ済みと確認（リビジョン`0602-2134`／headSha`1c2918de`・6/3 06:34 JST）。ライブ分析で致命的問題ゼロ・本番ML `ProductionEnsemble_FULL`稼働・drift WARNINGは偽陽性抑制の正常動作・trending全停止機能を確認。Phase 90λ: GCPログ精査で検出した低重大度3件に対応（bitbank 50026を孤児SL解消済み＝成功扱い／CI/CD IAM／デプロイ運用メモ）・checks.sh全PASS

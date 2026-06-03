@@ -2062,6 +2062,89 @@ class TestPhaseRC1NonRetryableImmediateAbort:
         )
 
 
+class TestPhase90LambdaAlreadyResolved:
+    """
+    Phase 90λ: bitbank 50026（注文が既に存在しない）は孤児SLキャンセルの目的達成済み。
+    失敗（CRITICAL）ではなく成功扱い（True）とし、再検出ノイズを解消する。
+    """
+
+    @pytest.fixture
+    def mock_client(self):
+        client = MagicMock()
+        client.cancel_order = MagicMock()
+        return client
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_50026_treated_as_resolved_no_retry_no_critical(
+        self, mock_threshold, tp_sl_manager, mock_client, caplog
+    ):
+        """Phase 90λ: 50026 は 1 試行で解消済み確定・リトライなし・CRITICAL を出さない"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+        mock_client.cancel_order.side_effect = Exception(
+            'bitbank {"success":"0","data":{"code":"50026"}}'
+        )
+
+        margin_positions = []
+        active_orders = [{"id": "gone-50026", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        with caplog.at_level(logging.INFO):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions, active_orders, mock_client
+            )
+
+        # リトライせず 1 回で確定
+        assert mock_client.cancel_order.call_count == 1
+        # 解消済み INFO が出る
+        assert any(
+            "Phase 90λ" in r.message and "解消済み" in r.message
+            for r in caplog.records
+            if r.levelno == logging.INFO
+        )
+        # 「リトライ不可エラー、即時中断」CRITICAL は出さない（ノイズ解消）
+        assert not any(
+            "リトライ不可エラー、即時中断" in r.message
+            for r in caplog.records
+            if r.levelno == logging.CRITICAL
+        )
+
+    @patch("src.trading.execution.tp_sl_manager.get_threshold")
+    async def test_70004_still_retries_after_already_resolved_added(
+        self, mock_threshold, tp_sl_manager, mock_client, caplog
+    ):
+        """Phase 90λ リグレッション防止: 70004 は従来通りリトライ継続（成功扱いしない）"""
+        import logging
+
+        mock_threshold.side_effect = lambda key, default=None: (
+            {"enabled": True, "cancel_max_retries": 3, "cancel_base_delay_seconds": 0.001}
+            if str(key) == "position_management.stop_loss.orphan_sl_order_scan"
+            else default
+        )
+        mock_client.cancel_order.side_effect = [
+            Exception("bitbank error 70004: transaction currently suspended"),
+            None,  # 2回目成功
+        ]
+
+        margin_positions = []
+        active_orders = [{"id": "70004-id", "type": "stop", "side": "sell", "amount": 0.015}]
+
+        with caplog.at_level(logging.INFO):
+            await tp_sl_manager._detect_and_cancel_orphan_sl(
+                margin_positions, active_orders, mock_client
+            )
+
+        # 70004 はリトライされて 2 回試行
+        assert mock_client.cancel_order.call_count == 2
+        assert any(
+            "孤児SLキャンセル成功" in r.message for r in caplog.records if r.levelno == logging.INFO
+        )
+
+
 class TestPhaseRHbAmountBasedDetection:
     """Phase R-Hb: 部分 VP / 過剰 SL の amount 比較ベース判定"""
 

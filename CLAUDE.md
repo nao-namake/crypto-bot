@@ -4,7 +4,7 @@
 
 | 項目 | 値 |
 |------|-----|
-| **現在Phase** | **Phase 90κ Maker約定率の改善（リトライ実動化＋best気配追従）実装完了（2026-06-03）→ コミット・デプロイ待ち**。GCPログ30日精査で真因確定: ①**post_onlyキャンセル0件**（指値はリジェクトされておらず約定しないのは「指値に価格が来ない/queueで順番来ず」）②**リトライ実質1回**（20試行中18件が試行1のみ＝`max_retries=5`が機能しないコードバグ。`_wait_for_maker_fill`に残り総時間120秒フルを渡し試行1で全体timeout消費）③**タイムアウトの44%はqueue末尾問題**（指値到達したのに未約定・改善余地）/56%は逆行。修正: **P1** `per_attempt_timeout=timeout//max_retries`でリトライを実動化（timeout120→60・max_retries5→4で実効4回）/ **P2** リトライ毎に`_assess_maker_conditions`で最新best気配を再取得し`_calculate_maker_price`で追従（「板の奥へ」廃止・乖離上限0.1%ガード維持）。Maker約定率25%→改善でエントリーTaker手数料~1,400円/週の一部削減狙い。**効果は部分的**（逆行56%・薄板スプレッド1円73%は救えない）。テスト6件・checks.sh全PASS(2507テスト)。Phase 90γ-③.4「長く待つ」は無意味と判明し本変更で訂正 |
+| **現在Phase** | **Phase 90κ Maker約定率の改善（リトライ実動化＋best気配追従）実装・デプロイ完了（2026-06-03 06:34 JST・リビジョン`crypto-bot-service-prod-phase89a-cost-opt-0602-2134`／headSha`1c2918de`・CI/CD `Build & Deploy to GCP` PASS）→ 本番稼働中**。GCPログ30日精査で真因確定: ①**post_onlyキャンセル0件**（指値はリジェクトされておらず約定しないのは「指値に価格が来ない/queueで順番来ず」）②**リトライ実質1回**（20試行中18件が試行1のみ＝`max_retries=5`が機能しないコードバグ。`_wait_for_maker_fill`に残り総時間120秒フルを渡し試行1で全体timeout消費）③**タイムアウトの44%はqueue末尾問題**（指値到達したのに未約定・改善余地）/56%は逆行。修正: **P1** `per_attempt_timeout=timeout//max_retries`でリトライを実動化（timeout120→60・max_retries5→4で実効4回）/ **P2** リトライ毎に`_assess_maker_conditions`で最新best気配を再取得し`_calculate_maker_price`で追従（「板の奥へ」廃止・乖離上限0.1%ガード維持）。Maker約定率25%→改善でエントリーTaker手数料~1,400円/週の一部削減狙い。**効果は部分的**（逆行56%・薄板スプレッド1円73%は救えない）。テスト6件・checks.sh全PASS(2507テスト)。Phase 90γ-③.4「長く待つ」は無意味と判明し本変更で訂正 |
 | **直前の作業（Phase 90ι）** | 収益構造のデータ駆動分析＋tight逆行の観察可能化（コミット`165e0dcb`）。「勝率・収益率を上げるには」の問いに対し、改善レバーを順にデータ検証: ①Maker率向上=無効（未約定の主因は価格逆行・タイムアウト7件中5件は120秒で指値未到達）②コスト織り込み=穴小（TP決済も実態大半Maker）③**実MFE/MAE分析（90日277件）で真因確定**=レジーム別の方向性エッジ。**normal_range=順エッジ黒字(MFE0.609%>MAE0.424%・期待値+333〜500円)、tight_range=逆エッジ赤字(MFE0.355%<MAE0.583%・主力56%なのに-170〜250円)、trending=大逆行(停止済・5/11以降混入ほぼ0)**。tight逆行は「小勝ち大負け（平均回帰のブレイク弱点）」で最有力はATRBased(重み0.35・消尽=反転で反転確認なし)だが**戦略名がエントリーログに無く確証不可**。→ **観察可能化を実装**: (A)`market_regime_classifier`のtight検出にADX・EMA傾き長期を併記（トレンド初期誤判定の診断）、(B)`executor`のエントリー成功ログに戦略名・レジームを併記しWARNING昇格（本番で戦略別逆行を追跡可能化）。+ MFE/MAE分析ツール(`full_entry_simulation.py`)実装・テスト7件。取引挙動は不変・ログのみ。数日蓄積後に戦略別逆行を特定→ATRBased等の的を射た修正へ |
 | **🎯 Phase 90ι 収益分析の結論（重要）** | 損益-4,240円/週≒手数料-2,796+グロス-1,444。**手数料はMaker率改善では減らせない（価格逆行が主因）**。**収益の本丸はレジーム別の方向性エッジ**: normal集中・tight見直し・trending停止維持。TP/SLは normal=薄利多勝(TP500-750/SL1500)が最適だがレジーム別TP/SL有効化は構造変更(confidence_based上書き解除)で小サンプル(各20-30件)ゆえ慎重に。tight赤字はTP/SLでは救えず**エントリー品質(ML・戦略)が根本**。`scripts/analysis/full_entry_simulation.py --mfe-mae --days N`でMFE/MAE再測定可。Cloud Loggingレジームログ保持は約30日 |
 | **直前の作業（Phase 90θ）** | SLMonitor誤発火 真因特定＆根本修正（コミット`96ab5525`）。Phase 90ηガードがデプロイ後も誤発火継続→真因2層(幽霊VPクリーンアップ漏れ＋canceled_unfilled中間状態タイミング競合)を修正。P0-A `is_canceled_unfilled`をSL約定検知し幽霊VP即除去 / P0-B 連続検出カウンタ(3回連続で昇格) / P1 REJECTEDをガード除外 / P3 ライブ分析に誤発火監視追加。dry_run継続。デプロイ後に`sl_monitor_dry_run_fire_count`=0を確認予定 |
@@ -23,7 +23,7 @@
 | **特徴量数 / ML モデル** | 37 → **55** / 3 → **4**（LGB 34%/XGB 34%/RF 17%/N-BEATS 15%）|
 | **v8e macro F1** | LGB CV 0.546 / Test 0.486・XGB CV 0.459・RF CV 0.530・N-BEATS CV 0.514（naive 0.41 比 +0.10〜+0.14）|
 | **追加課金 / GCP 月額** | ゼロ（GPU・LLM 不採用）/ 現状 ¥1,400-1,700（うち Cloud Run compute は Phase 88 I3 scale-to-zero で月~110円・課金インスタンス時間1.1%。残りは Logging/Artifact Registry 等）|
-| **最終更新** | 2026年6月3日 - Phase 90κ Maker約定率の改善（GCPログ30日精査でpost_onlyキャンセル0件・リトライ実質1回バグ・queue末尾44%を確定→per_attempt分割でリトライ実動化＋リトライ毎best気配追従・「板の奥へ」廃止。timeout120→60/max_retries5→4）実装完了 |
+| **最終更新** | 2026年6月4日 - Phase 90κ が本番デプロイ済みと確認（リビジョン`0602-2134`／headSha`1c2918de`・6/3 06:34 JST）。ライブ分析で致命的問題ゼロ・本番ML `ProductionEnsemble_FULL`稼働・drift WARNINGは偽陽性抑制の正常動作・trending全停止機能を確認。※リビジョン名のタイムスタンプは**UTC命名**（`0602-2134`=6/2 21:34 UTC=6/3 06:34 JST）。**Phase 90λ**: GCPログ精査で検出した低重大度3件に対応 — ①bitbank 50026を孤児SL解消済み＝成功扱い（CRITICALノイズ解消・`tp_sl_manager.py`＋`thresholds.yaml already_resolved_patterns`・テスト2件）②CI/CD SetIamPolicy権限拒否（要IAM付与・別途）③デプロイはフラット時推奨の運用メモ。checks.sh全PASS |
 
 > **🚀 セッション再開時は `docs/開発計画/ToDo.md` の「セッション再開時の手順」セクションを最優先で確認**
 >
@@ -549,6 +549,9 @@ git status && git add . && git commit -m "..." && git push origin main
 | `'BitbankClient' has no attribute 'get_active_orders'` | `fetch_active_orders`を使用 |
 | Container exit(1) | GCP制約対策確認（n_jobs=1, signal.alarm無効化） |
 | bitbank 50062「保有建玉数量超過」 | 既存TP/SL注文キャンセル後に成行決済（Phase 68.2で修正済み） |
+| bitbank 50026「該当注文なし」 | 孤児SLキャンセル時の50026は「注文が既に消滅＝解消済み」で正常。Phase 90λ で成功扱い（CRITICAL化しない） |
+
+> **デプロイのタイミング**: 可能な限りフラット（ポジション0）時に実施する。建玉保有中のデプロイは再起動時のポジション復元で一時的に孤児ポジ/孤児SL検出が集中する（最終的に自己解消・実害なし。Phase 90λ 改修後はノイズも軽減）。
 
 ### デバッグコマンド
 
