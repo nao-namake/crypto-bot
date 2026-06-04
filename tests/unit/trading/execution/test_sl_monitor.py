@@ -557,6 +557,69 @@ class TestPhase90EtaPositionGuard:
 
 
 # ============================================================
+# Phase 90μ: C7 fetch_error_persistent 昇格に残量ガードを対称適用
+# ============================================================
+
+
+def _make_fetch_error_client(positions=None):
+    """fetch_order が常に失敗し、fetch_margin_positions を備えた擬似 BitbankClient"""
+    client = MagicMock()
+    client.fetch_order.side_effect = RuntimeError("注文が見つかりません: market_close_123")
+    client.fetch_margin_positions = AsyncMock(
+        return_value=positions if positions is not None else []
+    )
+    return client
+
+
+class TestPhase90MuFetchErrorPositionGuard:
+    """Phase 90μ: fetch_error_persistent 昇格でもポジ既消滅なら緊急決済を抑止する。
+
+    合成ID market_close_* を fetch_order できず3連続失敗するが建玉は既に0、という
+    誤発火（Fire #2）を止める。canceled_unfilled / expired / timeout と同じ残量ガードを通す。
+    """
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)
+    async def test_fetch_error_persistent_but_position_closed_skips(self, _gt):
+        """3連続失敗（実0）→ already_closed・緊急決済抑止"""
+        monitor = SLMonitor(logger=MagicMock(), max_fetch_failures=3)
+        client = _make_fetch_error_client(positions=[])
+        r1 = await monitor.check_sl_health("market_close_123", None, client, amount=0.015)
+        r2 = await monitor.check_sl_health("market_close_123", None, client, amount=0.015)
+        r3 = await monitor.check_sl_health("market_close_123", None, client, amount=0.015)
+        assert r1.requires_emergency_close is False  # 1/3 fetch_error
+        assert r2.requires_emergency_close is False  # 2/3 fetch_error
+        # 3/3 到達でもポジ既消滅 → 抑止
+        assert r3.is_healthy is True
+        assert r3.failure_reason == "already_closed"
+        assert r3.requires_emergency_close is False
+
+    @pytest.mark.asyncio
+    @patch("src.trading.execution.sl_monitor.get_threshold", side_effect=_guard_threshold)
+    async def test_fetch_error_persistent_position_remains_escalates(self, _gt):
+        """3連続失敗かつ建玉残存 → 従来どおり fetch_error_persistent で緊急決済昇格"""
+        monitor = SLMonitor(logger=MagicMock(), max_fetch_failures=3)
+        client = _make_fetch_error_client(positions=[{"side": "long", "amount": 0.015}])
+        for _ in range(2):
+            await monitor.check_sl_health("OID-MU", None, client, amount=0.015)
+        result = await monitor.check_sl_health("OID-MU", None, client, amount=0.015)
+        assert result.is_healthy is False
+        assert result.failure_reason == "fetch_error_persistent"
+        assert result.requires_emergency_close is True
+
+    @pytest.mark.asyncio
+    async def test_fetch_error_persistent_amount_none_keeps_legacy(self):
+        """amount 未指定（既存呼び出し）はガード未実行で従来の緊急決済昇格（後方互換）"""
+        monitor = SLMonitor(logger=MagicMock(), max_fetch_failures=1)
+        client = _make_fetch_error_client(positions=[])
+        result = await monitor.check_sl_health("OID-MU-LEGACY", None, client)  # amount 未指定
+        assert result.is_healthy is False
+        assert result.failure_reason == "fetch_error_persistent"
+        assert result.requires_emergency_close is True
+        client.fetch_margin_positions.assert_not_called()
+
+
+# ============================================================
 # SLHealthResult / default constants
 # ============================================================
 

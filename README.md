@@ -13,7 +13,7 @@ bitbank信用取引・BTC/JPY専用のAI自動取引システム（GCP Cloud Run
 
 ## 現在の状態
 
-**Phase 90κ Maker約定率の改善 本番デプロイ完了（2026-06-03 06:34 JST・リビジョン`0602-2134`／headSha`1c2918de`）→ 本番稼働中**。6/4 ライブ分析で致命的問題ゼロ・本番ML `ProductionEnsemble_FULL`稼働・drift WARNINGは偽陽性抑制の正常動作・trending全停止機能を確認。以下は直前の Phase 90θ 記録。**Phase 90θ SLMonitor誤発火 真因特定＆根本修正 実装・デプロイ完了（2026-06-02）**。Phase 90η のポジ残量ガードはデプロイ済（6/1 07:03 JST）だが、ライブ分析＋GCPログ精査で**デプロイ後も誤発火が継続**（実ポジ0なのにDRY_RUN緊急決済発火）と判明。真因は2層: **(1)幽霊VPクリーンアップ漏れ**（`CANCELED_UNFILLED`をSL約定検知できず実0VPが残存し毎5分C5対象）、**(2)C5ガードの設計限界**（`CANCELED_UNFILLED`はstop約定の正常な中間状態で建玉が一時残存し1回の残量確認をすり抜ける）。P0-A 幽霊VP即除去 / P0-B canceled_unfilled連続検出カウンタ / P1 REJECTED逆リスク除外 / P3 ライブ分析に誤発火監視追加で修正（dry_run継続・実SL決済はPhase 64.12担保）。Phase 90η/90ζ 本番稼働中
+**Phase 90μ SLMonitor誤発火の真因修正 実装完了（2026-06-05・デプロイ前）**。6/5 ライブ分析で `SLMonitor DRY_RUN誤発火:2回` を検出し、GCPログ精査（06/04 19:30-20:30 UTC）で**誤発火2回は別々の2メカニズム**と確定。**Fire #1**（reason=`canceled_unfilled`・90θ 3/3）は15分stuckのSLを正しく昇格し同サイクルで Phase 64.12 も実決済＝**設計どおり（誤発火ではない・現状維持）**。**Fire #2**（reason=`fetch_error_persistent`）が**クリーンな誤発火**で2バグの複合: ①`stop_manager._check_tp_sl_execution` が合成ID `market_close_*`（Phase 64.12 成行決済済み）に `fetch_order` して例外を握り潰し**幽霊VPが除去されず**毎サイクル C5/C7 の対象に、②`sl_monitor.check_sl_health` の C7 昇格パスが他の昇格（canceled_unfilled/expired/timeout）と違い `_position_already_closed` 残量ガードを通さず実0でも3サイクルで無条件発火。修正: **Fix 1** `market_close_*` を `fetch_order` せず `stop_loss` 確定で幽霊VP即除去（根本）／**Fix 2** C7 昇格前に残量ガードを対称適用し実0なら抑止（防御）。`dry_run:true` は変更なし（本番で誤発火0を確認後に別タスクで解除判断）。テスト4件追加・`checks.sh` 全 PASS。**非バグと確定**: trending ADXエントリー（実態 normal_range・重み0.15）／torch FULL（本番 `ProductionEnsemble_FULL` 稼働・ローカル限定）／Maker リトライ0%（全試行1で約定）。**直前の Phase 90κ Maker約定率の改善 は本番デプロイ済（2026-06-03 06:34 JST・リビジョン`0602-2134`／headSha`1c2918de`）→ 本番稼働中**
 
 | 項目 | 値 |
 |------|-----|
@@ -237,4 +237,4 @@ Phase 87/88 完了後、最新MLbot技術を段階的に導入:
 
 ---
 
-**最終更新**: 2026年6月4日 - Phase 90κ Maker約定率の改善が本番デプロイ済みと確認（リビジョン`0602-2134`／headSha`1c2918de`・6/3 06:34 JST）。ライブ分析で致命的問題ゼロ・本番ML `ProductionEnsemble_FULL`稼働・drift WARNINGは偽陽性抑制の正常動作・trending全停止機能を確認。Phase 90λ: GCPログ精査で検出した低重大度3件に対応（bitbank 50026を孤児SL解消済み＝成功扱い／CI/CD IAM／デプロイ運用メモ）・checks.sh全PASS
+**最終更新**: 2026年6月5日 - Phase 90μ SLMonitor誤発火の真因修正 実装完了（デプロイ前）。6/5 ライブ分析→GCPログ精査で Fire #2（fetch_error_persistent）がクリーンな誤発火と確定し、合成ID `market_close_*` の幽霊VP即除去（Fix 1・`stop_manager.py`）＋C7昇格への残量ガード対称適用（Fix 2・`sl_monitor.py`）で修正。テスト4件・`checks.sh` 全 PASS。`dry_run:true` 維持（本番で誤発火0を確認後に解除判断）。Phase 90κ は本番稼働中（リビジョン`0602-2134`／headSha`1c2918de`・6/3 06:34 JST）・本番ML `ProductionEnsemble_FULL` 稼働・trending全停止機能を確認

@@ -289,19 +289,35 @@ class StopManager:
 
         # SL注文確認（TPが約定していない場合）
         if not execution_type and sl_order_id:
-            try:
-                sl_order = await asyncio.to_thread(bitbank_client.fetch_order, sl_order_id, symbol)
-                # Phase 90θ: bitbank の stop注文はトリガー約定時に CANCELED_UNFILLED を返す
-                # （成行約定の中間〜完了状態）。実ポジが消失したVPなら、これを SL約定とみなして
-                # VPを除去しないと、毎5分サイクルで C5 (check_sl_health) の対象になり続け
-                # canceled_unfilled の誤発火を生む（幽霊VPクリーンアップ漏れの根本対処）。
-                if sl_order.get("status") == "closed" or SLMonitor.is_canceled_unfilled(sl_order):
-                    execution_type = "stop_loss"
-                    exit_price = float(sl_order.get("average") or sl_order.get("price") or 0)
-                    executed_order_id = sl_order_id
-                    remaining_order_id = tp_order_id
-            except Exception as e:
-                self.logger.debug(f"📊 Phase 61.9: SL注文確認エラー（許容）: {e}")
+            # Phase 90μ: 合成ID "market_close_*" は Phase 64.12（SLトリガー超過→成行決済）が
+            # 既に成行決済済みを意味する。bitbank に実在しないため fetch_order は必ず
+            # OrderNotFound で失敗し、例外を握り潰すと VP が除去されず毎サイクル C5/C7 の
+            # 対象になって fetch_error_persistent 誤発火を生む（幽霊VPクリーンアップ漏れ）。
+            # 実ポジ消失VPなら SL約定として確定し、fetch_order を呼ばず即除去する。
+            if str(sl_order_id).startswith("market_close_"):
+                execution_type = "stop_loss"
+                # 実約定値は Phase 64.12 経路で別途記録済み。ここは建値フォールバック
+                exit_price = float(vpos.get("price", 0))
+                executed_order_id = sl_order_id
+                remaining_order_id = tp_order_id
+            else:
+                try:
+                    sl_order = await asyncio.to_thread(
+                        bitbank_client.fetch_order, sl_order_id, symbol
+                    )
+                    # Phase 90θ: bitbank の stop注文はトリガー約定時に CANCELED_UNFILLED を返す
+                    # （成行約定の中間〜完了状態）。実ポジが消失したVPなら、これを SL約定とみなして
+                    # VPを除去しないと、毎5分サイクルで C5 (check_sl_health) の対象になり続け
+                    # canceled_unfilled の誤発火を生む（幽霊VPクリーンアップ漏れの根本対処）。
+                    if sl_order.get("status") == "closed" or SLMonitor.is_canceled_unfilled(
+                        sl_order
+                    ):
+                        execution_type = "stop_loss"
+                        exit_price = float(sl_order.get("average") or sl_order.get("price") or 0)
+                        executed_order_id = sl_order_id
+                        remaining_order_id = tp_order_id
+                except Exception as e:
+                    self.logger.debug(f"📊 Phase 61.9: SL注文確認エラー（許容）: {e}")
 
         if not execution_type:
             return None

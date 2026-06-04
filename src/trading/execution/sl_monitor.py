@@ -267,12 +267,29 @@ class SLMonitor:
             count = self._fetch_failure_counts[key]
 
             if count >= self.max_fetch_failures:
+                # カウンタをリセットして次回以降の誤発火を防ぐ
+                self._fetch_failure_counts.pop(key, None)
+                # Phase 90μ: 他の昇格パス（canceled_unfilled / expired / timeout）と対称化。
+                # fetch 不能IDでも、実ポジが既消滅ならフラットへの二重決済になるため抑止する。
+                # 典型例: Phase 64.12 が成行決済後に残した合成ID "market_close_*" を
+                # fetch_order できず3連続失敗するが建玉は既に0、というケース。
+                if amount is not None and await self._position_already_closed(
+                    float(amount), bitbank_client, symbol
+                ):
+                    self.logger.info(
+                        f"✅ Phase 90μ: SL fetch_error_persistent ({count}/{self.max_fetch_failures}) "
+                        f"だがポジション既消滅 → 既決済とみなしスキップ "
+                        f"(ID={sl_order_id}, expected={float(amount):.6f} BTC)。緊急決済抑止"
+                    )
+                    return SLHealthResult(
+                        is_healthy=True,
+                        failure_reason="already_closed",
+                        requires_emergency_close=False,
+                    )
                 self.logger.critical(
                     f"🚨 Phase 89 C7: SL fetch_order 連続失敗 {count}/{self.max_fetch_failures} 回 - "
                     f"ID={sl_order_id}, error={e}。SL 実態確認不能のため緊急決済判定。"
                 )
-                # カウンタをリセットして次回以降の誤発火を防ぐ
-                self._fetch_failure_counts.pop(key, None)
                 return SLHealthResult(
                     is_healthy=False,
                     failure_reason="fetch_error_persistent",

@@ -972,6 +972,65 @@ class TestPhase619AutoExecutionDetection:
         mock_bitbank_client.cancel_order.assert_called_once_with("tp_cu", "BTC/JPY")
 
     @patch("src.trading.execution.stop_manager.get_threshold")
+    async def test_detect_market_close_synthetic_id_execution(
+        self, mock_threshold, stop_manager, mock_bitbank_client
+    ):
+        """Phase 90μ: sl_order_id='market_close_*' は Phase 64.12 成行決済済み。
+
+        合成IDは bitbank に実在せず fetch_order が必ず失敗するため、旧実装では例外を
+        握り潰して VP が残り、毎サイクル C7 fetch_error_persistent 誤発火を生んでいた。
+        fetch_order を呼ばず stop_loss 約定として確定し VP を除去することを検証する。
+        """
+
+        def threshold_side_effect(key, default=None):
+            if key == "tp_sl_auto_detection":
+                return {"enabled": True, "log_level": "info"}
+            elif key == "trading.fees.entry_taker_rate":
+                return 0.001
+            elif key == "trading.fees.exit_taker_rate":
+                return 0.001
+            return default
+
+        mock_threshold.side_effect = threshold_side_effect
+
+        virtual_positions = [
+            {
+                "order_id": "entry_mc",
+                "side": "buy",
+                "amount": 0.001,
+                "price": 14000000.0,
+                "tp_order_id": "tp_mc",
+                "sl_order_id": "market_close_57938901371",
+                "strategy_name": "ATRBased",
+            }
+        ]
+        actual_positions = []  # 実ポジション空（成行決済済み）
+
+        # TP は未約定。SL の合成IDに対しては fetch_order を呼んではいけない
+        def mock_fetch_order(order_id, symbol):
+            if order_id == "tp_mc":
+                return {"status": "open", "price": 14300000.0}
+            raise AssertionError(f"fetch_order must not be called for synthetic id: {order_id}")
+
+        mock_bitbank_client.fetch_order = MagicMock(side_effect=mock_fetch_order)
+
+        result = await stop_manager.detect_auto_executed_orders(
+            virtual_positions=virtual_positions,
+            actual_positions=actual_positions,
+            bitbank_client=mock_bitbank_client,
+            symbol="BTC/JPY",
+        )
+
+        # 合成IDが stop_loss 約定として検知され VP除去対象になる（fetch_order 未呼び出し）
+        assert len(result) == 1
+        assert result[0]["execution_type"] == "stop_loss"
+        assert result[0]["order_id"] == "entry_mc"
+        # exit_price は建値フォールバック
+        assert result[0]["exit_price"] == 14000000.0
+        # 残TP注文がキャンセルされる
+        mock_bitbank_client.cancel_order.assert_called_once_with("tp_mc", "BTC/JPY")
+
+    @patch("src.trading.execution.stop_manager.get_threshold")
     async def test_no_disappeared_positions(
         self, mock_threshold, stop_manager, mock_bitbank_client
     ):
