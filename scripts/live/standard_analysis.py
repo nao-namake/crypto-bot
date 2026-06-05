@@ -657,6 +657,11 @@ class BotFunctionCheckResult:
     # 従来は emergency_market_close が実発注成功のみカウントするため盲点だった。
     sl_monitor_dry_run_fire_count: int = 0
     sl_canceled_unfilled_pending_count: int = 0
+    # Phase 90μ: reason別に分類。canceled_unfilled は Phase 90θ/μ 設計で「3/3連続検出を
+    # 経た正当な昇格（同サイクルで Phase 64.12 が実決済も担保）」＝誤発火ではない。
+    # fetch_error_persistent 等のみが真の誤発火（Phase 90μ 修正対象の Fire #2）。
+    sl_monitor_fire_canceled_unfilled: int = 0  # 設計どおりの正当昇格（非誤発火）
+    sl_monitor_fire_true: int = 0  # 真の誤発火（fetch_error_persistent 等）
 
     # 設定検証
     config_checks: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -1240,24 +1245,43 @@ class BotFunctionChecker:
             10,
         )
 
-        # Phase 90θ: SLMonitor 誤発火（DRY_RUN緊急決済シミュレーション）を監視。
-        # dry_run 中は実害ないが、canceled_unfilled 中間状態の誤発火を検出できないと
-        # 「正常」と誤報告する盲点になるため計器化する。
+        # Phase 90θ/μ: SLMonitor の DRY_RUN緊急決済シミュレーション発火を reason 別に監視。
+        # canceled_unfilled は 3/3連続検出を経た正当な昇格（同サイクルで Phase 64.12 が
+        # 実決済も担保）＝設計どおりで誤発火ではない。fetch_error_persistent 等のみが
+        # 真の誤発火（Phase 90μ 修正対象の Fire #2）。両者を分けて評価する。
         self.result.sl_monitor_dry_run_fire_count = self._count_logs(
             'textPayload:"🧪 Phase 87 C1 [DRY_RUN]"', 20
+        )
+        self.result.sl_monitor_fire_canceled_unfilled = self._count_logs(
+            'textPayload:"🧪 Phase 87 C1 [DRY_RUN]"'
+            ' AND textPayload:"reason=c5_canceled_unfilled"',
+            20,
+        )
+        # 真の誤発火 = 全DRY_RUN発火 − canceled_unfilled（設計どおり昇格）
+        self.result.sl_monitor_fire_true = max(
+            0,
+            self.result.sl_monitor_dry_run_fire_count
+            - self.result.sl_monitor_fire_canceled_unfilled,
         )
         # Phase 90θ: 健全な抑止（中間状態を pending として見送り）の可視化
         self.result.sl_canceled_unfilled_pending_count = self._count_logs(
             'textPayload:"canceled_unfilled_pending"', 20
         )
-        if self.result.sl_monitor_dry_run_fire_count > 0:
+        if self.result.sl_monitor_fire_true > 0:
             self.logger.warning(
-                f"⚠️ Phase 90θ: SLMonitor DRY_RUN 誤発火 "
-                f"{self.result.sl_monitor_dry_run_fire_count} 件検出 - "
-                f"canceled_unfilled 中間状態の誤判定が継続している可能性（dry_run中で実害なし）"
+                f"⚠️ Phase 90μ: SLMonitor 真の誤発火 "
+                f"{self.result.sl_monitor_fire_true} 件検出（fetch_error_persistent 等）- "
+                f"Fire #2 のクリーンな誤発火。Phase 90μ 修正のデプロイ状況を要確認"
             )
             self.result.warning_issues += 1
         else:
+            # canceled_unfilled のみ（または発火なし）＝設計どおり。正常扱い。
+            if self.result.sl_monitor_fire_canceled_unfilled > 0:
+                self.logger.info(
+                    f"  ✅ Phase 90θ: SLMonitor 真の誤発火なし"
+                    f"（canceled_unfilled 昇格 {self.result.sl_monitor_fire_canceled_unfilled} 件は"
+                    f"3/3連続検出を経た設計どおりの正当昇格）"
+                )
             self.result.normal_checks += 1
 
     # =========================================================================
@@ -1354,13 +1378,22 @@ class BotFunctionChecker:
                     )
                     self.result.warning_issues += 1
 
-            # drift: 20 件/24h 超は偽陽性疑い
+            # drift: 検出数が多くても retrain_triggered=0 なら実害なし。
+            # 実ログ上、検出は strategy_signal_*（相場局面で当然変動する戦略シグナル）主体で、
+            # 再学習が発火していなければ「想定内の変動」。再学習が実発火して初めて過剰検知を疑う。
             d = metrics["drift"]
-            if d["drift_detected"] >= 20:
+            if d["drift_detected"] >= 20 and d["retrain_triggered"] > 0:
                 self.logger.warning(
-                    f"  ⚠️ Phase 89-β drift: {d['drift_detected']} 件/24h・Bonferroni 補正薄い可能性"
+                    f"  ⚠️ Phase 89-β drift: 検出 {d['drift_detected']} 件 + "
+                    f"再学習 {d['retrain_triggered']} 回発火・過剰検知の疑い"
                 )
                 self.result.warning_issues += 1
+            elif d["drift_detected"] >= 20:
+                self.logger.info(
+                    f"  ℹ️ Phase 89-β drift: 検出 {d['drift_detected']} 件だが再学習 0 回"
+                    f"（strategy_signal 主体の想定内変動・実害なし）"
+                )
+                self.result.normal_checks += 1
             else:
                 self.logger.info(
                     f"  ✅ Phase 89-β drift: 検出 {d['drift_detected']} / "
@@ -3407,12 +3440,19 @@ async def main():
             print(f"   SL超過事後検出: {bot_result.sl_breach_postcheck}回")
             print(f"   緊急成行決済: {bot_result.emergency_market_close}回")
 
-        # Phase 90θ: SLMonitor 誤発火（total_breach に依存せず常に表示）
+        # Phase 90θ/μ: SLMonitor 誤発火を reason別に表示（total_breach に依存せず常に）
         if bot_result.sl_monitor_dry_run_fire_count > 0:
+            if bot_result.sl_monitor_fire_true > 0:
+                print(
+                    f"\n⚠️ SLMonitor 真の誤発火: "
+                    f"{bot_result.sl_monitor_fire_true}回 (fetch_error_persistent等・Fire #2)"
+                )
+            else:
+                print("\n✅ SLMonitor 真の誤発火なし")
             print(
-                f"\n⚠️ SLMonitor DRY_RUN誤発火: "
-                f"{bot_result.sl_monitor_dry_run_fire_count}回 "
-                f"(canceled_unfilled抑止pending: {bot_result.sl_canceled_unfilled_pending_count}回)"
+                f"   設計どおり昇格(canceled_unfilled): "
+                f"{bot_result.sl_monitor_fire_canceled_unfilled}回 / "
+                f"抑止pending: {bot_result.sl_canceled_unfilled_pending_count}回"
             )
 
         exit_code = determine_exit_code(infra_result, bot_result, live_result=None)
@@ -3669,12 +3709,19 @@ async def main():
         print(f"   SL超過事後検出: {bot_result.sl_breach_postcheck}回")
         print(f"   緊急成行決済: {bot_result.emergency_market_close}回")
 
-    # Phase 90θ: SLMonitor 誤発火（total_breach に依存せず常に表示）
+    # Phase 90θ/μ: SLMonitor 誤発火を reason別に表示（total_breach に依存せず常に）
     if bot_result.sl_monitor_dry_run_fire_count > 0:
+        if bot_result.sl_monitor_fire_true > 0:
+            print(
+                f"\n⚠️ SLMonitor 真の誤発火: "
+                f"{bot_result.sl_monitor_fire_true}回 (fetch_error_persistent等・Fire #2)"
+            )
+        else:
+            print("\n✅ SLMonitor 真の誤発火なし")
         print(
-            f"\n⚠️ SLMonitor DRY_RUN誤発火: "
-            f"{bot_result.sl_monitor_dry_run_fire_count}回 "
-            f"(canceled_unfilled抑止pending: {bot_result.sl_canceled_unfilled_pending_count}回)"
+            f"   設計どおり昇格(canceled_unfilled): "
+            f"{bot_result.sl_monitor_fire_canceled_unfilled}回 / "
+            f"抑止pending: {bot_result.sl_canceled_unfilled_pending_count}回"
         )
 
     # SLパターン分析サマリー
@@ -3911,17 +3958,24 @@ def _generate_diagnostic_markdown(
             ]
         )
 
-    # Phase 90θ: SLMonitor 誤発火監視（total_breach に依存せず誤発火があれば常に表示）
+    # Phase 90θ/μ: SLMonitor 誤発火監視を reason別に表示（誤発火があれば常に表示）
     if bot_result.sl_monitor_dry_run_fire_count > 0:
+        true_note = (
+            "fetch_error_persistent 等・Fire #2 のクリーンな誤発火（Phase 90μ修正対象）"
+            if bot_result.sl_monitor_fire_true > 0
+            else "真の誤発火なし"
+        )
         lines.extend(
             [
                 "",
-                "### SLMonitor 誤発火監視（Phase 90θ）",
+                "### SLMonitor 誤発火監視（Phase 90θ/μ）",
                 "",
                 "| 項目 | 回数 | 備考 |",
                 "|------|------|------|",
-                f"| DRY_RUN緊急決済誤発火 | {bot_result.sl_monitor_dry_run_fire_count}回 "
-                "| dry_run中で実害なし・canceled_unfilled誤判定の監視 |",
+                f"| 真の誤発火 | {bot_result.sl_monitor_fire_true}回 | {true_note} |",
+                f"| 設計どおり昇格(canceled_unfilled) | "
+                f"{bot_result.sl_monitor_fire_canceled_unfilled}回 "
+                "| 3/3連続検出を経た正当昇格・誤発火ではない |",
                 f"| canceled_unfilled抑止(pending) | "
                 f"{bot_result.sl_canceled_unfilled_pending_count}回 | 中間状態を健全に見送り |",
             ]

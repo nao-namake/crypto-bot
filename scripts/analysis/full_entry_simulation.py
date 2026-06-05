@@ -65,6 +65,32 @@ SCENARIOS = [
     },
     {"name": "TP1000/SL1500(floor0.7%)", "tp_amount": 1000.0, "sl_amount": 1500.0, "floor": 0.007},
     {"name": "TP1500/SL2000(floor0.7%)", "tp_amount": 1500.0, "sl_amount": 2000.0, "floor": 0.007},
+    # Part 1 調査: 現行運用 + SL引き下げ比較（floor0.7%・TP1200/1000 × SL2000/1750/1500）
+    {
+        "name": "TP1200/SL2000(floor0.7%)現行高信頼",
+        "tp_amount": 1200.0,
+        "sl_amount": 2000.0,
+        "floor": 0.007,
+    },
+    {
+        "name": "TP1200/SL1750(floor0.7%)中間案",
+        "tp_amount": 1200.0,
+        "sl_amount": 1750.0,
+        "floor": 0.007,
+    },
+    {
+        "name": "TP1200/SL1500(floor0.7%)引下案",
+        "tp_amount": 1200.0,
+        "sl_amount": 1500.0,
+        "floor": 0.007,
+    },
+    {"name": "TP1000/SL2000(floor0.7%)", "tp_amount": 1000.0, "sl_amount": 2000.0, "floor": 0.007},
+    {
+        "name": "TP1000/SL1750(floor0.7%)中間案",
+        "tp_amount": 1000.0,
+        "sl_amount": 1750.0,
+        "floor": 0.007,
+    },
     # 比較用
     {"name": "TP1200/SL800 (floor無し)", "tp_amount": 1200.0, "sl_amount": 800.0, "floor": 0.0},
     {"name": "TP1000/SL1000(floor無し)", "tp_amount": 1000.0, "sl_amount": 1000.0, "floor": 0.0},
