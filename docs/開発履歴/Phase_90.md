@@ -2542,3 +2542,34 @@ checks.sh全PASS。
 
 ## 二次所見（未修正・別タスク候補）
 Phase 90αの `count_phase90_ml_prediction_dist`/`count_phase90_model_health` も参照ログ `ML予測完了`(INFO抑制) + 実 `pred_label` が数値(`prediction=1`)で grep対象 `prediction=高品質/低品質` と二重不一致 → 常時 `NO_DATA`（致命的にはならないが v8e ラベル分布監視が機能していない）。
+
+# Phase 90ο: ポジション状態の単一情報源化 + invariant 常時監視（2026-06-15）
+
+## 背景（根源治療）
+2026-06-15 の「コツコツドカン」（−3,277円）の根源治療。原因究明で、これは単発バグではなく**後手を構造的に生む体質**と判明した。
+
+**確定した根本原因（連鎖）**: 内部VP(`position_tracker.virtual_positions`・メモリ揮発)と bitbank実ポジ(`fetch_margin_positions`)の**二重管理** + 本番trigger経路(`execute_trading_cycle`)に**ポジション復元が無い** → 通常は idle timeout(〜15分)内でコンテナ生存しVP保持で上限チェックが効くが、**19:58のコンテナ再起動でVP揮発 → 20:00フルサイクルが空VPで同方向上限をすり抜け → 重複ショート(0.0125+0.020) → 0.0325 BTCに膨張 → 一括SLでドカン**。
+
+**方針（ユーザー合意）**: 対症療法でなく体質改善。**実ポジを唯一の正・VPはキャッシュに降格**。構造治療(Stage 0/1/3)を先行、収益性に影響する Stage 2 は別途。実ポジ取得失敗時は**エントリー停止(安全優先)**。
+
+## Stage 0: gating層の建玉合計サイズ上限（実損即停止・commit `563cd1f5`）
+- `trade_gating.check_position_blocking` に合計サイズ上限 `max_total_position_btc=0.02`（=fixed_table.high・1ポジ分）を追加。VP非依存の最終防衛線で、同方向膨張(0.0325 BTC)を物理的に止める（両建て判定の後・reason=`blocked_by_total_size`）。
+- `trigger_server`: `margin_positions` 取得失敗を「ポジ0扱いで続行」から「monitor_only フォールバック（安全優先）」に変更。6/15 の取得失敗誤認の一因を断つ。
+
+## Stage 1: 上限チェックの実ポジ基準化（commit `2cb93c74`）
+- `executor`: live時に実ポジを正規化(long→buy/short→sell)して `check_limits` に注入。VP揮発に依存せず同方向/反対方向/最大数を判定。**取得失敗時はエントリー拒否(REJECTED・安全優先)**。
+- `limits`: `check_limits` に `daily_trade_positions` 引数追加。日次回数だけは約定回数の無い実ポジでなくVP由来を継続（None時は従来 virtual_positions 流用）。
+- paper/backtest は実ポジAPIが無いため従来VP経路を完全保持（mode分岐）。
+
+## Stage 3: invariant 常時監視（検知+ログ・commit `1fe431fb`）
+- `tp_sl_manager._check_position_invariants`: `ensure_tp_sl_for_existing_positions` の margin_positions取得直後（`run_trading_cycle`(C5経由) と `run_monitor_only` の両経路が必ず通る合流点）で毎サイクル ①建玉合計>上限→CRITICAL ②両建て→WARNING ③VP↔実ポジ乖離→3連続でCRITICAL昇格（Phase 90θの3連続ガード流用・API反映遅延の誤検知抑制）。
+- `standard_analysis._check_phase90o_invariants`: invariant違反ログを集計し critical 表示。
+- **自己修復(restore再実行)は Stage 0/1 で実害防止済み + `ensure_tp_sl` 内 restore の循環リスクのため見送り**（検知+ログ+ライブ分析可視化に集中・決済も復元もしないため誤動作リスクなし）。
+
+## テスト
+- trade_gating 合計サイズ7件 / limits daily分離2件 / invariant 9件 / 統合(6/15回帰)2件 追加。
+- 統合 `test_restart_vp_volatility.py`: VP空+実ポジ→同方向拒否 / 取得失敗→拒否。
+- checks.sh 全PASS（72%+カバレッジ）。**取引挙動は正常時(1ポジ≤0.02)は不変・膨張/取得失敗時のみ停止**。
+
+## 別タスク（Stage 2・未着手）
+サイズ判定を `ml_confidence`(=max(p0,p1)) から `adjusted_confidence`(方向の質) へ一元化（`manager.py:295`・`limits.py:417`）。失敗確信の低品質エントリーが最大サイズ0.02を取る穴を塞ぐ。収益性に影響するため `thresholds.yaml` の `position_sizing.use_adjusted_confidence` フラグ + バックテスト検証後に本番投入。
