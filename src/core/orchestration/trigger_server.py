@@ -208,15 +208,40 @@ def create_app() -> FastAPI:
 
         # Phase 89-α Stage 1: gating 判定（軽量・<1s）
         margin_positions = []
+        margin_fetch_failed = False
         try:
             bitbank_client = getattr(orchestrator.execution_service, "bitbank_client", None)
             if bitbank_client is not None:
                 margin_positions = await bitbank_client.fetch_margin_positions("BTC/JPY")
         except Exception as e:
-            # 取得失敗時はポジ無し扱いで gating 続行（取引機会逸失防止）
+            # Phase 90ο Stage 0: 取得失敗を「ポジ無し」と誤認すると、実建玉が在るのに
+            # 重複エントリー → サイズ膨張（2026-06-15 事故）。安全優先で、実ポジ不明時は
+            # フルサイクルに進ませず monitor_only にフォールバックする（取引機会より安全）。
             if logger:
-                logger.warning(f"⚠️ Phase 89-α: margin_positions 取得失敗（gating 続行）: {e}")
-            margin_positions = []
+                logger.warning(
+                    f"⚠️ Phase 90ο: margin_positions 取得失敗 → 安全側で monitor_only: {e}"
+                )
+            margin_fetch_failed = True
+
+        # Phase 90ο Stage 0: 実ポジ取得失敗時は新規エントリーせず監視のみ（安全優先）
+        if margin_fetch_failed:
+            try:
+                await orchestrator.run_monitor_only()
+                return {
+                    "status": "monitor_only",
+                    "reason": "margin_fetch_failed",
+                    "detail": "実ポジ取得失敗のため安全側で監視のみ（Phase 90ο）",
+                }
+            except Exception as e:
+                if logger:
+                    logger.error(
+                        f"❌ Phase 90ο: margin_fetch_failed 時の monitor_only 実行失敗: {e}",
+                        exc_info=True,
+                    )
+                raise HTTPException(
+                    status_code=500,
+                    detail={"status": "error", "phase": "monitor_only", "error": str(e)},
+                )
 
         try:
             gating = await check_trade_gating(

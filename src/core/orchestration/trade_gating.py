@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, List, Optional
 
+from src.core.config.threshold_manager import get_threshold
 from src.core.logger import get_logger
 
 # 15 分足完成境界（00, 15, 30, 45 分）からの許容ジッター（分）
@@ -89,11 +90,16 @@ def check_position_blocking(margin_positions: List[Any]) -> GatingResult:
     - どちらか片方のみ → 反対方向の取引機会あり（allow）
     - ポジション無し → 全方向に取引可能（allow）
 
+    Phase 90ο Stage 0:
+    - 建玉合計サイズ（abs(amount) の総和）が max_total_position_btc 以上 → ブロック。
+      内部VP(virtual_positions)に依存しない実ポジ基準の最終防衛線。scale-to-zero
+      再起動でVPが揮発し同方向上限チェックがすり抜けても、ここでサイズ膨張を止める。
+
     Args:
         margin_positions: bitbank fetch_margin_positions の戻り値リスト
 
     Returns:
-        GatingResult: allowed=False で reason="blocked_by_position"
+        GatingResult: allowed=False で reason="blocked_by_position" / "blocked_by_total_size"
     """
     has_long = any(
         (p.get("side") == "long") and (float(p.get("amount") or 0) > 0) for p in margin_positions
@@ -108,6 +114,18 @@ def check_position_blocking(margin_positions: List[Any]) -> GatingResult:
             reason="blocked_by_position",
             detail="long+short 両方の建玉あり（同方向制限 1 で新規不可）",
         )
+
+    # Phase 90ο Stage 0: 建玉合計サイズ上限（実ポジ基準・VP揮発に依存しない）
+    # 同方向の建玉膨張（2026-06-15 の 0.0325 BTC）を止める最終防衛線。
+    total_size = sum(abs(float(p.get("amount") or 0)) for p in margin_positions)
+    max_total = get_threshold("position_management.max_total_position_btc", 0.02)
+    if total_size >= max_total:
+        return GatingResult(
+            allowed=False,
+            reason="blocked_by_total_size",
+            detail=f"建玉合計 {total_size:.4f} BTC >= 上限 {max_total} BTC（サイズ膨張防止）",
+        )
+
     # どちらか or ゼロ → 反対方向のエントリー余地あり
     return GatingResult(allowed=True, reason="ok")
 

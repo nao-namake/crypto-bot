@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -103,6 +104,73 @@ class TestCheckPositionBlocking:
             ]
         )
         assert result.allowed is True
+
+
+class TestPhase90OmicronTotalSizeGuard:
+    """Phase 90ο Stage 0: 建玉合計サイズ上限（実ポジ基準・サイズ膨張防止）"""
+
+    @patch("src.core.orchestration.trade_gating.get_threshold")
+    def test_total_size_over_limit_blocks(self, mock_gt):
+        """2026-06-15 事故の再現: 同方向 0.0325 BTC → blocked_by_total_size"""
+        mock_gt.return_value = 0.02
+        result = check_position_blocking([{"side": "short", "amount": 0.0325}])
+        assert result.allowed is False
+        assert result.reason == "blocked_by_total_size"
+        assert "0.0325" in result.detail
+
+    @patch("src.core.orchestration.trade_gating.get_threshold")
+    def test_total_size_at_limit_blocks(self, mock_gt):
+        """上限ちょうど（>=）でブロック"""
+        mock_gt.return_value = 0.02
+        result = check_position_blocking([{"side": "short", "amount": 0.02}])
+        assert result.allowed is False
+        assert result.reason == "blocked_by_total_size"
+
+    @patch("src.core.orchestration.trade_gating.get_threshold")
+    def test_total_size_under_limit_ok(self, mock_gt):
+        """上限未満（1ポジ分）は通過"""
+        mock_gt.return_value = 0.02
+        result = check_position_blocking([{"side": "short", "amount": 0.015}])
+        assert result.allowed is True
+        assert result.reason == "ok"
+
+    @patch("src.core.orchestration.trade_gating.get_threshold")
+    def test_total_size_sums_multiple_same_direction(self, mock_gt):
+        """同方向の複数建玉が合算されて上限判定される（重複エントリー検出）"""
+        mock_gt.return_value = 0.02
+        result = check_position_blocking(
+            [
+                {"side": "short", "amount": 0.0125},
+                {"side": "short", "amount": 0.020},
+            ]
+        )
+        assert result.allowed is False
+        assert result.reason == "blocked_by_total_size"
+
+    @patch("src.core.orchestration.trade_gating.get_threshold")
+    def test_both_direction_takes_precedence_over_size(self, mock_gt):
+        """両建て(blocked_by_position)はサイズ上限より優先して理由を返す"""
+        mock_gt.return_value = 0.02
+        result = check_position_blocking(
+            [
+                {"side": "long", "amount": 0.015},
+                {"side": "short", "amount": 0.01},  # 合計0.025 > 0.02 だが両建て理由が先
+            ]
+        )
+        assert result.allowed is False
+        assert result.reason == "blocked_by_position"
+
+    @pytest.mark.asyncio
+    @patch("src.core.orchestration.trade_gating.get_threshold")
+    async def test_full_flow_blocks_size_at_boundary(self, mock_gt):
+        """境界内 + 同方向膨張 0.0325 → check_trade_gating で blocked_by_total_size"""
+        mock_gt.return_value = 0.02
+        result = await check_trade_gating(
+            now=datetime(2026, 6, 15, 11, 0, 0),  # 境界内
+            margin_positions=[{"side": "short", "amount": 0.0325}],
+        )
+        assert result.allowed is False
+        assert result.reason == "blocked_by_total_size"
 
 
 class TestCheckTradeGatingFullFlow:
