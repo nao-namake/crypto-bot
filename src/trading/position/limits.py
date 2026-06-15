@@ -43,18 +43,22 @@ class PositionLimits:
         regime: Optional[RegimeType] = None,
         current_time: Optional[datetime] = None,
         mode: Optional[str] = None,
+        daily_trade_positions: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         ポジション管理制限チェック（口座残高使い切り問題対策）
 
         Args:
             evaluation: 取引評価結果
-            virtual_positions: 現在のポジションリスト
+            virtual_positions: 現在のポジションリスト（Phase 90ο: live では実ポジ由来）
             last_order_time: 最後の注文時刻
             current_balance: 現在の残高
             regime: 市場レジーム（Phase 51.8: レジーム別ポジション制限）
             current_time: 判定基準時刻（Phase 56.3: バックテスト時刻対応）
             mode: 実行モード（Phase 65.6: 残高ベース推定を排除）
+            daily_trade_positions: 日次取引回数カウント用のポジションリスト（Phase 90ο:
+                実ポジには「今日の約定回数」が無いため、回数集計だけは VP/永続化由来を使う。
+                None なら virtual_positions を流用＝従来挙動）
 
         Returns:
             Dict: {"allowed": bool, "reason": str}
@@ -95,7 +99,11 @@ class PositionLimits:
                 return capital_usage_check
 
             # 3. 日次取引回数チェック（簡易実装）
-            daily_trades_check = self._check_daily_trades(virtual_positions)
+            # Phase 90ο Stage 1: 日次回数は VP の timestamp が必要なため実ポジ基準化の対象外。
+            # daily_trade_positions が渡されればそれを、無ければ従来どおり virtual_positions。
+            daily_trades_check = self._check_daily_trades(
+                daily_trade_positions if daily_trade_positions is not None else virtual_positions
+            )
             if not daily_trades_check["allowed"]:
                 return daily_trades_check
 

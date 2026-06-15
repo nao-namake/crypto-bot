@@ -209,11 +209,44 @@ class ExecutionService:
                 # Phase 51.8: レジーム情報を取得（market_conditionsから）
                 regime = evaluation.market_conditions.get("regime", None)
 
+                # Phase 90ο Stage 1: live は上限判定を「実ポジ基準」にする（VP揮発に依存しない）。
+                # scale-to-zero 再起動で内部VPが空でも、bitbank実建玉で同方向/反対方向/最大数を
+                # 正しく判定し重複エントリーを防ぐ。paper/backtest は実ポジAPIが無いため従来VP。
+                limit_positions = self.virtual_positions
+                if self.mode == "live" and self.bitbank_client is not None:
+                    try:
+                        real_positions = await self.bitbank_client.fetch_margin_positions("BTC/JPY")
+                        limit_positions = [
+                            {
+                                "side": "buy" if p.get("side") == "long" else "sell",
+                                "amount": float(p.get("amount") or 0),
+                            }
+                            for p in (real_positions or [])
+                            if float(p.get("amount") or 0) > 0
+                        ]
+                    except Exception as e:
+                        # Phase 90ο Stage 1: 実ポジ取得失敗を「ポジ0」と誤認すると重複エントリー
+                        # → サイズ膨張（2026-06-15 事故）。安全優先でエントリー拒否する。
+                        self.logger.warning(
+                            f"⚠️ Phase 90ο: 実ポジ取得失敗 → エントリー拒否（安全側）: {e}"
+                        )
+                        return ExecutionResult(
+                            success=False,
+                            mode=ExecutionMode.LIVE,
+                            order_id=None,
+                            price=0.0,
+                            amount=0.0,
+                            error_message=f"実ポジ取得失敗（安全側で拒否・Phase 90ο）: {e}",
+                            side=evaluation.side,
+                            fee=0.0,
+                            status=OrderStatus.REJECTED,
+                        )
+
                 # Phase 55.6: backtestモードでもvirtual_balanceを使用
                 # Phase 56.3: current_time追加（バックテスト時刻対応）
                 position_check_result = await self.position_limits.check_limits(
                     evaluation,
-                    self.virtual_positions,
+                    limit_positions,
                     self.last_order_time,
                     (
                         self.virtual_balance
@@ -223,6 +256,8 @@ class ExecutionService:
                     regime=regime,  # Phase 51.8: レジーム別制限適用
                     current_time=self.current_time,  # Phase 56.3: バックテスト時刻
                     mode=self.mode,  # Phase 65.6: 残高ベース推定排除
+                    # Phase 90ο Stage 1: 日次回数だけは VP 由来（実ポジに約定回数が無いため）
+                    daily_trade_positions=self.virtual_positions,
                 )
                 if not position_check_result["allowed"]:
                     self.logger.warning(

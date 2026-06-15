@@ -807,6 +807,69 @@ class TestCheckLimits:
         assert result["allowed"] is False
         assert "制限チェック処理エラー" in result["reason"]
 
+    @pytest.mark.asyncio
+    @patch("src.trading.position.limits.get_threshold")
+    async def test_phase90o_daily_trade_positions_separated(
+        self, mock_threshold, limits, sample_evaluation
+    ):
+        """Phase 90ο Stage 1: 日次回数は daily_trade_positions から数える（position系と分離）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.min_account_balance": 1000.0,
+            "position_management.dynamic_position_sizing.enabled": False,
+            "position_management.cooldown_minutes": 0,
+            "position_management.max_open_positions": 10,
+            "position_management.max_same_direction_positions": 1,
+            "position_management.max_opposite_direction_positions": 1,
+            "risk.max_capital_usage": 0.9,
+            "position_management.max_daily_trades": 100,
+        }.get(key, default)
+
+        daily_src = [{"side": "buy", "timestamp": "2026-06-16T00:00:00"}]
+        # position系は実ポジ由来（空）、日次回数だけ別ソース（VP由来）
+        with patch.object(
+            limits, "_check_daily_trades", return_value={"allowed": True, "reason": "ok"}
+        ) as spy:
+            await limits.check_limits(
+                evaluation=sample_evaluation,
+                virtual_positions=[],
+                last_order_time=None,
+                current_balance=500000.0,
+                daily_trade_positions=daily_src,
+            )
+        # _check_daily_trades には daily_trade_positions が渡る（virtual_positions ではない）
+        spy.assert_called_once_with(daily_src)
+
+    @pytest.mark.asyncio
+    @patch("src.trading.position.limits.get_threshold")
+    async def test_phase90o_daily_trade_positions_none_falls_back(
+        self, mock_threshold, limits, sample_evaluation
+    ):
+        """Phase 90ο Stage 1: daily_trade_positions=None なら virtual_positions を流用（後方互換）"""
+        mock_threshold.side_effect = lambda key, default=None: {
+            "position_management.min_account_balance": 1000.0,
+            "position_management.dynamic_position_sizing.enabled": False,
+            "position_management.cooldown_minutes": 0,
+            "position_management.max_open_positions": 10,
+            "position_management.max_same_direction_positions": 1,
+            "position_management.max_opposite_direction_positions": 1,
+            "risk.max_capital_usage": 0.9,
+            "position_management.max_daily_trades": 100,
+        }.get(key, default)
+
+        vp = []
+        with patch.object(
+            limits, "_check_daily_trades", return_value={"allowed": True, "reason": "ok"}
+        ) as spy:
+            await limits.check_limits(
+                evaluation=sample_evaluation,
+                virtual_positions=vp,
+                last_order_time=None,
+                current_balance=500000.0,
+                daily_trade_positions=None,
+            )
+        # None のときは virtual_positions が使われる（従来挙動）
+        spy.assert_called_once_with(vp)
+
 
 class TestInitialization:
     """初期化テスト"""
