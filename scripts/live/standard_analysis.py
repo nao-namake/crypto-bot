@@ -600,6 +600,10 @@ class BotFunctionCheckResult:
     signal_count: int = 0
     order_count: int = 0
     success_rate: int = 0
+    # Phase 90ξ: シグナル評価後の「結論」イベント数（実行 or 正当な拒否）。
+    # 本番 LOG_LEVEL=WARNING で order_count(INFO) が取れない環境でも
+    # 真の Silent Failure（黙って消えた取引）と正常な拒否を区別するために使用。
+    cycle_resolved_count: int = 0
 
     # 6戦略動作
     strategy_counts: Dict[str, int] = field(default_factory=dict)
@@ -774,34 +778,59 @@ class BotFunctionChecker:
             self.result.critical_issues += 2
 
     def _detect_silent_failure(self):
-        """Silent Failure検出"""
+        """Silent Failure検出
+
+        Phase 90ξ: 本番 LOG_LEVEL=WARNING では
+        "統合シグナル生成"(strategy_manager.py:104・INFO) /
+        "Atomic Entry完了"(executor.py:705・INFO) が抑制され、
+        signal_count / order_count が構造的に 0 になる（7日間 0 件を実機確認）。
+        その結果 (a) signal==0 で warning 誤検知、(b) signal を正しく拾えても
+        order==0 のままになり CRITICAL+=3 の偽陽性に化ける、という二重の不具合があった。
+        修正:
+          - signal_count に WARNING の「フル取引サイクル開始」を併用（取引判断到達の代理指標）
+          - order_count に WARNING の「TP Maker配置成功」を併用（エントリー成功の代理指標）
+          - 拒否系（取引拒否/品質フィルタ拒否/エントリー拒否）を cycle_resolved_count に集計し、
+            シグナル評価後に実行も拒否も無い場合のみ「真の Silent Failure」と判定する。
+        """
         self.logger.info("🔍 Silent Failure 検出")
         self.result.signal_count = self._count_logs(
             'textPayload:"統合シグナル生成: buy" OR textPayload:"統合シグナル生成: sell"'
-            ' OR textPayload:"BUY シグナル" OR textPayload:"SELL シグナル"',
+            ' OR textPayload:"BUY シグナル" OR textPayload:"SELL シグナル"'
+            ' OR textPayload:"フル取引サイクル開始"',
             30,
         )
         self.result.order_count = self._count_logs(
             'textPayload:"Atomic Entry完了" OR textPayload:"注文実行"'
-            ' OR textPayload:"Phase 67.5: 約定確認"',
+            ' OR textPayload:"Phase 67.5: 約定確認"'
+            ' OR textPayload:"TP Maker配置成功"',
+            30,
+        )
+        # Phase 90ξ: シグナル評価後の「結論」を表す WARNING ログ（実行 or 正当な拒否）。
+        # これが立っていれば黙って消えた取引（Silent Failure）ではない。
+        self.result.cycle_resolved_count = self._count_logs(
+            'textPayload:"取引拒否" OR textPayload:"品質フィルタ拒否" OR textPayload:"エントリー拒否"',
             30,
         )
 
+        resolved = self.result.order_count + self.result.cycle_resolved_count
+
         if self.result.signal_count == 0:
+            # 取引判断（フルサイクル）に一度も入っていない。
+            # monitor_only スキップ中心の静かな期間でも起こり得るため warning に留める。
             self.result.warning_issues += 1
-        elif self.result.signal_count > 0 and self.result.order_count == 0:
-            # 完全Silent Failure
+        elif resolved == 0:
+            # シグナル評価に入ったのに実行も拒否も無い = 真の Silent Failure
             self.result.critical_issues += 3
         else:
+            # 実行 or 正当な拒否で処理されている = 正常。
+            # 注: signal_count / order_count は _count_gcp_logs の --limit でクランプされ、
+            #     かつ本番は正当な拒否（quality_filter / 維持率予測）が大半で実行率が構造的に
+            #     低くなる。そのため両者の比（実行率）は健全性判定には使わず、表示用の参考値に
+            #     留める（旧実装は <20% を CRITICAL と誤判定していた）。
             self.result.success_rate = int(
                 (self.result.order_count / self.result.signal_count) * 100
             )
-            if self.result.success_rate >= 40:
-                self.result.normal_checks += 1
-            elif self.result.success_rate >= 20:
-                self.result.warning_issues += 1
-            else:
-                self.result.critical_issues += 1
+            self.result.normal_checks += 1
 
     def _check_strategy_activation(self):
         """6戦略動作確認"""
@@ -821,10 +850,20 @@ class BotFunctionChecker:
             self.result.critical_issues += 1
 
     def _check_ml_prediction(self):
-        """ML予測確認"""
+        """ML予測確認
+
+        Phase 90ξ: 本番は LOG_LEVEL=WARNING のため
+        "🤖 ML予測実行開始: ProductionEnsemble"(trading_cycle_manager.py:446) は INFO で
+        抑制され、grep が構造的に 0 件になる（7日間 0 件を実機確認）。これを無条件
+        CRITICAL と誤判定していた。WARNING で出力される
+        「gating 通過 → フル取引サイクル開始」(trigger_server.py:259) と
+        「固定金額TP適用」(ML 信頼度ラベルを使用) を生存シグナルとして併用する。
+        フルサイクル開始＝ML 予測が実行された確実な証拠。
+        """
         self.logger.info("🤖 ML予測システム確認")
         self.result.ml_prediction_count = self._count_logs(
-            'textPayload:"ProductionEnsemble" OR textPayload:"ML予測" OR textPayload:"アンサンブル予測"',
+            'textPayload:"ProductionEnsemble" OR textPayload:"ML予測" OR textPayload:"アンサンブル予測"'
+            ' OR textPayload:"フル取引サイクル開始" OR textPayload:"固定金額TP適用"',
             20,
         )
 
