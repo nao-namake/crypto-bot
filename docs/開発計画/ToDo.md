@@ -2,11 +2,13 @@
 
 ## 現在の状態
 
-**Phase 90θ/ι/κ 実装・デプロイ完了（2026-06-03）→ デプロイ後検証待ち**
+**Phase 90ξ ライブ分析スクリプトの本番WARNING誤検知3件を修正 完了（2026-06-15）。直近の 90λ/μ/ν は本番デプロイ済み・稼働中。**
 
-- **Phase 90θ**: SLMonitor誤発火 真因特定＆根本修正（幽霊VPクリーンアップ漏れ＋canceled_unfilled中間状態のタイミング競合の2層・コミット`96ab5525`）
-- **Phase 90ι**: 収益構造のデータ駆動分析＋tight逆行の観察可能化（`165e0dcb`）
-- **Phase 90κ**: Maker約定率の改善（リトライ実動化＋best気配追従・`f338ce61`）
+- **Phase 90λ**（2026-06-05）: bitbank 50026を孤児SL解消済み=成功扱い + GCPログ精査の所見3件
+- **Phase 90μ**（2026-06-05デプロイ）: SLMonitor誤発火 Fire #2(fetch_error_persistent) 真因修正（合成ID`market_close_*`の幽霊VP即除去 + C7残量ガード対称適用）。デプロイ後 Fire #2 誤発火0確認・`dry_run:true`維持
+- **Phase 90ν**（2026-06-06デプロイ）: ライブ分析の解釈改善（誤発火reason別・drift retrainベース判定）+ SL引き下げ調査（90日277件で SL1750/1500 は期待値悪化→**SL2000維持・6月様子見→7月再判断**）
+- **Phase 90ξ**（2026-06-15）: ライブ分析スクリプトの本番WARNING誤検知3件修正（`_check_ml_prediction`/`_detect_silent_failure`/success_rate判定がINFOログgrep等で構造的に誤判定→WARNING生存ログ併用+拒否考慮で解消）。致命的1→0・正常13→16・分析のみ取引挙動不変・テスト9件。詳細 `docs/開発履歴/Phase_90.md`
+- **付随**: `scripts/analysis/trade_attribution.py` 完成（テスト23件PASS・2026-06-10からの宿題解消）
 
 ### 収益分析の結論（Phase 90ι・最重要）
 90日277エントリーのMFE/MAE分析で確定:
@@ -14,23 +16,23 @@
 - 手数料はMaker率改善では減らせず、**収益の本丸はレジーム別の方向性エッジ**。tight赤字はTP/SLでは救えず**エントリー品質（ML・戦略の方向性精度）が根本**
 - `scripts/analysis/full_entry_simulation.py --mfe-mae --days N` でMFE/MAE再測定可（レジームログはCloud Logging保持30日が上限）
 
-### セッション再開時の手順（デプロイ後検証）
+### セッション再開時の手順（2026-06-15 時点）
+
+直近の修正（90μ SLMonitor誤発火 / 90ν 解釈改善 / 90ξ 分析誤検知）はすべてデプロイ/反映済み。本番botは健全（致命的0・正常16）・新規エントリーは正当拒否で様子見中。次の判断材料は以下:
 
 ```bash
-# Phase 90θ: SLMonitor誤発火が止まったか
-venv/bin/python3 scripts/live/standard_analysis.py --hours 24   # sl_monitor_dry_run_fire_count=0 を確認
-venv/bin/python3 scripts/analysis/sl_monitor_validator.py --days 3   # 誤発火率100%→0%付近
-gcloud logging read 'textPayload=~"canceled_unfilled_pending"' --freshness=24h --format='value(textPayload)' | head
+# 日次のライブ健全性（致命的0・正常16が基準）
+venv/bin/python3 scripts/live/standard_analysis.py --hours 24
 
-# Phase 90κ: Makerリトライが実動しMaker率が上がったか
-# → ライブ分析の「リトライ実動: 試行N回中M回が試行2回目以降」「api_entry_taker_rate」をbefore/after比較
-gcloud logging read 'textPayload=~"Maker注文試行 2/" OR textPayload=~"Maker注文試行 3/"' --freshness=24h --format='value(timestamp)' | wc -l
-
-# Phase 90ι: 戦略×レジーム別エントリーを蓄積分析（6/6頃）→ tight_rangeで逆行する戦略を特定
-gcloud logging read 'textPayload=~"Step 1/3: エントリー成功"' --freshness=72h --format='value(textPayload)' | head -20
+# SL引き下げの再判断（7月初）: 6月のライブ実績でMFE/MAE・TP/SL先着を再測定
+venv/bin/python3 scripts/analysis/full_entry_simulation.py --days 30
 ```
 
-**6/6頃に tight逆行の戦略を特定 → ATRBased反転確認 / tight判定厳格化 / レジーム別TP/SL有効化 のいずれかで的を射た修正へ。**
+**最優先の方針**:
+1. **SL引き下げは2026年6月の1ヶ月様子見 → 7月初に実データで再判断**（Phase 90ν）
+2. **収益の本丸はレジーム別の方向性エッジ＝エントリー品質**（Phase 90ι・下記結論）
+3. 二次課題: Phase 90α ラベル分布監視が常時 `NO_DATA`（Phase 90ξ二次所見・`count_phase90_ml_prediction_dist` の grep が `ML予測完了`(INFO抑制)＋数値ラベルと不一致・別タスク）
+4. **長期の核心**: このbotにエッジがあるか未検証→バックテスト修復が本筋（ユーザー未回答の問い「botに求めるのは利益か/作ること自体か」）
 
 ---
 

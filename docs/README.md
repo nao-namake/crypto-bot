@@ -8,7 +8,7 @@
 |---|---|---|
 | [運用ガイド/](運用ガイド/) | 本番運用・GCP・API・税務の手順書 | `統合運用ガイド.md`（Auto Retraining セットアップ + N-BEATS rollback を内包） `GCP運用ガイド.md` `bitbank_APIリファレンス.md` `税務対応ガイド.md` `システムリファレンス.md` |
 | [開発計画/](開発計画/) | 開発計画・ToDo | `ToDo.md`（セッション再開時の最優先タスク） |
-| [開発履歴/](開発履歴/) | Phase 別の実装記録 | `SUMMARY.md`（全 Phase 総括）+ `Phase_01-10.md` ～ `Phase_90.md`（47 ファイル） |
+| [開発履歴/](開発履歴/) | Phase 別の実装記録 | `SUMMARY.md`（全 Phase 総括）+ `Phase_01-10.md` ～ `Phase_90.md`（45 ファイル・Phase_90.md は 90α〜90ξ を内包） |
 | [検証記録/](検証記録/) | バックテスト・ライブ分析の出力先 | `analysis_history.csv`（履歴累積）+ `live/`（直近 1 週間のライブ分析）+ `walk_forward/`（WF 検証出力）+ `ci_downloads/`（CI 成果物 DL 先） |
 
 ## ファイル生成・保全方針
