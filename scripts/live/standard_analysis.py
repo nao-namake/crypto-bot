@@ -689,6 +689,8 @@ class BotFunctionCheckResult:
     fixed_tp_recovery_count: int = 0
     unified_tp_placement_count: int = 0
     coverage_deficit_count: int = 0
+    # Phase 90ο Stage 3: ポジション invariant 違反（VP↔実ポジ乖離・建玉サイズ膨張）
+    invariant_violation_count: int = 0
 
     # スコア
     normal_checks: int = 0
@@ -741,6 +743,7 @@ class BotFunctionChecker:
             # Phase 90α v8e メタラベリング動作確認（quality_filter / ML 予測分布 / モデル整合性）
             self._check_phase90_features()
             self._check_phase90_weekend_tpsl()  # Phase 90ε/90ζ: 土日TP/SL縮小確認
+            self._check_phase90o_invariants()  # Phase 90ο: VP↔実ポジ invariant 違反監視
 
         # 総合スコア計算
         self.result.total_score = (
@@ -1486,6 +1489,26 @@ class BotFunctionChecker:
 
         except Exception as e:
             self.logger.warning(f"⚠️ Phase 89 機能カバレッジ確認失敗: {e}")
+
+    def _check_phase90o_invariants(self):
+        """Phase 90ο Stage 3: ポジション invariant 違反の検知（VP↔実ポジ乖離・サイズ膨張）。
+
+        tp_sl_manager._check_position_invariants が毎サイクル出す CRITICAL ログを集計し、
+        状態管理のズレ（2026-06-15 のサイズ膨張型ドカンの再発シグナル）を可視化する。
+        """
+        self.logger.info("🔍 Phase 90ο invariant 監視確認")
+        self.result.invariant_violation_count = self._count_logs(
+            'textPayload:"Phase 90ο invariant違反"', 20
+        )
+        if self.result.invariant_violation_count > 0:
+            self.logger.critical(
+                f"  🚨 Phase 90ο invariant違反 {self.result.invariant_violation_count} 件検出 "
+                f"（VP↔実ポジ乖離 or 建玉サイズ膨張・状態管理の再発の疑い）"
+            )
+            self.result.critical_issues += 1
+        else:
+            self.logger.info("  ✅ Phase 90ο invariant 違反なし（VP↔実ポジ整合）")
+            self.result.normal_checks += 1
 
     def _check_phase90_features(self):
         """Phase 90α v8e: メタラベリング有効化動作確認.

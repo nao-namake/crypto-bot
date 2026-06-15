@@ -828,6 +828,66 @@ class TPSLManager:
     # 既存ポジションTP/SL確保
     # ========================================
 
+    def _check_position_invariants(
+        self,
+        virtual_positions: List[Dict[str, Any]],
+        margin_positions: List[Dict[str, Any]],
+    ) -> None:
+        """Phase 90ο Stage 3: VP↔実ポジの不変条件を毎サイクル検査（検知・ログのみ）。
+
+        状態のズレ（二重管理の乖離・サイズ膨張・両建て）を損失が出る前に可視化する。
+        実害（重複エントリー）の防止は Stage 0/1（実ポジ基準の上限チェック）が担い、
+        本メソッドは決済も復元もせず WARNING/CRITICAL ログを出すだけ（誤動作リスクなし）。
+        ライブ分析(standard_analysis.py)がこのログを集計し、再発を監視する。
+        """
+        try:
+            long_total = sum(
+                float(p.get("amount") or 0) for p in margin_positions if p.get("side") == "long"
+            )
+            short_total = sum(
+                float(p.get("amount") or 0) for p in margin_positions if p.get("side") == "short"
+            )
+            real_total = long_total + short_total
+            max_total = get_threshold("position_management.max_total_position_btc", 0.02)
+
+            # 1. 合計サイズ上限超過（サイズ膨張の事後検知＝6/15事故の再発シグナル）
+            if real_total > max_total:
+                self.logger.critical(
+                    f"🚨 Phase 90ο invariant違反: 建玉合計 {real_total:.4f} BTC > 上限 "
+                    f"{max_total} BTC（サイズ膨張・Stage 0/1 をすり抜けた可能性）"
+                )
+
+            # 2. 両建て（long+short 同時保有）
+            if long_total > 0 and short_total > 0:
+                self.logger.warning(
+                    f"⚠️ Phase 90ο invariant: long+short 両建て検出 "
+                    f"(long={long_total:.4f}, short={short_total:.4f} BTC)"
+                )
+
+            # 3. VP↔実ポジ乖離（合計サイズ）— API反映遅延を考慮し3連続で CRITICAL 昇格
+            vp_total = sum(float(vp.get("amount") or 0) for vp in virtual_positions)
+            divergence = abs(vp_total - real_total)
+            if divergence > 0.0001:
+                self._invariant_divergence_count = (
+                    getattr(self, "_invariant_divergence_count", 0) + 1
+                )
+                if self._invariant_divergence_count >= 3:
+                    self.logger.critical(
+                        f"🚨 Phase 90ο invariant違反: VP↔実ポジ乖離 "
+                        f"{self._invariant_divergence_count}連続 "
+                        f"(VP合計={vp_total:.4f} vs 実ポジ={real_total:.4f} BTC)"
+                    )
+                else:
+                    self.logger.warning(
+                        f"⚠️ Phase 90ο invariant: VP↔実ポジ乖離 "
+                        f"{self._invariant_divergence_count}/3 "
+                        f"(VP={vp_total:.4f} vs 実={real_total:.4f} BTC・API反映待ちの可能性)"
+                    )
+            else:
+                self._invariant_divergence_count = 0
+        except Exception as e:
+            self.logger.warning(f"⚠️ Phase 90ο invariant 検査エラー（無害・継続）: {e}")
+
     async def ensure_tp_sl_for_existing_positions(
         self,
         virtual_positions: List[Dict[str, Any]],
@@ -905,6 +965,11 @@ class TPSLManager:
 
             # Step 1: 信用建玉情報取得
             margin_positions = await bitbank_client.fetch_margin_positions("BTC/JPY")
+
+            # Phase 90ο Stage 3: VP↔実ポジ invariant 検査（毎サイクル・検知/ログのみ）
+            # run_trading_cycle(C5経由) と run_monitor_only の両経路が必ず通る合流点。
+            # 決済も復元もせず、状態のズレ（サイズ膨張・両建て・乖離）を損失前に可視化する。
+            self._check_position_invariants(virtual_positions, margin_positions or [])
 
             if not margin_positions:
                 self.logger.info("📊 Phase 56.5: 既存ポジションなし")
