@@ -33,7 +33,7 @@ from typing import Any, AsyncIterator, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 
-from src.core.config import load_config
+from src.core.config import get_threshold, load_config
 from src.core.logger import setup_logging
 from src.core.orchestration import create_trading_orchestrator
 from src.core.orchestration.trade_gating import check_trade_gating
@@ -209,8 +209,23 @@ def create_app() -> FastAPI:
         # Phase 89-α Stage 1: gating 判定（軽量・<1s）
         margin_positions = []
         margin_fetch_failed = False
+        bitbank_client = getattr(orchestrator.execution_service, "bitbank_client", None)
+
+        # Phase 90π: TP/SL reconcile を全 trigger 経路で無条件実行（裸ポジ是正を機会損失より優先）。
+        # 実建玉を唯一の真実源に、あるべき TP/SL との差分を冪等に埋める。R0 は shadow_mode
+        # （発注せずログのみ）。reconcile が失敗しても以降の取引サイクルは通常通り継続する。
+        if bitbank_client is not None and get_threshold(
+            "position_management.reconciliation.enabled", False
+        ):
+            try:
+                from src.trading.reconciliation import create_reconciler
+
+                await create_reconciler(bitbank_client, logger=logger).reconcile_once()
+            except Exception as e:
+                if logger:
+                    logger.warning(f"⚠️ Phase 90π reconcile 失敗（継続・取引は通常通り）: {e}")
+
         try:
-            bitbank_client = getattr(orchestrator.execution_service, "bitbank_client", None)
             if bitbank_client is not None:
                 margin_positions = await bitbank_client.fetch_margin_positions("BTC/JPY")
         except Exception as e:

@@ -795,6 +795,15 @@ position_management:
   # これを超えたら新規エントリーを物理的に止める。fixed_table.high=0.02 と同値＝「1ポジ分まで」。
   # 2026-06-15 の重複エントリーでサイズが 0.0325 BTC に膨張し一括SLで-3,277円を出した事故への構造対策。
   max_total_position_btc: 0.02
+  # Phase 90π: TP/SL Reconciliation Loop（実建玉を唯一の真実源とする冪等な裸ポジ防止）
+  # 毎サイクル「実建玉>0 なら必ず実効SLが存在、さもなくば成行決済」を構造的に保証する。
+  # 状態管理の二重化（VP/永続化/Firestore/実ポジ）が招いた裸ポジ再発（2026-06-16）の根治。
+  #   R0: enabled=true / shadow_mode=true（発注せずログのみ・1週間観察）
+  #   R1: shadow_mode=false（実発注・Phase 87 C1 dry_run 解除と同時）
+  reconciliation:
+    enabled: true   # R0: shadow 稼働開始（2026-06-17）
+    shadow_mode: true  # 発注せずログのみ。R1 で false（実発注・dry_run解除と同時）
+    coverage_ratio: 0.95  # SL/TP が建玉のこの割合以上で「足りている」
   # Phase 86: 孤児ポジション定期スキャン間隔（旧30分→5分に短縮）
   # SL未設置の孤児ポジを最大5分以内に検出し、自動修復するためのインターバル
   orphan_scan:
