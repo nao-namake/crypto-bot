@@ -2,8 +2,23 @@
 
 ## 現在の状態
 
-**Phase 90ξ ライブ分析スクリプトの本番WARNING誤検知3件を修正 完了（2026-06-15）。直近の 90λ/μ/ν は本番デプロイ済み・稼働中。**
+**Phase 90ο ポジション状態の単一情報源化 + invariant常時監視（6/15ドカンの根源治療）Stage 0/1/3 デプロイ完了（2026-06-15・リビジョン`0615-2112`・CI/CD success）。**
 
+### 🔴 次の最優先: Phase 90ο Stage 2（サイズ判定の信頼度一元化・別タスク）
+6/15ドカンの3層原因のうち③（サイズが`ml_confidence`=max(p0,p1)で決まり、失敗を強く確信した低品質エントリーでも最大サイズ0.02を取る）が未対処。**収益性に影響するためStage 0/1/3（構造治療）と分離**した。
+- **接点**: `src/trading/risk/manager.py:295`（`calculate_integrated_position_size`に渡す信頼度を`ml_confidence`→`adjusted_confidence`へ）/ `src/trading/risk/sizer.py:222`（`_get_fixed_position_size`は名前維持・渡す値だけ変更）/ `src/trading/position/limits.py:417`（`_check_trade_size`の信頼度も`adjusted_confidence or confidence_level`へ統一）。
+- **信頼度の定義**: `confidence_level`=ml_confidence=max(p0,p1)（現サイズ用）/ `adjusted_confidence`=strategy_confidence±penalty/bonus（TP/SL用・方向の質）。TP/SLは既に`adjusted_confidence or confidence_level`（`tp_sl_manager.py:2256`）。
+- **手順**: `thresholds.yaml`に`position_sizing.use_adjusted_confidence`フラグ（default false）を設け、**バックテスト（`/backtest`→`/backtest-analysis`）で旧/新のサイズ分布・PnL・最大DDを比較**してから true 化・本番投入。`tests/integration/test_confidence_backward_compat.py`に「adjusted優先・None時フォールバック・サイズ非増加方向」を追加。
+- 詳細プラン: `~/.claude/plans/c-majestic-lake.md` の「別タスク」/ `docs/開発履歴/Phase_90.md` の Phase 90ο「別タスク（Stage 2・未着手）」。
+
+### Phase 90ο デプロイ後検証（数サイクル蓄積後）
+`venv/bin/python3 scripts/live/standard_analysis.py` で ①invariant違反ログ0（`🚨 Phase 90ο invariant違反`）②重複エントリー0・建玉合計≤0.02 ③10009時の`monitor_only`フォールバック/エントリー拒否 を確認。
+
+---
+
+### 履歴（デプロイ済み）
+
+- **Phase 90ο**（2026-06-15デプロイ）: 上記。Stage 0=gating合計サイズ上限`max_total_position_btc=0.02`+取得失敗時monitor_only（`563cd1f5`）/ Stage 1=`check_limits`実ポジ基準化・取得失敗=拒否（`2cb93c74`）/ Stage 3=`tp_sl_manager._check_position_invariants`常時監視+ライブ分析可視化（`1fe431fb`）。テスト20件・checks.sh全PASS・取引挙動は正常時不変
 - **Phase 90λ**（2026-06-05）: bitbank 50026を孤児SL解消済み=成功扱い + GCPログ精査の所見3件
 - **Phase 90μ**（2026-06-05デプロイ）: SLMonitor誤発火 Fire #2(fetch_error_persistent) 真因修正（合成ID`market_close_*`の幽霊VP即除去 + C7残量ガード対称適用）。デプロイ後 Fire #2 誤発火0確認・`dry_run:true`維持
 - **Phase 90ν**（2026-06-06デプロイ）: ライブ分析の解釈改善（誤発火reason別・drift retrainベース判定）+ SL引き下げ調査（90日277件で SL1750/1500 は期待値悪化→**SL2000維持・6月様子見→7月再判断**）
