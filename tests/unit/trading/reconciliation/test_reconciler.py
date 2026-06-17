@@ -132,3 +132,17 @@ async def test_regression_shadow_does_not_close():
     )
     await _reconciler(client, shadow=True).reconcile_once()
     assert client.created_orders == []
+
+
+@pytest.mark.asyncio
+async def test_regression_micro_position_cleanup():
+    # 今回の 0.0018 微小ポジ（固定SL距離が破綻）→ micro判定 → 成行clean-up（残さない）
+    client = FakeBitbankClient(
+        positions=[make_position("short", 0.0018, 10_537_098)],
+        active_orders=[],
+        price=10_400_000,
+    )
+    await _reconciler(client, shadow=False).reconcile_once()
+    markets = [o for o in client.created_orders if o["order_type"] == "market"]
+    assert len(markets) == 1  # 微小端数 → 成行決済で残さない
+    assert markets[0]["side"] == "buy"  # short の決済 = buy

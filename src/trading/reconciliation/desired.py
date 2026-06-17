@@ -40,6 +40,8 @@ class DesiredConfig:
     sl_floor_ratio: float = 0.007
     sl_floor_enabled: bool = True
     min_valid_btc: float = 0.001
+    # 固定金額SL距離が floor のこの倍数を超えたら「微小端数」= clean-up 対象
+    micro_sl_multiple: float = 5.0
 
 
 def load_desired_config() -> DesiredConfig:
@@ -59,6 +61,9 @@ def load_desired_config() -> DesiredConfig:
         sl_floor_ratio=get_threshold("position_management.stop_loss.min_distance.ratio", 0.007),
         sl_floor_enabled=get_threshold("position_management.stop_loss.min_distance.enabled", False),
         min_valid_btc=get_threshold("position_management.min_valid_position_btc", 0.001),
+        micro_sl_multiple=get_threshold(
+            "position_management.reconciliation.micro_sl_multiple", 5.0
+        ),
     )
 
 
@@ -98,6 +103,13 @@ def compute_desired_state(actual: ActualState, config: DesiredConfig) -> Desired
             min_distance_ratio=config.sl_floor_ratio,
             enable_floor=config.sl_floor_enabled,
         )
-        sides[ps] = DesiredSide(position_side=ps, amount=st.amount, tp_price=tp, sl_price=sl)
+        # 微小端数判定: 固定金額SL距離が floor の micro_sl_multiple 倍を超える
+        # = amount が小さすぎて固定金額SLが機能しない（例: 0.0018 BTC で距離10%）→ clean-up 対象
+        sl_distance = abs(sl - st.avg_price)
+        floor_distance = st.avg_price * config.sl_floor_ratio
+        is_micro = floor_distance > 0 and sl_distance > floor_distance * config.micro_sl_multiple
+        sides[ps] = DesiredSide(
+            position_side=ps, amount=st.amount, tp_price=tp, sl_price=sl, is_micro=is_micro
+        )
 
     return DesiredState(long=sides["long"], short=sides["short"])

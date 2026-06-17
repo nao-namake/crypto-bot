@@ -80,3 +80,14 @@ class TestComputeDesiredState:
         d = compute_desired_state(_actual(long=_side("long", amount=0.02)), conf_nofloor)
         sl_distance = AVG - d.long.sl_price
         assert sl_distance < AVG * 0.007  # floor無効なので狭い距離が許される
+
+    def test_micro_position_flagged(self):
+        # 0.0018 BTC → 固定SL距離が floor の5倍超 → is_micro=True（clean-up対象）
+        d = compute_desired_state(_actual(long=_side("long", amount=0.0018)), CONF)
+        assert d.long is not None
+        assert d.long.is_micro is True
+
+    def test_normal_position_not_micro(self):
+        # 0.015 BTC（標準）→ is_micro=False
+        d = compute_desired_state(_actual(long=_side("long", amount=0.015)), CONF)
+        assert d.long.is_micro is False

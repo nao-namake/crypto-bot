@@ -166,3 +166,11 @@ class TestDiffToActions:
         desired = _desired(short=_dside("short", tp=10_500_000, sl=10_700_000))
         actions = diff_to_actions(actual, desired)
         assert ActionType.PLACE_SL in _types(actions, ps="short")
+
+    def test_micro_position_market_close(self):
+        # is_micro=True の建玉 → SL設置でなく MARKET_CLOSE（clean-up）
+        actual = _actual(long=_side("long", amount=0.0018, sl_amount=0.0), price=10_600_000)
+        desired = _desired(long=DesiredSide("long", 0.0018, TP, SL, is_micro=True))
+        types = _types(diff_to_actions(actual, desired))
+        assert ActionType.MARKET_CLOSE in types
+        assert ActionType.PLACE_SL not in types

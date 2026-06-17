@@ -154,6 +154,8 @@ class DesiredSide:
     amount: float
     tp_price: float
     sl_price: float
+    # 微小端数（固定金額SL距離が floor の数倍に破綻するサイズ）= clean-up 対象
+    is_micro: bool = False
 
 
 @dataclass(frozen=True)

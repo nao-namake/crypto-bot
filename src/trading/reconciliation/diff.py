@@ -70,6 +70,11 @@ def diff_to_actions(
             actions.append(ReconcileAction.noop("desired_missing_for_position", ps))
             continue
 
+        # 1.5 微小端数（固定金額SLが距離破綻するサイズ）→ SL設置せず成行で残さない（clean-up）
+        if d.is_micro:
+            actions.append(ReconcileAction.market_close(ps, st.amount, "micro_position_cleanup"))
+            continue
+
         # 2. 価格 SL 割れ → 成行決済（stop 再配置の罠を回避）。このサイドは以降触らない
         if is_sl_breached(ps, actual.current_price, d.sl_price):
             actions.append(ReconcileAction.market_close(ps, st.amount, "sl_breached_market_close"))
