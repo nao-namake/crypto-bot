@@ -86,12 +86,13 @@ class Reconciler:
         # E. 実行（shadow_mode なら発注せずログのみ）
         report = await self.executor.apply(all_actions)
 
-        # F. サマリ（NOOP 以外があれば可視化）
+        # F. サマリ。R0(shadow) は生存確認のため毎サイクル出力（フラットでも reconcile が
+        #    動いていることを可視化）。R1(live) は是正 action があった時のみ。
         non_noop = [r for r in report.results if r.status != "noop"]
-        if non_noop:
+        if non_noop or self.shadow_mode:
             mode = "SHADOW" if self.shadow_mode else "LIVE"
             self.logger.warning(
-                f"🔧 Phase 90π reconcile[{mode}]: {report.summary()} "
+                f"🔧 Phase 90π reconcile[{mode}]: {report.summary() or 'no-op'} "
                 f"(actions={len(all_actions)}, "
                 f"long={actual.long.amount:.4f}, short={actual.short.amount:.4f})"
             )
