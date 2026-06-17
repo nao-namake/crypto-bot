@@ -2,29 +2,33 @@
 
 ## 現在の状態
 
-**Phase 90π TP/SL管理の Reconciliation Loop 全面再設計 R0 デプロイ完了（2026-06-17・commit`ba21a359` + 生存ログ修正`c3d2ae5a`・CI/CD success）。**
+**Phase 90π TP/SL管理の Reconciliation Loop 全面再設計 R1（実発注 + 微小端数clean-up）移行（2026-06-18・commit`ce5d1b28`・CI実行中→デプロイ）。**
 
-6/16〜17の**裸ポジ事故**（0.02 BTC long が SL失効=CANCELED_UNFILLED で裸→成行決済・**実損-2,000円**）を根治するため、TP/SL管理を **Reconciliation Loop** に全面再設計。新規 `src/trading/reconciliation/`（actions/state/desired/diff/invariants/executor/reconciler の7モジュール・純粋関数中心）で**実建玉(fetch_margin_positions)を唯一の真実源**とし毎サイクル desired↔actual の差分を**冪等**に埋める（K8s Operator/Freqtrade 同型）。「実建玉>0なら必ず実効SL存在、さもなくば成行決済」を invariant で構造保証し**裸ポジを根治**。テスト53件（`tests/unit/trading/reconciliation/`）・checks.sh全PASS。plan: `~/.claude/plans/tpsl-bitbank-lexical-quail.md`。
+Reconciliation Loop（新規 `src/trading/reconciliation/` 7モジュール・**実建玉(fetch_margin_positions)を唯一の真実源**とし毎サイクル desired↔actual の差分を**冪等**に埋める・裸ポジを invariant で根治）を **R0（shadow）→ R1（実発注）** へ移行。R0 shadow で本番の reconcile 動作を確証（**裸ポジ検知・no-op正常・誤MARKET_CLOSE提案0**）。ただし R0 観察中に **0.0018 BTC short の裸ポジ事象**が発生：標準0.015でなく微小端数0.0018が残り、固定金額SL(2000円)÷微小amountで**SL距離が約10%(11,627,135円)に破綻**→SL設置が失敗しループ。**手動で成行決済しフラット化**して対処した。これを受け**微小端数 clean-up を追加**：`desired.py` で固定SL距離が floor(0.7%) の5倍を超えるサイズを `is_micro` 判定／`diff.py` で `is_micro`→`MARKET_CLOSE`（SL設置でなく成行で残さない）／設定 `position_management.reconciliation.micro_sl_multiple=5.0`。テスト57件（`tests/unit/trading/reconciliation/`・micro判定・micro→MARKET_CLOSE・0.0018回帰を追加）・checks.sh全PASS。plan: `~/.claude/plans/tpsl-bitbank-lexical-quail.md`。
 
-### 🔴 次の最優先: Phase 90π R0 観察 → R1 移行判断（約1週間）
+### 🔴 次の最優先: Phase 90π R1 デプロイ→実建玉での reconcile 実SL設置を監視（次に建玉が出たとき）
 
-R0=`reconciliation.enabled=true`/`shadow_mode=true`（**発注せずログのみ**・既存TP/SL経路が並行稼働で挙動不変）でデプロイ済み。GCPログで毎サイクル `🔧 Phase 90π reconcile[SHADOW]` による**生存確認**＋**誤MARKET_CLOSE提案0**を約1週間観察し、安定を確認できたら **R1**（`shadow_mode=false` + Phase 87 C1 `dry_run`解除＝実発注で裸ポジ是正）へ移行する。
+R1=`reconciliation.shadow_mode=false`（**reconcile が実際に裸ポジを是正**＝SL欠損→実SL設置 / 価格割れ・微小端数→成行決済）へ移行（commit`ce5d1b28`・CI実行中→デプロイ）。**現在フラットのため実建玉での実証はこれから**：次に建玉が出たとき GCPログで reconcile が実SLを設置するか・誤MARKET_CLOSE が出ないかを監視する。**Phase 87 C1 `dry_run` は維持**（解除しない）：reconcile が MARKET_CLOSE を担うため解除すると二重決済になる・reconcile が trigger 冒頭で先に是正→建玉消滅→C1 は無害。
 
 ```bash
-# R0 生存確認 + reconcile 提案の中身（誤MARKET_CLOSE提案0を確認）
+# R1 reconcile の実発注（PLACE_SL / MARKET_CLOSE）を確認
 gcloud logging read 'textPayload=~"Phase 90π"' --freshness=24h --format='value(textPayload)' | head -40
 
 # 日次のライブ健全性
 python3 scripts/live/standard_analysis.py
 ```
 
+**R0 で判明した事象**: R0 shadow で reconcile 動作を確証（裸ポジ検知・no-op正常・誤MARKET_CLOSE提案0）したが、観察中に **0.0018 BTC short の裸ポジ事象**が発生（標準0.015でなく微小端数0.0018が残り、固定SL2000円÷微小amountでSL距離が約10%(11,627,135円)に破綻→SL設置失敗ループ・**手動成行決済で対処**）。→ **微小端数 clean-up を追加**（`desired.py` で固定SL距離が floor(0.7%) の5倍超を `is_micro` 判定／`diff.py` で `is_micro`→`MARKET_CLOSE`／`micro_sl_multiple=5.0`）。
+
+**効果と限界（正直に）**: 「今日のような長時間SL未設置」は起きなくなる（5分ごと実是正＋micro clean-up）。ただし「一瞬も裸にしない」ではない（5分サイクルの隙間）。
+
 **段階デプロイ**:
-- **R0**（デプロイ済）= `shadow_mode=true`（発注せずログのみ・shadow時は毎サイクル `🔧 Phase 90π reconcile[SHADOW]` で生存可視化・既存挙動不変）。1週間観察し誤MARKET_CLOSE提案0を確認。
-- **R1** = `shadow_mode=false` + Phase 87 C1 `dry_run`解除（実発注で裸ポジ是正）。
-- **R2** = エントリーTP/SL統合。
+- **R0**（完了）= `shadow_mode=true`（発注せずログのみ・`🔧 Phase 90π reconcile[SHADOW]` で生存可視化・既存挙動不変）。reconcile 動作を本番確証（裸ポジ検知・no-op正常・誤MARKET_CLOSE提案0）。
+- **R1**（デプロイ中）= `shadow_mode=false`（実発注で裸ポジ是正＝SL欠損→実SL設置 / 価格割れ・微小端数→成行決済）。Phase 87 C1 `dry_run` は二重決済回避のため**維持**。
+- **R2** = エントリーTP/SLを `desired.py` 共有に統合。
 - **R3** = 旧コード（tp_sl_manager 等の重複経路）削除。
 
-**派生課題（未対応）**: ログPnL（Phase 61.9 `-425円`）が実口座損益（`-2,000円`）と乖離（成行スリッページ+往復手数料約420円+金利約85円を建値ベース概算が未計上）→ライブ分析の損益をbitbank実口座基準にすべき。
+**派生課題（未対応）**: ログPnL（Phase 61.9）が実口座損益と乖離（成行スリッページ+往復手数料+金利を建値ベース概算が未計上）→ライブ分析の損益をbitbank実口座基準にすべき。
 
 ### 🔵 別タスク: Phase 90ο Stage 2（サイズ判定の信頼度一元化）
 6/15ドカンの3層原因のうち③（サイズが`ml_confidence`=max(p0,p1)で決まり、失敗を強く確信した低品質エントリーでも最大サイズ0.02を取る）が未対処。**収益性に影響するためStage 0/1/3（構造治療）と分離**した。
@@ -40,7 +44,7 @@ python3 scripts/live/standard_analysis.py
 
 ### 履歴（デプロイ済み）
 
-- **Phase 90π**（2026-06-17デプロイ）: TP/SL管理を Reconciliation Loop に全面再設計（新規`src/trading/reconciliation/`7モジュール・実建玉を唯一の真実源・desired↔actual差分を冪等に埋める・裸ポジを invariant で根治）。R0=`shadow_mode=true`（発注せずログのみ・既存経路並行で挙動不変）。テスト53件・checks.sh全PASS。commit `ba21a359`+`c3d2ae5a`
+- **Phase 90π**（2026-06-17 R0デプロイ → 2026-06-18 R1移行）: TP/SL管理を Reconciliation Loop に全面再設計（新規`src/trading/reconciliation/`7モジュール・実建玉を唯一の真実源・desired↔actual差分を冪等に埋める・裸ポジを invariant で根治）。R0=`shadow_mode=true`（発注せずログのみ）で reconcile 動作を本番確証（裸ポジ検知・no-op正常・誤MARKET_CLOSE提案0）。R0観察中の0.0018 BTC裸ポジ事象（微小端数でSL距離が約10%に破綻→手動決済）を受け微小端数 clean-up 追加（`desired.py`の`is_micro`判定／`diff.py`の`is_micro`→`MARKET_CLOSE`／`micro_sl_multiple=5.0`）。R1=`shadow_mode=false`（実発注で裸ポジ是正）・Phase 87 C1 `dry_run`は二重決済回避のため維持。テスト57件・checks.sh全PASS。commit `ba21a359`+`c3d2ae5a`+`ce5d1b28`
 - **Phase 90ο**（2026-06-15デプロイ）: 上記。Stage 0=gating合計サイズ上限`max_total_position_btc=0.02`+取得失敗時monitor_only（`563cd1f5`）/ Stage 1=`check_limits`実ポジ基準化・取得失敗=拒否（`2cb93c74`）/ Stage 3=`tp_sl_manager._check_position_invariants`常時監視+ライブ分析可視化（`1fe431fb`）。テスト20件・checks.sh全PASS・取引挙動は正常時不変
 - **Phase 90λ**（2026-06-05）: bitbank 50026を孤児SL解消済み=成功扱い + GCPログ精査の所見3件
 - **Phase 90μ**（2026-06-05デプロイ）: SLMonitor誤発火 Fire #2(fetch_error_persistent) 真因修正（合成ID`market_close_*`の幽霊VP即除去 + C7残量ガード対称適用）。デプロイ後 Fire #2 誤発火0確認・`dry_run:true`維持
