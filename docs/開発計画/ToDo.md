@@ -2,9 +2,31 @@
 
 ## 現在の状態
 
-**Phase 90ο ポジション状態の単一情報源化 + invariant常時監視（6/15ドカンの根源治療）Stage 0/1/3 デプロイ完了（2026-06-15・リビジョン`0615-2112`・CI/CD success）。**
+**Phase 90π TP/SL管理の Reconciliation Loop 全面再設計 R0 デプロイ完了（2026-06-17・commit`ba21a359` + 生存ログ修正`c3d2ae5a`・CI/CD success）。**
 
-### 🔴 次の最優先: Phase 90ο Stage 2（サイズ判定の信頼度一元化・別タスク）
+6/16〜17の**裸ポジ事故**（0.02 BTC long が SL失効=CANCELED_UNFILLED で裸→成行決済・**実損-2,000円**）を根治するため、TP/SL管理を **Reconciliation Loop** に全面再設計。新規 `src/trading/reconciliation/`（actions/state/desired/diff/invariants/executor/reconciler の7モジュール・純粋関数中心）で**実建玉(fetch_margin_positions)を唯一の真実源**とし毎サイクル desired↔actual の差分を**冪等**に埋める（K8s Operator/Freqtrade 同型）。「実建玉>0なら必ず実効SL存在、さもなくば成行決済」を invariant で構造保証し**裸ポジを根治**。テスト53件（`tests/unit/trading/reconciliation/`）・checks.sh全PASS。plan: `~/.claude/plans/tpsl-bitbank-lexical-quail.md`。
+
+### 🔴 次の最優先: Phase 90π R0 観察 → R1 移行判断（約1週間）
+
+R0=`reconciliation.enabled=true`/`shadow_mode=true`（**発注せずログのみ**・既存TP/SL経路が並行稼働で挙動不変）でデプロイ済み。GCPログで毎サイクル `🔧 Phase 90π reconcile[SHADOW]` による**生存確認**＋**誤MARKET_CLOSE提案0**を約1週間観察し、安定を確認できたら **R1**（`shadow_mode=false` + Phase 87 C1 `dry_run`解除＝実発注で裸ポジ是正）へ移行する。
+
+```bash
+# R0 生存確認 + reconcile 提案の中身（誤MARKET_CLOSE提案0を確認）
+gcloud logging read 'textPayload=~"Phase 90π"' --freshness=24h --format='value(textPayload)' | head -40
+
+# 日次のライブ健全性
+python3 scripts/live/standard_analysis.py
+```
+
+**段階デプロイ**:
+- **R0**（デプロイ済）= `shadow_mode=true`（発注せずログのみ・shadow時は毎サイクル `🔧 Phase 90π reconcile[SHADOW]` で生存可視化・既存挙動不変）。1週間観察し誤MARKET_CLOSE提案0を確認。
+- **R1** = `shadow_mode=false` + Phase 87 C1 `dry_run`解除（実発注で裸ポジ是正）。
+- **R2** = エントリーTP/SL統合。
+- **R3** = 旧コード（tp_sl_manager 等の重複経路）削除。
+
+**派生課題（未対応）**: ログPnL（Phase 61.9 `-425円`）が実口座損益（`-2,000円`）と乖離（成行スリッページ+往復手数料約420円+金利約85円を建値ベース概算が未計上）→ライブ分析の損益をbitbank実口座基準にすべき。
+
+### 🔵 別タスク: Phase 90ο Stage 2（サイズ判定の信頼度一元化）
 6/15ドカンの3層原因のうち③（サイズが`ml_confidence`=max(p0,p1)で決まり、失敗を強く確信した低品質エントリーでも最大サイズ0.02を取る）が未対処。**収益性に影響するためStage 0/1/3（構造治療）と分離**した。
 - **接点**: `src/trading/risk/manager.py:295`（`calculate_integrated_position_size`に渡す信頼度を`ml_confidence`→`adjusted_confidence`へ）/ `src/trading/risk/sizer.py:222`（`_get_fixed_position_size`は名前維持・渡す値だけ変更）/ `src/trading/position/limits.py:417`（`_check_trade_size`の信頼度も`adjusted_confidence or confidence_level`へ統一）。
 - **信頼度の定義**: `confidence_level`=ml_confidence=max(p0,p1)（現サイズ用）/ `adjusted_confidence`=strategy_confidence±penalty/bonus（TP/SL用・方向の質）。TP/SLは既に`adjusted_confidence or confidence_level`（`tp_sl_manager.py:2256`）。
@@ -18,6 +40,7 @@
 
 ### 履歴（デプロイ済み）
 
+- **Phase 90π**（2026-06-17デプロイ）: TP/SL管理を Reconciliation Loop に全面再設計（新規`src/trading/reconciliation/`7モジュール・実建玉を唯一の真実源・desired↔actual差分を冪等に埋める・裸ポジを invariant で根治）。R0=`shadow_mode=true`（発注せずログのみ・既存経路並行で挙動不変）。テスト53件・checks.sh全PASS。commit `ba21a359`+`c3d2ae5a`
 - **Phase 90ο**（2026-06-15デプロイ）: 上記。Stage 0=gating合計サイズ上限`max_total_position_btc=0.02`+取得失敗時monitor_only（`563cd1f5`）/ Stage 1=`check_limits`実ポジ基準化・取得失敗=拒否（`2cb93c74`）/ Stage 3=`tp_sl_manager._check_position_invariants`常時監視+ライブ分析可視化（`1fe431fb`）。テスト20件・checks.sh全PASS・取引挙動は正常時不変
 - **Phase 90λ**（2026-06-05）: bitbank 50026を孤児SL解消済み=成功扱い + GCPログ精査の所見3件
 - **Phase 90μ**（2026-06-05デプロイ）: SLMonitor誤発火 Fire #2(fetch_error_persistent) 真因修正（合成ID`market_close_*`の幽霊VP即除去 + C7残量ガード対称適用）。デプロイ後 Fire #2 誤発火0確認・`dry_run:true`維持
