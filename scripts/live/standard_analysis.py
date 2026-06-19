@@ -1065,12 +1065,12 @@ class BotFunctionChecker:
                 "expected": 0.10,
                 "default": 0.20,
             },
-            # Phase 90δ: TP1500→1200 引き下げ（実運用は confidence_based 高1200/低1000、
-            # SL は 2000 維持。regime_based は未適用 dead code）
+            # Phase 90ρ (2026-06-19): TP1200/1000→800 引き下げ（90日216件シミュ+30日BTで
+            # TP800/SL2000 が期待値ピーク+46円/件。confidence_based 高800/低800・SL2000維持）
             "固定金額TP目標": {
                 "path": "position_management.take_profit.fixed_amount.target_net_profit",
-                "expected": 1200,
-                "default": 1200,
+                "expected": 800,
+                "default": 800,
             },
             "固定金額SL目標": {
                 "path": "position_management.stop_loss.fixed_amount.target_max_loss",
