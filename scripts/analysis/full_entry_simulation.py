@@ -91,6 +91,12 @@ SCENARIOS = [
         "sl_amount": 1750.0,
         "floor": 0.007,
     },
+    # Part 2 調査（2026-06-19）: TP引き下げ仮説検証（SL固定・TPを段階的に下げる）。
+    # 「TPを下げると TP約定しやすくなり SL率が下がる」→ TP利益も減るため期待値/件で判断する。
+    {"name": "TP800 /SL2000 TP引下", "tp_amount": 800.0, "sl_amount": 2000.0, "floor": 0.007},
+    {"name": "TP600 /SL2000 TP引下", "tp_amount": 600.0, "sl_amount": 2000.0, "floor": 0.007},
+    {"name": "TP800 /SL1500 TP引下", "tp_amount": 800.0, "sl_amount": 1500.0, "floor": 0.007},
+    {"name": "TP600 /SL1500 TP引下", "tp_amount": 600.0, "sl_amount": 1500.0, "floor": 0.007},
     # 比較用
     {"name": "TP1200/SL800 (floor無し)", "tp_amount": 1200.0, "sl_amount": 800.0, "floor": 0.0},
     {"name": "TP1000/SL1000(floor無し)", "tp_amount": 1000.0, "sl_amount": 1000.0, "floor": 0.0},

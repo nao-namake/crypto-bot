@@ -882,7 +882,7 @@ position_management:
       # Phase 85: tight_range基準のTP目標。レジーム別はregime_basedで個別設定
       # 過去30日 tight 29件で TP1500/SL2000 floor 0.7% が勝率67.9%/+362円/件 黒字確認
       # Phase 90δ: 1500→1200（confidence_based 無効時のフォールバックも新基準に統一）
-      target_net_profit: 1200
+      target_net_profit: 800  # 2026-06-19 TP引下検証: 1200→800（confidence_based有効時は上書き）
       # Phase 90δ (2026-05-30): TP を high 1500→1200 / low 1200→1000 に引き下げ。
       # TP距離 0.956%→0.79%（高信頼度）で利確しやすくし、長時間保有→SL反転リスクを低減。
       # SL は維持（ノイズ耐性優先）のため RR は 1.02→0.83 を許容。
@@ -891,8 +891,8 @@ position_management:
       confidence_based:
         enabled: true
         threshold: 0.4
-        low: 1000  # Phase 90δ: 1200→1000
-        high: 1200  # Phase 90δ: 1500→1200
+        low: 800  # 2026-06-19 TP引下検証: 1000→800（90日216件・SL1500維持で -49→-20円改善）
+        high: 800  # 2026-06-19 TP引下検証: 1200→800（SL2000維持で -19→+46円/件・期待値ピーク）
       # Phase 90ε (2026-05-30): 土日TP一律縮小。
       # 日本の土日はBTCが狭いレンジに収まりやすく、TP1000-1200円（距離0.79%）では
       # 約定しないまま月曜を迎えるケースが多発。土日は信頼度に関係なくTPを500円

@@ -689,8 +689,12 @@ class BotFunctionCheckResult:
     fixed_tp_recovery_count: int = 0
     unified_tp_placement_count: int = 0
     coverage_deficit_count: int = 0
-    # Phase 90ο Stage 3: ポジション invariant 違反（VP↔実ポジ乖離・建玉サイズ膨張）
+    # Phase 90ο Stage 3 + Phase 90π R1: invariant 違反（種別分類）と reconcile 是正状況
     invariant_violation_count: int = 0
+    invariant_size_violation_count: int = 0
+    invariant_vp_drift_count: int = 0
+    reconcile_live_count: int = 0
+    reconcile_action_count: int = 0
 
     # スコア
     normal_checks: int = 0
@@ -1491,22 +1495,73 @@ class BotFunctionChecker:
             self.logger.warning(f"⚠️ Phase 89 機能カバレッジ確認失敗: {e}")
 
     def _check_phase90o_invariants(self):
-        """Phase 90ο Stage 3: ポジション invariant 違反の検知（VP↔実ポジ乖離・サイズ膨張）。
+        """Phase 90ο Stage 3 + Phase 90π R1: invariant 違反の種別分類と reconcile 是正の突合。
 
-        tp_sl_manager._check_position_invariants が毎サイクル出す CRITICAL ログを集計し、
-        状態管理のズレ（2026-06-15 のサイズ膨張型ドカンの再発シグナル）を可視化する。
+        invariant 違反を 2 種に分類して扱う:
+        - 「建玉合計 > 上限」= 真のサイズ膨張（2026-06-15 ドカン型の再発シグナル）→ CRITICAL 維持。
+        - 「VP↔実ポジ乖離」= scale-to-zero 再起動による VP キャッシュ揮発。Phase 90π R1 reconcile
+          は実建玉を真実源に毎サイクル SL を是正するため、reconcile[LIVE] が稼働していれば実害なし
+          → WARNING に降格（旧実装は両者を一括 CRITICAL 扱いし「致命的:1」を恒常的に誤警告していた）。
+
+        併せて reconcile[LIVE] の稼働サイクル数と是正アクション（SL配置・成行決済）を可視化する。
         """
-        self.logger.info("🔍 Phase 90ο invariant 監視確認")
-        self.result.invariant_violation_count = self._count_logs(
-            'textPayload:"Phase 90ο invariant違反"', 20
+        self.logger.info("🔍 Phase 90ο/90π invariant 監視 + reconcile 突合確認")
+
+        # 違反を種別分類（旧実装は両者を区別せず一括 CRITICAL だった）
+        size_violations = self._count_logs('textPayload:"Phase 90ο invariant違反: 建玉合計"', 20)
+        vp_drift_violations = self._count_logs(
+            'textPayload:"Phase 90ο invariant違反: VP↔実ポジ乖離"', 20
         )
-        if self.result.invariant_violation_count > 0:
+        self.result.invariant_size_violation_count = size_violations
+        self.result.invariant_vp_drift_count = vp_drift_violations
+        self.result.invariant_violation_count = size_violations + vp_drift_violations
+
+        # Phase 90π R1 reconcile の稼働確認 + 是正アクション集計
+        reconcile_live = self._count_logs('textPayload:"reconcile[LIVE]"', 50)
+        reconcile_sl_place = self._count_logs('textPayload:"Phase 90π reconcile: SL配置"', 30)
+        reconcile_market_close = self._count_logs(
+            'textPayload:"Phase 90π reconcile: 裸ポジ成行決済"', 30
+        )
+        self.result.reconcile_live_count = reconcile_live
+        self.result.reconcile_action_count = reconcile_sl_place + reconcile_market_close
+        r1_active = reconcile_live > 0
+
+        if r1_active:
+            self.logger.info(
+                f"  ✅ Phase 90π R1 reconcile[LIVE] 稼働中: {reconcile_live} サイクル "
+                f"(SL配置 {reconcile_sl_place} / 成行決済 {reconcile_market_close})"
+            )
+        else:
+            self.logger.info(
+                "  ℹ️ Phase 90π reconcile[LIVE] ログなし（shadow_mode / R1 未デプロイ / ローカル実行）"
+            )
+
+        # 1. 真のサイズ膨張 → CRITICAL（reconcile の有無に関わらず即時調査）
+        if size_violations > 0:
             self.logger.critical(
-                f"  🚨 Phase 90ο invariant違反 {self.result.invariant_violation_count} 件検出 "
-                f"（VP↔実ポジ乖離 or 建玉サイズ膨張・状態管理の再発の疑い）"
+                f"  🚨 Phase 90ο invariant違反: 建玉サイズ膨張 {size_violations} 件 "
+                f"（上限超過・Stage 0/1 すり抜けの疑い・2026-06-15 ドカン型の再発シグナル）"
             )
             self.result.critical_issues += 1
-        else:
+
+        # 2. VP↔実ポジ乖離 → R1 稼働中なら WARNING（VP キャッシュ揮発・reconcile が実害を是正済み）
+        if vp_drift_violations > 0:
+            if r1_active:
+                self.logger.warning(
+                    f"  ⚠️ Phase 90ο invariant: VP↔実ポジ乖離 {vp_drift_violations} 件 "
+                    f"（scale-to-zero による VP キャッシュ揮発。Phase 90π R1 reconcile が実建玉基準で "
+                    f"SL を是正済みのため実害なし・reconcile[LIVE] {reconcile_live} サイクル）"
+                )
+                self.result.warning_issues += 1
+            else:
+                self.logger.critical(
+                    f"  🚨 Phase 90ο invariant違反: VP↔実ポジ乖離 {vp_drift_violations} 件 "
+                    f"（R1 reconcile 未稼働下での乖離・状態管理の再発の疑い）"
+                )
+                self.result.critical_issues += 1
+
+        # 3. 違反なし
+        if size_violations == 0 and vp_drift_violations == 0:
             self.logger.info("  ✅ Phase 90ο invariant 違反なし（VP↔実ポジ整合）")
             self.result.normal_checks += 1
 
