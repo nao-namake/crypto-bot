@@ -1767,14 +1767,6 @@ class LiveAnalysisResult:
     ml_model_level: int = -1  # 1=Full, 2=Basic, 3=Dummy
     ml_feature_count: int = 0  # 37 / 0（Phase 77: Full=Basic=37）
 
-    # Phase 62.16: スリッページ分析（6指標）
-    slippage_avg: float = 0.0  # 平均スリッページ（円）
-    slippage_max: float = 0.0  # 最大スリッページ（円）
-    slippage_min: float = 0.0  # 最小スリッページ（円）
-    slippage_count: int = 0  # スリッページ記録数
-    slippage_entry_avg: float = 0.0  # エントリー時平均スリッページ
-    slippage_exit_avg: float = 0.0  # 決済時平均スリッページ
-
     # Phase 62.18: SLパターン分析（GCPログベース）
     sl_pattern_total_executions: int = 0
     sl_pattern_tp_count: int = 0
@@ -2299,60 +2291,12 @@ class LiveAnalyzer:
                 # 最終取引時刻
                 self.result.last_trade_time = trades[0].get("timestamp")
 
-                # Phase 62.16: スリッページ分析
-                self._analyze_slippage(trades)
-
             self.logger.info(
                 f"取引履歴分析完了 - {self.result.trades_count}件, "
                 f"勝率: {self.result.win_rate:.1f}%, 損益: ¥{self.result.total_pnl:,.0f}"
             )
         except Exception as e:
             self.logger.error(f"取引履歴分析失敗: {e}")
-
-    def _analyze_slippage(self, trades: List[Dict[str, Any]]):
-        """
-        Phase 62.16: スリッページ分析
-
-        Args:
-            trades: 取引履歴リスト
-        """
-        # スリッページデータがある取引をフィルタ
-        trades_with_slippage = [t for t in trades if t.get("slippage") is not None]
-
-        if not trades_with_slippage:
-            self.logger.info("ℹ️ スリッページデータなし（Phase 62.16以前の取引）")
-            return
-
-        self.result.slippage_count = len(trades_with_slippage)
-        slippages = [t.get("slippage", 0) for t in trades_with_slippage]
-
-        # 全体統計
-        self.result.slippage_avg = sum(slippages) / len(slippages) if slippages else 0.0
-        self.result.slippage_max = max(slippages) if slippages else 0.0
-        self.result.slippage_min = min(slippages) if slippages else 0.0
-
-        # エントリー/決済別統計
-        entry_slippages = [
-            t.get("slippage", 0) for t in trades_with_slippage if t.get("trade_type") == "entry"
-        ]
-        exit_slippages = [
-            t.get("slippage", 0)
-            for t in trades_with_slippage
-            if t.get("trade_type") in ["tp", "sl", "exit"]
-        ]
-
-        if entry_slippages:
-            self.result.slippage_entry_avg = sum(entry_slippages) / len(entry_slippages)
-        if exit_slippages:
-            self.result.slippage_exit_avg = sum(exit_slippages) / len(exit_slippages)
-
-        self.logger.info(
-            f"📊 Phase 62.16: スリッページ分析 - "
-            f"件数: {self.result.slippage_count}, "
-            f"平均: ¥{self.result.slippage_avg:.0f}, "
-            f"最大: ¥{self.result.slippage_max:.0f}, "
-            f"最小: ¥{self.result.slippage_min:.0f}"
-        )
 
     async def _check_system_health(self):
         """システム健全性確認（6指標）"""
@@ -3303,28 +3247,6 @@ class LiveReportGenerator:
         # Stacking設定
         stacking_status = "有効" if result.stacking_enabled else "無効"
         lines.append(f"| Stacking設定 | {stacking_status} | - |")
-
-        # Phase 62.16: スリッページ分析セクション追加
-        if result.slippage_count > 0:
-            lines.extend(
-                [
-                    "",
-                    "---",
-                    "",
-                    "## スリッページ分析 (Phase 62.16)",
-                    "",
-                    "| 指標 | 値 | 備考 |",
-                    "|------|-----|------|",
-                    f"| 記録件数 | {result.slippage_count}件 | - |",
-                    f"| 平均スリッページ | ¥{result.slippage_avg:+,.0f} | 正=不利方向(buy時) |",
-                    f"| 最大スリッページ | ¥{result.slippage_max:+,.0f} | - |",
-                    f"| 最小スリッページ | ¥{result.slippage_min:+,.0f} | - |",
-                ]
-            )
-            if result.slippage_entry_avg != 0:
-                lines.append(f"| エントリー平均 | ¥{result.slippage_entry_avg:+,.0f} | - |")
-            if result.slippage_exit_avg != 0:
-                lines.append(f"| 決済平均 | ¥{result.slippage_exit_avg:+,.0f} | - |")
 
         # Phase 62.18: SLパターン分析セクション追加
         if result.sl_pattern_total_executions > 0:

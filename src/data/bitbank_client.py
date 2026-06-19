@@ -583,6 +583,14 @@ class BitbankClient:
                             "attempts": max_retries,
                         },
                     )
+            except DataFetchError:
+                # Phase 90σ: bitbank API のエラー応答（success!=1・例: code 10000＝
+                # 当日分の日次ファイル未生成）は「予期された API エラー」。日次バルク取得の
+                # 呼び出し元（fetch_ohlcv の 15m 経路）が WARNING + continue でカバーし、
+                # 全日失敗時のみ上位で DataFetchError を送出する。ここで except Exception に
+                # 流して「予期しないエラー」ERROR 化すると、毎日 00:00 UTC（当日分要求）に
+                # 実害のない ERROR が 1 件出続けるため、そのまま再送出してノイズを抑止する。
+                raise
             except Exception as e:
                 last_exception = e
                 self.logger.error(f"❌ {label}取得予期しないエラー: {type(e).__name__}: {e}")
