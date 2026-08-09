@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-08-02T10:54:27.563135",
+  "created_at": "2026-08-09T10:02:14.509456",
   "model_type": "ProductionEnsemble",
   "model_file": "models/production/ensemble_full.pkl",
   "version": "1.0.0",
@@ -76,52 +76,52 @@
   },
   "performance_metrics": {
     "lightgbm": {
-      "accuracy": 0.6376260224462621,
-      "f1_score": 0.5697519430167288,
-      "precision": 0.5698151827102522,
-      "recall": 0.5696900394726224,
-      "cv_f1_mean": 0.5341062355752583,
-      "cv_f1_std": 0.03737227812732713,
-      "confidence_mean": 0.6299339016493807,
-      "confidence_std": 0.08708924415944516,
-      "confidence_min": 0.5000226983457678,
-      "confidence_max": 0.8769959375801131
+      "accuracy": 0.6775727601293513,
+      "f1_score": 0.5606445013720899,
+      "precision": 0.5749014188991988,
+      "recall": 0.5590265390626947,
+      "cv_f1_mean": 0.5426258906715459,
+      "cv_f1_std": 0.03204644842903397,
+      "confidence_mean": 0.636344318049728,
+      "confidence_std": 0.09606754386007714,
+      "confidence_min": 0.5000136739585367,
+      "confidence_max": 0.9442986687954962
     },
     "xgboost": {
-      "accuracy": 0.43123454441696785,
-      "f1_score": 0.4265129966886209,
-      "precision": 0.5685739392635945,
-      "recall": 0.5541967347092951,
-      "cv_f1_mean": 0.43034626565932255,
-      "cv_f1_std": 0.081810593940333,
-      "confidence_mean": 0.6083489060401917,
-      "confidence_std": 0.06668812036514282,
-      "confidence_min": 0.5000877380371094,
-      "confidence_max": 0.7897850275039673
+      "accuracy": 0.4980026631158455,
+      "f1_score": 0.497923525713752,
+      "precision": 0.6031594078266305,
+      "recall": 0.6058343925459913,
+      "cv_f1_mean": 0.4825817586822154,
+      "cv_f1_std": 0.026822331541482846,
+      "confidence_mean": 0.6148799657821655,
+      "confidence_std": 0.0743105411529541,
+      "confidence_min": 0.5000616312026978,
+      "confidence_max": 0.8759074211120605
     },
     "random_forest": {
-      "accuracy": 0.5702872360661975,
-      "f1_score": 0.5552705469029142,
-      "precision": 0.5760406019603344,
-      "recall": 0.5901280671120428,
-      "cv_f1_mean": 0.5047928185314696,
-      "cv_f1_std": 0.0700160137445752,
-      "confidence_mean": 0.609824617751768,
-      "confidence_std": 0.07960234100490922,
-      "confidence_min": 0.5000031615828677,
-      "confidence_max": 0.8665240211567745
+      "accuracy": 0.5912117177097204,
+      "f1_score": 0.56405859144451,
+      "precision": 0.5771210599498824,
+      "recall": 0.5944310336847427,
+      "cv_f1_mean": 0.5195007491255539,
+      "cv_f1_std": 0.009193760742151667,
+      "confidence_mean": 0.5869914716687015,
+      "confidence_std": 0.07026762288970505,
+      "confidence_min": 0.5000564528943244,
+      "confidence_max": 0.7713064978800982
     },
     "nbeats": {
-      "accuracy": 0.5847441506562678,
-      "f1_score": 0.5381348982935628,
-      "precision": 0.5396387780165797,
-      "recall": 0.5443327856270893,
-      "cv_f1_mean": 0.498141205595687,
-      "cv_f1_std": 0.04674841766490285,
-      "confidence_mean": 0.7592814564704895,
-      "confidence_std": 0.14747175574302673,
-      "confidence_min": 0.500076174736023,
-      "confidence_max": 0.9998598098754883
+      "accuracy": 0.5712383488681758,
+      "f1_score": 0.532067234149026,
+      "precision": 0.5404803338829423,
+      "recall": 0.5487228031573438,
+      "cv_f1_mean": 0.524551501041828,
+      "cv_f1_std": 0.015373489975549345,
+      "confidence_mean": 0.7782838940620422,
+      "confidence_std": 0.14843441545963287,
+      "confidence_min": 0.5000589489936829,
+      "confidence_max": 0.9998328685760498
     }
   },
   "training_info": {
@@ -129,8 +129,8 @@
     "feature_count": 55,
     "training_duration_seconds": 0,
     "class_distribution": {
-      "success": 0.3106931879797951,
-      "failure": 0.6893068120202048
+      "success": 0.31103564395993266,
+      "failure": 0.6889643560400673
     },
     "n_classes": 2,
     "optimal_threshold": 0.5,
@@ -140,8 +140,8 @@
     "meta_sl_ratio": 0.0086
   },
   "git_info": {
-    "commit": "a3d3f69f0442c025ef5f7977412b013713f0d531",
-    "commit_short": "a3d3f69f",
+    "commit": "d9ba4b557e340da435f818998236262357d963f3",
+    "commit_short": "d9ba4b55",
     "branch": "main"
   },
   "notes": "Phase 89-δ完了・55特徴量（funding/sentiment/microstructure/macro_lite/microstructure_advanced/cross_asset 追加）・N-BEATS 統合（4モデルensemble）・PurgedKFold・Early Stopping・SMOTE・Optuna最適化"
